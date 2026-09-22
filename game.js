@@ -1099,9 +1099,19 @@ const INITIAL_DEPOSITS = Object.freeze([
   { cell: 64, type: "clay" },
 ]);
 
+const EARLY_TUNNEL_ONE_DEPOSITS = Object.freeze([
+  { cell: 3, type: "copper" },
+  { cell: 8, type: "clay" },
+  { cell: 20, type: "clay" },
+  { cell: 34, type: "copper" },
+  { cell: 46, type: "clay" },
+  { cell: 60, type: "clay" },
+]);
+
 // Later tunnel milestones can add a pool here without changing the layer loop.
 const TUNNEL_ONE_SPAWN_POOLS = Object.freeze([
-  { startsAtBand: 1, deposits: INITIAL_DEPOSITS },
+  { startsAtBand: 1, deposits: EARLY_TUNNEL_ONE_DEPOSITS },
+  { startsAtBand: 3, deposits: INITIAL_DEPOSITS },
   {
     startsAtBand: 5,
     deposits: Object.freeze([
@@ -1167,18 +1177,6 @@ const TUNNEL_ONE_SPAWN_POOLS = Object.freeze([
       { cell: 53, type: "silver" },
       { cell: 61, type: "silver" },
       { cell: 64, type: "silver" },
-    ]),
-  },
-  {
-    startsAtBand: 24,
-    deposits: Object.freeze([
-      { cell: 2, type: "copper" },
-      { cell: 7, type: "copper" },
-      { cell: 14, type: "lead" },
-      { cell: 19, type: "lead" },
-      { cell: 25, type: "silver" },
-      { cell: 31, type: "silver" },
-      { cell: 38, type: "silver" },
     ]),
   },
   {

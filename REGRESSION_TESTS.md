@@ -30,7 +30,10 @@ future pipe systems) are not treated as current acceptance requirements.
   five Clay deposits.
 - Native Copper has three 8-HP segments; Malachite has three 3-HP segments;
   Clay has two 2-HP segments; Lead has five 10-HP segments.
+- Tunnel 1 Bands 1–2 have half the starter deposits (four Clay and two
+  Malachite before node doubling); Bands 3–4 use the full starter pool.
 - Tunnel 1 Band 5 contains five Clay, four Malachite, and three Lead deposits.
+- Tunnel 1 keeps the Band 20 pool through Band 24; Zinc joins at Band 25.
 - Mine information lists only deposit types in the active band’s spawn pool,
   while keeping a depleted type visible until the player changes band.
 - Target information shows current and maximum HP for the active segment.

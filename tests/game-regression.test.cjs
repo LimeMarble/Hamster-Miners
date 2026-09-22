@@ -442,7 +442,18 @@ test("host-rock digging yield increases additively by tunnel and band", () => {
 test("spawn pools change only at the specified band threshold", () => {
   const firstBand = game.getSpawnPoolForBand(1, 1);
   assert.deepEqual(new Set(firstBand.map(({ type }) => type)), new Set(["copper", "clay"]));
-  assert.equal(firstBand.length, 24);
+  assert.equal(firstBand.filter(({ type }) => type === "clay").length, 8);
+  assert.equal(firstBand.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(firstBand.length, 12);
+
+  const bandTwo = game.getSpawnPoolForBand(2, 1);
+  assert.deepEqual(bandTwo, firstBand);
+
+  const bandThree = game.getSpawnPoolForBand(3, 1);
+  assert.equal(bandThree.filter(({ type }) => type === "clay").length, 16);
+  assert.equal(bandThree.filter(({ type }) => type === "copper").length, 8);
+  assert.equal(bandThree.length, 24);
+  assert.deepEqual(game.getSpawnPoolForBand(4, 1), bandThree);
 
   const bandFive = game.getSpawnPoolForBand(5, 1);
   assert.equal(bandFive.filter(({ type }) => type === "clay").length, 10);
@@ -482,13 +493,13 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.equal(bandTwenty.filter(({ type }) => type === "silver").length, 8);
 
   const bandTwentyFour = game.getSpawnPoolForBand(24, 1);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 4);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 4);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 6);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 8);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 6);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 8);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "beryl").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawAquamarine").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawEmerald").length, 0);
-  assert.equal(new Set(bandTwentyFour.map(({ cell }) => cell)).size, bandTwentyFour.length);
+  assert.deepEqual(bandTwentyFour, bandTwenty);
   const bandTwentyFive = game.getSpawnPoolForBand(25, 1);
   assert.equal(bandTwentyFive.filter(({ type }) => type === "zinc").length, 4);
   assert.equal(bandTwentyFive.filter(({ type }) => type === "beryl").length, 0);
