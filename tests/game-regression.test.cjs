@@ -43,6 +43,35 @@ test("Hamster Cloners notation rules remain stable", () => {
   assert.equal(game.formatCash(1.25e3), "$1.25k");
 });
 
+test("main and beta deployments use isolated browser save keys", () => {
+  const originalLocation = global.window.location;
+  try {
+    global.window.location = { pathname: "/hamster-miners/" };
+    assert.equal(game.getActiveSaveKey(), "hamster-miners-save");
+
+    global.window.location = { pathname: "/hamster-miners/beta/" };
+    assert.equal(game.getActiveSaveKey(), "hamster-miners-save-beta");
+    assert.equal(game.getSaveKeyForPath("/hamster-miners/beta/index.html"), "hamster-miners-save-beta");
+
+    global.window.location = { pathname: "/hamster-miners/beta-preview/" };
+    assert.equal(game.getActiveSaveKey(), "hamster-miners-save");
+  } finally {
+    global.window.location = originalLocation;
+  }
+});
+
+test("GitHub Pages deploy workflow publishes main at root and beta below /beta", () => {
+  const workflow = fs.readFileSync(
+    path.join(__dirname, "..", ".github", "workflows", "deploy-pages.yml"),
+    "utf8",
+  );
+  assert.match(workflow, /- main\s+- beta/);
+  assert.match(workflow, /ref: main/);
+  assert.match(workflow, /ref: beta/);
+  assert.match(workflow, /source\/main\/ _site\//);
+  assert.match(workflow, /source\/beta\/ _site\/beta\//);
+});
+
 test("simulation keeps its deliberate 10 FPS cadence", () => {
   assert.equal(game.CONFIG.simulationFramesPerSecond, 10);
   assert.equal(game.CONFIG.factoryRenderFramesPerSecond, 10);

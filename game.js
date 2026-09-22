@@ -2289,7 +2289,7 @@ function hydrateSavedState(savedState) {
 
 function loadSavedGame() {
   try {
-    const encodedPayload = window.localStorage.getItem(CONFIG.saveKey);
+    const encodedPayload = window.localStorage.getItem(getActiveSaveKey());
     if (!encodedPayload) {
       return null;
     }
@@ -2327,7 +2327,7 @@ function snapshotCurrentTunnelProgress() {
 function saveGame() {
   try {
     const encodedPayload = getEncodedSaveGame();
-    window.localStorage.setItem(CONFIG.saveKey, encodedPayload);
+    window.localStorage.setItem(getActiveSaveKey(), encodedPayload);
     return encodedPayload;
   } catch {
     // A blocked or full browser store should not interrupt the prototype.
@@ -12148,6 +12148,17 @@ function formatQuantity(value) {
   return formatPlainNumber(normalized, 12);
 }
 
+function getSaveKeyForPath(pathname) {
+  const pathSegments = String(pathname ?? "").split("/").filter(Boolean);
+  return pathSegments.includes("beta")
+    ? `${CONFIG.saveKey}-beta`
+    : CONFIG.saveKey;
+}
+
+function getActiveSaveKey() {
+  return getSaveKeyForPath(window.location?.pathname);
+}
+
 function setTextContentIfChanged(element, value) {
   if (!element) {
     return false;
@@ -12247,7 +12258,7 @@ function hardResetGame() {
   }
 
   try {
-    window.localStorage.removeItem(CONFIG.saveKey);
+    window.localStorage.removeItem(getActiveSaveKey());
   } catch {
     // Replacing state and saving the new game below is still the best fallback.
   }
@@ -12277,6 +12288,8 @@ function startGameLoop() {
 if (IS_NODE_TEST_ENVIRONMENT) {
   module.exports = {
     CONFIG,
+    getSaveKeyForPath,
+    getActiveSaveKey,
     FACTORY_COLUMNS,
     FACTORY_ROWS,
     FACTORY_STARTER_COLUMN_OFFSET,
