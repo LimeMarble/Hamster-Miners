@@ -2059,7 +2059,7 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .factory-machine-controls {
   position: fixed;
-  z-index: 21;
+  z-index: 40;
   bottom: 1rem;
   left: 1rem;
   display: grid;
@@ -2070,6 +2070,7 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   border-radius: 0.65rem;
   background: rgba(18, 25, 18, 0.94);
   box-shadow: 0 0.8rem 1.8rem rgba(0, 0, 0, 0.26);
+  pointer-events: auto;
 }
 
 .factory-machine-controls[hidden] {

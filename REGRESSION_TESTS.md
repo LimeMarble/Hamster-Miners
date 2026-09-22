@@ -28,8 +28,8 @@ future pipe systems) are not treated as current acceptance requirements.
 - Tunnel 1 starts at 100 HP, Limestone host rock, and Malachite/Clay deposits.
 - Tunnel 2 starts at 250 HP, Granite host rock, and five Native Copper plus
   five Clay deposits.
-- Native Copper has three 15-HP segments; Malachite has three 5-HP segments;
-  Clay has two 4-HP segments; Lead has five 10-HP segments.
+- Native Copper has three 8-HP segments; Malachite has three 3-HP segments;
+  Clay has two 2-HP segments; Lead has five 10-HP segments.
 - Tunnel 1 Band 5 contains five Clay, four Malachite, and three Lead deposits.
 - Mine information lists only deposit types in the active band’s spawn pool,
   while keeping a depleted type visible until the player changes band.
@@ -71,16 +71,33 @@ future pipe systems) are not treated as current acceptance requirements.
 - Route Native Copper through a Leek Duster and then a Sell Tube: it sells for `$6.25`.
 - Send Duster-processed Malachite into a Clay Kiln and Ingot Molder: the resulting ingot has value `$25` (`$6.25 × 4`).
 - Send unmodified Malachite or Native Copper through the Clay Kiln and Ingot Molder: either ingot has value `$20` (`$5 × 4`).
-- Send a fresh `$20` ingot through the Annealer and Sell Tube: it sells for `$34` (`$20 × 1.7`).
-- Send a Duster-processed `$25` ingot through the Annealer and Sell Tube: it sells for `$42.50` (`$25 × 1.7`).
+- Send a fresh `$10` Copper Wire through the Annealer and Sell Tube: it sells for `$17` (`$10 × 1.7`).
+- Fresh Wires, pressed metal Plates, and Silver-Copper Contacts each receive one ×1.7 value pass; raw ores and ingots are not accepted.
+- Mineral ammo still receives ×1.7 damage from the Annealer; Leek ammo is not accepted.
 - Put an ingot into Material Storage, then output it to a Sell Tube: it resets to the `$20` minimum before later upgrades.
-- Route an ingot through Duster after Annealer and verify the ×1.25 and ×1.7 effects are each applied once, not twice.
+- Route annealed Wire through Duster and verify the ×1.25 and ×1.7 effects are each applied once, not twice.
 - Lead cannot be sold.
 - Rock Shack remains crew-free and applies its additive value effect only on
   its built-in conveyor tile.
 - Bronze Pillars accepts sellables with base value at least `$20` and current
   value below `$50k`, multiplies by ×1.4, tracks three uses per item, and lets
   the final output exceed `$50k`.
+- Bronze Stamp and Bronze Pillars keep per-item use tags through same-product
+  remelting, but reset those tags when processing changes a sellable's material
+  type; the already-earned value remains, and the new product can qualify anew.
+- Primitive Upgrader is 1×2 like Granite Processor, with two independent
+  horizontal speed-4 lanes. It costs $45, 10 Leek, and 10 Clay; uses no crew;
+  requires at least $1 base value; adds $0.50 per pass; and stops at $15.
+- Three Primitive Upgrader passes take Silver from $8.50 to exactly $10, while
+  Malachite Ore remains ineligible and non-sellables pass through unchanged.
+- Granite-Copper Annealer retains its existing cash, Granite, and Copper Ingot
+  costs and additionally requires 50 Copper Wires, gating purchase after wire
+  production is available.
+- The smelting value marker survives remelting, so an already-smelted ingot
+  does not receive the ×4 ore-to-ingot value increase again.
+- The Stacker keeps sellables with different cash-upgrader use tags in separate
+  batches. Material-specific eligibility flags remain controlled by their own
+  processing machines.
 
 ## Ammunition
 
@@ -114,6 +131,9 @@ future pipe systems) are not treated as current acceptance requirements.
   modes, orientation, and identity.
 - Selected machine action buttons stay mounted while process countdowns tick;
   only their status text updates during the job.
+- Factory marquee selection requires at least 8 pixels of pointer travel;
+  releasing over the floating machine controls cancels the marquee, and Move
+  activates on pointer-down before any underlying grid interaction.
 - Material chunks render oval, ingots render half-height, and plates can remain
   visually distinct later.
 - Clay Kiln arrows and all rotated internal-conveyor arrows remain visible.

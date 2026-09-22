@@ -115,6 +115,7 @@ test("machine categories cover the catalogue and preserve dual-purpose machines"
 
   assert.deepEqual(game.getMachineCategories("contactMaker"), ["material", "cash"]);
   assert.deepEqual(game.getMachineCategories("graphiteCopperAnnealer"), ["ammo", "cash"]);
+  assert.deepEqual(game.getMachineCategories("primitiveUpgrader"), ["cash"]);
   assert.equal(game.machineBelongsToCategory("contactMaker", "material"), true);
   assert.equal(game.machineBelongsToCategory("contactMaker", "cash"), true);
   assert.equal(game.machineBelongsToCategory("graphiteCopperAnnealer", "ammo"), true);
@@ -237,6 +238,42 @@ test("factory marquee selection moves a group without changing relative position
   );
 });
 
+test("factory marquee requires an intentional drag and ignores control-panel releases", () => {
+  assert.equal(
+    game.hasFactoryMarqueeExceededDragThreshold({ x: 20, y: 20 }, { x: 25, y: 24 }),
+    false,
+  );
+  assert.equal(
+    game.hasFactoryMarqueeExceededDragThreshold({ x: 20, y: 20 }, { x: 26, y: 26 }),
+    true,
+  );
+
+  const moveButton = {};
+  const controls = { contains: (target) => target === moveButton };
+  assert.equal(
+    game.shouldFinalizeFactoryMarquee({ event: { target: moveButton } }, controls),
+    false,
+  );
+  const positionedControls = {
+    contains: () => false,
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100 }),
+  };
+  assert.equal(
+    game.shouldFinalizeFactoryMarquee({
+      event: { target: {}, clientX: 50, clientY: 50 },
+    }, positionedControls),
+    false,
+  );
+  assert.equal(
+    game.shouldFinalizeFactoryMarquee({ event: { target: {} } }, controls),
+    true,
+  );
+
+  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  assert.match(source, /moveMachineButton\.addEventListener\("pointerdown"/);
+  assert.match(source, /bindImmediateAction\(elements\.moveMachineButton, moveSelectedFactoryEntities\)/);
+});
+
 test("factory multi-pickup returns selected conveyors and recovers their cargo", () => {
   const first = {
     column: 10,
@@ -298,12 +335,14 @@ test("mining definitions preserve the agreed deposit durability and yields", () 
     label: "Malachite ore",
     shortLabel: "Cu",
     segments: 3,
-    hitPointsPerSegment: 5,
+    hitPointsPerSegment: 3,
     yield: 2,
     stockpileKey: "copper",
   });
-  assert.equal(game.RESOURCE_DEFINITIONS.nativeCopper.hitPointsPerSegment, 15);
+  assert.equal(game.RESOURCE_DEFINITIONS.nativeCopper.hitPointsPerSegment, 8);
   assert.equal(game.RESOURCE_DEFINITIONS.nativeCopper.segments, 3);
+  assert.equal(game.RESOURCE_DEFINITIONS.copper.hitPointsPerSegment, 3);
+  assert.equal(game.RESOURCE_DEFINITIONS.clay.hitPointsPerSegment, 2);
   assert.equal(game.RESOURCE_DEFINITIONS.clay.yield, 3);
   assert.equal(game.RESOURCE_DEFINITIONS.lead.segments, 5);
   assert.equal(game.RESOURCE_DEFINITIONS.lead.hitPointsPerSegment, 10);
@@ -324,8 +363,13 @@ test("mining definitions preserve the agreed deposit durability and yields", () 
 test("deposits receive their material-specific segment health", () => {
   const nativeCopper = game.createDeposit({ cell: 0, type: "nativeCopper" }, 0);
   assert.equal(nativeCopper.segmentsRemaining, 3);
-  assert.equal(nativeCopper.currentSegmentHitPoints, 15);
-  assert.equal(nativeCopper.hitPointsPerSegment, 15);
+  assert.equal(nativeCopper.currentSegmentHitPoints, 8);
+  assert.equal(nativeCopper.hitPointsPerSegment, 8);
+
+  const malachite = game.createDeposit({ cell: 1, type: "copper" }, 0);
+  const clay = game.createDeposit({ cell: 2, type: "clay" }, 0);
+  assert.equal(malachite.currentSegmentHitPoints, 3);
+  assert.equal(clay.currentSegmentHitPoints, 2);
 });
 
 test("mine layers, host rocks, and yield growth match the current tunnel rules", () => {
@@ -1006,6 +1050,8 @@ test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier"
     material: "bronzeIngot",
     quantity: 1,
     saleValueBase: 25,
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
   }, 2, 3);
   game.updateCrewOperatedMachines(0);
   assert.equal(state.kilnJobs.length, 1);
@@ -1013,6 +1059,60 @@ test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier"
   assert.equal(state.moltenCopper[0].material, "bronze");
   assert.equal(state.moltenCopper[0].sourceValueIsEffective, true);
   assert.equal(state.moltenCopper[0].sourceValue, 25);
+  assert.equal(state.moltenCopper[0].sourceMaterial, "bronzeIngot");
+  assert.deepEqual(state.moltenCopper[0].cashUpgraderEligibility, {
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
+  });
+});
+
+test("same-product remelting preserves cash upgrader uses, while a new ingot type resets them", () => {
+  const furnace = machine("miniElectricArcFurnace", "tag-remelt-furnace", 0, 0);
+  const molder = machine("ingotMolder", "tag-remelt-molder", 3, 0);
+  const state = freshState({
+    machines: [furnace, molder],
+    crew: { total: 2 },
+  });
+  const input = {
+    kind: "material",
+    material: "silverIngot",
+    quantity: 1,
+    saleValueBase: 100,
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
+  };
+
+  assert.equal(game.receiveConveyorItem(input, 0, 1), true);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].sourceMaterial, "silverIngot");
+  game.updateCrewOperatedMachines(2);
+  assert.equal(state.molderJobs[0].sourceMaterial, "silverIngot");
+  assert.deepEqual(state.molderJobs[0].cashUpgraderEligibility, {
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
+  });
+  game.updateCrewOperatedMachines(1);
+
+  const remelted = state.internalConveyorItems[`${molder.instanceId}:0`];
+  assert.equal(remelted.material, "silverIngot");
+  assert.equal(remelted.saleValueBase, 100, "remelting does not apply the smelting multiplier again");
+  assert.equal(remelted.bronzeStampUses, 2);
+  assert.equal(remelted.bronzePillarsUses, 1);
+
+  state.internalConveyorItems = {};
+  game.completeMolderJob({
+    molderInstanceId: molder.instanceId,
+    material: "silver",
+    sourceMaterial: "silver",
+    sourceValue: 8.5,
+    sourceValueIsEffective: false,
+    cashUpgraderEligibility: { bronzeStampUses: 2, bronzePillarsUses: 1 },
+  });
+  const firstSilverIngot = state.internalConveyorItems[`${molder.instanceId}:0`];
+  assert.equal(firstSilverIngot.material, "silverIngot");
+  assert.equal(firstSilverIngot.saleValueBase, 34);
+  assert.equal(firstSilverIngot.bronzeStampUses, undefined);
+  assert.equal(firstSilverIngot.bronzePillarsUses, undefined);
 });
 
 test("Clay Kilns and Ingot Molders support Silver", () => {
@@ -1031,7 +1131,7 @@ test("Clay Kilns and Ingot Molders support Silver", () => {
   assert.equal(output.saleValueBase, 34);
 });
 
-test("Granite-Copper Annealer accepts fresh Silver Ingots", () => {
+test("Granite-Copper Annealer accepts only advanced metal products and mineral ammo", () => {
   const annealer = machine("graphiteCopperAnnealer", "annealer-silver", 4, 4);
   freshState({ machines: [annealer] });
   const processConveyor = {
@@ -1047,9 +1147,43 @@ test("Granite-Copper Annealer accepts fresh Silver Ingots", () => {
     saleValueBase: 34,
     freshMoldedAt: Date.now(),
   };
-  assert.equal(game.canItemLeaveConveyor(processConveyor, ingot), true);
+  assert.equal(game.canItemLeaveConveyor(processConveyor, ingot), false);
   game.transformItemLeavingConveyor(processConveyor, ingot);
-  assert.equal(ingot.annealedValueMultiplier, game.ANNEALER_MULTIPLIER);
+  assert.equal(ingot.annealedValueMultiplier, undefined);
+  assert.equal(ingot.saleValueBase, 34);
+
+  const advancedProducts = [
+    "wire",
+    "copperPlate",
+    "brittleCopperPlate",
+    "silverPlate",
+    "tinPlate",
+    "bronzePlate",
+    "ironPlate",
+    "contact",
+  ];
+  advancedProducts.forEach((material) => {
+    const product = {
+      kind: "material",
+      material,
+      quantity: 1,
+      saleValueBase: 10,
+      freshMoldedAt: Date.now() - 3.6e6,
+    };
+    assert.equal(game.canItemLeaveConveyor(processConveyor, product), true, material);
+    game.transformItemLeavingConveyor(processConveyor, product);
+    assert.equal(product.annealedValueMultiplier, game.ANNEALER_MULTIPLIER, material);
+    assert.equal(product.freshMoldedAt, null, material);
+    assert.equal(game.getItemSaleValue(product), 17, material);
+  });
+
+  const ore = { kind: "material", material: "copper", saleValueBase: 5, freshMoldedAt: Date.now() };
+  const nonMetal = { kind: "material", material: "leek", saleValueBase: 5, freshMoldedAt: Date.now() };
+  assert.equal(game.canItemLeaveConveyor(processConveyor, ore), false);
+  assert.equal(game.canItemLeaveConveyor(processConveyor, nonMetal), false);
+  assert.equal(game.canItemLeaveConveyor(processConveyor, {
+    kind: "ammo", material: "copper", damage: 3, casterFinishedAt: Date.now(),
+  }), true);
 });
 
 test("Sell Tubes accept every sellable material, including Silver", () => {
@@ -1071,13 +1205,19 @@ test("machine instance ids are repaired uniquely on load", () => {
 });
 
 test("shop affordability requires both cash and every listed material", () => {
-  const state = freshState({ cash: 70 });
+  assert.deepEqual(game.MACHINE_PURCHASES.graphiteCopperAnnealer, {
+    cash: 700,
+    materials: { granite: 150, copperIngot: 20, wire: 50 },
+  });
+  const state = freshState({ cash: 700 });
   state.stockpile.granite = 150;
   state.stockpile.copperIngot = 19;
   assert.equal(game.canAffordMachinePurchase("graphiteCopperAnnealer"), false);
   state.stockpile.copperIngot = 20;
+  assert.equal(game.canAffordMachinePurchase("graphiteCopperAnnealer"), false);
+  state.stockpile.wire = 50;
   assert.equal(game.canAffordMachinePurchase("graphiteCopperAnnealer"), true);
-  state.cash = 69;
+  state.cash = 699;
   assert.equal(game.canAffordMachinePurchase("graphiteCopperAnnealer"), false);
 
   state.cash = 100;
@@ -1365,7 +1505,8 @@ test("Buckshot limits a single ore to two landed pellets per shot", () => {
   game.fireLeek("manual");
 
   assert.equal(game.BUCKSHOT_MAX_HITS_PER_DEPOSIT, 2);
-  assert.equal(deposit.currentSegmentHitPoints, 1);
+  assert.equal(deposit.segmentsRemaining, 2);
+  assert.equal(deposit.currentSegmentHitPoints, 3);
   assert.equal(state.ammoStacks.length, 0);
   assert.equal(state.shotsFired, 1);
 });
@@ -1543,6 +1684,8 @@ test("Extruder wire mode converts copper ingots into five individually valued wi
     quantity: 1,
     saleValueBase: 20,
     freshMoldedAt: Date.now(),
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
   };
 
   game.transformItemLeavingConveyor(processConveyor, ingot);
@@ -1551,6 +1694,9 @@ test("Extruder wire mode converts copper ingots into five individually valued wi
   assert.equal(ingot.quantity, 5);
   assert.equal(ingot.saleValueBase, 10);
   assert.equal(game.getItemSaleValue(ingot), 10);
+  assert.ok(Number.isFinite(ingot.freshMoldedAt));
+  assert.equal(ingot.bronzeStampUses, undefined);
+  assert.equal(ingot.bronzePillarsUses, undefined);
 });
 
 test("Leek Fiber Extractor has the specified cost and footprint", () => {
@@ -1630,11 +1776,16 @@ test("Leek Fiber Extractor and Contact Maker process their specified recipes", (
     material: "wire",
     quantity: 5,
     saleValueBase: 52,
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
   });
   assert.equal(contacts.material, "contact");
   assert.equal(contacts.quantity, 5);
   assert.equal(contacts.saleValueBase, 174);
   assert.equal(contacts.baseValue, 8.8);
+  assert.ok(Number.isFinite(contacts.freshMoldedAt));
+  assert.equal(contacts.bronzeStampUses, undefined);
+  assert.equal(contacts.bronzePillarsUses, undefined);
   assert.deepEqual(game.__getState().contactMakerInputs[maker.instanceId], {
     fiber: 0,
     silver: 0.5,
@@ -1672,6 +1823,8 @@ test("Contact Maker scales fiber, silver, value, and output for stacked wires", 
     material: "wire",
     quantity: 15,
     saleValueBase: 52,
+    bronzeStampUses: 3,
+    bronzePillarsUses: 2,
   };
 
   assert.equal(game.canItemLeaveConveyor(contactConveyor, wires), true);
@@ -1680,6 +1833,9 @@ test("Contact Maker scales fiber, silver, value, and output for stacked wires", 
   assert.equal(contacts.quantity, 15);
   assert.equal(contacts.saleValueBase, 174);
   assert.equal(contacts.baseValue, 8.8);
+  assert.ok(Number.isFinite(contacts.freshMoldedAt));
+  assert.equal(contacts.bronzeStampUses, undefined);
+  assert.equal(contacts.bronzePillarsUses, undefined);
   assert.deepEqual(state.contactMakerInputs[maker.instanceId], {
     fiber: 0,
     silver: 0.5,
@@ -1822,6 +1978,88 @@ test("Granite Processor uses base-value eligibility and a sub-$50 input window",
   assert.equal(rejected.saleValueBase, 5);
 });
 
+test("Primitive Upgrader applies capped additive value only to eligible sellables", () => {
+  assert.equal(game.PRIMITIVE_UPGRADER_VALUE_BONUS, 0.5);
+  assert.equal(game.PRIMITIVE_UPGRADER_MIN_BASE_VALUE, 1);
+  assert.equal(game.PRIMITIVE_UPGRADER_MAX_VALUE, 15);
+  assert.deepEqual(game.MACHINE_PURCHASES.primitiveUpgrader, {
+    cash: 45,
+    materials: { leek: 10, clay: 10 },
+  });
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(markup, /data-inventory-machine="primitiveUpgrader"/);
+  assert.match(markup, /data-shop-machine="primitiveUpgrader"/);
+  assert.match(markup, /id="selectPrimitiveUpgraderButton"/);
+  assert.match(markup, /id="buyPrimitiveUpgraderButton"/);
+  assert.deepEqual(game.getMachineCategories("primitiveUpgrader"), ["cash"]);
+
+  const layout = game.MACHINE_LAYOUT.primitiveUpgrader;
+  assert.equal(layout.width, 1);
+  assert.equal(layout.height, 2);
+  assert.equal(layout.width, game.MACHINE_LAYOUT.graniteProcessor.width);
+  assert.equal(layout.height, game.MACHINE_LAYOUT.graniteProcessor.height);
+  assert.deepEqual(layout.internalConveyors, [
+    { column: 0, row: 0, direction: "right", speed: 4 },
+    { column: 0, row: 1, direction: "right", speed: 4 },
+  ]);
+
+  const upgrader = machine("primitiveUpgrader", "primitive-a", 3, 3);
+  const state = freshState({ cash: 45, machines: [upgrader] });
+  state.stockpile.leek = 10;
+  state.stockpile.clay = 10;
+  assert.equal(game.getBusyCrew(), 0);
+  assert.equal(game.canAffordMachinePurchase("primitiveUpgrader"), true);
+  assert.equal(game.purchaseMachine("primitiveUpgrader"), true);
+  assert.equal(state.cash, 0);
+  assert.equal(state.stockpile.leek, 0);
+  assert.equal(state.stockpile.clay, 0);
+  assert.equal(state.machineInventory.primitiveUpgrader, 1);
+
+  const lanes = game.getInternalConveyorTiles(upgrader);
+  const processConveyor = {
+    ...lanes[0],
+    internalMachineId: "primitiveUpgrader",
+    internalMachineInstanceId: upgrader.instanceId,
+    internalIndex: 0,
+  };
+  const malachite = {
+    kind: "material", material: "copper", quantity: 1, saleValueBase: 0.5, baseValue: 0.5,
+  };
+  game.transformItemLeavingConveyor(processConveyor, malachite);
+  assert.equal(malachite.saleValueBase, 0.5);
+
+  const silver = {
+    kind: "material", material: "silver", quantity: 1, saleValueBase: 8.5, baseValue: 8.5,
+  };
+  for (let pass = 0; pass < 3; pass += 1) {
+    game.transformItemLeavingConveyor(processConveyor, silver);
+  }
+  assert.equal(silver.saleValueBase, 10);
+
+  const almostCapped = {
+    kind: "material", material: "silverIngot", quantity: 1, saleValueBase: 14.75, baseValue: 34,
+  };
+  game.transformItemLeavingConveyor(processConveyor, almostCapped);
+  assert.equal(almostCapped.saleValueBase, 15);
+  game.transformItemLeavingConveyor(processConveyor, almostCapped);
+  assert.equal(almostCapped.saleValueBase, 15);
+
+  const nonSellable = { kind: "material", material: "leekFiber", quantity: 1 };
+  game.transformItemLeavingConveyor(processConveyor, nonSellable);
+  assert.equal(nonSellable.saleValueBase, undefined);
+
+  const secondLaneItem = {
+    kind: "material", material: "silver", quantity: 1, saleValueBase: 8.5, baseValue: 8.5,
+  };
+  game.transformItemLeavingConveyor({
+    ...lanes[1],
+    internalMachineId: "primitiveUpgrader",
+    internalMachineInstanceId: upgrader.instanceId,
+    internalIndex: 1,
+  }, secondLaneItem);
+  assert.equal(secondLaneItem.saleValueBase, 9);
+});
+
 test("Bronze Stamp has six additive uses per item and no value ceiling", () => {
   assert.equal(game.BRONZE_STAMP_MAX_USES, 6);
   const layout = game.MACHINE_LAYOUT.bronzeStamp;
@@ -1894,6 +2132,47 @@ test("Bronze Stamp has six additive uses per item and no value ceiling", () => {
   assert.equal(formerlyCapped.bronzeStampUses, 1);
 });
 
+test("cash upgrader eligibility resets on a sellable material change, then applies to the new type", () => {
+  const press = machine("metalPress", "tag-reset-press", 0, 0);
+  const stamp = machine("bronzeStamp", "tag-reset-stamp", 5, 0);
+  freshState({ machines: [press, stamp] });
+
+  const ingot = {
+    kind: "material",
+    material: "bronzeIngot",
+    quantity: 1,
+    saleValueBase: 500,
+    baseValue: 20,
+    bronzeStampUses: game.BRONZE_STAMP_MAX_USES,
+    bronzePillarsUses: game.BRONZE_PILLARS_MAX_USES,
+    dusted: true,
+    dusterEligible: false,
+  };
+  const pressOutput = {
+    internalMachineId: "metalPress",
+    internalMachineInstanceId: press.instanceId,
+    internalIndex: 1,
+  };
+  game.transformItemLeavingConveyor(pressOutput, ingot);
+
+  assert.equal(ingot.material, "bronzePlate");
+  assert.equal(ingot.saleValueBase, 500, "the already-earned value remains baked in");
+  assert.equal(ingot.bronzeStampUses, undefined);
+  assert.equal(ingot.bronzePillarsUses, undefined);
+  assert.equal(ingot.dusted, true, "material-specific flags remain under their machine's rules");
+  assert.equal(ingot.dusterEligible, false);
+
+  const stampOutput = {
+    ...game.getInternalConveyorTiles(stamp)[0],
+    internalMachineId: "bronzeStamp",
+    internalMachineInstanceId: stamp.instanceId,
+    internalIndex: 0,
+  };
+  game.transformItemLeavingConveyor(stampOutput, ingot);
+  assert.equal(ingot.saleValueBase, 600);
+  assert.equal(ingot.bronzeStampUses, 1);
+});
+
 test("Quartz Wheel Cutter has two slow lines and converts Malachite with fractional yield and value", () => {
   const layout = game.MACHINE_LAYOUT.quartzWheelCutter;
   assert.equal(layout.width, 4);
@@ -1943,6 +2222,8 @@ test("Quartz Wheel Cutter has two slow lines and converts Malachite with fractio
       baseValue: 0.5,
       saleValueBonus: 0,
       dusted: true,
+      bronzeStampUses: 4,
+      bronzePillarsUses: 2,
     };
     game.transformItemLeavingConveyor(conveyor, ore);
     assert.equal(ore.material, "cutMalachite");
@@ -1951,6 +2232,8 @@ test("Quartz Wheel Cutter has two slow lines and converts Malachite with fractio
     assert.equal(ore.baseValue, 125);
     assert.equal(ore.dusted, true);
     assert.equal(ore.dusterEligible, false);
+    assert.equal(ore.bronzeStampUses, undefined);
+    assert.equal(ore.bronzePillarsUses, undefined);
   }
 
   const recipe = game.CRAFTING_RECIPES.find(({ name }) => name === "Cut Malachite");
@@ -2336,7 +2619,7 @@ test("storage has the intentional $2 ingot minimum", () => {
   assert.equal(game.getSaleValue("brittleCopperIngot"), 2);
 });
 
-test("Annealer applies once to molded ingots and mineral bullet stacks after delays", () => {
+test("Annealer applies once to fresh wires and mineral bullet stacks after delays", () => {
   const annealer = machine("graphiteCopperAnnealer", "annealer-a", 5, 5);
   const state = freshState({ machines: [annealer], internalConveyorItems: {} });
   const output = {
@@ -2345,17 +2628,17 @@ test("Annealer applies once to molded ingots and mineral bullet stacks after del
     internalMachineInstanceId: "annealer-a",
     internalIndex: 2,
   };
-  const ingot = {
+  const wire = {
     kind: "material",
-    material: "brittleCopperIngot",
+    material: "wire",
     quantity: 1,
     saleValueBase: 2,
     freshMoldedAt: Date.now() - 3.6e6,
   };
-  game.transformItemLeavingConveyor(output, ingot);
-  assert.equal(game.getItemSaleValue(ingot), 3.4);
-  game.transformItemLeavingConveyor(output, ingot);
-  assert.equal(game.getItemSaleValue(ingot), 3.4);
+  game.transformItemLeavingConveyor(output, wire);
+  assert.equal(game.getItemSaleValue(wire), 3.4);
+  game.transformItemLeavingConveyor(output, wire);
+  assert.equal(game.getItemSaleValue(wire), 3.4);
 
   const bullets = {
     kind: "ammo",
@@ -2739,6 +3022,8 @@ test("Metal Press converts ingots into matching value-preserving plates", () => 
     quantity: 1,
     saleValueBase: 123,
     saleValueBonus: 4,
+    bronzeStampUses: 6,
+    bronzePillarsUses: 3,
   };
 
   const result = game.transformItemLeavingConveyor(conveyor, item);
@@ -2746,6 +3031,9 @@ test("Metal Press converts ingots into matching value-preserving plates", () => 
   assert.equal(result.material, "bronzePlate");
   assert.equal(result.saleValueBase, 123);
   assert.equal(result.saleValueBonus, 0);
+  assert.ok(Number.isFinite(result.freshMoldedAt));
+  assert.equal(result.bronzeStampUses, undefined);
+  assert.equal(result.bronzePillarsUses, undefined);
   assert.equal(game.MACHINE_PURCHASES.metalPress.cash, 5e4);
   assert.equal(game.MACHINE_PURCHASES.metalPress.materials.bronzeIngot, 20);
   assert.equal(state.machineInventory.metalPress, 0);
@@ -2801,6 +3089,20 @@ test("Stacker accepts three input directions and releases its configured batch s
   assert.equal(game.receiveConveyorItem(topInput, 2, 5), false);
   outputConveyor.item = null;
   assert.equal(game.canReceiveConveyorItem(topInput, 2, 5), true);
+});
+
+test("Stacker keeps different cash-upgrader eligibility tags in separate batches", () => {
+  const stacker = machine("stacker", "stacker-cash-tags", 2, 5);
+  stacker.stackSize = 3;
+  freshState({ machines: [stacker] });
+
+  const first = {
+    kind: "material", material: "bronzePlate", quantity: 1,
+    saleValueBase: 500, bronzeStampUses: 1,
+  };
+  const differentlyTagged = { ...first, bronzeStampUses: 2 };
+  assert.equal(game.receiveConveyorItem(first, 2, 5), true);
+  assert.equal(game.canReceiveConveyorItem(differentlyTagged, 2, 5), false);
 });
 
 test("Splitter matches the Stacker's logistics cost and 1x1 footprint", () => {

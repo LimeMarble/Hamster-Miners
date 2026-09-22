@@ -112,6 +112,7 @@ const LEAD_AMMO_DAMAGE = 5;
 
 const FACTORY_COLUMNS = 50;
 const FACTORY_ROWS = 30;
+const FACTORY_SELECTION_DRAG_THRESHOLD = 8;
 const LEGACY_FACTORY_COLUMNS = 16;
 const LEGACY_FACTORY_ROWS = 20;
 const FACTORY_STARTER_COLUMN_OFFSET = Math.floor((FACTORY_COLUMNS - LEGACY_FACTORY_COLUMNS) / 2);
@@ -168,7 +169,7 @@ const RESOURCE_DEFINITIONS = Object.freeze({
     label: "Malachite ore",
     shortLabel: "Cu",
     segments: 3,
-    hitPointsPerSegment: 5,
+    hitPointsPerSegment: 3,
     yield: 2,
     stockpileKey: "copper",
   },
@@ -176,7 +177,7 @@ const RESOURCE_DEFINITIONS = Object.freeze({
     label: "Native copper",
     shortLabel: "Cu",
     segments: 3,
-    hitPointsPerSegment: 15,
+    hitPointsPerSegment: 8,
     yield: 2,
     stockpileKey: "nativeCopper",
   },
@@ -184,7 +185,7 @@ const RESOURCE_DEFINITIONS = Object.freeze({
     label: "Kaolinite clay",
     shortLabel: "Cl",
     segments: 2,
-    hitPointsPerSegment: 4,
+    hitPointsPerSegment: 2,
     yield: 3,
     stockpileKey: "clay",
   },
@@ -511,7 +512,15 @@ const DUSTER_SELL_MULTIPLIER = 1.25;
 const DUSTER_INELIGIBLE_MATERIALS = Object.freeze(["cutMalachite"]);
 const ROCK_SHACK_VALUE_BONUS = 0.2;
 const ROCK_SHACK_VALUE_CAP = 1.5;
+const PRIMITIVE_UPGRADER_VALUE_BONUS = 0.5;
+const PRIMITIVE_UPGRADER_MIN_BASE_VALUE = 1;
+const PRIMITIVE_UPGRADER_MAX_VALUE = 15;
 const ANNEALER_MULTIPLIER = 1.7;
+const ANNEALER_VALUE_MATERIALS = Object.freeze([
+  "wire",
+  ...Object.values(INGOT_TO_PLATE),
+  "contact",
+]);
 const GRANITE_PROCESSOR_MULTIPLIER = 1.3;
 const GRANITE_PROCESSOR_MIN_BASE_VALUE = 1;
 const GRANITE_PROCESSOR_MIN_VALUE = 10;
@@ -523,6 +532,45 @@ const BRONZE_PILLARS_MULTIPLIER = 1.4;
 const BRONZE_PILLARS_MAX_USES = 3;
 const BRONZE_PILLARS_MIN_BASE_VALUE = 20;
 const BRONZE_PILLARS_MAX_VALUE = 5e4;
+const CASH_UPGRADER_ELIGIBILITY_TAGS = Object.freeze([
+  "bronzeStampUses",
+  "bronzePillarsUses",
+]);
+
+function getCashUpgraderEligibilityTags(item) {
+  if (item?.kind !== "material" || !isSellableMaterial(item.material, item)) {
+    return {};
+  }
+
+  return CASH_UPGRADER_ELIGIBILITY_TAGS.reduce((tags, tag) => {
+    if (Number.isInteger(item[tag]) && item[tag] > 0) {
+      tags[tag] = item[tag];
+    }
+    return tags;
+  }, {});
+}
+
+function resetCashUpgraderEligibilityOnMaterialChange(item, sourceMaterial, wasSellable) {
+  if (!wasSellable || item?.kind !== "material" || item.material === sourceMaterial) {
+    return;
+  }
+
+  CASH_UPGRADER_ELIGIBILITY_TAGS.forEach((tag) => {
+    delete item[tag];
+  });
+}
+
+function restoreCashUpgraderEligibilityForSameProduct(item, sourceMaterial, tags) {
+  if (sourceMaterial !== item?.material || item?.kind !== "material") {
+    return;
+  }
+
+  CASH_UPGRADER_ELIGIBILITY_TAGS.forEach((tag) => {
+    if (Number.isInteger(tags?.[tag]) && tags[tag] > 0) {
+      item[tag] = tags[tag];
+    }
+  });
+}
 
 function getBaseAmmoDamage(material) {
   if (material === "leek") {
@@ -611,10 +659,11 @@ function isSellableMaterial(material, item = null) {
 const MACHINE_PURCHASES = Object.freeze({
   conveyor: { cash: 100, materials: { limestone: 20, graphite: 1, wire: 10 } },
   leekDuster: { cash: 0, materials: { leek: 1 } },
+  primitiveUpgrader: { cash: 45, materials: { leek: 10, clay: 10 } },
   rockShack: { cash: 2.5, materials: { limestone: 25 } },
   clayKiln: { cash: 10, materials: { clay: 25 } },
   ingotMolder: { cash: 5, materials: { clay: 5 } },
-  graphiteCopperAnnealer: { cash: 70, materials: { granite: 150, copperIngot: 20 } },
+  graphiteCopperAnnealer: { cash: 700, materials: { granite: 150, copperIngot: 20, wire: 50 } },
   graniteProcessor: { cash: 150, materials: { granite: 80, limestone: 120 } },
   bronzeStamp: { cash: 2.5e4, materials: { bronzePlate: 4, copperIngot: 20, wire: 50, contact: 20 } },
   bronzePillars: { cash: 1e5, materials: { bronzePlate: 20, bronzeIngot: 80, limestone: 400 } },
@@ -667,6 +716,7 @@ const MACHINE_CATEGORY_BY_ID = Object.freeze({
   sellTube: "cash",
   graphiteLacedSellTube: "cash",
   leekDuster: "cash",
+  primitiveUpgrader: "cash",
   rockShack: "cash",
   graniteProcessor: "cash",
   bronzeStamp: "cash",
@@ -812,6 +862,16 @@ const MACHINE_LAYOUT = Object.freeze({
     height: 1,
     orientation: "right",
     upgradeOrigin: { column: 0, row: 0 },
+    movable: true,
+  },
+  primitiveUpgrader: {
+    width: 1,
+    height: 2,
+    orientation: "right",
+    internalConveyors: [
+      { column: 0, row: 0, direction: "right", speed: 4 },
+      { column: 0, row: 1, direction: "right", speed: 4 },
+    ],
     movable: true,
   },
   rockShack: {
@@ -1491,6 +1551,7 @@ const elements = {
   selectSellTubeButton: document.querySelector("#selectSellTubeButton"),
   selectGraphiteLacedSellTubeButton: document.querySelector("#selectGraphiteLacedSellTubeButton"),
   selectLeekDusterButton: document.querySelector("#selectLeekDusterButton"),
+  selectPrimitiveUpgraderButton: document.querySelector("#selectPrimitiveUpgraderButton"),
   selectRockShackButton: document.querySelector("#selectRockShackButton"),
   selectClayKilnButton: document.querySelector("#selectClayKilnButton"),
   selectIngotMolderButton: document.querySelector("#selectIngotMolderButton"),
@@ -1515,6 +1576,7 @@ const elements = {
   sellTubeInventoryCount: document.querySelector("#sellTubeInventoryCount"),
   graphiteLacedSellTubeInventoryCount: document.querySelector("#graphiteLacedSellTubeInventoryCount"),
   leekDusterInventoryCount: document.querySelector("#leekDusterInventoryCount"),
+  primitiveUpgraderInventoryCount: document.querySelector("#primitiveUpgraderInventoryCount"),
   rockShackInventoryCount: document.querySelector("#rockShackInventoryCount"),
   clayKilnInventoryCount: document.querySelector("#clayKilnInventoryCount"),
   ingotMolderInventoryCount: document.querySelector("#ingotMolderInventoryCount"),
@@ -1563,6 +1625,7 @@ const elements = {
   drillDescription: document.querySelector("#drillDescription"),
   eventLog: document.querySelector("#eventLog"),
   buyLeekDusterButton: document.querySelector("#buyLeekDusterButton"),
+  buyPrimitiveUpgraderButton: document.querySelector("#buyPrimitiveUpgraderButton"),
   buyConveyorButton: document.querySelector("#buyConveyorButton"),
   buyRockShackButton: document.querySelector("#buyRockShackButton"),
   buyClayKilnButton: document.querySelector("#buyClayKilnButton"),
@@ -1676,6 +1739,7 @@ function createInitialState() {
       sellTube: 1,
       graphiteLacedSellTube: 0,
       leekDuster: 0,
+      primitiveUpgrader: 0,
       rockShack: 0,
       clayKiln: 0,
       ingotMolder: 0,
@@ -3313,6 +3377,8 @@ function getArcFurnaceRecipe(furnace) {
     return {
       inputCount,
       inputMaterial: item.material,
+      sourceMaterial: item.material,
+      cashUpgraderEligibility: getCashUpgraderEligibilityTags(item),
       outputMaterial: getSmeltedLiquidMaterial(item.material),
       outputQuantity: 1,
       outputValue: inputValues.reduce((sum, value) => sum + value, 0) / inputCount,
@@ -3942,6 +4008,8 @@ function receiveConveyorItem(item, column, row) {
     state.kilnInputs.push({
       material: item.material,
       kilnInstanceId: kilnInputTarget.kiln.instanceId,
+      sourceMaterial: item.material,
+      cashUpgraderEligibility: getCashUpgraderEligibilityTags(item),
       sourceValue: getItemSaleValue(item),
       sourceValueIsEffective: !ORE_CHUNK_MATERIALS.includes(item.material),
       quantity: item.quantity,
@@ -4072,6 +4140,16 @@ function isGraphiteCopperAnnealerProcessConveyor(conveyor) {
 function isGraniteProcessorConveyor(conveyor) {
   return isInternalConveyor(conveyor)
     && conveyor.internalMachineId === "graniteProcessor";
+}
+
+function isPrimitiveUpgraderProcessConveyor(conveyor) {
+  return Boolean(
+    isInternalConveyor(conveyor)
+      && conveyor.internalMachineId === "primitiveUpgrader"
+      && Number.isInteger(conveyor.internalIndex)
+      && conveyor.internalIndex >= 0
+      && conveyor.internalIndex < MACHINE_LAYOUT.primitiveUpgrader.internalConveyors.length,
+  );
 }
 
 function isBronzeStampProcessConveyor(conveyor) {
@@ -4351,6 +4429,7 @@ function getStackerItemKey(item) {
     item.casingMaterial ?? "",
     item.jacketMaterial ?? "",
     item.annealed === true ? "annealed" : "normal",
+    ...CASH_UPGRADER_ELIGIBILITY_TAGS.map((tag) => item[tag] ?? 0),
   ].join("|");
 }
 
@@ -4492,7 +4571,7 @@ function canItemLeaveConveyor(conveyor, item) {
     if (conveyor.internalMachineId === "graphiteCopperAnnealer"
       && (conveyor.internalIndex === 0 || isGraphiteCopperAnnealerProcessConveyor(conveyor))) {
       return (item.kind === "ammo" && item.material !== "leek")
-        || (item.kind === "material" && ["copperIngot", "brittleCopperIngot", "silverIngot"].includes(item.material));
+        || (item.kind === "material" && ANNEALER_VALUE_MATERIALS.includes(item.material));
     }
     if (conveyor.internalMachineId === "leekFiberExtractor") {
       return item.kind === "material" && item.material === "leek";
@@ -4530,6 +4609,13 @@ function canItemLeaveConveyor(conveyor, item) {
 }
 
 function transformItemLeavingConveyor(conveyor, item) {
+  const sourceMaterial = item.kind === "material" ? item.material : null;
+  const wasSellable = sourceMaterial !== null && isSellableMaterial(sourceMaterial, item);
+  const finishMaterialTransform = () => {
+    resetCashUpgraderEligibilityOnMaterialChange(item, sourceMaterial, wasSellable);
+    return item;
+  };
+
   if (isLeekFiberExtractorProcessConveyor(conveyor)) {
     if (item.kind === "material" && item.material === "leek") {
       item.material = "leekFiber";
@@ -4537,7 +4623,7 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.saleValueBonus = 0;
       addLog(`Leek Fiber Extractor produced ${formatNumber(item.quantity)} Leek Fiber.`);
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isQuartzWheelCutterProcessConveyor(conveyor)
@@ -4553,7 +4639,7 @@ function transformItemLeavingConveyor(conveyor, item) {
     item.annealedValueMultiplier = 1;
     item.dusterEligible = false;
     addLog(`Quartz Wheel Cutter produced ${formatNumber(item.quantity)} Cut Malachite at ×${formatNumber(QUARTZ_WHEEL_CUTTER_MULTIPLIER)} value.`);
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isContactMakerProcessConveyor(conveyor)) {
@@ -4564,7 +4650,7 @@ function transformItemLeavingConveyor(conveyor, item) {
       if (item.quantity % 5 !== 0
         || inputState.fiber < recipeCount
         || inputState.silver < recipeCount * 0.5) {
-        return item;
+        return finishMaterialTransform();
       }
       const silverValuePerIngot = inputState.silver > 0
         ? inputState.silverValue / inputState.silver
@@ -4582,9 +4668,10 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.saleValueBase = contactStackValue / item.quantity;
       item.baseValue = 8.8;
       item.saleValueBonus = 0;
+      item.freshMoldedAt = Date.now();
       addLog(`Contact Maker produced ${formatNumber(item.quantity)} Silver-Copper Contacts from wire, Silver, and Leek Fiber.`);
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isMetalPressProcessConveyor(conveyor)) {
@@ -4592,9 +4679,10 @@ function transformItemLeavingConveyor(conveyor, item) {
       const sourceMaterial = item.material;
       item.material = INGOT_TO_PLATE[sourceMaterial];
       item.saleValueBonus = 0;
+      item.freshMoldedAt = Date.now();
       addLog(`Metal Press formed ${formatNumber(item.quantity)} ${MATERIAL_LABELS[item.material]} from ${MATERIAL_LABELS[sourceMaterial]}.`);
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isGraniteProcessorConveyor(conveyor)) {
@@ -4608,7 +4696,24 @@ function transformItemLeavingConveyor(conveyor, item) {
         item.annealedValueMultiplier = 1;
       }
     }
-    return item;
+    return finishMaterialTransform();
+  }
+
+  if (isPrimitiveUpgraderProcessConveyor(conveyor)) {
+    if (item.kind === "material"
+      && isSellableMaterial(item.material, item)
+      && getItemBaseValue(item) >= PRIMITIVE_UPGRADER_MIN_BASE_VALUE) {
+      const currentValue = getItemSaleValue(item);
+      if (currentValue < PRIMITIVE_UPGRADER_MAX_VALUE) {
+        item.saleValueBase = Math.min(
+          currentValue + PRIMITIVE_UPGRADER_VALUE_BONUS,
+          PRIMITIVE_UPGRADER_MAX_VALUE,
+        );
+        item.saleValueBonus = 0;
+        item.annealedValueMultiplier = 1;
+      }
+    }
+    return finishMaterialTransform();
   }
 
   if (isBronzeStampProcessConveyor(conveyor)) {
@@ -4624,7 +4729,7 @@ function transformItemLeavingConveyor(conveyor, item) {
         item.bronzeStampUses = uses + 1;
       }
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isBronzePillarsProcessConveyor(conveyor)) {
@@ -4642,7 +4747,7 @@ function transformItemLeavingConveyor(conveyor, item) {
         item.bronzePillarsUses = uses + 1;
       }
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isExtruderProcessConveyor(conveyor)) {
@@ -4655,10 +4760,10 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.saleValueBase = wireValue;
       item.saleValueBonus = 0;
       item.annealedValueMultiplier = 1;
-      item.freshMoldedAt = null;
+      item.freshMoldedAt = Date.now();
       addLog(`Extruder produced ${formatNumber(wireCount)} copper wires from ${MATERIAL_LABELS[sourceMaterial]}.`);
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isJacketFormerProcessConveyor(conveyor)) {
@@ -4672,17 +4777,18 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.jacketed = true;
       addLog(`Jacket Former applied a Native copper jacket to ${MATERIAL_LABELS[coreMaterial] ?? "the bullet"} cores.`);
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (isGraphiteCopperAnnealerProcessConveyor(conveyor)) {
-    const isFreshMetalPart = item.kind === "material"
+    const isFreshAdvancedMetalProduct = item.kind === "material"
+      && ANNEALER_VALUE_MATERIALS.includes(item.material)
       && Boolean(item.freshMoldedAt);
     const isMineralCore = item.kind === "ammo"
       && item.material !== "leek"
       && item.annealedDamageMultiplier !== ANNEALER_MULTIPLIER
       && (Boolean(item.casterFinishedAt) || item.jacketed === true);
-    if (isFreshMetalPart) {
+    if (isFreshAdvancedMetalProduct) {
       item.annealedValueMultiplier = ANNEALER_MULTIPLIER;
       item.freshMoldedAt = null;
     } else if (isMineralCore) {
@@ -4691,11 +4797,11 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.annealed = true;
       item.casterFinishedAt = null;
     }
-    return item;
+    return finishMaterialTransform();
   }
 
   if (!isAmmoShaperProcessConveyor(conveyor)) {
-    return item;
+    return finishMaterialTransform();
   }
 
   const isLeekAmmo = item.kind === "material"
@@ -4706,7 +4812,7 @@ function transformItemLeavingConveyor(conveyor, item) {
     && item.material === "leek"
     && LIQUID_METAL_AMMO_MATERIALS.includes(item.metalMaterial);
   if (!isLeekAmmo && !isCoatedCore) {
-    return item;
+    return finishMaterialTransform();
   }
 
   const roundCount = isCoatedCore
@@ -5330,6 +5436,7 @@ function getMachineDisplayName(machineId) {
     sellTube: "Sell Tube",
     graphiteLacedSellTube: "Graphite-Laced Sell Tube",
     leekDuster: "Leek Duster",
+    primitiveUpgrader: "Primitive Upgrader",
     rockShack: "Rock Shack",
     clayKiln: "Clay Kiln",
     ingotMolder: "Ingot Molder",
@@ -5644,6 +5751,8 @@ function startKilnJobs() {
     state.kilnJobs.push({
       kilnInstanceId: kiln.instanceId,
       material,
+      sourceMaterial: pendingInput.sourceMaterial ?? material,
+      cashUpgraderEligibility: pendingInput.cashUpgraderEligibility ?? {},
       sourceValue: pendingInput.sourceValue ?? MINIMUM_SALE_VALUES[material] ?? 0,
       sourceValueIsEffective: pendingInput.sourceValueIsEffective === true,
       quantity: pendingInput.quantity ?? 1,
@@ -5663,6 +5772,8 @@ function completeKilnJob(job) {
   state.moltenCopper.push({
     kilnInstanceId: job.kilnInstanceId,
     material: getSmeltedLiquidMaterial(job.material),
+    sourceMaterial: job.sourceMaterial ?? job.material,
+    cashUpgraderEligibility: job.cashUpgraderEligibility ?? {},
     sourceValue: job.sourceValue,
     sourceValueIsEffective: job.sourceValueIsEffective === true,
     quantity: job.quantity ?? 1,
@@ -5705,6 +5816,8 @@ function startArcFurnaceJobs() {
     state.arcFurnaceJobs.push({
       furnaceInstanceId: furnace.instanceId,
       material: recipe.outputMaterial,
+      sourceMaterial: recipe.sourceMaterial,
+      cashUpgraderEligibility: recipe.cashUpgraderEligibility,
       quantity: recipe.outputQuantity,
       sourceValue: recipe.outputValue,
       sourceValueIsEffective: true,
@@ -5754,6 +5867,8 @@ function completeArcFurnaceJob(job) {
     kilnInstanceId: job.furnaceInstanceId,
     smelterInstanceId: job.furnaceInstanceId,
     material: job.material,
+    sourceMaterial: job.sourceMaterial,
+    cashUpgraderEligibility: job.cashUpgraderEligibility ?? {},
     quantity: job.quantity ?? 1,
     sourceValue: job.sourceValue,
     sourceValueIsEffective: true,
@@ -5901,6 +6016,8 @@ function startMolderJob() {
       molderInstanceId: molder.instanceId,
       kilnInstanceId: moltenCopper.kilnInstanceId,
       material: moltenCopper.material,
+      sourceMaterial: moltenCopper.sourceMaterial ?? moltenCopper.material,
+      cashUpgraderEligibility: moltenCopper.cashUpgraderEligibility ?? {},
       sourceValue,
       sourceValueIsEffective,
       quantity: 1,
@@ -5947,6 +6064,11 @@ function completeMolderJob(job) {
     freshMoldedAt: Date.now(),
   };
   outputItem.baseValue = outputItem.saleValueBase;
+  restoreCashUpgraderEligibilityForSameProduct(
+    outputItem,
+    job.sourceMaterial,
+    job.cashUpgraderEligibility,
+  );
   if (!outputConveyor || !placeItemOnConveyor(outputConveyor, outputItem)) {
     state.molderOutputBuffers[job.molderInstanceId] = outputItem;
     state.molderJobs = state.molderJobs.filter((candidate) => candidate !== job);
@@ -6161,7 +6283,11 @@ function recoverFactoryItem(item) {
     state.moltenCopper.push({
       kilnInstanceId: item.kilnInstanceId,
       material: item.material,
+      sourceMaterial: item.sourceMaterial ?? item.material,
+      cashUpgraderEligibility: item.cashUpgraderEligibility ?? {},
       sourceValue: item.sourceValue,
+      sourceValueIsEffective: item.sourceValueIsEffective === true,
+      quantity: item.quantity ?? 1,
     });
     return "liquid copper";
   }
@@ -8287,6 +8413,7 @@ function renderMachineInventory() {
   elements.sellTubeInventoryCount.textContent = `Stored: ${formatNumber(inventory.sellTube)}`;
   elements.graphiteLacedSellTubeInventoryCount.textContent = `Stored: ${formatNumber(inventory.graphiteLacedSellTube)}`;
   elements.leekDusterInventoryCount.textContent = `Stored: ${formatNumber(inventory.leekDuster)}`;
+  elements.primitiveUpgraderInventoryCount.textContent = `Stored: ${formatNumber(inventory.primitiveUpgrader)}`;
   elements.rockShackInventoryCount.textContent = `Stored: ${formatNumber(inventory.rockShack)}`;
   elements.clayKilnInventoryCount.textContent = `Stored: ${formatNumber(inventory.clayKiln)}`;
   elements.ingotMolderInventoryCount.textContent = `Stored: ${formatNumber(inventory.ingotMolder)}`;
@@ -8312,6 +8439,7 @@ function renderMachineInventory() {
   elements.selectSellTubeButton.disabled = inventory.sellTube <= 0;
   elements.selectGraphiteLacedSellTubeButton.disabled = inventory.graphiteLacedSellTube <= 0;
   elements.selectLeekDusterButton.disabled = inventory.leekDuster <= 0;
+  elements.selectPrimitiveUpgraderButton.disabled = inventory.primitiveUpgrader <= 0;
   elements.selectRockShackButton.disabled = inventory.rockShack <= 0;
   elements.selectClayKilnButton.disabled = inventory.clayKiln <= 0;
   elements.selectIngotMolderButton.disabled = inventory.ingotMolder <= 0;
@@ -8790,6 +8918,12 @@ function renderMachineActions(machine) {
     return;
   }
 
+  if (machine.id === "primitiveUpgrader") {
+    addMachineActionNote("No crew required. Sellable items with at least $1 base value gain $0.50 per pass, up to a current value of $15.");
+    addMachineActionNote("Two independent horizontal conveyor lanes run at speed 4; materials below the base-value requirement pass through unchanged.");
+    return;
+  }
+
   if (machine.id === "rockShack") {
     addMachineActionNote("Sellable materials crossing its built-in conveyor gain $0.20 sale value, up to $1.50. Materials already worth more than $1.50 are unchanged.");
     addMachineActionNote("Its upper tile is the built-in conveyor; rotate the shack to set its flow direction.");
@@ -8814,7 +8948,7 @@ function renderMachineActions(machine) {
   }
 
   if (machine.id === "graphiteCopperAnnealer") {
-    addMachineActionNote("Mineral bullets gain ×1.7 damage and molded metal parts gain ×1.7 value. Each item can use the annealer once.");
+    addMachineActionNote("Mineral ammo gains ×1.7 damage. Fresh Copper Wires, metal Plates, and Silver-Copper Contacts gain ×1.7 value once; ores and ingots are not accepted.");
     addMachineActionNote("Speed 2. Connect one input and output line through its center transformer tile.");
   }
 
@@ -9483,6 +9617,7 @@ function drawMachineFloor(scene) {
   const sellTube = getMachine("sellTube");
   const graphiteLacedSellTube = getMachine("graphiteLacedSellTube");
   const duster = getMachine("leekDuster");
+  const primitiveUpgrader = getMachine("primitiveUpgrader");
   const rockShack = getMachine("rockShack");
   const kiln = getMachine("clayKiln");
   const molder = getMachine("ingotMolder");
@@ -9511,6 +9646,7 @@ function drawMachineFloor(scene) {
     { machine: sellTube, fill: 0x47515b, border: 0xb8d3df, opacity: 0.8 },
     { machine: graphiteLacedSellTube, fill: 0x39424b, border: 0xc6d4dc, opacity: 0.9 },
     { machine: duster, fill: 0x465232, border: 0xd8e795, opacity: 0.85 },
+    { machine: primitiveUpgrader, fill: 0x59613d, border: 0xd4db9a, opacity: 0.9 },
     { machine: rockShack, fill: 0x5c554a, border: 0xdfc48a, opacity: 0.85 },
     { machine: kiln, fill: 0x614431, border: 0xe4a46b, opacity: 0.85 },
     { machine: molder, fill: 0x5e505a, border: 0xdcb1cb, opacity: 0.85 },
@@ -9542,6 +9678,9 @@ function drawMachineFloor(scene) {
     })),
     ...getMachines("graphiteLacedSellTube").slice(1).map((machine) => ({
       machine, fill: 0x39424b, border: 0xc6d4dc, opacity: 0.9,
+    })),
+    ...getMachines("primitiveUpgrader").slice(1).map((machine) => ({
+      machine, fill: 0x59613d, border: 0xd4db9a, opacity: 0.9,
     })),
     ...getMachines("clayKiln").slice(1).map((machine) => ({
       machine, fill: 0x614431, border: 0xe4a46b, opacity: 0.85,
@@ -9635,6 +9774,14 @@ function drawMachineFloor(scene) {
       drawConveyorTile(floor, conveyor.column, conveyor.row, conveyor.direction, {
         fillColor: 0x798372,
         arrowColor: 0x20271e,
+      });
+    });
+  });
+  getMachines("primitiveUpgrader").forEach((upgrader) => {
+    getInternalConveyorTiles(upgrader).forEach((conveyor) => {
+      drawConveyorTile(floor, conveyor.column, conveyor.row, conveyor.direction, {
+        fillColor: 0x89915f,
+        arrowColor: 0x29301d,
       });
     });
   });
@@ -9833,6 +9980,17 @@ function drawMachineFloor(scene) {
       lineSpacing: 1,
     });
   }
+  if (primitiveUpgrader) {
+    const upgraderLabel = getMachineLabelCenter(primitiveUpgrader);
+    addMachineFloorLabel(scene, upgraderLabel.x, upgraderLabel.y, `PRIMITIVE\nUPGRADER ${getOrientationSymbol(primitiveUpgrader.orientation)}`, {
+      color: "#f0f4bd",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "7px",
+      fontStyle: "bold",
+      align: "center",
+      lineSpacing: 1,
+    });
+  }
   if (rockShack) {
     const rockShackLabel = getMachineLabelCenter(rockShack);
     addMachineFloorLabel(scene, rockShackLabel.x, rockShackLabel.y, "ROCK\nSHACK", {
@@ -10023,6 +10181,7 @@ FORMER ${getOrientationSymbol(jacketFormer.orientation)}`, {
 
   const duplicateLabelSpecs = [
     ["leekDuster", (machine) => `LEEK\nDUSTER ${getOrientationSymbol(machine.orientation)}`, "#ecf4bd", 9, 0],
+    ["primitiveUpgrader", (machine) => `PRIMITIVE\nUPGRADER ${getOrientationSymbol(machine.orientation)}`, "#f0f4bd", 7, 0],
     ["rockShack", () => "ROCK\nSHACK", "#fff0c6", 9, 0],
     ["materialStorage", () => "MATERIAL\nSTORAGE", "#d7f1ef", 13, 0],
     ["sellTube", () => "SELL\nTUBE", "#e3eef3", 11, 0],
@@ -10134,6 +10293,41 @@ function isFactoryPointerAdditive(pointer) {
   return Boolean(pointer?.event?.shiftKey || pointer?.shiftKey);
 }
 
+function getFactoryPointerScreenPosition(pointer) {
+  const event = pointer?.event;
+  const x = Number.isFinite(event?.clientX) ? event.clientX : pointer?.x;
+  const y = Number.isFinite(event?.clientY) ? event.clientY : pointer?.y;
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function hasFactoryMarqueeExceededDragThreshold(startPosition, currentPosition) {
+  return Boolean(startPosition && currentPosition)
+    && Math.hypot(
+      currentPosition.x - startPosition.x,
+      currentPosition.y - startPosition.y,
+    ) >= FACTORY_SELECTION_DRAG_THRESHOLD;
+}
+
+function shouldFinalizeFactoryMarquee(pointer, controls = elements.machineControls) {
+  const event = pointer?.event;
+  const target = event?.target;
+  if (target && controls?.contains?.(target)) {
+    return false;
+  }
+
+  const bounds = controls?.getBoundingClientRect?.();
+  if (bounds && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+    const isOverControls = event.clientX >= bounds.left
+      && event.clientX <= bounds.right
+      && event.clientY >= bounds.top
+      && event.clientY <= bounds.bottom;
+    if (isOverControls) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function getFactorySelectionBounds(startTile, endTile) {
   return {
     minColumn: Math.min(startTile.column, endTile.column),
@@ -10193,6 +10387,8 @@ function handleFactoryGridPointerDown(pointer) {
     return;
   }
 
+  factorySelectionDrag = null;
+
   if (pointer.rightButtonDown?.() || pointer.button === 2) {
     if (groupMoveState) {
       clearFactorySelection();
@@ -10227,6 +10423,7 @@ function handleFactoryGridPointerDown(pointer) {
       factorySelectionDrag = {
         startTile: tile,
         currentTile: tile,
+        startPointer: getFactoryPointerScreenPosition(pointer),
         additive: isFactoryPointerAdditive(pointer),
         moved: false,
       };
@@ -10243,18 +10440,24 @@ function handleFactoryGridPointerMove(pointer) {
 
   factorySelectionDrag.currentTile = tile;
   factorySelectionDrag.moved = factorySelectionDrag.moved
-    || tile.column !== factorySelectionDrag.startTile.column
-    || tile.row !== factorySelectionDrag.startTile.row;
+    || hasFactoryMarqueeExceededDragThreshold(
+      factorySelectionDrag.startPointer,
+      getFactoryPointerScreenPosition(pointer),
+    );
   renderMachineOverlay();
 }
 
-function handleFactoryGridPointerUp() {
+function handleFactoryGridPointerUp(pointer) {
   if (!factorySelectionDrag) {
     return;
   }
 
   const drag = factorySelectionDrag;
   factorySelectionDrag = null;
+  if (!shouldFinalizeFactoryMarquee(pointer)) {
+    renderMachineOverlay();
+    return;
+  }
   if (drag.moved) {
     selectFactoryEntitiesInRectangle(drag.startTile, drag.currentTile, drag.additive);
   } else if (!drag.additive) {
@@ -12306,6 +12509,9 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     machineBelongsToCategory,
     CRAFTING_RECIPES,
     ANNEALER_MULTIPLIER,
+    PRIMITIVE_UPGRADER_VALUE_BONUS,
+    PRIMITIVE_UPGRADER_MIN_BASE_VALUE,
+    PRIMITIVE_UPGRADER_MAX_VALUE,
     GRANITE_PROCESSOR_MULTIPLIER,
     GRANITE_PROCESSOR_MIN_VALUE,
     GRANITE_PROCESSOR_MAX_VALUE,
@@ -12454,6 +12660,8 @@ if (IS_NODE_TEST_ENVIRONMENT) {
       groupMoveState = null;
     },
     __getFactorySelection: () => selectedFactoryEntities.slice(),
+    hasFactoryMarqueeExceededDragThreshold,
+    shouldFinalizeFactoryMarquee,
     __getState: () => state,
     __setState: (nextState) => {
       state = nextState;
@@ -12473,6 +12681,7 @@ elements.selectStorageButton.addEventListener("click", () => selectMachineForPla
 elements.selectSellTubeButton.addEventListener("click", () => selectMachineForPlacement("sellTube"));
 elements.selectGraphiteLacedSellTubeButton.addEventListener("click", () => selectMachineForPlacement("graphiteLacedSellTube"));
 elements.selectLeekDusterButton.addEventListener("click", () => selectMachineForPlacement("leekDuster"));
+elements.selectPrimitiveUpgraderButton.addEventListener("click", () => selectMachineForPlacement("primitiveUpgrader"));
 elements.selectRockShackButton.addEventListener("click", () => selectMachineForPlacement("rockShack"));
 elements.selectClayKilnButton.addEventListener("click", () => selectMachineForPlacement("clayKiln"));
 elements.selectIngotMolderButton.addEventListener("click", () => selectMachineForPlacement("ingotMolder"));
@@ -12503,9 +12712,11 @@ elements.inventoryDetailPlaceButton.addEventListener("click", () => {
   }
 });
 elements.pickUpMachineButton.addEventListener("click", pickUpSelectedFactoryEntities);
-elements.moveMachineButton.addEventListener("click", moveSelectedFactoryEntities);
+elements.moveMachineButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+bindImmediateAction(elements.moveMachineButton, moveSelectedFactoryEntities);
 elements.closeMachineControlsButton.addEventListener("click", clearFactorySelection);
 elements.buyLeekDusterButton.addEventListener("click", () => purchaseMachine("leekDuster"));
+elements.buyPrimitiveUpgraderButton.addEventListener("click", () => purchaseMachine("primitiveUpgrader"));
 elements.buyConveyorButton.addEventListener("click", () => purchaseMachine("conveyor"));
 elements.buyRockShackButton.addEventListener("click", () => purchaseMachine("rockShack"));
 elements.buyClayKilnButton.addEventListener("click", () => purchaseMachine("clayKiln"));
