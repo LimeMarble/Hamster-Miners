@@ -137,6 +137,9 @@ future pipe systems) are not treated as current acceptance requirements.
 - Factory marquee selection requires at least 8 pixels of pointer travel;
   releasing over the floating machine controls cancels the marquee, and Move
   activates on pointer-down before any underlying grid interaction.
+- During bulk movement, Q/E rotate both the group's positions and each
+  machine/conveyor facing clockwise or counterclockwise; the preview matches
+  the committed layout, and opposite rotations cancel each other.
 - Material chunks render oval, ingots render half-height, and plates can remain
   visually distinct later.
 - Clay Kiln arrows and all rotated internal-conveyor arrows remain visible.

@@ -6386,10 +6386,28 @@ function getFactoryGroupOrigin(records) {
   const coordinates = records.flatMap(({ descriptor, object }) => (
     getFactoryEntityOccupiedCoordinates(descriptor, object)
   ));
+  const columns = coordinates.map(({ column }) => column);
+  const rows = coordinates.map(({ row }) => row);
+  const column = Math.min(...columns);
+  const row = Math.min(...rows);
   return {
-    column: Math.min(...coordinates.map(({ column }) => column)),
-    row: Math.min(...coordinates.map(({ row }) => row)),
+    column,
+    row,
+    width: Math.max(...columns) - column + 1,
+    height: Math.max(...rows) - row + 1,
   };
+}
+
+function getFactoryGroupMoveSignature() {
+  if (!groupMoveState) {
+    return "";
+  }
+
+  const entityTransforms = groupMoveState.entities.map((entity) => (
+    `${getFactoryEntitySelectionKey(entity.descriptor)}:${entity.offsetColumn},${entity.offsetRow}`
+      + `:${entity.width}x${entity.height}:${entity.orientation ?? ""}:${entity.direction ?? ""}`
+  )).join("|");
+  return `${groupMoveState.width}x${groupMoveState.height}:${entityTransforms}`;
 }
 
 function getFactoryGroupPlacementPlan(anchorColumn, anchorRow) {
@@ -6401,6 +6419,8 @@ function getFactoryGroupPlacementPlan(anchorColumn, anchorRow) {
     ...entity,
     column: anchorColumn + entity.offsetColumn,
     row: anchorRow + entity.offsetRow,
+    orientation: entity.orientation,
+    direction: entity.direction,
   }));
 }
 
@@ -6420,8 +6440,13 @@ function isFactoryGroupPlacementBuildable(anchorColumn, anchorRow) {
 
   for (const entry of plan) {
     const candidate = entry.descriptor.type === "machine"
-      ? { ...entry.object, column: entry.column, row: entry.row }
-      : { column: entry.column, row: entry.row };
+      ? {
+        ...entry.object,
+        column: entry.column,
+        row: entry.row,
+        orientation: entry.orientation,
+      }
+      : { column: entry.column, row: entry.row, direction: entry.direction };
     const occupiedTiles = entry.descriptor.type === "machine"
       ? getMachineOccupiedTiles(candidate)
       : [candidate];
@@ -6441,7 +6466,7 @@ function isFactoryGroupPlacementBuildable(anchorColumn, anchorRow) {
         entry.object,
         entry.column,
         entry.row,
-        entry.object.orientation,
+        entry.orientation,
         null,
         selectedMachines,
         selectedConveyors,
@@ -6470,11 +6495,17 @@ function beginGroupMove() {
   groupMoveState = {
     originColumn: origin.column,
     originRow: origin.row,
+    width: origin.width,
+    height: origin.height,
     entities: records.map(({ descriptor, object }) => ({
       descriptor: { ...descriptor },
       object,
       offsetColumn: object.column - origin.column,
       offsetRow: object.row - origin.row,
+      width: descriptor.type === "machine" ? getMachineFootprintSize(object).width : 1,
+      height: descriptor.type === "machine" ? getMachineFootprintSize(object).height : 1,
+      orientation: descriptor.type === "machine" ? object.orientation ?? "right" : null,
+      direction: descriptor.type === "conveyor" ? object.direction ?? "right" : null,
     })),
   };
   selectedFactoryEntity = null;
@@ -6485,6 +6516,44 @@ function beginGroupMove() {
     renderFactoryMachineControls();
     renderMachineOverlay();
   }
+  return true;
+}
+
+function rotateFactoryGroup(direction) {
+  if (!groupMoveState || !["clockwise", "counterclockwise"].includes(direction)) {
+    return false;
+  }
+
+  const clockwise = direction === "clockwise";
+  const oldGroupWidth = groupMoveState.width;
+  const oldGroupHeight = groupMoveState.height;
+  const rotationOrientation = clockwise ? "down" : "up";
+
+  groupMoveState.entities.forEach((entity) => {
+    const oldColumn = entity.offsetColumn;
+    const oldRow = entity.offsetRow;
+    const oldWidth = entity.width;
+    const oldHeight = entity.height;
+
+    if (clockwise) {
+      entity.offsetColumn = oldGroupHeight - oldRow - oldHeight;
+      entity.offsetRow = oldColumn;
+    } else {
+      entity.offsetColumn = oldRow;
+      entity.offsetRow = oldGroupWidth - oldColumn - oldWidth;
+    }
+
+    entity.width = oldHeight;
+    entity.height = oldWidth;
+    if (entity.descriptor.type === "machine") {
+      entity.orientation = rotateMachineDirection(entity.orientation, rotationOrientation);
+    } else {
+      entity.direction = rotateMachineDirection(entity.direction, rotationOrientation);
+    }
+  });
+
+  groupMoveState.width = oldGroupHeight;
+  groupMoveState.height = oldGroupWidth;
   return true;
 }
 
@@ -6505,6 +6574,7 @@ function completeGroupMove(anchorColumn, anchorRow) {
     if (entry.descriptor.type === "machine") {
       entry.object.column = entry.column;
       entry.object.row = entry.row;
+      entry.object.orientation = entry.orientation;
       return;
     }
 
@@ -6516,7 +6586,7 @@ function completeGroupMove(anchorColumn, anchorRow) {
       state.placedConveyors.push({
         column: entry.column,
         row: entry.row,
-        direction: conveyor.direction,
+        direction: entry.direction,
         item: oldItem,
       });
       return;
@@ -6524,6 +6594,7 @@ function completeGroupMove(anchorColumn, anchorRow) {
 
     conveyor.column = entry.column;
     conveyor.row = entry.row;
+    conveyor.direction = entry.direction;
   });
 
   selectedFactoryEntities = plan.map(({ descriptor, column, row }) => (
@@ -6766,6 +6837,18 @@ function pickUpSelectedFactoryEntity(entity = selectedFactoryEntity, moveForPlac
 
 function rotateSelectedBuild(direction) {
   if (activeView !== "factory") {
+    return;
+  }
+
+  if (groupMoveState) {
+    if (!rotateFactoryGroup(direction)) {
+      return;
+    }
+    addLog(`Rotated selected group ${direction}.`);
+    if (!IS_NODE_TEST_ENVIRONMENT) {
+      renderFactoryMachineControls();
+      renderMachineOverlay();
+    }
     return;
   }
 
@@ -8867,7 +8950,7 @@ function renderFactoryMachineControls() {
     entity?.row ?? "",
     selectedFactoryEntities.map(getFactoryEntitySelectionKey).join(","),
     groupMoveState
-      ? `${groupMoveState.originColumn}:${groupMoveState.originRow}:${hoveredFactoryTile?.column ?? ""}:${hoveredFactoryTile?.row ?? ""}`
+      ? `${getFactoryGroupMoveSignature()}:${hoveredFactoryTile?.column ?? ""}:${hoveredFactoryTile?.row ?? ""}`
       : "",
     selectedStorageOutputKey ?? "",
     storageState,
@@ -10720,7 +10803,7 @@ function getFactoryOverlaySignature() {
     selectedFactoryEntity?.row ?? "",
     selectedFactoryEntities.map(getFactoryEntitySelectionKey).join(","),
     groupMoveState
-      ? `${groupMoveState.originColumn}:${groupMoveState.originRow}:${hoveredFactoryTile?.column ?? ""}:${hoveredFactoryTile?.row ?? ""}`
+      ? `${getFactoryGroupMoveSignature()}:${hoveredFactoryTile?.column ?? ""}:${hoveredFactoryTile?.row ?? ""}`
       : "",
     factorySelectionDrag
       ? `${factorySelectionDrag.startTile.column}:${factorySelectionDrag.startTile.row}:${factorySelectionDrag.currentTile.column}:${factorySelectionDrag.currentTile.row}`
@@ -10763,8 +10846,16 @@ function drawFactoryGroupPreview() {
   const valid = isFactoryGroupPlacementBuildable(hoveredFactoryTile.column, hoveredFactoryTile.row);
   const plan = getFactoryGroupPlacementPlan(hoveredFactoryTile.column, hoveredFactoryTile.row);
   plan.forEach((entry) => {
+    const candidate = entry.descriptor.type === "machine"
+      ? {
+        ...entry.object,
+        column: entry.column,
+        row: entry.row,
+        orientation: entry.orientation,
+      }
+      : null;
     const tiles = entry.descriptor.type === "machine"
-      ? getMachineOccupiedTiles({ ...entry.object, column: entry.column, row: entry.row })
+      ? getMachineOccupiedTiles(candidate)
       : [{ column: entry.column, row: entry.row }];
     machineOverlay.fillStyle(valid ? 0xc9dc75 : 0xd8765b, 0.22);
     machineOverlay.lineStyle(3, valid ? 0xc9dc75 : 0xd8765b, 0.9);
@@ -10782,6 +10873,17 @@ function drawFactoryGroupPreview() {
         FACTORY_TILE_SIZE - 4,
       );
     });
+
+    if (candidate) {
+      drawMachinePreviewConveyors(machineOverlay, candidate, valid);
+      drawMachinePlacementDirectionIndicator(machineOverlay, candidate, valid);
+    } else {
+      drawConveyorTile(machineOverlay, entry.column, entry.row, entry.direction, {
+        fillColor: valid ? 0x4e7180 : 0x713f3a,
+        arrowColor: valid ? 0xd6f5ff : 0xf1b0a4,
+        opacity: 0.82,
+      });
+    }
   });
 }
 
@@ -12790,6 +12892,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     selectFactoryEntitiesInRectangle,
     beginGroupMove,
     completeGroupMove,
+    rotateSelectedBuild,
     pickUpSelectedFactoryEntities,
     pickUpSelectedFactoryEntity,
     getArcFurnaceRecipe,
@@ -12891,6 +12994,9 @@ if (IS_NODE_TEST_ENVIRONMENT) {
       groupMoveState = null;
     },
     __getFactorySelection: () => selectedFactoryEntities.slice(),
+    __setActiveViewForTests: (view) => {
+      activeView = view;
+    },
     hasFactoryMarqueeExceededDragThreshold,
     shouldFinalizeFactoryMarquee,
     __getState: () => state,

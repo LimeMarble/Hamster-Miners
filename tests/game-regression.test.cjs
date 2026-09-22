@@ -238,6 +238,75 @@ test("factory marquee selection moves a group without changing relative position
   );
 });
 
+test("bulk movement rotates machines and conveyors clockwise and counterclockwise", () => {
+  const createMovingGroup = () => {
+    const planter = machine("planter", "rotation-planter", 10, 5, "right");
+    const kiln = machine("clayKiln", "rotation-kiln", 14, 5, "right");
+    const conveyor = { column: 13, row: 6, direction: "right", item: null };
+    const state = freshState({ machines: [planter, kiln], placedConveyors: [conveyor] });
+    game.__setActiveViewForTests("factory");
+    game.selectFactoryEntitiesInRectangle({ column: 10, row: 5 }, { column: 14, row: 7 });
+    assert.equal(game.__getFactorySelection().length, 3);
+    assert.equal(game.beginGroupMove(), true);
+    return { state, planter, kiln, conveyor };
+  };
+
+  const clockwise = createMovingGroup();
+  game.rotateSelectedBuild("clockwise");
+  assert.equal(game.completeGroupMove(20, 10), true);
+  assert.deepEqual(
+    clockwise.state.machines.map(({ id, column, row, orientation }) => ({ id, column, row, orientation })),
+    [
+      { id: "planter", column: 20, row: 10, orientation: "down" },
+      { id: "clayKiln", column: 20, row: 14, orientation: "down" },
+    ],
+  );
+  assert.deepEqual(
+    clockwise.state.placedConveyors.map(({ column, row, direction }) => ({ column, row, direction })),
+    [{ column: 21, row: 13, direction: "down" }],
+  );
+
+  const counterclockwise = createMovingGroup();
+  game.rotateSelectedBuild("counterclockwise");
+  assert.equal(game.completeGroupMove(20, 10), true);
+  assert.deepEqual(
+    counterclockwise.state.machines.map(({ id, column, row, orientation }) => ({ id, column, row, orientation })),
+    [
+      { id: "planter", column: 20, row: 12, orientation: "up" },
+      { id: "clayKiln", column: 20, row: 10, orientation: "up" },
+    ],
+  );
+  assert.deepEqual(
+    counterclockwise.state.placedConveyors.map(({ column, row, direction }) => ({ column, row, direction })),
+    [{ column: 21, row: 11, direction: "up" }],
+  );
+});
+
+test("opposite bulk rotations cancel before placing the group", () => {
+  const planter = machine("planter", "rotation-return-planter", 10, 5, "right");
+  const kiln = machine("clayKiln", "rotation-return-kiln", 14, 5, "right");
+  const conveyor = { column: 13, row: 6, direction: "right", item: null };
+  const state = freshState({ machines: [planter, kiln], placedConveyors: [conveyor] });
+  game.__setActiveViewForTests("factory");
+  game.selectFactoryEntitiesInRectangle({ column: 10, row: 5 }, { column: 14, row: 7 });
+  assert.equal(game.beginGroupMove(), true);
+
+  game.rotateSelectedBuild("clockwise");
+  game.rotateSelectedBuild("counterclockwise");
+  assert.equal(game.completeGroupMove(20, 10), true);
+  assert.deepEqual(
+    state.machines.map(({ id, column, row, orientation }) => ({ id, column, row, orientation })),
+    [
+      { id: "planter", column: 20, row: 10, orientation: "right" },
+      { id: "clayKiln", column: 24, row: 10, orientation: "right" },
+    ],
+  );
+  assert.deepEqual(
+    state.placedConveyors.map(({ column, row, direction }) => ({ column, row, direction })),
+    [{ column: 23, row: 11, direction: "right" }],
+  );
+});
+
 test("factory marquee requires an intentional drag and ignores control-panel releases", () => {
   assert.equal(
     game.hasFactoryMarqueeExceededDragThreshold({ x: 20, y: 20 }, { x: 25, y: 24 }),
