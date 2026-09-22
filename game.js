@@ -1449,6 +1449,24 @@ function getSpawnPoolForBand(band, tunnel = 1) {
     }
   });
 
+  // Tunnel 1 uses its unexpanded pool from Bands 3–24, cutting the doubled
+  // deposit counts in half while leaving early and later progression intact.
+  if (tunnel === 1 && band >= 3 && band <= 24) {
+    return pool;
+  }
+
+  // Tunnel 2's expanded duplicate deposits are removed at every band. Rare
+  // chance-based gem deposits are reduced by half as well, including the
+  // formerly guaranteed Aquamarine roll.
+  if (tunnel === 2) {
+    const hasChanceDeposits = pool.some((deposit) => deposit.chance != null);
+    return hasChanceDeposits
+      ? Object.freeze(pool.map((deposit) => (
+        deposit.chance == null ? deposit : { ...deposit, chance: deposit.chance / 2 }
+      )))
+      : pool;
+  }
+
   return getExpandedSpawnPool(pool);
 }
 

@@ -182,8 +182,8 @@ test("factory conveyor topology is reused until the layout changes", () => {
 
 test("stacker and splitter ghost ports sit below real belts and cargo", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-  const floorBody = source.match(/function drawMachineFloor\(scene\) \{([\s\S]*?)\n\}\n\nfunction/);
-  const liquidPortBody = source.match(/function drawMachineLiquidPorts\(graphics\) \{([\s\S]*?)\n\}\n\nfunction/);
+  const floorBody = source.match(/function drawMachineFloor\(scene\) \{([\s\S]*?)\r?\n\}\r?\n\r?\nfunction/);
+  const liquidPortBody = source.match(/function drawMachineLiquidPorts\(graphics\) \{([\s\S]*?)\r?\n\}\r?\n\r?\nfunction/);
   assert.ok(floorBody, "machine floor renderer should exist");
   assert.ok(liquidPortBody, "liquid port renderer should exist");
 
@@ -450,27 +450,29 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.deepEqual(bandTwo, firstBand);
 
   const bandThree = game.getSpawnPoolForBand(3, 1);
-  assert.equal(bandThree.filter(({ type }) => type === "clay").length, 16);
-  assert.equal(bandThree.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandThree.length, 24);
+  assert.equal(bandThree.filter(({ type }) => type === "clay").length, 8);
+  assert.equal(bandThree.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandThree.length, 12);
   assert.deepEqual(game.getSpawnPoolForBand(4, 1), bandThree);
 
   const bandFive = game.getSpawnPoolForBand(5, 1);
-  assert.equal(bandFive.filter(({ type }) => type === "clay").length, 10);
-  assert.equal(bandFive.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandFive.filter(({ type }) => type === "lead").length, 6);
+  assert.equal(bandFive.filter(({ type }) => type === "clay").length, 5);
+  assert.equal(bandFive.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandFive.filter(({ type }) => type === "lead").length, 3);
+  assert.equal(bandFive.length, 12);
 
   const bandTen = game.getSpawnPoolForBand(10, 1);
-  assert.equal(bandTen.filter(({ type }) => type === "clay").length, 10);
-  assert.equal(bandTen.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandTen.filter(({ type }) => type === "lead").length, 6);
+  assert.equal(bandTen.filter(({ type }) => type === "clay").length, 5);
+  assert.equal(bandTen.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandTen.filter(({ type }) => type === "lead").length, 3);
   assert.equal(bandTen.filter(({ type }) => type === "silver").length, 0);
 
   const bandTwelve = game.getSpawnPoolForBand(12, 1);
-  assert.equal(bandTwelve.filter(({ type }) => type === "clay").length, 6);
-  assert.equal(bandTwelve.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandTwelve.filter(({ type }) => type === "lead").length, 8);
-  assert.equal(bandTwelve.filter(({ type }) => type === "silver").length, 4);
+  assert.equal(bandTwelve.filter(({ type }) => type === "clay").length, 3);
+  assert.equal(bandTwelve.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandTwelve.filter(({ type }) => type === "lead").length, 4);
+  assert.equal(bandTwelve.filter(({ type }) => type === "silver").length, 2);
+  assert.equal(bandTwelve.length, 13);
   assert.deepEqual(game.RESOURCE_DEFINITIONS.silver, {
     label: "Silver ore",
     shortLabel: "Ag",
@@ -481,26 +483,30 @@ test("spawn pools change only at the specified band threshold", () => {
   });
 
   const bandSixteen = game.getSpawnPoolForBand(16, 1);
-  assert.equal(bandSixteen.filter(({ type }) => type === "clay").length, 2);
-  assert.equal(bandSixteen.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandSixteen.filter(({ type }) => type === "lead").length, 6);
-  assert.equal(bandSixteen.filter(({ type }) => type === "silver").length, 6);
+  assert.equal(bandSixteen.filter(({ type }) => type === "clay").length, 1);
+  assert.equal(bandSixteen.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandSixteen.filter(({ type }) => type === "lead").length, 3);
+  assert.equal(bandSixteen.filter(({ type }) => type === "silver").length, 3);
+  assert.equal(bandSixteen.length, 11);
 
   const bandTwenty = game.getSpawnPoolForBand(20, 1);
   assert.equal(bandTwenty.filter(({ type }) => type === "clay").length, 0);
-  assert.equal(bandTwenty.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandTwenty.filter(({ type }) => type === "lead").length, 6);
-  assert.equal(bandTwenty.filter(({ type }) => type === "silver").length, 8);
+  assert.equal(bandTwenty.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandTwenty.filter(({ type }) => type === "lead").length, 3);
+  assert.equal(bandTwenty.filter(({ type }) => type === "silver").length, 4);
+  assert.equal(bandTwenty.length, 11);
 
   const bandTwentyFour = game.getSpawnPoolForBand(24, 1);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 8);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 6);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 8);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 3);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 4);
+  assert.equal(bandTwentyFour.length, 11);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "beryl").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawAquamarine").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawEmerald").length, 0);
   assert.deepEqual(bandTwentyFour, bandTwenty);
   const bandTwentyFive = game.getSpawnPoolForBand(25, 1);
+  assert.equal(bandTwentyFive.length, 18, "the full pool resumes at Band 25");
   assert.equal(bandTwentyFive.filter(({ type }) => type === "zinc").length, 4);
   assert.equal(bandTwentyFive.filter(({ type }) => type === "beryl").length, 0);
   assert.equal(game.RESOURCE_DEFINITIONS.beryl.yield, 2);
@@ -514,33 +520,41 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.equal(game.getSaleValue("silver"), 8.5);
 
   const tunnelTwo = game.getSpawnPoolForBand(1, 2);
-  assert.equal(tunnelTwo.filter(({ type }) => type === "nativeCopper").length, 10);
-  assert.equal(tunnelTwo.filter(({ type }) => type === "clay").length, 10);
+  assert.equal(tunnelTwo.filter(({ type }) => type === "nativeCopper").length, 5);
+  assert.equal(tunnelTwo.filter(({ type }) => type === "clay").length, 5);
+  assert.equal(tunnelTwo.length, 10);
 
   const tunnelTwoBandFour = game.getSpawnPoolForBand(4, 2);
-  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "clay").length, 8);
-  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "nativeCopper").length, 8);
-  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "graphite").length, 4);
+  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "clay").length, 4);
+  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "nativeCopper").length, 4);
+  assert.equal(tunnelTwoBandFour.filter(({ type }) => type === "graphite").length, 2);
+  assert.equal(tunnelTwoBandFour.length, 10);
 
   const tunnelTwoBandTen = game.getSpawnPoolForBand(10, 2);
-  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "clay").length, 4);
-  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "nativeCopper").length, 8);
-  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "graphite").length, 6);
-  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "tin").length, 4);
+  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "clay").length, 2);
+  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "nativeCopper").length, 4);
+  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "graphite").length, 3);
+  assert.equal(tunnelTwoBandTen.filter(({ type }) => type === "tin").length, 2);
+  assert.equal(tunnelTwoBandTen.length, 11);
 
   const tunnelTwoBandFifteen = game.getSpawnPoolForBand(15, 2);
-  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "nativeCopper").length, 8);
-  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "graphite").length, 6);
-  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "tin").length, 8);
+  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "nativeCopper").length, 4);
+  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "graphite").length, 3);
+  assert.equal(tunnelTwoBandFifteen.filter(({ type }) => type === "tin").length, 4);
+  assert.equal(tunnelTwoBandFifteen.length, 11);
   assert.equal(game.getDepositYieldMultiplier("tin", 10, 2), 1);
 
   const tunnelTwoBandTwentyFour = game.getSpawnPoolForBand(24, 2);
   assert.equal(tunnelTwoBandTwentyFour.filter(({ type }) => type === "beryl").length, 0);
   const tunnelTwoBandTwentyFive = game.getSpawnPoolForBand(25, 2);
-  assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "beryl").length, 6);
+  assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "nativeCopper").length, 4);
+  assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "graphite").length, 3);
+  assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "tin").length, 4);
+  assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "beryl").length, 3);
   assert.equal(tunnelTwoBandTwentyFive.filter(({ type }) => type === "rawAquamarine").length, 1);
-  assert.equal(tunnelTwoBandTwentyFive.find(({ type }) => type === "rawAquamarine").chance, 1);
-  assert.equal(tunnelTwoBandTwentyFive.find(({ type }) => type === "rawEmerald").chance, 0.2);
+  assert.equal(tunnelTwoBandTwentyFive.find(({ type }) => type === "rawAquamarine").chance, 0.5);
+  assert.equal(tunnelTwoBandTwentyFive.find(({ type }) => type === "rawEmerald").chance, 0.1);
+  assert.equal(tunnelTwoBandTwentyFive.length, 16, "Band 25+ halves Beryl and the gem appearance chances");
 });
 
 test("tunnel and automation unlocks hydrate from their intended progress", () => {
@@ -963,10 +977,10 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
   assert.equal(game.switchArcFurnaceMode(furnace, "alloy3"), false);
 
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-  const controls = source.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\n  \}\n\n  if \(machine\.id === "metalPress"\)/);
+  const controls = source.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  if \(machine\.id === "metalPress"\)/);
   assert.ok(controls, "arc furnace controls should exist");
   assert.match(controls[1], /switchArcFurnaceMode\(machine, value\)/);
-  assert.match(controls[1], /\n\s+selected,\n\s+\);/);
+  assert.match(controls[1], /\r?\n\s+selected,\r?\n\s+\);/);
   assert.doesNotMatch(controls[1], /\boccupied\b/);
 });
 
