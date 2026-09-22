@@ -1593,6 +1593,29 @@ body.reality-shield-active .excavation-actions #fireButton {
   color: #edf4cf;
 }
 
+.cheat-panel[hidden] {
+  display: none;
+}
+
+.cheat-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.55rem;
+}
+
+.cheat-toggle-grid .button,
+.cheat-actions .button {
+  min-height: 2.7rem;
+  white-space: normal;
+  text-align: left;
+}
+
+.cheat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
 .options-actions {
   display: flex;
   flex-wrap: wrap;

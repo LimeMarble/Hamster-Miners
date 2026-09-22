@@ -123,6 +123,12 @@ const FACTORY_TILE_SIZE = 32;
 const FACTORY_CANVAS_WIDTH = FACTORY_COLUMNS * FACTORY_TILE_SIZE;
 const FACTORY_CANVAS_HEIGHT = (FACTORY_ROWS + FACTORY_TOP_ROWS) * FACTORY_TILE_SIZE;
 const IS_NODE_TEST_ENVIRONMENT = typeof module !== "undefined" && Boolean(module.exports);
+const PLAYTEST_CHEAT_DEFAULTS = Object.freeze({
+  drillDpsX10: false,
+  materialYieldX10: false,
+  productionSpeedX5: false,
+  sellValueX10: false,
+});
 
 function normalizeGunSchedule(schedule) {
   if (!Array.isArray(schedule)) {
@@ -1660,6 +1666,14 @@ const elements = {
   codeField: document.querySelector("#codeField"),
   applyCodeButton: document.querySelector("#applyCodeButton"),
   codeStatus: document.querySelector("#codeStatus"),
+  cheatPanel: document.querySelector("#cheatPanel"),
+  cheatDrillDpsToggle: document.querySelector("#cheatDrillDpsToggle"),
+  cheatMaterialYieldToggle: document.querySelector("#cheatMaterialYieldToggle"),
+  cheatProductionSpeedToggle: document.querySelector("#cheatProductionSpeedToggle"),
+  cheatSellValueToggle: document.querySelector("#cheatSellValueToggle"),
+  cheatDrillUpgradeButton: document.querySelector("#cheatDrillUpgradeButton"),
+  cheatDrillDowngradeButton: document.querySelector("#cheatDrillDowngradeButton"),
+  cheatTunnelRightsButton: document.querySelector("#cheatTunnelRightsButton"),
   hardResetButton: document.querySelector("#hardResetButton"),
 };
 
@@ -1711,6 +1725,7 @@ let factoryCameraZoom = 1;
 let factoryTextResolution = 1;
 let factoryPointerInside = false;
 const REALITY_SHIELD_CHEAT_CODE = "Icantake'em";
+const PLAYTEST_PANEL_CHEAT_CODE = "doit15timesalloveragain";
 let realityShieldCheatBuffer = "";
 
 function createInitialState() {
@@ -1782,6 +1797,8 @@ function createInitialState() {
     cash: 0,
     cashEconomyVersion: CONFIG.cashEconomyVersion,
     diamondFragments: 0,
+    cheatPanelUnlocked: false,
+    playtestCheats: { ...PLAYTEST_CHEAT_DEFAULTS },
   stockpile: {
       leek: 0,
       copper: 0,
@@ -2034,6 +2051,10 @@ function hydrateSavedState(savedState) {
   const hydratedState = {
     ...initialState,
     ...savedState,
+    cheatPanelUnlocked: savedState.cheatPanelUnlocked === true,
+    playtestCheats: Object.fromEntries(Object.keys(PLAYTEST_CHEAT_DEFAULTS).map((id) => (
+      [id, savedState.playtestCheats?.[id] === true]
+    ))),
     machines,
     nextMachineInstanceId: Number.isInteger(savedState.nextMachineInstanceId)
       ? Math.max(1, savedState.nextMachineInstanceId)
@@ -2156,13 +2177,13 @@ function hydrateSavedState(savedState) {
   // available Cast Iron Drill to the only existing save line, including any
   // saved tunnel snapshots.
   if (!DRILL_UPGRADES[hydratedState.drill.upgradeId]
-    || hydratedState.drill.upgradeId === "basic") {
+    || (hydratedState.drill.upgradeId === "basic" && !hydratedState.cheatPanelUnlocked)) {
     hydratedState.drill.upgradeId = "castIron";
   }
   Object.values(hydratedState.mine.tunnelProgress).forEach((progress) => {
     if (isSaveRecord(progress) && isSaveRecord(progress.drill)) {
       if (!DRILL_UPGRADES[progress.drill.upgradeId]
-        || progress.drill.upgradeId === "basic") {
+        || (progress.drill.upgradeId === "basic" && !hydratedState.cheatPanelUnlocked)) {
         progress.drill.upgradeId = "castIron";
       }
     }
@@ -2425,9 +2446,11 @@ function hasDiamondTippedDrill() {
 }
 
 function getRealityShieldDps() {
-  return hasDiamondTippedDrill() || getRealityShield().temporaryBattle
-    ? DRILL_UPGRADES.diamondTipped.dps
-    : getDrillDps();
+  if (hasDiamondTippedDrill() || getRealityShield().temporaryBattle) {
+    return DRILL_UPGRADES.diamondTipped.dps
+      * (isPlaytestCheatEnabled("drillDpsX10") ? 10 : 1);
+  }
+  return getDrillDps();
 }
 
 function createRealityShieldWave() {
@@ -3750,7 +3773,10 @@ function canConveyorFeedInto(source, destination) {
 }
 
 function getConveyorSpeed(conveyor) {
-  return Math.max(0.1, conveyor.speed ?? CONFIG.defaultConveyorSpeed);
+  return Math.max(
+    0.1,
+    (conveyor.speed ?? CONFIG.defaultConveyorSpeed) * getProcessingSpeedMultiplier(),
+  );
 }
 
 function getConveyorSecondsPerTile(conveyor) {
@@ -4066,7 +4092,9 @@ function receiveConveyorItem(item, column, row) {
 
   const sellTubeInput = getSellTubeInputAt(column, row);
   if (sellTubeInput && item.kind === "material" && isSellableMaterial(item.material, item)) {
-    const saleValue = getItemSaleValue(item) * getSellTubeValueMultiplier(sellTubeInput.sellTube);
+    const saleValue = getItemSaleValue(item)
+      * getSellTubeValueMultiplier(sellTubeInput.sellTube)
+      * getPlaytestSellValueMultiplier();
     const totalSaleValue = saleValue * item.quantity;
     state.cash += totalSaleValue;
     showSaleFloatingText(totalSaleValue, sellTubeInput.sellTube);
@@ -5270,7 +5298,8 @@ function dispatchStorageExport() {
     state.storageExportsInTransit -= 1;
     state.dusterJob = null;
     const saleValue = getSaleValue(material, duster)
-      * getSellTubeValueMultiplier(route.sellTube);
+      * getSellTubeValueMultiplier(route.sellTube)
+      * getPlaytestSellValueMultiplier();
     state.cash += saleValue;
     showSaleFloatingText(saleValue, route.sellTube);
     addLog(`${getMachineDisplayName(route.sellTube.id)} sold one ${MATERIAL_LABELS[material]}${duster ? " after a Leek Duster pass" : ""} for ${formatCash(saleValue)}.`);
@@ -5640,7 +5669,24 @@ function canAffordMachinePurchase(machineId, quantity = 1) {
 }
 
 function getDrillDps() {
-  return DRILL_UPGRADES[state.drill.upgradeId]?.dps ?? CONFIG.drillDamagePerSecond;
+  return (DRILL_UPGRADES[state.drill.upgradeId]?.dps ?? CONFIG.drillDamagePerSecond)
+    * (isPlaytestCheatEnabled("drillDpsX10") ? 10 : 1);
+}
+
+function isPlaytestCheatEnabled(cheatId) {
+  return Boolean(state.cheatPanelUnlocked && state.playtestCheats?.[cheatId] === true);
+}
+
+function getMaterialYieldMultiplier() {
+  return isPlaytestCheatEnabled("materialYieldX10") ? 10 : 1;
+}
+
+function getProcessingSpeedMultiplier() {
+  return isPlaytestCheatEnabled("productionSpeedX5") ? 5 : 1;
+}
+
+function getPlaytestSellValueMultiplier() {
+  return isPlaytestCheatEnabled("sellValueX10") ? 10 : 1;
 }
 
 function getHigherDrillUpgradeId(firstUpgradeId, secondUpgradeId) {
@@ -7132,12 +7178,13 @@ function applyDamageToDeposit(deposit, damage) {
 
   if (deposit.segmentsRemaining === 0) {
     const definition = RESOURCE_DEFINITIONS[deposit.type];
-    state.stockpile[definition.stockpileKey] += deposit.yield;
-    state.recoveredOre += deposit.yield;
+    const yieldedAmount = deposit.yield * getMaterialYieldMultiplier();
+    state.stockpile[definition.stockpileKey] += yieldedAmount;
+    state.recoveredOre += yieldedAmount;
     if (state.selectedDepositId === deposit.id) {
       state.selectedDepositId = null;
     }
-    addLog(`${definition.label} displaced: +${deposit.yield} to stockpile.`);
+    addLog(`${definition.label} displaced: +${formatNumber(yieldedAmount)} to stockpile.`);
   }
   return true;
 }
@@ -7990,8 +8037,25 @@ function activateRealityShieldCheat() {
   return started;
 }
 
-function applyPlaytestCode() {
-  const enteredCode = elements.codeField?.value.trim() ?? "";
+function applyPlaytestCode(code = elements.codeField?.value.trim() ?? "") {
+  const enteredCode = String(code).trim();
+  if (enteredCode.toLowerCase() === PLAYTEST_PANEL_CHEAT_CODE.toLowerCase()) {
+    state.cheatPanelUnlocked = true;
+    state.playtestCheats = {
+      ...PLAYTEST_CHEAT_DEFAULTS,
+      ...(state.playtestCheats ?? {}),
+    };
+    addLog("Playtest cheat panel unlocked.");
+    saveGame();
+    if (elements.codeStatus) {
+      elements.codeStatus.textContent = "Code accepted. Playtest cheat panel unlocked for this save.";
+    }
+    if (!IS_NODE_TEST_ENVIRONMENT) {
+      render();
+    }
+    return true;
+  }
+
   if (enteredCode.toLowerCase() !== REALITY_SHIELD_CHEAT_CODE.toLowerCase()) {
     if (elements.codeStatus) {
       elements.codeStatus.textContent = "Unknown code.";
@@ -8009,6 +8073,73 @@ function applyPlaytestCode() {
     saveGame();
   }
   return started;
+}
+
+function togglePlaytestCheat(cheatId) {
+  if (!state.cheatPanelUnlocked || !Object.hasOwn(PLAYTEST_CHEAT_DEFAULTS, cheatId)) {
+    return false;
+  }
+  state.playtestCheats = {
+    ...PLAYTEST_CHEAT_DEFAULTS,
+    ...(state.playtestCheats ?? {}),
+    [cheatId]: !isPlaytestCheatEnabled(cheatId),
+  };
+  saveGame();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
+  return state.playtestCheats[cheatId];
+}
+
+function changePlaytestDrillUpgrade(direction) {
+  if (!state.cheatPanelUnlocked || ![-1, 1].includes(direction)) {
+    return false;
+  }
+  const upgradeIds = Object.keys(DRILL_UPGRADES);
+  const currentIndex = upgradeIds.indexOf(state.drill.upgradeId);
+  const targetIndex = Math.min(upgradeIds.length - 1, Math.max(0, currentIndex + direction));
+  if (currentIndex < 0 || targetIndex === currentIndex) {
+    return false;
+  }
+  const upgradeId = upgradeIds[targetIndex];
+  state.drill.upgradeId = upgradeId;
+  Object.values(state.mine.tunnelProgress).forEach((progress) => {
+    if (isSaveRecord(progress) && isSaveRecord(progress.drill)) {
+      progress.drill.upgradeId = upgradeId;
+    }
+  });
+  addLog(`Playtest cheat set drill to ${DRILL_UPGRADES[upgradeId].label}.`);
+  saveGame();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
+  return true;
+}
+
+function grantNextTunnelRights() {
+  if (!state.cheatPanelUnlocked) {
+    return false;
+  }
+  if (!Array.isArray(state.mine.unlockedTunnels)) {
+    state.mine.unlockedTunnels = [1];
+  }
+  const nextTunnel = [2, 3].find((tunnel) => !state.mine.unlockedTunnels.includes(tunnel));
+  if (!nextTunnel) {
+    return false;
+  }
+  state.mine.unlockedTunnels.push(nextTunnel);
+  if (nextTunnel === 2) {
+    state.mine.miningRightsPurchased = true;
+  } else {
+    state.mine.miningRightsPurchased = true;
+    state.mine.tunnelThreeRightsPurchased = true;
+  }
+  addLog(`Playtest cheat granted Tunnel ${nextTunnel} rights for free.`);
+  saveGame();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
+  return nextTunnel;
 }
 
 function registerRealityShieldCheatKey(key) {
@@ -8067,8 +8198,9 @@ function addLog(message) {
 }
 
 function updateCrewOperatedMachines(deltaSeconds) {
+  const processingDelta = deltaSeconds * getProcessingSpeedMultiplier();
   state.kilnJobs.forEach((job) => {
-    job.secondsRemaining -= deltaSeconds;
+    job.secondsRemaining -= processingDelta;
   });
   state.kilnJobs.slice().forEach((job) => {
     if (job.secondsRemaining <= 0) {
@@ -8078,7 +8210,7 @@ function updateCrewOperatedMachines(deltaSeconds) {
   });
 
   state.molderJobs.forEach((job) => {
-    job.secondsRemaining -= deltaSeconds;
+    job.secondsRemaining -= processingDelta;
   });
   state.molderJobs.slice().forEach((job) => {
     if (job.secondsRemaining <= 0) {
@@ -8087,7 +8219,7 @@ function updateCrewOperatedMachines(deltaSeconds) {
   });
 
   state.arcFurnaceJobs.forEach((job) => {
-    job.secondsRemaining -= deltaSeconds;
+    job.secondsRemaining -= processingDelta;
   });
   state.arcFurnaceJobs.slice().forEach((job) => {
     if (job.secondsRemaining <= 0) {
@@ -8114,7 +8246,7 @@ function updateFactory(deltaSeconds) {
   emitStackerOutputs();
   emitStorageOutputs();
 
-  planterAccumulator += deltaSeconds;
+  planterAccumulator += deltaSeconds * getProcessingSpeedMultiplier();
   while (
     planterAccumulator >= CONFIG.planterCycleSeconds
     && state.planterQueue < CONFIG.maxPlanterQueue
@@ -8157,7 +8289,7 @@ function update(deltaSeconds) {
       - Math.floor(priorProgress * hostRockYield);
 
     if (hostRockGained > 0) {
-      state.stockpile[getHostRockMaterial()] += hostRockGained;
+      state.stockpile[getHostRockMaterial()] += hostRockGained * getMaterialYieldMultiplier();
     }
 
     if (state.drill.hitPointsRemaining <= 0) {
@@ -8314,6 +8446,46 @@ function render() {
 function renderOptions() {
   elements.exportSaveButton.disabled = false;
   elements.importSaveButton.disabled = elements.saveDataField.value.trim().length === 0;
+  if (!elements.cheatPanel) {
+    return;
+  }
+  elements.cheatPanel.hidden = !state.cheatPanelUnlocked;
+  if (!state.cheatPanelUnlocked) {
+    return;
+  }
+
+  [
+    [elements.cheatDrillDpsToggle, "drillDpsX10", "×10 drill DPS"],
+    [elements.cheatMaterialYieldToggle, "materialYieldX10", "×10 material yield"],
+    [elements.cheatProductionSpeedToggle, "productionSpeedX5", "×5 conveyor and processing speed"],
+    [elements.cheatSellValueToggle, "sellValueX10", "×10 sell value"],
+  ].forEach(([button, cheatId, label]) => {
+    if (!button) {
+      return;
+    }
+    const enabled = isPlaytestCheatEnabled(cheatId);
+    button.textContent = `${label}: ${enabled ? "On" : "Off"}`;
+    button.setAttribute("aria-pressed", String(enabled));
+  });
+
+  const drillUpgradeIds = Object.keys(DRILL_UPGRADES);
+  const currentDrillIndex = drillUpgradeIds.indexOf(state.drill.upgradeId);
+  const nextDrillUpgrade = DRILL_UPGRADES[drillUpgradeIds[currentDrillIndex + 1]];
+  const previousDrillUpgrade = DRILL_UPGRADES[drillUpgradeIds[currentDrillIndex - 1]];
+  elements.cheatDrillUpgradeButton.disabled = !nextDrillUpgrade;
+  elements.cheatDrillUpgradeButton.textContent = nextDrillUpgrade
+    ? `Upgrade drill → ${nextDrillUpgrade.label}`
+    : "Drill is at its highest level";
+  elements.cheatDrillDowngradeButton.disabled = !previousDrillUpgrade;
+  elements.cheatDrillDowngradeButton.textContent = previousDrillUpgrade
+    ? `Downgrade drill → ${previousDrillUpgrade.label}`
+    : "Drill is at its lowest level";
+
+  const nextTunnel = [2, 3].find((tunnel) => !state.mine.unlockedTunnels.includes(tunnel));
+  elements.cheatTunnelRightsButton.disabled = !nextTunnel;
+  elements.cheatTunnelRightsButton.textContent = nextTunnel
+    ? `Get Tunnel ${nextTunnel} rights (free)`
+    : "All tunnel rights unlocked";
 }
 
 function renderRecipes() {
@@ -9239,7 +9411,10 @@ function renderStatus() {
   const planter = getMachine("planter");
   const planterInputConveyor = planter ? getInternalConveyor(planter, 0) : null;
   setTextContentIfChanged(elements.ammoValue, formatNumber(getTotalAmmo()));
-  const secondsUntilPlanter = Math.max(0, CONFIG.planterCycleSeconds - planterAccumulator);
+  const secondsUntilPlanter = Math.max(
+    0,
+    CONFIG.planterCycleSeconds - planterAccumulator,
+  ) / getProcessingSpeedMultiplier();
   setTextContentIfChanged(elements.planterRate, `${getGunDisplayName()} · ${getSelectedGun() === "buckshot" ? `${BUCKSHOT_FIRE_PER_SECOND} shot/s · ${BUCKSHOT_SEGMENTS_PER_SHOT} random hits` : `${CONFIG.autoFirePerSecond} shots/s`}`);
   setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && !getConveyorItem(planterInputConveyor)
     ? `${secondsUntilPlanter.toFixed(1)}s`
@@ -11739,7 +11914,9 @@ function renderMineInformationOverlay() {
       depositsRemaining: state.deposits.filter(
         (deposit) => deposit.type === type && deposit.segmentsRemaining > 0,
       ).length,
-      yieldAtBand: definition.yield * getDepositYieldMultiplier(type, stats.band, tunnel),
+      yieldAtBand: definition.yield
+        * getDepositYieldMultiplier(type, stats.band, tunnel)
+        * getMaterialYieldMultiplier(),
     }));
   const oreSummarySignature = oreCounts
     .map(({ type, depositsRemaining, yieldAtBand }) => `${type}:${depositsRemaining}:${yieldAtBand}`)
@@ -12516,6 +12693,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     FACTORY_ROWS,
     FACTORY_STARTER_COLUMN_OFFSET,
     RESOURCE_DEFINITIONS,
+    PLAYTEST_PANEL_CHEAT_CODE,
     isObtainableMaterial,
     LOW_MELTING_METAL_ORES,
     MACHINE_LAYOUT,
@@ -12567,10 +12745,13 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getLayerStats,
     getHostRockMaterial,
     getHostRockYield,
+    getMaterialYieldMultiplier,
     getTunnelLayerFormation,
     canBuyTunnelThreeRights,
     getSpawnPoolForBand,
     getDepositYieldMultiplier,
+    getProcessingSpeedMultiplier,
+    getPlaytestSellValueMultiplier,
     formatNumber,
     formatCash,
     formatQuantity,
@@ -12580,6 +12761,8 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getFactoryMaterialVisualKind,
     getFactoryConveyors,
     getConveyorAt,
+    getConveyorSpeed,
+    getConveyorSecondsPerTile,
     placeMachine,
     getSelectableFactoryEntities,
     selectFactoryEntitiesInRectangle,
@@ -12610,6 +12793,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     canPickUpMachine,
     startKilnJobs,
     updateCrewOperatedMachines,
+    applyDamageToDeposit,
     completeMolderJob,
     flushMolderOutputs,
     updateFactory,
@@ -12637,11 +12821,17 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     defeatRealityShieldOre,
     canStartRealityShield,
     startRealityShield,
+    getRealityShieldDps,
     updateRealityShield,
     registerRealityShieldCheatKey,
     REALITY_SHIELD_HP: CONFIG.realityShieldHitPoints,
     REALITY_SHIELD_DEFAULT_INTERVAL_SECONDS: CONFIG.realityShieldInitialIntervalSeconds,
     getDrillDps,
+    applyPlaytestCode,
+    togglePlaytestCheat,
+    changePlaytestDrillUpgrade,
+    grantNextTunnelRights,
+    update,
     getNextDrillUpgrade,
     canAffordDrillUpgrade,
     purchaseDrillUpgrade,
@@ -12776,7 +12966,14 @@ elements.mineDrillUpgradeButton?.addEventListener("click", () => {
 elements.exportSaveButton.addEventListener("click", exportSaveData);
 elements.importSaveButton.addEventListener("click", importSaveData);
 elements.hardResetButton.addEventListener("click", hardResetGame);
-elements.applyCodeButton.addEventListener("click", applyPlaytestCode);
+elements.applyCodeButton.addEventListener("click", () => applyPlaytestCode());
+elements.cheatDrillDpsToggle.addEventListener("click", () => togglePlaytestCheat("drillDpsX10"));
+elements.cheatMaterialYieldToggle.addEventListener("click", () => togglePlaytestCheat("materialYieldX10"));
+elements.cheatProductionSpeedToggle.addEventListener("click", () => togglePlaytestCheat("productionSpeedX5"));
+elements.cheatSellValueToggle.addEventListener("click", () => togglePlaytestCheat("sellValueX10"));
+elements.cheatDrillUpgradeButton.addEventListener("click", () => changePlaytestDrillUpgrade(1));
+elements.cheatDrillDowngradeButton.addEventListener("click", () => changePlaytestDrillUpgrade(-1));
+elements.cheatTunnelRightsButton.addEventListener("click", grantNextTunnelRights);
 elements.codeField.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();

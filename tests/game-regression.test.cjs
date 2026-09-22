@@ -3214,3 +3214,135 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
   assert.equal(otherExits[0].item?.material, "copper");
   assert.equal(incompatible.splitterNextOutputIndex, 2);
 });
+
+test("playtest code unlocks a save-persistent cheat panel and toggle state", () => {
+  const state = freshState();
+  assert.equal(game.PLAYTEST_PANEL_CHEAT_CODE, "doit15timesalloveragain");
+  assert.equal(state.cheatPanelUnlocked, false);
+  assert.equal(game.applyPlaytestCode("  doit15timesalloveragain  "), true);
+  assert.equal(state.cheatPanelUnlocked, true);
+  assert.deepEqual(state.playtestCheats, {
+    drillDpsX10: false,
+    materialYieldX10: false,
+    productionSpeedX5: false,
+    sellValueX10: false,
+  });
+  assert.equal(game.togglePlaytestCheat("sellValueX10"), true);
+
+  const hydrated = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
+  assert.equal(hydrated.cheatPanelUnlocked, true);
+  assert.equal(hydrated.playtestCheats.sellValueX10, true);
+  assert.equal(hydrated.drill.upgradeId, "basic", "cheat downgrades must survive the legacy drill migration");
+  assert.equal(game.applyPlaytestCode("not-a-code"), false);
+  assert.equal(game.togglePlaytestCheat("unknownCheat"), false);
+});
+
+test("playtest toggles multiply drill DPS, conveyor speed, and timed production", () => {
+  const state = freshState();
+  game.applyPlaytestCode("doit15timesalloveragain");
+  assert.equal(game.getDrillDps(), 50);
+  game.togglePlaytestCheat("drillDpsX10");
+  assert.equal(game.getDrillDps(), 500);
+  state.mine.realityShield.temporaryBattle = true;
+  assert.equal(game.getRealityShieldDps(), game.DRILL_UPGRADES.diamondTipped.dps * 10);
+  state.mine.realityShield.temporaryBattle = false;
+
+  assert.equal(game.getConveyorSpeed({ speed: 2 }), 2);
+  game.togglePlaytestCheat("productionSpeedX5");
+  assert.equal(game.getProcessingSpeedMultiplier(), 5);
+  assert.equal(game.getConveyorSpeed({ speed: 2 }), 10);
+  assert.equal(
+    game.getConveyorSecondsPerTile({ speed: 2 }),
+    game.CONFIG.secondsPerTileAtConveyorSpeedOne / 10,
+  );
+
+  state.kilnJobs = [{
+    kilnInstanceId: "cheat-kiln",
+    material: "lead",
+    quantity: 1,
+    secondsRemaining: 1,
+  }];
+  state.moltenCopper = [];
+  game.updateCrewOperatedMachines(0.2);
+  assert.equal(state.kilnJobs.length, 0);
+  assert.equal(state.moltenCopper[0].material, "lead");
+});
+
+test("playtest material-yield cheat multiplies ore and host-rock output", () => {
+  const state = freshState();
+  game.applyPlaytestCode("doit15timesalloveragain");
+  const deposit = game.createDeposit({ cell: 0, type: "copper" }, 0);
+  state.deposits = [deposit];
+  game.togglePlaytestCheat("materialYieldX10");
+  for (let segment = 0; segment < deposit.segmentsTotal; segment += 1) {
+    assert.equal(game.applyDamageToDeposit(deposit, 100), true);
+  }
+  assert.equal(state.stockpile.copper, 20);
+  assert.equal(state.recoveredOre, 20);
+
+  state.drill.active = true;
+  state.drill.hitPointsTotal = 100;
+  state.drill.hitPointsRemaining = 60;
+  game.update(0.2);
+  const normalRockGain = Math.floor(0.5 * game.getHostRockYield(1, 1))
+    - Math.floor(0.4 * game.getHostRockYield(1, 1));
+  assert.equal(state.stockpile.limestone, normalRockGain * 10);
+});
+
+test("playtest sell-value cheat applies only at selling, not to internal item values", () => {
+  const item = () => ({ kind: "material", material: "copper", quantity: 1, saleValueBase: 1 });
+  const baselineTube = machine("sellTube", "cheat-sell-baseline", 10, 10);
+  const baselineState = freshState({ machines: [baselineTube] });
+  assert.equal(game.receiveConveyorItem(item(), baselineTube.column, baselineTube.row), true);
+  const baselineCash = baselineState.cash;
+
+  const boostedTube = machine("sellTube", "cheat-sell-boosted", 10, 10);
+  const boostedState = freshState({ machines: [boostedTube] });
+  game.applyPlaytestCode("doit15timesalloveragain");
+  game.togglePlaytestCheat("sellValueX10");
+  const sellable = item();
+  assert.equal(game.getItemSaleValue(sellable), 1, "cash cheat must not mutate item/upgrader values");
+  assert.equal(game.receiveConveyorItem(sellable, boostedTube.column, boostedTube.row), true);
+  assert.equal(boostedState.cash, baselineCash * 10);
+});
+
+test("playtest progression buttons move one drill tier and grant tunnel rights in order", () => {
+  const state = freshState();
+  state.mine.tunnelProgress = {
+    2: { drill: { upgradeId: "castIron" } },
+  };
+  game.applyPlaytestCode("doit15timesalloveragain");
+
+  assert.equal(game.changePlaytestDrillUpgrade(1), true);
+  assert.equal(state.drill.upgradeId, "castIron");
+  assert.equal(state.mine.tunnelProgress[2].drill.upgradeId, "castIron");
+  assert.equal(game.changePlaytestDrillUpgrade(-1), true);
+  assert.equal(state.drill.upgradeId, "basic");
+  assert.equal(game.changePlaytestDrillUpgrade(-1), false);
+
+  const cashBefore = state.cash;
+  assert.equal(game.grantNextTunnelRights(), 2);
+  assert.deepEqual(state.mine.unlockedTunnels, [1, 2]);
+  assert.equal(state.mine.miningRightsPurchased, true);
+  assert.equal(state.cash, cashBefore);
+  assert.equal(game.grantNextTunnelRights(), 3);
+  assert.deepEqual(state.mine.unlockedTunnels, [1, 2, 3]);
+  assert.equal(state.mine.tunnelThreeRightsPurchased, true);
+  assert.equal(game.grantNextTunnelRights(), false);
+});
+
+test("cheat panel controls are present and hidden until the unlock code is entered", () => {
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(markup, /id="cheatPanel"[^>]*hidden/);
+  for (const id of [
+    "cheatDrillDpsToggle",
+    "cheatMaterialYieldToggle",
+    "cheatProductionSpeedToggle",
+    "cheatSellValueToggle",
+    "cheatDrillUpgradeButton",
+    "cheatDrillDowngradeButton",
+    "cheatTunnelRightsButton",
+  ]) {
+    assert.match(markup, new RegExp(`id="${id}"`));
+  }
+});

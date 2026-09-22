@@ -650,13 +650,28 @@
           </section>
           <section class="panel options-card" aria-labelledby="codesTitle">
             <h3 id="codesTitle">Codes</h3>
-            <p class="panel-copy">Enter a playtest code to temporarily activate special testing behaviour.</p>
+            <p class="panel-copy">Enter a playtest code to unlock save-specific cheats or launch a test scenario.</p>
             <div class="code-entry">
               <label for="codeField">Code</label>
               <input id="codeField" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a code">
               <button class="button button-secondary" id="applyCodeButton" type="button">Apply code</button>
             </div>
             <p class="options-status" id="codeStatus" role="status"></p>
+          </section>
+          <section class="panel options-card cheat-panel" id="cheatPanel" aria-labelledby="cheatPanelTitle" hidden>
+            <h3 id="cheatPanelTitle">Playtest cheats</h3>
+            <p class="panel-copy">These settings are saved with this save file. Speed boosts affect conveyors and timed production, not mining or combat timers.</p>
+            <div class="cheat-toggle-grid" aria-label="Playtest multipliers">
+              <button class="button button-secondary" id="cheatDrillDpsToggle" type="button" aria-pressed="false">×10 drill DPS: Off</button>
+              <button class="button button-secondary" id="cheatMaterialYieldToggle" type="button" aria-pressed="false">×10 material yield: Off</button>
+              <button class="button button-secondary" id="cheatProductionSpeedToggle" type="button" aria-pressed="false">×5 conveyor and processing speed: Off</button>
+              <button class="button button-secondary" id="cheatSellValueToggle" type="button" aria-pressed="false">×10 sell value: Off</button>
+            </div>
+            <div class="cheat-actions" aria-label="Playtest progression controls">
+              <button class="button button-secondary" id="cheatDrillUpgradeButton" type="button">Upgrade drill</button>
+              <button class="button button-secondary" id="cheatDrillDowngradeButton" type="button">Downgrade drill</button>
+              <button class="button" id="cheatTunnelRightsButton" type="button">Get next tunnel rights</button>
+            </div>
           </section>
         </div>
         <div class="screen-actions"><button class="button button-secondary" data-view-target="mine" type="button">Back to Mine</button></div>
