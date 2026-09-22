@@ -416,7 +416,7 @@ const ORE_START_BANDS = Object.freeze({
   lead: 5,
   graphite: 4,
   quartz: 2,
-  silver: 12,
+  silver: 10,
   zinc: 25,
   beryl: 25,
   rawAquamarine: 25,
@@ -999,7 +999,6 @@ const MACHINE_LAYOUT = Object.freeze({
       { column: 2, row: 1, direction: "right", speed: 5 },
       { column: 3, row: 1, direction: "right", speed: 5 },
     ],
-    fiberInput: { column: 1, row: 0, direction: "down" },
     silverInput: { column: 1, row: 2, direction: "up" },
     processLaneIndex: 1,
     movable: true,
@@ -1142,7 +1141,7 @@ const TUNNEL_ONE_SPAWN_POOLS = Object.freeze([
     ]),
   },
   {
-    startsAtBand: 12,
+    startsAtBand: 10,
     deposits: Object.freeze([
       { cell: 2, type: "clay" },
       { cell: 7, type: "clay" },
@@ -2120,7 +2119,14 @@ function hydrateSavedState(savedState) {
       ? savedState.kilnJobs
       : (isSaveRecord(savedState.kilnJob) ? [savedState.kilnJob] : []),
     contactMakerInputs: isSaveRecord(savedState.contactMakerInputs)
-      ? savedState.contactMakerInputs
+      ? Object.fromEntries(Object.entries(savedState.contactMakerInputs).map(([instanceId, inputs]) => {
+        if (!isSaveRecord(inputs)) {
+          return [instanceId, inputs];
+        }
+        const normalizedInputs = { ...inputs };
+        delete normalizedInputs.fiber;
+        return [instanceId, normalizedInputs];
+      }))
       : {},
     arcFurnaceInputs: isSaveRecord(savedState.arcFurnaceInputs)
       ? savedState.arcFurnaceInputs
@@ -3125,7 +3131,7 @@ const CRAFTING_RECIPES = Object.freeze([
     category: "Electrical assembly",
     name: "Silver-Copper Contacts",
     machine: "Contact Maker",
-    input: "5 Copper Wires + 0.5 Silver Ingots + 1 Leek Fiber",
+    input: "5 Copper Wires + 0.5 Silver Ingots",
     output: "5 Silver-Copper Contacts",
     note: "The contact stack has a base value of $8.8.",
   }),
@@ -3960,15 +3966,6 @@ function canReceiveConveyorItem(item, column, row) {
     return true;
   }
 
-  const fiberInputMaker = getContactMakerPortAt(column, row, "fiberInput");
-  if (fiberInputMaker
-    && item.kind === "material"
-    && item.material === "leekFiber"
-    && getContactMakerInputState(fiberInputMaker.instanceId).fiber
-      < getContactMakerInputRequirements(fiberInputMaker).fiber) {
-    return true;
-  }
-
   const silverInputMaker = getContactMakerPortAt(column, row, "silverInput");
   if (silverInputMaker
     && item.kind === "material"
@@ -4091,20 +4088,6 @@ function receiveConveyorItem(item, column, row) {
       coreMaterial: item.coreMaterial,
     });
     addLog("Gun Deposit received an ammunition stack.");
-    return true;
-  }
-
-  const fiberInputMaker = getContactMakerPortAt(column, row, "fiberInput");
-  if (fiberInputMaker
-    && item.kind === "material"
-    && item.material === "leekFiber"
-    && getContactMakerInputState(fiberInputMaker.instanceId).fiber
-      < getContactMakerInputRequirements(fiberInputMaker).fiber) {
-    const current = getContactMakerInputState(fiberInputMaker.instanceId);
-    state.contactMakerInputs[fiberInputMaker.instanceId] = {
-      ...current,
-      fiber: current.fiber + item.quantity,
-    };
     return true;
   }
 
@@ -4557,7 +4540,7 @@ function emitStackerOutputs() {
 }
 
 function getContactMakerInputState(instanceId) {
-  return state.contactMakerInputs[instanceId] ?? { fiber: 0, silver: 0, silverValue: 0 };
+  return state.contactMakerInputs[instanceId] ?? { silver: 0, silverValue: 0 };
 }
 
 function getContactMakerRecipeCount(maker, wireQuantity = null) {
@@ -4573,7 +4556,6 @@ function getContactMakerInputRequirements(maker) {
   const recipeCount = getContactMakerRecipeCount(maker);
   return {
     recipeCount,
-    fiber: recipeCount,
     silver: recipeCount * 0.5,
   };
 }
@@ -4647,7 +4629,6 @@ function canItemLeaveConveyor(conveyor, item) {
           && item.material === "wire"
           && item.quantity >= 5
           && item.quantity % 5 === 0
-          && inputState.fiber >= recipeCount
           && inputState.silver >= recipeCount * 0.5;
       }
       return item.kind === "material" && ["wire", "contact"].includes(item.material);
@@ -4708,7 +4689,6 @@ function transformItemLeavingConveyor(conveyor, item) {
       const inputState = getContactMakerInputState(maker.instanceId);
       const recipeCount = getContactMakerRecipeCount(maker, item.quantity);
       if (item.quantity % 5 !== 0
-        || inputState.fiber < recipeCount
         || inputState.silver < recipeCount * 0.5) {
         return finishMaterialTransform();
       }
@@ -4719,7 +4699,6 @@ function transformItemLeavingConveyor(conveyor, item) {
         getItemSaleValue(item) * 5 * recipeCount
         + silverValuePerIngot * 0.5 * recipeCount
       ) * 2;
-      inputState.fiber -= recipeCount;
       inputState.silver -= recipeCount * 0.5;
       inputState.silverValue -= silverValuePerIngot * 0.5 * recipeCount;
       state.contactMakerInputs[maker.instanceId] = inputState;
@@ -4729,7 +4708,7 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.baseValue = 8.8;
       item.saleValueBonus = 0;
       item.freshMoldedAt = Date.now();
-      addLog(`Contact Maker produced ${formatNumber(item.quantity)} Silver-Copper Contacts from wire, Silver, and Leek Fiber.`);
+      addLog(`Contact Maker produced ${formatNumber(item.quantity)} Silver-Copper Contacts from Copper Wire and Silver.`);
     }
     return finishMaterialTransform();
   }
@@ -11474,7 +11453,6 @@ function drawMachineLiquidPorts(graphics) {
     drawLiquidPort(getMachinePort(kiln, "liquidOutput"));
   });
   getMachines("contactMaker").forEach((maker) => {
-    drawLiquidPort(getMachinePort(maker, "fiberInput"));
     drawLiquidPort(getMachinePort(maker, "silverInput"));
   });
   getMachines("miniElectricArcFurnace").forEach((furnace) => {
@@ -12089,16 +12067,19 @@ function renderMineInformationOverlay() {
   renderMineLayerActions();
 }
 
+const MINE_PROGRESS_MILESTONES = Object.freeze([
+  { tunnel: 1, band: 1, label: "Clear Tunnel 1 Band 1" },
+  { tunnel: 2, band: 5, label: "Clear Tunnel 2 Band 5 · Unlock Auto Re-mine and Auto-continue" },
+  { tunnel: 1, band: 4, label: "Clear Tunnel 1 Band 4 · Lead appears in Band 5" },
+  { tunnel: 1, band: 9, label: "Clear Tunnel 1 Band 9 · Silver appears in Band 10" },
+  { tunnel: 1, band: 20, label: "Clear Tunnel 1 Band 20 · ???" },
+]);
+
 function renderMineProgress(tunnel) {
   const layerLimit = getTunnelLayerLimit(tunnel);
   const completedLayers = getCompletedLayersForTunnel(tunnel);
   const completedBands = getCompletedBandsForTunnel(tunnel);
-  const milestones = [
-    { tunnel: 1, band: 1, label: "Clear Tunnel 1 Band 1" },
-    { tunnel: 2, band: 5, label: "Clear Tunnel 2 Band 5 · Unlock Auto Re-mine and Auto-continue" },
-    { tunnel: 1, band: 4, label: "Clear Tunnel 1 Band 4" },
-    { tunnel: 1, band: 20, label: "Clear Tunnel 1 Band 20 · Unlock Rapidfire Gun Mk. 1, Buckshot Gun, and Gunner's Manual" },
-  ].filter((milestone) => milestone.tunnel === tunnel);
+  const milestones = MINE_PROGRESS_MILESTONES.filter((milestone) => milestone.tunnel === tunnel);
   const nextMilestone = milestones.find((milestone) => milestone.band > completedBands);
   const goalLayer = nextMilestone
     ? Math.min(layerLimit, nextMilestone.band * CONFIG.layersPerBand)
@@ -12837,6 +12818,7 @@ function startGameLoop() {
 if (IS_NODE_TEST_ENVIRONMENT) {
   module.exports = {
     CONFIG,
+    MINE_PROGRESS_MILESTONES,
     getSaveKeyForPath,
     getActiveSaveKey,
     FACTORY_COLUMNS,

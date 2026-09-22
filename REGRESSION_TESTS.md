@@ -35,6 +35,9 @@ future pipe systems) are not treated as current acceptance requirements.
 - Tunnel 1 Bands 1–2 have half the starter deposits (four Clay and two
   Malachite before node doubling); Bands 3–4 use the full starter pool.
 - Tunnel 1 Band 5 contains five Clay, four Malachite, and three Lead deposits.
+- Tunnel 1 Band 10 introduces two Silver deposits; Band 9's milestone reveals
+  Silver, while Band 4's milestone reveals Lead appearing in Band 5.
+- Tunnel 1 Band 20's milestone reward label is `???`.
 - Tunnel 1 keeps the Band 20 pool through Band 24; Zinc joins at Band 25.
 - Mine information lists only deposit types in the active band’s spawn pool,
   while keeping a depleted type visible until the player changes band.
@@ -81,6 +84,7 @@ future pipe systems) are not treated as current acceptance requirements.
 - Send unmodified Malachite or Native Copper through the Clay Kiln and Ingot Molder: either ingot has value `$20` (`$5 × 4`).
 - Send a fresh `$10` Copper Wire through the Annealer and Sell Tube: it sells for `$17` (`$10 × 1.7`).
 - Fresh Wires, pressed metal Plates, and Silver-Copper Contacts each receive one ×1.7 value pass; raw ores and ingots are not accepted.
+- Contact Maker keeps its 100 Leek Fiber purchase requirement, but Contacts use only five Copper Wires and 0.5 Silver Ingots per batch of five. Legacy buffered Leek Fiber is discarded on load; silver buffer and existing contact value behavior remain intact.
 - Mineral ammo still receives ×1.7 damage from the Annealer; Leek ammo is not accepted.
 - Put an ingot into Material Storage, then output it to a Sell Tube: it resets to the `$20` minimum before later upgrades.
 - Route annealed Wire through Duster and verify the ×1.25 and ×1.7 effects are each applied once, not twice.

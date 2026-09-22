@@ -558,11 +558,15 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.equal(bandFive.filter(({ type }) => type === "lead").length, 3);
   assert.equal(bandFive.length, 12);
 
+  const bandNine = game.getSpawnPoolForBand(9, 1);
+  assert.equal(bandNine.filter(({ type }) => type === "silver").length, 0);
+
   const bandTen = game.getSpawnPoolForBand(10, 1);
-  assert.equal(bandTen.filter(({ type }) => type === "clay").length, 5);
+  assert.equal(bandTen.filter(({ type }) => type === "clay").length, 3);
   assert.equal(bandTen.filter(({ type }) => type === "copper").length, 4);
-  assert.equal(bandTen.filter(({ type }) => type === "lead").length, 3);
-  assert.equal(bandTen.filter(({ type }) => type === "silver").length, 0);
+  assert.equal(bandTen.filter(({ type }) => type === "lead").length, 4);
+  assert.equal(bandTen.filter(({ type }) => type === "silver").length, 2);
+  assert.equal(bandTen.length, 13);
 
   const bandTwelve = game.getSpawnPoolForBand(12, 1);
   assert.equal(bandTwelve.filter(({ type }) => type === "clay").length, 3);
@@ -609,9 +613,22 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.equal(game.RESOURCE_DEFINITIONS.beryl.yield, 2);
   assert.equal(game.RESOURCE_DEFINITIONS.rawAquamarine.yield, 1);
   assert.equal(game.RESOURCE_DEFINITIONS.rawEmerald.yield, 1);
-  assert.equal(game.getDepositYieldMultiplier("silver", 11, 1), 1);
-  assert.equal(game.getDepositYieldMultiplier("silver", 12, 1), 1);
-  assert.equal(game.getDepositYieldMultiplier("silver", 13, 1), 1.1);
+  assert.equal(game.getDepositYieldMultiplier("silver", 10, 1), 1);
+  assert.equal(game.getDepositYieldMultiplier("silver", 11, 1), 1.1);
+  assert.equal(game.getDepositYieldMultiplier("silver", 12, 1), 1.1 ** 2);
+  const tunnelOneMilestones = game.MINE_PROGRESS_MILESTONES.filter(({ tunnel }) => tunnel === 1);
+  assert.equal(
+    tunnelOneMilestones.find(({ band }) => band === 4).label,
+    "Clear Tunnel 1 Band 4 · Lead appears in Band 5",
+  );
+  assert.equal(
+    tunnelOneMilestones.find(({ band }) => band === 9).label,
+    "Clear Tunnel 1 Band 9 · Silver appears in Band 10",
+  );
+  assert.equal(
+    tunnelOneMilestones.find(({ band }) => band === 20).label,
+    "Clear Tunnel 1 Band 20 · ???",
+  );
   assert.equal(game.getDepositYieldMultiplier("graphite", 4, 2), 1);
   assert.equal(game.getDepositYieldMultiplier("beryl", 24, 1), 1);
   assert.equal(game.getSaleValue("silver"), 8.5);
@@ -1052,6 +1069,10 @@ test("Recipes catalogue includes every implemented production branch", () => {
     "Metal Ingots",
     "Metal Plates",
   ].forEach((name) => assert.equal(recipes.has(name), true));
+  assert.equal(
+    recipes.get("Silver-Copper Contacts").input,
+    "5 Copper Wires + 0.5 Silver Ingots",
+  );
   assert.match(recipes.get("Ceramic").input, /2 Clay/);
   assert.match(recipes.get("Bronze").output, /6 liquid Bronze/);
 });
@@ -1883,7 +1904,7 @@ test("Leek Fiber Extractor has the specified cost and footprint", () => {
   assert.equal(game.getBusyCrew(), 0);
 });
 
-test("Contact Maker has the specified cost, footprint, and labeled inputs", () => {
+test("Contact Maker keeps its purchase cost and uses only the Silver input", () => {
   const maker = game.MACHINE_LAYOUT.contactMaker;
   assert.equal(maker.width, 4);
   assert.equal(maker.height, 3);
@@ -1893,7 +1914,7 @@ test("Contact Maker has the specified cost, footprint, and labeled inputs", () =
     { column: 2, row: 1, direction: "right", speed: 5 },
     { column: 3, row: 1, direction: "right", speed: 5 },
   ]);
-  assert.deepEqual(maker.fiberInput, { column: 1, row: 0, direction: "down" });
+  assert.equal(maker.fiberInput, undefined);
   assert.deepEqual(maker.silverInput, { column: 1, row: 2, direction: "up" });
   const state = freshState({ cash: 1.8e4 });
   state.stockpile.granite = 80;
@@ -1928,7 +1949,7 @@ test("Leek Fiber Extractor and Contact Maker process their specified recipes", (
   freshState({
     machines: [maker],
     contactMakerInputs: {
-      [maker.instanceId]: { fiber: 1, silver: 1, silverValue: 350 },
+      [maker.instanceId]: { silver: 1, silverValue: 350 },
     },
   });
   const contactConveyor = {
@@ -1953,7 +1974,6 @@ test("Leek Fiber Extractor and Contact Maker process their specified recipes", (
   assert.equal(contacts.bronzeStampUses, undefined);
   assert.equal(contacts.bronzePillarsUses, undefined);
   assert.deepEqual(game.__getState().contactMakerInputs[maker.instanceId], {
-    fiber: 0,
     silver: 0.5,
     silverValue: 175,
   });
@@ -1964,18 +1984,17 @@ test("Leek Fiber Extractor and Contact Maker process their specified recipes", (
     internalIndex: 2,
   };
   assert.equal(game.canItemLeaveConveyor(thirdConveyor, contacts), true);
-  assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "leekFiber", quantity: 1 }, 9, 2), true);
-  assert.equal(game.receiveConveyorItem({ kind: "material", material: "leekFiber", quantity: 1 }, 9, 2), true);
   assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "leekFiber", quantity: 1 }, 9, 2), false);
+  assert.equal(game.receiveConveyorItem({ kind: "material", material: "leekFiber", quantity: 1 }, 9, 2), false);
   assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "silverIngot", quantity: 1 }, 9, 4), false);
 });
 
-test("Contact Maker scales fiber, silver, value, and output for stacked wires", () => {
+test("Contact Maker scales Silver, value, and output for stacked wires", () => {
   const maker = machine("contactMaker", "contact-stack-process", 8, 2);
   const state = freshState({
     machines: [maker],
     contactMakerInputs: {
-      [maker.instanceId]: { fiber: 3, silver: 2, silverValue: 700 },
+      [maker.instanceId]: { silver: 2, silverValue: 700 },
     },
   });
   const contactConveyor = {
@@ -2003,10 +2022,23 @@ test("Contact Maker scales fiber, silver, value, and output for stacked wires", 
   assert.equal(contacts.bronzeStampUses, undefined);
   assert.equal(contacts.bronzePillarsUses, undefined);
   assert.deepEqual(state.contactMakerInputs[maker.instanceId], {
-    fiber: 0,
     silver: 0.5,
     silverValue: 175,
   });
+});
+
+test("loading a legacy save discards buffered Contact Maker Leek Fiber", () => {
+  const savedState = game.createInitialState();
+  savedState.contactMakerInputs = {
+    "legacy-contact-maker": { fiber: 3, silver: 0.5, silverValue: 175 },
+  };
+
+  const hydrated = game.hydrateSavedState(savedState);
+  assert.deepEqual(hydrated.contactMakerInputs["legacy-contact-maker"], {
+    silver: 0.5,
+    silverValue: 175,
+  });
+  assert.equal(savedState.contactMakerInputs["legacy-contact-maker"].fiber, 3);
 });
 
 test("Jacket Former holds mineral cores for liquid Native copper and applies jacket damage", () => {
