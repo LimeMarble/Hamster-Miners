@@ -2413,6 +2413,13 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   cursor: default;
 }
 
+.mine-drill-upgrade-button.is-unaffordable {
+  border-color: rgba(196, 112, 104, 0.34);
+  background: rgba(62, 35, 35, 0.5);
+  color: #c79b96;
+  cursor: not-allowed;
+}
+
 .mine-information-combined-row {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr));

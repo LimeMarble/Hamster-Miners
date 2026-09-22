@@ -2351,6 +2351,9 @@ test("Cast Iron Drill Head costs $1k and raises drill output to 300 DPS", () => 
   assert.equal(game.DRILL_UPGRADES.castIron.cash, 1e3);
   assert.equal(game.DRILL_UPGRADES.castIron.dps, 300);
   assert.equal(game.canAffordDrillUpgrade("castIron"), false);
+  assert.equal(game.purchaseDrillUpgrade("castIron"), false);
+  assert.equal(state.cash, 999);
+  assert.equal(state.drill.upgradeId, "basic");
   assert.equal(game.getDrillDps(), 50);
 
   state.cash = 1e3;

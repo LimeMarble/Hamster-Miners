@@ -5668,7 +5668,9 @@ function purchaseDrillUpgrade(upgradeId) {
   const upgrade = DRILL_UPGRADES[upgradeId];
   if (!upgrade || !canAffordDrillUpgrade(upgradeId)) {
     addLog(`Not enough cash to purchase ${upgrade?.label ?? "that drill upgrade"}.`);
-    render();
+    if (!IS_NODE_TEST_ENVIRONMENT) {
+      render();
+    }
     return false;
   }
 
@@ -11688,19 +11690,38 @@ function renderMineInformationOverlay() {
   if (elements.mineDrillUpgradeButton) {
     const nextUpgrade = getNextDrillUpgrade();
     const installed = !nextUpgrade;
-    elements.mineDrillUpgradeButton.disabled = installed
-      || !canAffordDrillUpgrade(nextUpgrade.id);
-    const fragmentCost = nextUpgrade.requiredDiamondFragments
+    const canAfford = !installed && canAffordDrillUpgrade(nextUpgrade.id);
+    const cashShortfall = installed ? 0 : Math.max(0, nextUpgrade.cash - state.cash);
+    const fragmentShortfall = installed
+      ? 0
+      : Math.max(0, (nextUpgrade.requiredDiamondFragments ?? 0) - (state.diamondFragments ?? 0));
+    elements.mineDrillUpgradeButton.disabled = installed || !canAfford;
+    elements.mineDrillUpgradeButton.classList.toggle(
+      "is-unaffordable",
+      !installed && !canAfford,
+    );
+    const fragmentCost = nextUpgrade?.requiredDiamondFragments
       ? ` · ${nextUpgrade.requiredDiamondFragments} Diamond Fragments`
       : "";
     setTextContentIfChanged(elements.mineDrillUpgradeButton, installed
       ? "All current upgrades installed"
-      : `${nextUpgrade.label} · ${formatCash(nextUpgrade.cash, 3, 4)}${fragmentCost}`);
+      : canAfford
+        ? `${nextUpgrade.label} · ${formatCash(nextUpgrade.cash, 3, 4)}${fragmentCost}`
+        : [
+          cashShortfall > 0 ? `Need ${formatCash(cashShortfall)} cash` : "",
+          fragmentShortfall > 0 ? `Need ${formatNumber(fragmentShortfall)} Diamond Fragments` : "",
+        ].filter(Boolean).join(" · "));
     const upgradeTitle = installed
       ? "No further drill upgrades are currently available."
       : `${nextUpgrade.description} Raises drill power to ${nextUpgrade.dps} DPS.`
         + (nextUpgrade.requiredDiamondFragments
           ? ` Requires ${nextUpgrade.requiredDiamondFragments} Diamond Fragments.`
+          : "")
+        + (!canAfford
+          ? ` Currently short ${cashShortfall > 0 ? `${formatCash(cashShortfall)} cash` : ""}`
+            + (cashShortfall > 0 && fragmentShortfall > 0 ? " and " : "")
+            + (fragmentShortfall > 0 ? `${formatNumber(fragmentShortfall)} Diamond Fragments` : "")
+            + "."
           : "");
     if (elements.mineDrillUpgradeButton.title !== upgradeTitle) {
       elements.mineDrillUpgradeButton.title = upgradeTitle;
