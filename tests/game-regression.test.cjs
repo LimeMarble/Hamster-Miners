@@ -441,6 +441,16 @@ test("deposits receive their material-specific segment health", () => {
   assert.equal(clay.currentSegmentHitPoints, 2);
 });
 
+test("Clay has one consistent player-facing name in the mine and Shop", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+
+  assert.match(source, /label: "Clay"/);
+  assert.equal((source.match(/clay: "Clay"/g) ?? []).length, 2);
+  assert.match(html, /<i class="legend-dot clay-dot"><\/i> Clay/);
+  assert.equal((html.match(/<dt>Clay<\/dt>/g) ?? []).length, 3);
+});
+
 test("Graphite stockpile initializes, counts mined ore, and repairs invalid saved values", () => {
   const state = freshState();
   assert.equal(state.stockpile.graphite, 0);
@@ -649,14 +659,58 @@ test("tunnel and automation unlocks hydrate from their intended progress", () =>
   saved.mine.miningRightsPurchased = true;
   saved.mine.completedBandsByTunnel = { 1: 1, 2: 5 };
   saved.mine.selectedAmmoMaterial = "copper";
+  delete saved.mine.autoDrillMode;
+  saved.mine.autoDrillEnabled = true;
   const hydrated = game.hydrateSavedState(saved);
 
   assert.ok(hydrated.mine.unlockedTunnels.includes(2));
   assert.equal(hydrated.mine.autoDrillUnlocked, true);
+  assert.equal(hydrated.mine.autoDrillMode, "afterOres");
+  assert.equal("autoDrillEnabled" in hydrated.mine, false);
   assert.equal(hydrated.mine.autoRemineUnlocked, true);
   assert.equal(hydrated.mine.autoProgressionUnlocked, true);
   assert.equal(hydrated.mine.autoContinueEnabled, false);
   assert.equal(hydrated.mine.selectedAmmoMaterial, "copper");
+});
+
+test("automatic drilling cycles Off, After ores, and Ignore Ores", () => {
+  const state = freshState();
+  state.mine.autoDrillUnlocked = true;
+  assert.equal(state.mine.autoDrillMode, "off");
+  assert.deepEqual(game.AUTO_DRILL_MODES, ["off", "afterOres", "ignoreOres"]);
+
+  game.toggleAutoDrill();
+  assert.equal(state.mine.autoDrillMode, "afterOres");
+  assert.equal(state.drill.active, false, "After ores leaves the drill idle while deposits remain");
+
+  game.toggleAutoDrill();
+  assert.equal(state.mine.autoDrillMode, "ignoreOres");
+  assert.equal(state.drill.active, true, "Ignore Ores begins drilling despite remaining deposits");
+  assert.ok(state.deposits.some((deposit) => deposit.segmentsRemaining > 0));
+
+  game.toggleAutoDrill();
+  assert.equal(state.mine.autoDrillMode, "off");
+
+  const savedWithIgnoreOres = game.createInitialState();
+  savedWithIgnoreOres.mine.autoDrillMode = "ignoreOres";
+  assert.equal(game.hydrateSavedState(savedWithIgnoreOres).mine.autoDrillMode, "ignoreOres");
+});
+
+test("Ignore Ores starts the drill immediately on every newly entered layer", () => {
+  const state = freshState();
+  state.mine.autoDrillUnlocked = true;
+  state.mine.autoDrillMode = "ignoreOres";
+
+  game.loadLayer(2);
+  assert.equal(state.mine.currentLayer, 2);
+  assert.equal(state.drill.active, true);
+  assert.ok(state.deposits.some((deposit) => deposit.segmentsRemaining > 0));
+
+  state.drill.active = false;
+  state.drill.completed = false;
+  game.loadLayer(3);
+  assert.equal(state.mine.currentLayer, 3);
+  assert.equal(state.drill.active, true);
 });
 
 test("both tunnels switch to ×1.32 band HP growth after Band 5", () => {

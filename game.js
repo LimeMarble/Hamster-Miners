@@ -107,6 +107,12 @@ const RAPIDFIRE_MK1_COST = 2.5e5;
 const BUCKSHOT_GUN_COST = 5e5;
 const GUN_IDS = Object.freeze(["rapidfire", "buckshot"]);
 const GUN_SCHEDULE_MAX_STEPS = 8;
+const AUTO_DRILL_MODES = Object.freeze(["off", "afterOres", "ignoreOres"]);
+const AUTO_DRILL_MODE_LABELS = Object.freeze({
+  off: "Off",
+  afterOres: "After ores",
+  ignoreOres: "Ignore Ores",
+});
 const MALACHITE_AMMO_DAMAGE = 3;
 const LEAD_AMMO_DAMAGE = 5;
 
@@ -188,7 +194,7 @@ const RESOURCE_DEFINITIONS = Object.freeze({
     stockpileKey: "nativeCopper",
   },
   clay: {
-    label: "Kaolinite clay",
+    label: "Clay",
     shortLabel: "Cl",
     segments: 2,
     hitPointsPerSegment: 2,
@@ -282,7 +288,7 @@ const STOCKPILE_LABELS = Object.freeze({
   leek: "Leek",
   copper: "Malachite ore",
   nativeCopper: "Native copper",
-  clay: "Kaolinite clay",
+  clay: "Clay",
   lead: "Lead ore",
   graphite: "Graphite",
   quartz: "Quartz",
@@ -322,7 +328,7 @@ const MATERIAL_LABELS = Object.freeze({
   leek: "Leek",
   copper: "Malachite ore",
   nativeCopper: "Native copper",
-  clay: "Kaolinite clay",
+  clay: "Clay",
   lead: "Lead ore",
   graphite: "Graphite",
   quartz: "Quartz",
@@ -1926,7 +1932,7 @@ function createInitialState() {
       autoProgressionUnlocked: false,
       autoRemineUnlocked: false,
       tunnelThreeRightsPurchased: false,
-      autoDrillEnabled: false,
+      autoDrillMode: "off",
       autoContinueEnabled: false,
   autoRemineEnabled: false,
       selectedRemineBand: 1,
@@ -2155,6 +2161,11 @@ function hydrateSavedState(savedState) {
       tunnelProgress: isSaveRecord(savedState.mine?.tunnelProgress)
         ? savedState.mine.tunnelProgress
         : {},
+      autoDrillMode: AUTO_DRILL_MODES.includes(savedState.mine?.autoDrillMode)
+        ? savedState.mine.autoDrillMode
+        : savedState.mine?.autoDrillEnabled
+          ? "afterOres"
+          : "off",
       gunSchedulingUnlocked: Boolean(savedState.mine?.gunSchedulingUnlocked),
       gunScheduleEnabledByTunnel: {
         ...initialState.mine.gunScheduleEnabledByTunnel,
@@ -2191,6 +2202,7 @@ function hydrateSavedState(savedState) {
   };
 
   delete hydratedState.stockpile[REALITY_SHIELD_CROSSHAIR_TYPE];
+  delete hydratedState.mine.autoDrillEnabled;
   hydratedState.deposits = hydratedState.deposits.filter((deposit) => (
     deposit?.type !== REALITY_SHIELD_CROSSHAIR_TYPE
   ));
@@ -7635,7 +7647,9 @@ function startDrilling(automatic = false) {
       ? `Automatic drill engaged at ${getDrillDps()} DPS.`
       : `Face drill engaged at ${getDrillDps()} DPS. Remaining ore will be lost when the face is cleared.`,
   );
-  render();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
 }
 
 function completeDrilling() {
@@ -7851,7 +7865,8 @@ function loadLayer(layerNumber, { tunnel = getCurrentTunnel(), isRemine = false,
       ? `Re-mining Tunnel ${tunnel} Band ${stats.band}, Layer 1 with half of its original ore chunks.`
       : `Entered Tunnel ${tunnel}, Band ${stats.band}, Layer ${stats.layerInBand}.`,
   );
-  if (!IS_NODE_TEST_ENVIRONMENT) {
+  const automaticDrillingStarted = maybeStartAutomaticDrilling();
+  if (!automaticDrillingStarted && !IS_NODE_TEST_ENVIRONMENT) {
     render();
   }
 }
@@ -7875,7 +7890,8 @@ function switchTunnel(tunnel) {
     state.selectedDepositId = savedProgress.selectedDepositId;
     autoFireAccumulator = 0;
     syncLegacyMineProgress();
-    if (!IS_NODE_TEST_ENVIRONMENT) {
+    const automaticDrillingStarted = maybeStartAutomaticDrilling();
+    if (!automaticDrillingStarted && !IS_NODE_TEST_ENVIRONMENT) {
       render();
     }
     saveGame();
@@ -7919,9 +7935,19 @@ function toggleAutoDrill() {
     return;
   }
 
-  state.mine.autoDrillEnabled = !state.mine.autoDrillEnabled;
-  addLog(state.mine.autoDrillEnabled ? "Automatic drilling enabled." : "Automatic drilling disabled.");
-  render();
+  const currentIndex = Math.max(0, AUTO_DRILL_MODES.indexOf(state.mine.autoDrillMode));
+  const nextIndex = (currentIndex + 1 + AUTO_DRILL_MODES.length) % AUTO_DRILL_MODES.length;
+  state.mine.autoDrillMode = AUTO_DRILL_MODES[nextIndex];
+  addLog({
+    off: "Automatic drilling disabled.",
+    afterOres: "Automatic drilling will start after all ores on a layer are extracted.",
+    ignoreOres: "Automatic drilling will start immediately on layer entry, ignoring ores.",
+  }[state.mine.autoDrillMode]);
+  const automaticDrillingStarted = maybeStartAutomaticDrilling();
+  saveGame();
+  if (!automaticDrillingStarted && !IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
 }
 
 function toggleAutoContinue() {
@@ -8090,12 +8116,13 @@ function renderGunScheduleControls(fragment, tunnel) {
 }
 
 function maybeStartAutomaticDrilling() {
+  const mode = state.mine.autoDrillMode;
   if (
-    state.mine.autoDrillEnabled
+    mode !== "off"
     && state.mine.autoDrillUnlocked
     && !state.drill.active
     && !state.drill.completed
-    && getActiveDeposits().length === 0
+    && (mode === "ignoreOres" || getActiveDeposits().length === 0)
   ) {
     startDrilling(true);
     return true;
@@ -12124,7 +12151,7 @@ function renderMineLayerActions() {
     state.mine.autoDrillUnlocked,
     state.mine.autoProgressionUnlocked,
     state.mine.autoRemineUnlocked,
-    state.mine.autoDrillEnabled,
+    state.mine.autoDrillMode,
     state.mine.autoContinueEnabled,
     state.mine.autoRemineEnabled,
     state.mine.selectedRemineBand,
@@ -12244,9 +12271,8 @@ function renderMineLayerActions() {
     const autoDrillButton = document.createElement("button");
     autoDrillButton.type = "button";
     autoDrillButton.className = "button button-secondary mine-layer-action";
-    autoDrillButton.textContent = state.mine.autoDrillEnabled
-      ? "Automatic drilling: On"
-      : "Automatic drilling: Off";
+    autoDrillButton.textContent = `Automatic drilling: ${AUTO_DRILL_MODE_LABELS[state.mine.autoDrillMode] ?? "Off"}`;
+    autoDrillButton.title = "Click to cycle: Off → After ores → Ignore Ores.";
     bindImmediateAction(autoDrillButton, toggleAutoDrill);
     fragment.append(autoDrillButton);
   }
@@ -12893,6 +12919,10 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     beginGroupMove,
     completeGroupMove,
     rotateSelectedBuild,
+    loadLayer,
+    toggleAutoDrill,
+    maybeStartAutomaticDrilling,
+    AUTO_DRILL_MODES,
     pickUpSelectedFactoryEntities,
     pickUpSelectedFactoryEntity,
     getArcFurnaceRecipe,

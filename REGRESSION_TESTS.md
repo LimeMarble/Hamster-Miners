@@ -30,6 +30,8 @@ future pipe systems) are not treated as current acceptance requirements.
   five Clay deposits.
 - Native Copper has three 8-HP segments; Malachite has three 3-HP segments;
   Clay has two 2-HP segments; Lead has five 10-HP segments.
+- Clay deposit labels, the Mine legend, and Shop costs consistently call the
+  material `Clay`.
 - Tunnel 1 Bands 1–2 have half the starter deposits (four Clay and two
   Malachite before node doubling); Bands 3–4 use the full starter pool.
 - Tunnel 1 Band 5 contains five Clay, four Malachite, and three Lead deposits.
@@ -43,6 +45,9 @@ future pipe systems) are not treated as current acceptance requirements.
   permanent unlock is controlled from mine progression rather than Shop.
 - Tunnel 2 Band 5 unlocks auto re-mine and auto-continue. Re-mine selection is
   compact rather than one button per prior band.
+- Automatic drilling cycles Off, After ores, and Ignore Ores. Ignore Ores
+  starts the drill immediately on entering a layer; any deposits left when it
+  clears the layer are destroyed as usual.
 - Mine progress shows clear milestone requirements and rewards, has a thin
   outline, and fills to the next visible milestone.
 - Mine tiles sit left and mine information sits right at normal, narrow, and
