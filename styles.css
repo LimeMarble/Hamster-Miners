@@ -1,0 +1,2675 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #10130f;
+  color: #f3f1e5;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(108, 131, 61, 0.14), transparent 32rem),
+    linear-gradient(145deg, #151914, #0c0f0d 64%);
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1640px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.page-header,
+.panel-heading,
+.status-strip,
+.excavation-actions {
+  display: flex;
+  align-items: center;
+}
+
+.page-header {
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.factory-crew-overlay {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  pointer-events: auto;
+}
+
+.factory-crew-overlay[hidden] {
+  display: none;
+}
+
+.factory-crew-overlay-stat {
+  display: grid;
+  min-width: 7.5rem;
+  gap: 0.12rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid rgba(213, 224, 180, 0.16);
+  border-radius: 0.45rem;
+  background: rgba(15, 19, 14, 0.82);
+}
+
+.factory-crew-overlay-stat span,
+.factory-crew-overlay-stat small {
+  color: #b7c0ad;
+  font-size: 0.65rem;
+}
+
+.factory-crew-overlay-stat strong {
+  color: #f0eaa6;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.factory-crew-overlay .button {
+  align-self: stretch;
+  white-space: nowrap;
+}
+
+.header-actions,
+.primary-nav,
+.factory-screen-actions,
+.screen-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.header-actions {
+  justify-content: flex-end;
+}
+
+.primary-nav {
+  padding: 0.3rem;
+  border: 1px solid rgba(213, 224, 180, 0.16);
+  border-radius: 0.65rem;
+  background: rgba(15, 19, 14, 0.72);
+}
+
+.view-nav {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.38rem;
+  padding: 0.45rem 0.68rem;
+  background: transparent;
+  color: #bfc8b3;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.view-nav:hover,
+.view-nav:focus-visible {
+  background: rgba(201, 220, 117, 0.12);
+  color: #f0f5d5;
+}
+
+.view-nav.is-active {
+  background: #dfe99d;
+  color: #172010;
+}
+
+.game-view[hidden] {
+  display: none;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  letter-spacing: -0.055em;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 0.98;
+}
+
+h2 {
+  font-size: 1.1rem;
+}
+
+.eyebrow {
+  color: #c9dc75;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.subtitle,
+.panel-copy,
+.status-card small,
+.progress-label {
+  color: #b8bcad;
+}
+
+.subtitle {
+  margin-top: 0.5rem;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.status-card,
+.panel {
+  border: 1px solid rgba(213, 224, 180, 0.16);
+  border-radius: 0.85rem;
+  background: rgba(26, 31, 24, 0.82);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.16);
+}
+
+.status-card {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+}
+
+.status-card span {
+  display: block;
+  color: #cad2ba;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.status-card strong {
+  display: block;
+  margin: 0.25rem 0;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-card small {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.mine-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(290px, 0.65fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.reality-shield-hud {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.2rem 1.15rem;
+  border: 1px solid rgba(255, 142, 142, 0.7);
+  border-radius: 0.7rem;
+  background: #250f14;
+  box-shadow: 0 0.8rem 2.5rem rgba(0, 0, 0, 0.28);
+}
+
+.reality-shield-hud[hidden] {
+  display: none !important;
+}
+
+.reality-shield-hud-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.reality-shield-hud h1 {
+  margin-top: 0.25rem;
+  color: #ffe4df;
+  font-size: clamp(1.35rem, 3vw, 2.3rem);
+  letter-spacing: -0.04em;
+}
+
+.reality-shield-hud-stats {
+  display: grid;
+  gap: 0.18rem;
+  color: #ffb8ad;
+  text-align: right;
+  font-size: 0.78rem;
+}
+
+.reality-shield-hud-stats strong {
+  color: #fff3ef;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reality-shield-health-track {
+  height: 1.45rem;
+  overflow: hidden;
+  border: 2px solid #ffb0a4;
+  border-radius: 0.4rem;
+  background: #10090b;
+  box-shadow: inset 0 0 0.55rem rgba(0, 0, 0, 0.7);
+}
+
+.reality-shield-health-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #9d1f27, #ed5a54);
+  transition: width 120ms linear;
+}
+
+body.reality-shield-active {
+  background: #0d090a;
+}
+
+body.reality-shield-active .app-shell {
+  width: 100%;
+  max-width: none;
+  padding: 0 1.25rem 2rem;
+}
+
+body.reality-shield-active .page-header,
+body.reality-shield-active .status-strip,
+body.reality-shield-active .mine-information-overlay,
+body.reality-shield-active .mine-sidebar,
+body.reality-shield-active .event-panel,
+body.reality-shield-active .excavation-panel > .panel-heading,
+body.reality-shield-active .excavation-panel > .panel-copy,
+body.reality-shield-active .reality-shield-button,
+body.reality-shield-active .reality-shield-status,
+body.reality-shield-active .excavation-actions #autoToggleButton {
+  display: none !important;
+}
+
+body.reality-shield-active .mine-view {
+  display: block;
+  min-height: 100vh;
+}
+
+body.reality-shield-active .reality-shield-hud {
+  margin-inline: auto;
+  max-width: 1500px;
+}
+
+body.reality-shield-active .mine-layout {
+  display: block;
+}
+
+body.reality-shield-active .excavation-panel {
+  min-height: calc(100vh - 11rem);
+  margin-inline: -1.25rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.reality-shield-active .mine-grid {
+  width: 100vw;
+  max-width: none;
+  grid-template-columns: repeat(16, minmax(3.1rem, 1fr));
+  grid-template-rows: repeat(8, minmax(3.1rem, 1fr));
+  aspect-ratio: 16 / 8;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  border: 0;
+  border-radius: 0.3rem;
+  background: #fff;
+  box-shadow: none;
+}
+
+body.reality-shield-active .mine-grid.is-reality-shield-grid {
+  min-width: 0;
+}
+
+body.reality-shield-active .mine-cell,
+body.reality-shield-active .mine-grid.is-granite-host .mine-cell,
+body.reality-shield-active .mine-grid.is-kimberlite-host .mine-cell,
+body.reality-shield-active .mine-grid.is-hematite-host .mine-cell,
+body.reality-shield-active .mine-grid.is-chert-host .mine-cell {
+  background: #fff !important;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair {
+  background: #fff !important;
+  z-index: 5;
+  overflow: visible !important;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-label {
+  display: none;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core {
+  width: min(64%, 3rem);
+  height: auto;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 2px solid #e33f43;
+  background: transparent;
+  border-radius: 50%;
+  transform: rotate(var(--crosshair-rotation, 0deg));
+  box-shadow: none;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core::before,
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core::after {
+  content: "";
+  position: absolute;
+  display: block;
+  background: #e33f43;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core::before {
+  width: 72%;
+  height: 2px;
+  top: calc(50% - 1px);
+  left: 14%;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core::after {
+  width: 2px;
+  height: 72%;
+  top: 14%;
+  left: calc(50% - 1px);
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair:hover,
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair:focus-visible {
+  outline: 4px solid #61151c;
+  outline-offset: -4px;
+}
+
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair.shield-crosshair-defeated {
+  pointer-events: none;
+  z-index: 20;
+}
+
+body.reality-shield-active .excavation-actions {
+  justify-content: center;
+  margin-top: 1.2rem;
+}
+
+body.reality-shield-active .excavation-actions #fireButton {
+  min-width: min(24rem, 100%);
+  min-height: 3.2rem;
+  border-color: #ffb0a4;
+  background: #9d1f27;
+  color: #fff1ed;
+  font-size: 1rem;
+}
+
+@media (max-width: 700px) {
+  .reality-shield-hud-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .reality-shield-hud-stats {
+    text-align: left;
+  }
+}
+
+.machine-panel {
+  min-height: calc(100vh - 17rem);
+}
+
+.factory-view,
+.catalogue-view,
+.construction-view {
+  animation: view-enter 160ms ease-out;
+}
+
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(0.35rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tutorial-panel {
+  margin-bottom: 1rem;
+  border-color: rgba(225, 234, 162, 0.34);
+  background:
+    linear-gradient(135deg, rgba(102, 123, 54, 0.18), transparent 46%),
+    rgba(26, 31, 24, 0.88);
+}
+
+.tutorial-step {
+  color: #f1e69b;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.build-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.85rem;
+  margin-top: 0.9rem;
+}
+
+.build-toolbar .button.is-selected {
+  border-color: #fff4ac;
+  box-shadow: 0 0 0 2px rgba(240, 224, 127, 0.18);
+}
+
+.build-toolbar small {
+  color: #b8bcad;
+  font-size: 0.76rem;
+}
+
+.machine-note {
+  color: #aeb89a;
+  font-size: 0.73rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.factory-workspace {
+  display: grid;
+  grid-template-columns: minmax(34rem, 1fr) minmax(20rem, 0.54fr);
+  align-items: start;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.machine-grid {
+  width: 100%;
+  max-width: 680px;
+  overflow: hidden;
+  border: 1px solid rgba(220, 220, 200, 0.16);
+  border-radius: 0.6rem;
+  background: #181d18;
+}
+
+.machine-grid canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.factory-sidebar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.factory-crew-display {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.factory-crew-display strong {
+  color: #f0eaa6;
+  font-variant-numeric: tabular-nums;
+}
+
+.factory-crew-display small {
+  color: #b7c0ad;
+}
+
+.machine-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(213, 224, 180, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(20, 25, 19, 0.64);
+}
+
+.machine-label {
+  color: #e5efa7;
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.machine-card strong {
+  font-size: 1.15rem;
+}
+
+.machine-card p,
+.machine-card label,
+.machine-status {
+  color: #b7c0ad;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.ammo-selector {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.7rem 0;
+}
+
+.ammo-selector-label,
+.ammo-selector small {
+  color: #b7c0ad;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.ammo-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.ammo-category {
+  display: grid;
+  gap: 0.2rem;
+  color: #b7c0ad;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ammo-category-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ammo-category-visual {
+  display: inline-block;
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  background: #777;
+  box-shadow: inset 0 0 0 2px rgba(10, 15, 11, 0.22);
+}
+
+.ammo-category-visual.is-leek {
+  background: #9cbd68;
+}
+
+.ammo-category-visual.is-copper {
+  background: #b8754e;
+}
+
+.ammo-category-visual.is-lead {
+  background: #5f6872;
+}
+
+.ammo-category-visual.is-bronze {
+  background: #b8794f;
+}
+
+.ammo-category select {
+  min-height: 2rem;
+  color: #eff4df;
+  font-size: 0.76rem;
+  text-transform: none;
+}
+
+.ammo-option {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.4rem;
+  border: 1px solid rgba(220, 230, 192, 0.24);
+  border-radius: 0.45rem;
+  background: rgba(35, 46, 35, 0.84);
+  color: #e9efd8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ammo-option:hover,
+.ammo-option:focus-visible,
+.ammo-option.is-selected {
+  border-color: #f1e69b;
+  background: rgba(89, 102, 55, 0.74);
+  outline: none;
+}
+
+.ammo-option-visual {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.35rem;
+  background: rgba(10, 15, 11, 0.45);
+}
+
+.ammo-option-visual::after {
+  display: block;
+  width: 1.05rem;
+  height: 1.45rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  content: "";
+  transform: rotate(-30deg);
+}
+
+.ammo-option-visual.is-leek::after {
+  background: #9cbd68;
+}
+
+.ammo-option-visual.is-copper::after {
+  background: #b8754e;
+}
+
+.ammo-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.ammo-option-copy strong,
+.ammo-option-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ammo-option-copy strong {
+  font-size: 0.72rem;
+}
+
+.ammo-option-copy small {
+  color: #b7c0ad;
+  font-size: 0.62rem;
+}
+
+.ammo-option-damage {
+  color: #f1e69b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.ammo-option-count {
+  color: #d2dbc0;
+  font-size: 0.64rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.machine-card select {
+  width: 100%;
+  min-height: 2.35rem;
+  border: 1px solid rgba(220, 230, 192, 0.2);
+  border-radius: 0.45rem;
+  padding: 0.45rem;
+  background: #273024;
+  color: #eff4df;
+}
+
+.machine-card .button {
+  width: 100%;
+}
+
+.ammo-stacks {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ammo-stack-group-heading {
+  border-bottom: 1px solid rgba(213, 224, 180, 0.16);
+  padding: 0.3rem 0 0.16rem;
+  color: #e3e8c9;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ammo-stack-group-heading.is-jacket {
+  padding-left: 0.45rem;
+}
+
+.ammo-stack-group-heading.is-core {
+  padding-left: 0.9rem;
+}
+
+.ammo-stack-group-heading + .ammo-stack {
+  margin-left: 1.25rem;
+}
+
+.ammo-stack {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid rgba(213, 224, 180, 0.08);
+  padding-bottom: 0.35rem;
+  color: #c8d1bb;
+  font-size: 0.78rem;
+}
+
+.ammo-stack strong {
+  color: #f0eca5;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-stack {
+  color: #8f998a;
+  font-size: 0.78rem;
+}
+
+.mine-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  padding: 1.1rem;
+}
+
+.panel-heading {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.compact-heading {
+  margin-bottom: 0.7rem;
+}
+
+.panel-copy {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.excavation-panel .panel-copy {
+  margin: 1rem 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  color: #c4c9ba;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+}
+
+.copper-dot,
+.deposit-copper .deposit-core {
+  background: #5fc98b;
+}
+
+.clay-dot,
+.deposit-clay .deposit-core {
+  background: #b96d62;
+}
+
+.native-copper-dot,
+.deposit-nativeCopper .deposit-core {
+  background: #d58b55;
+}
+
+.lead-dot,
+.deposit-lead .deposit-core {
+  background: #465565;
+}
+
+.graphite-dot,
+.deposit-graphite .deposit-core {
+  background: #171a1f;
+}
+
+.silver-dot,
+.deposit-silver .deposit-core {
+  background: #c6ccd4;
+}
+
+.beryl-dot,
+.deposit-beryl .deposit-core {
+  background: #8ed3c7;
+}
+
+.zinc-dot,
+.deposit-zinc .deposit-core {
+  background: #a7b8c2;
+}
+
+.aquamarine-dot,
+.deposit-rawAquamarine .deposit-core {
+  background: #79cfe0;
+}
+
+.emerald-dot,
+.deposit-rawEmerald .deposit-core {
+  background: #3eaa68;
+}
+
+.stone-dot {
+  background: #6f756d;
+}
+
+.mine-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(2.7rem, 1fr));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  aspect-ratio: 10 / 7;
+  min-width: max-content;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0.6rem;
+  background: #363a34;
+}
+
+.mine-grid-wrap {
+  overflow-x: auto;
+}
+
+.mine-cell {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  /* Keep host rock visually flat so the UI does not expose its cell grid. */
+  background: #596057;
+}
+
+.mine-grid.is-granite-host .mine-cell {
+  background: #9a626b;
+}
+
+.mine-grid.is-kimberlite-host .mine-cell {
+  background: #53434f;
+}
+
+.mine-grid.is-hematite-host .mine-cell {
+  background: #70413e;
+}
+
+.mine-grid.is-chert-host .mine-cell {
+  background: #6b6860;
+}
+
+.mine-cell::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: transparent;
+  pointer-events: none;
+}
+
+.mine-cell.deposit {
+  cursor: pointer;
+}
+
+.mine-cell.deposit:hover,
+.mine-cell.deposit:focus-visible {
+  z-index: 1;
+  outline: 2px solid #e7efaa;
+  outline-offset: -2px;
+}
+
+.mine-cell.selected-deposit {
+  box-shadow: inset 0 0 0 3px #f5d976;
+}
+
+.mine-cell.deposit-realityShieldCrosshair .deposit-core {
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: #d95454;
+  box-shadow: 0 0 0 0.22rem rgba(255, 92, 92, 0.2), 0 0 0.7rem rgba(255, 79, 79, 0.72);
+}
+
+.reality-shield-button {
+  display: block;
+  width: 100%;
+  margin: 0.8rem 0 0.35rem;
+  border: 3px solid #ffb0a4;
+  border-radius: 0.65rem;
+  padding: 1rem 1.2rem;
+  background: #9d1f27;
+  box-shadow: 0 0.35rem 0 #4f1017, 0 0 1.2rem rgba(255, 55, 55, 0.24);
+  color: #fff1ed;
+  cursor: pointer;
+  font-size: clamp(0.95rem, 2vw, 1.25rem);
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.reality-shield-button[hidden],
+.reality-shield-status[hidden] {
+  display: none !important;
+}
+
+.reality-shield-button:hover:not(:disabled) {
+  background: #bb2932;
+  filter: brightness(1.08);
+}
+
+.reality-shield-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.reality-shield-status {
+  margin: 0 0 0.65rem;
+  color: #ffb0a4;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.mine-cell.depleted {
+  cursor: default;
+}
+
+.mine-cell.depleted .deposit-core {
+  filter: grayscale(1) saturate(0.35) brightness(0.8);
+}
+
+.mine-progress {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.8rem 0;
+}
+
+.mine-progress-track {
+  position: relative;
+  height: 0.55rem;
+  overflow: visible;
+  border: 1px solid rgba(225, 234, 162, 0.42);
+  border-radius: 99rem;
+  background: rgba(19, 25, 20, 0.72);
+}
+
+.mine-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #d6c86f;
+  transition: width 120ms linear;
+}
+
+.mine-progress-markers {
+  position: absolute;
+  inset: 0;
+}
+
+.mine-progress-marker {
+  position: absolute;
+  top: -0.16rem;
+  width: 0.18rem;
+  height: 0.88rem;
+  border-radius: 99rem;
+  background: #aeb59a;
+  transform: translateX(-50%);
+}
+
+.mine-progress-marker.is-reached {
+  background: #fff0a1;
+}
+
+.mine-progress small {
+  color: #aeb9a0;
+  font-size: 0.72rem;
+}
+
+.deposit-core {
+  position: relative;
+  z-index: 1;
+  width: 58%;
+  height: 58%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 32% 57% 44% 61%;
+  box-shadow: 0 0.2rem 0.35rem rgba(0, 0, 0, 0.24);
+  transform: rotate(-12deg);
+}
+
+.deposit-copper .deposit-core {
+  background: linear-gradient(145deg, #83e8ab, #23754a);
+}
+
+.deposit-clay .deposit-core {
+  background: linear-gradient(145deg, #d99586, #82453d);
+}
+
+.deposit-nativeCopper .deposit-core {
+  background: linear-gradient(145deg, #efb274, #a95b32);
+}
+
+.segment-meter {
+  position: absolute;
+  z-index: 2;
+  top: 0.16rem;
+  left: 0.16rem;
+  display: grid;
+  grid-template-rows: repeat(6, 0.3rem);
+  grid-auto-columns: 0.3rem;
+  grid-auto-flow: column;
+  gap: 0.09rem;
+}
+
+.segment {
+  width: 0.3rem;
+  height: 0.3rem;
+  border: 1px solid rgba(12, 18, 13, 0.52);
+  border-radius: 0.08rem;
+  background: rgba(15, 20, 15, 0.78);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+}
+
+.segment.filled {
+  border-color: rgba(255, 246, 175, 0.88);
+  background: #f6e89c;
+  box-shadow: 0 0 0.22rem rgba(246, 232, 156, 0.44);
+}
+
+.deposit-label {
+  position: absolute;
+  z-index: 2;
+  top: 0.15rem;
+  right: 0.18rem;
+  color: rgba(13, 17, 14, 0.85);
+  font-size: 0.57rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.deposit-hp {
+  position: absolute;
+  z-index: 2;
+  right: 0.18rem;
+  bottom: 0.18rem;
+  left: 0.18rem;
+  height: 0.25rem;
+  overflow: hidden;
+  border: 1px solid rgba(12, 18, 13, 0.72);
+  border-radius: 99rem;
+  background: rgba(12, 17, 13, 0.74);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.deposit-hp-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e4a253, #f6df83);
+  transition: width 120ms linear;
+}
+
+.excavation-actions,
+.debug-actions {
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.excavation-actions {
+  flex-wrap: wrap;
+}
+
+.button {
+  min-height: 2.45rem;
+  border: 1px solid #e1eaa2;
+  border-radius: 0.48rem;
+  padding: 0.55rem 0.75rem;
+  background: #dfe99d;
+  color: #172010;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 850;
+  transition: transform 100ms ease, filter 100ms ease, opacity 100ms ease;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.button-secondary {
+  border-color: rgba(219, 230, 189, 0.25);
+  background: #323b2d;
+  color: #e4e9d9;
+}
+
+.button-warning {
+  width: 100%;
+  margin-top: 0.75rem;
+  border-color: #d49355;
+  background: #7f462d;
+  color: #fff2db;
+}
+
+.stockpile {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem 1rem;
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+}
+
+.stockpile dt {
+  color: #c6ccba;
+}
+
+.stockpile dd {
+  margin: 0;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 0.65rem;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 99rem;
+  background: #141914;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d69253, #f6d882);
+  transition: width 120ms linear;
+}
+
+.progress-label {
+  margin-top: 0.45rem;
+  font-size: 0.75rem;
+}
+
+.debug-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.event-panel {
+  margin-top: 1rem;
+}
+
+.screen-intro {
+  margin-bottom: 1rem;
+}
+
+.screen-intro h2,
+.construction-card h3,
+.machine-card h3 {
+  margin: 0.35rem 0 0.5rem;
+}
+
+.machine-catalogue {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.inventory-subnav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.inventory-subnav .button {
+  min-width: 7rem;
+}
+
+.machine-category-nav {
+  flex-wrap: wrap;
+}
+
+.machine-category-nav .category-tab {
+  min-width: 7rem;
+}
+
+.machine-category-nav .category-tab.is-active {
+  border-color: #e4d788;
+  background: #394126;
+  color: #fff0ad;
+}
+
+.inventory-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.65rem;
+}
+
+.inventory-item-box {
+  display: grid;
+  min-height: 7.25rem;
+  align-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #56634e;
+  border-radius: 0.7rem;
+  background: #20291f;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.inventory-item-visual {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 2px solid #f0f1d5;
+  border-radius: 0.45rem;
+  background: #687163;
+  box-shadow: 0 0.2rem 0.45rem rgb(0 0 0 / 0.2);
+}
+
+.inventory-item-visual.is-leek { background: #9fd35d; }
+.inventory-item-visual.is-copper { background: #58be89; }
+.inventory-item-visual.is-nativeCopper { background: #b87333; }
+.inventory-item-visual.is-clay { background: #c6a16b; }
+.inventory-item-visual.is-lead { background: #5f6872; }
+.inventory-item-visual.is-graphite { background: #4d4d58; }
+.inventory-item-visual.is-silver { background: #bfc7d5; }
+.inventory-item-visual.is-zinc { background: #a7b8c2; }
+.inventory-item-visual.is-beryl { background: #8ed3c7; }
+.inventory-item-visual.is-limestone { background: #b8b6a3; }
+.inventory-item-visual.is-granite { background: #8b8f98; }
+.inventory-item-visual.is-copperIngot { background: #c98752; }
+.inventory-item-visual.is-brittleCopperIngot { background: #ca8651; }
+.inventory-item-visual.is-wire { background: #d8a45e; }
+
+.inventory-item-label {
+  color: #d7e2ce;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.inventory-item-count {
+  color: #fff0ad;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.machine-catalogue .machine-card {
+  position: relative;
+  min-height: 6.5rem;
+  align-content: center;
+  cursor: pointer;
+}
+
+.machine-catalogue .machine-label,
+.construction-catalogue .machine-label {
+  display: none;
+}
+
+.machine-catalogue .machine-card p,
+.machine-catalogue .machine-card strong,
+.machine-catalogue .machine-card > .button {
+  display: none;
+}
+
+.machine-catalogue .machine-card.is-selected {
+  border-color: #e4d788;
+  box-shadow: 0 0 0 2px rgb(228 215 136 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.machine-catalogue .machine-card[hidden] {
+  display: none;
+}
+
+.construction-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 6.5rem;
+  align-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.construction-card[hidden] {
+  display: none;
+}
+
+.shop-card-hit-area {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.001);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.shop-card-hit-area:focus-visible {
+  outline: 2px solid #e4d788;
+  outline-offset: -2px;
+}
+
+.construction-card > .panel-copy,
+.construction-card > .machine-build-cost,
+.construction-card > .button {
+  display: none;
+}
+
+.construction-card.is-selected {
+  border-color: #e4d788;
+  box-shadow: 0 0 0 2px rgb(228 215 136 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.shop-layout,
+.inventory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 0.8fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.shop-catalogue-column,
+.inventory-catalogue-column {
+  min-width: 0;
+}
+
+.inventory-card-hit-area {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.001);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.inventory-card-hit-area:focus-visible {
+  outline: 2px solid #e4d788;
+  outline-offset: -2px;
+}
+
+.shop-detail-panel {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+}
+
+.shop-detail-panel h2 {
+  margin: 0;
+}
+
+.shop-detail-owned {
+  margin: -0.25rem 0 0;
+  color: #e4d788;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.shop-detail-quantity-label {
+  margin-bottom: -0.55rem;
+  color: #d8dfc0;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.shop-detail-quantity {
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgb(213 224 180 / 0.24);
+  border-radius: 0.55rem;
+  background: #17221f;
+  color: #fff0ad;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-detail-quantity:focus-visible {
+  outline: 2px solid #e4d788;
+  outline-offset: 2px;
+}
+
+.shop-detail-quantity-help {
+  min-height: 1em;
+  margin: -0.55rem 0 0;
+  color: #aeb89b;
+  font-size: 0.72rem;
+}
+
+.shop-detail-quantity-help.is-invalid {
+  color: #e78372;
+}
+
+.shop-detail-cost {
+  display: grid;
+  max-height: 15rem;
+  overflow-y: auto;
+  border: 1px solid rgb(213 224 180 / 0.14);
+  border-radius: 0.55rem;
+}
+
+.shop-detail-cost-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgb(213 224 180 / 0.08);
+}
+
+.shop-detail-cost-row:last-child {
+  border-bottom: 0;
+}
+
+.shop-detail-cost-row strong {
+  color: #fff0ad;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-detail-cost-row.is-insufficient strong {
+  color: #e78372;
+}
+
+.construction-catalogue {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.recipes-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.recipes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.recipe-card {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.recipe-card h3 {
+  margin: 0;
+  color: #edf4cf;
+}
+
+.recipe-machine {
+  margin: 0;
+  color: #c9dc9a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.recipe-flow {
+  margin: 0;
+  color: #f0eaa6;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.recipe-note {
+  margin: 0;
+  color: #b7c0ad;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.options-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.options-card {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.options-card h3 {
+  margin: 0;
+  color: #edf4cf;
+}
+
+.options-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.code-entry {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.code-entry label {
+  color: #c6ccba;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.code-entry input {
+  min-height: 2.45rem;
+  border: 1px solid rgba(213, 224, 180, 0.28);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  background: #11160f;
+  color: #e7edda;
+  font: 0.86rem ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.code-entry input:focus-visible {
+  outline: 2px solid #dfe99d;
+  outline-offset: 2px;
+}
+
+.save-data-field {
+  width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  border: 1px solid rgba(213, 224, 180, 0.28);
+  border-radius: 0.55rem;
+  padding: 0.7rem;
+  background: #11160f;
+  color: #e7edda;
+  font: 0.76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.save-data-field:focus-visible {
+  outline: 2px solid #dfe99d;
+  outline-offset: 2px;
+}
+
+.options-status {
+  min-height: 1.25rem;
+  margin: 0;
+  color: #c9dc9a;
+  font-size: 0.82rem;
+}
+
+.danger-card {
+  border-color: rgba(216, 118, 91, 0.42);
+}
+
+.construction-card .panel-copy {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.shop-cash {
+  margin: 0.65rem 0 0;
+  color: #b7c0ad;
+  font-size: 0.9rem;
+}
+
+.shop-cash strong {
+  color: #f0eaa6;
+  font-variant-numeric: tabular-nums;
+}
+
+.machine-build-cost {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.45rem 0;
+  border-top: 1px solid rgba(220, 230, 192, 0.16);
+  border-bottom: 1px solid rgba(220, 230, 192, 0.16);
+}
+
+.machine-build-cost div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.machine-build-cost dt {
+  color: #b7c0ad;
+  font-size: 0.76rem;
+}
+
+.machine-build-cost dd {
+  margin: 0;
+  color: #eff4df;
+  font-weight: 700;
+}
+
+.machine-build-cost .is-insufficient dt,
+.machine-build-cost .is-insufficient dd {
+  color: #e78372;
+}
+
+.screen-actions {
+  margin-top: 1rem;
+}
+
+.event-log {
+  display: grid;
+  gap: 0.42rem;
+  max-height: 10rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  color: #c8cebb;
+  font-size: 0.79rem;
+}
+
+.event-log li {
+  padding-bottom: 0.42rem;
+  border-bottom: 1px solid rgba(213, 224, 180, 0.08);
+}
+
+.event-log time {
+  margin-right: 0.5rem;
+  color: #96a26c;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 950px) {
+  .factory-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .mine-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mine-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .machine-catalogue {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-layout,
+  .inventory-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-detail-panel,
+  .inventory-detail-panel {
+    position: static;
+    order: -1;
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .debug-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .construction-catalogue {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 670px) {
+  .app-shell {
+    width: min(100% - 1rem, 1440px);
+    padding-top: 1rem;
+  }
+
+  .page-header,
+  .panel-heading {
+    align-items: flex-start;
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mine-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .debug-panel {
+    grid-column: auto;
+  }
+
+  .legend {
+    justify-content: flex-start;
+  }
+
+  .machine-panel {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 460px) {
+  .page-header,
+  .excavation-actions,
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-header .button,
+  .header-actions .primary-nav {
+    width: 100%;
+  }
+
+  .panel {
+    padding: 0.85rem;
+  }
+
+  .machine-grid { max-width: none; }
+
+  .machine-catalogue {
+    grid-template-columns: 1fr;
+  }
+
+  .mine-grid {
+    grid-template-columns: repeat(10, 2.7rem);
+  }
+}
+
+/* The shield encounter owns the entire mine viewport. Keep these overrides
+   after the responsive mine rules so the normal layer framing cannot create a
+   second light panel beneath the 16×8 face. */
+body.reality-shield-active .mine-view {
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  position: relative;
+  left: 50%;
+  width: 100vw !important;
+  transform: translateX(-50%);
+}
+
+body.reality-shield-active {
+  overflow-x: hidden;
+}
+
+body.reality-shield-active .mine-layout {
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+  width: 100% !important;
+}
+
+body.reality-shield-active .excavation-panel {
+  width: 100vw !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+body.reality-shield-active .mine-grid,
+body.reality-shield-active .mine-grid.is-reality-shield-grid {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Keep shield targets circular after the generic deposit-core rules. */
+body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-core {
+  width: min(64%, 3rem) !important;
+  height: auto !important;
+  aspect-ratio: 1 !important;
+  border-radius: 50% !important;
+  border-color: #e33f43 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: rotate(var(--crosshair-rotation, 0deg));
+}
+
+/* Full-screen game views: the navigation strip is the only shared chrome. */
+.app-shell {
+  width: 100%;
+  min-height: 100svh;
+  padding: 0;
+}
+
+.page-header {
+  position: fixed;
+  z-index: 20;
+  top: 0.65rem;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+}
+
+.factory-crew-overlay {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 0.75rem);
+}
+
+.cash-overlay {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.75rem);
+  display: grid;
+  min-width: 7.5rem;
+  gap: 0.12rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid rgba(177, 209, 185, 0.4);
+  border-radius: 0.45rem;
+  background: rgba(16, 28, 20, 0.92);
+  box-shadow: 0 0.25rem 0.8rem rgba(0, 0, 0, 0.22);
+}
+
+.cash-overlay span {
+  color: #b7c9ba;
+  font-size: 0.68rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cash-overlay strong {
+  color: #f0eaa6;
+  font-size: 0.95rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-strip {
+  display: none;
+}
+
+.game-view {
+  min-height: 100svh;
+  padding: 5.5rem 1rem 2rem;
+}
+
+.mine-view,
+.factory-view {
+  padding: 0;
+}
+
+.mine-view .mine-layout {
+  display: grid;
+  min-height: 100svh;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 25rem);
+  align-items: center;
+  gap: clamp(1rem, 3vw, 4rem);
+  padding: clamp(4rem, 8vh, 6rem) clamp(1rem, 4vw, 4rem) clamp(1rem, 4vh, 3rem);
+}
+
+.mine-view .excavation-panel {
+  grid-column: 1;
+  width: min(100%, calc(100svh - 5rem));
+  min-width: 0;
+  justify-self: end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mine-view .excavation-panel > .panel-heading,
+.mine-view .excavation-panel > .panel-copy,
+.mine-view .excavation-actions,
+.mine-view .mine-sidebar,
+.mine-view .event-panel {
+  display: none;
+}
+
+.mine-view .mine-grid {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  border-radius: 0;
+}
+
+.factory-view {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+}
+
+.mine-view .mine-information-overlay {
+  position: relative;
+  z-index: 1;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100svh - 8rem);
+  overflow: auto;
+  transform: none;
+  border: 1px solid rgba(164, 190, 142, 0.44);
+  border-radius: 0.7rem;
+}
+
+.factory-view .tutorial-panel,
+.factory-view .machine-panel > .panel-heading,
+.factory-view .machine-panel > .panel-copy,
+.factory-view .factory-sidebar {
+  display: none;
+}
+
+.factory-view .machine-panel {
+  display: grid;
+  width: 100vw;
+  min-height: 100svh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  place-items: center;
+  background: transparent;
+  box-shadow: none;
+}
+
+.factory-view .factory-workspace {
+  display: block;
+  margin: 0;
+  transform: translateY(3.5svh);
+}
+
+.factory-view .machine-grid {
+  width: min(96vw, 1200px);
+  height: min(82svh, 760px);
+  max-width: none;
+  border-radius: 0;
+}
+
+.factory-view .machine-grid canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.factory-machine-controls {
+  position: fixed;
+  z-index: 21;
+  bottom: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  width: min(14rem, calc(100vw - 2rem));
+  padding: 0.7rem;
+  border: 1px solid rgba(184, 217, 121, 0.62);
+  border-radius: 0.65rem;
+  background: rgba(18, 25, 18, 0.94);
+  box-shadow: 0 0.8rem 1.8rem rgba(0, 0, 0, 0.26);
+}
+
+.factory-machine-controls[hidden] {
+  display: none !important;
+}
+
+.factory-machine-controls strong {
+  color: #edf5bd;
+  font-size: 0.85rem;
+}
+
+.machine-controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.machine-controls-close {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(219, 230, 189, 0.35);
+  border-radius: 0.38rem;
+  padding: 0;
+  background: #323b2d;
+  color: #e4e9d9;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.machine-controls-close:hover {
+  border-color: #e1eaa2;
+  color: #fffde1;
+}
+
+.factory-machine-controls small {
+  color: #bec9b5;
+  font-size: 0.72rem;
+}
+
+.machine-actions {
+  display: grid;
+  gap: 0.35rem;
+  max-height: min(52svh, 28rem);
+  overflow-y: auto;
+  border-top: 1px solid rgba(184, 217, 121, 0.2);
+  padding-top: 0.45rem;
+}
+
+.machine-actions:empty {
+  display: none;
+}
+
+.machine-actions .button {
+  width: 100%;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.machine-action-note {
+  color: #bfc8af;
+  font-size: 0.68rem !important;
+  line-height: 1.35;
+}
+
+.storage-output-controls {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid rgba(184, 217, 121, 0.24);
+  border-radius: 0.45rem;
+  padding: 0.45rem;
+  background: rgba(48, 59, 45, 0.45);
+}
+
+.storage-output-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.storage-output-tab,
+.storage-filter-chip {
+  border: 1px solid rgba(219, 230, 189, 0.27);
+  border-radius: 0.32rem;
+  background: #273125;
+  color: #dfe8d4;
+  font: inherit;
+  cursor: pointer;
+}
+
+.storage-output-tab {
+  min-width: 2.8rem;
+  padding: 0.28rem 0.42rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.storage-output-tab.is-selected {
+  border-color: #e1eaa2;
+  background: #5c6f37;
+  color: #fffde1;
+}
+
+.storage-output-summary {
+  color: #bec9b5;
+  font-size: 0.68rem !important;
+}
+
+.storage-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+.storage-filter-chip {
+  min-height: 1.8rem;
+  padding: 0.3rem 0.35rem;
+  font-size: 0.62rem;
+  line-height: 1.15;
+}
+
+.storage-filter-chip.is-allowed {
+  border-color: rgba(220, 239, 129, 0.85);
+  background: #536a32;
+  color: #fffde1;
+}
+
+.storage-output-tab:hover,
+.storage-filter-chip:hover {
+  filter: brightness(1.12);
+}
+
+.tutorial-overlay {
+  position: fixed;
+  z-index: 30;
+  right: 1rem;
+  /* Keep the mine's bottom controls and drill area unobstructed. */
+  bottom: max(4.25rem, calc(1rem + env(safe-area-inset-bottom)));
+  width: min(27rem, calc(100vw - 2rem));
+  max-height: min(20rem, calc(100dvh - 8rem));
+  pointer-events: none;
+}
+
+.tutorial-overlay[hidden] {
+  display: none;
+}
+
+.tutorial-overlay-card {
+  display: grid;
+  gap: 0.65rem;
+  max-height: inherit;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid rgba(241, 230, 155, 0.68);
+  border-radius: 0.75rem;
+  background: rgba(20, 27, 17, 0.95);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.tutorial-overlay-card h2 {
+  font-size: 1.15rem;
+}
+
+.tutorial-overlay-card .tutorial-step {
+  margin: 0;
+}
+
+.tutorial-overlay-card .button[hidden] {
+  display: none;
+}
+
+@media (max-width: 460px) {
+  .tutorial-overlay {
+    right: 0.5rem;
+    bottom: max(3.5rem, calc(0.5rem + env(safe-area-inset-bottom)));
+    left: 0.5rem;
+    width: auto;
+    max-height: min(13rem, calc(100dvh - 6.5rem));
+  }
+
+  .tutorial-overlay-card {
+    gap: 0.5rem;
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+    padding: 0.75rem;
+    border-radius: 0.6rem;
+  }
+
+  .tutorial-overlay-card h2 {
+    font-size: 1rem;
+  }
+
+  .tutorial-overlay-card .panel-copy {
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+}
+
+@media (max-height: 650px) {
+  .tutorial-overlay {
+    bottom: max(3.5rem, calc(0.5rem + env(safe-area-inset-bottom)));
+    max-height: min(14rem, calc(100dvh - 6.5rem));
+  }
+
+  .tutorial-overlay-card {
+    gap: 0.45rem;
+    padding: 0.7rem;
+  }
+
+  .tutorial-overlay-card h2 {
+    font-size: 1rem;
+  }
+}
+
+.tutorial-target.is-highlighted {
+  border-color: #f5d976;
+  box-shadow: 0 0 0 3px rgba(245, 217, 118, 0.22);
+}
+
+.mine-information-overlay {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 50%;
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 0.55rem 1rem;
+  width: min(74rem, 100vw);
+  min-height: 3rem;
+  max-height: min(9rem, 30svh);
+  overflow-y: auto;
+  padding: 0.5rem 1rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(164, 190, 142, 0.44);
+  border-bottom: 0;
+  border-radius: 0.7rem 0.7rem 0 0;
+  background: rgba(18, 24, 18, 0.9);
+  box-shadow: 0 0.9rem 2rem rgba(0, 0, 0, 0.3);
+}
+
+.mine-ore-heading {
+  display: none;
+}
+
+.mine-information-overlay .eyebrow {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #aebd96;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.mine-information-overlay h2 {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #edf0d9;
+  font-size: 0.76rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mine-information-list {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-around;
+  gap: 0.65rem 1.15rem;
+  margin: 0;
+}
+
+.mine-information-list div {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  color: #c7cdbd;
+  font-size: 0.77rem;
+  white-space: nowrap;
+}
+
+.mine-information-list dt,
+.mine-information-list dd {
+  margin: 0;
+}
+
+.mine-information-list dd {
+  color: #f0eaa6;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+#mineOresRemaining {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0.2rem;
+}
+
+#mineOresRemaining div {
+  justify-content: space-between;
+}
+
+.mine-drill-stat dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mine-drill-upgrade-button {
+  min-height: 1.55rem;
+  padding: 0.18rem 0.38rem;
+  border: 1px solid rgba(220, 230, 192, 0.28);
+  border-radius: 0.3rem;
+  background: rgba(80, 91, 56, 0.8);
+  color: #eff4df;
+  font-size: 0.62rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mine-drill-upgrade-button:disabled {
+  border-color: rgba(220, 230, 192, 0.12);
+  background: rgba(35, 46, 35, 0.45);
+  color: #899181;
+  cursor: default;
+}
+
+.mine-information-combined-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.mine-information-combined-row > div {
+  justify-content: space-between !important;
+}
+
+.mine-layer-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.mine-layer-actions:empty {
+  display: none;
+}
+
+.mine-gun-schedule {
+  display: grid;
+  gap: 0.35rem;
+  width: min(100%, 20rem);
+  padding: 0.45rem;
+  border: 1px solid rgba(214, 224, 188, 0.35);
+  border-radius: 0.45rem;
+  background: rgba(28, 37, 29, 0.7);
+}
+
+.mine-gun-schedule > small {
+  color: #b9c3ae;
+  line-height: 1.25;
+}
+
+.mine-gun-schedule-row,
+.mine-gun-schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.mine-gun-schedule-row select {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mine-gun-schedule-shots {
+  width: 4.2rem;
+}
+
+.mine-gun-schedule-row .button,
+.mine-gun-schedule-actions .button {
+  min-width: 0;
+  padding-inline: 0.55rem;
+}
+
+.mine-information-overlay > .mine-layer-actions {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.mine-information-overlay .ammo-selector {
+  width: min(100%, 16rem);
+  min-width: 0;
+  margin: 0;
+  justify-self: center;
+}
+
+.mine-view .mine-information-overlay .mine-information-list {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.mine-view .mine-information-overlay > .eyebrow,
+.mine-view .mine-information-overlay > h2 {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 1rem;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.mine-view .mine-information-overlay > .mine-information-list:first-of-type {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0.2rem;
+}
+
+.mine-view .mine-information-overlay > .mine-information-list:first-of-type div {
+  justify-content: space-between;
+}
+
+.mine-information-overlay .ammo-selector select {
+  width: 100%;
+  min-width: 0;
+}
+
+.mine-information-overlay .ammo-selector small {
+  overflow-wrap: anywhere;
+}
+
+.mine-layer-action {
+  min-height: 1.9rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.66rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.mine-layer-action-note {
+  flex: 1 1 14rem;
+  max-width: 23rem;
+  margin: 0;
+  color: #bfc8af;
+  font-size: 0.66rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.mine-remine-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mine-remine-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #bfc8af;
+  font-size: 0.66rem;
+}
+
+.mine-remine-select {
+  min-height: 1.9rem;
+  max-width: 6.5rem;
+  border: 1px solid rgba(220, 230, 192, 0.2);
+  border-radius: 0.45rem;
+  padding: 0.35rem;
+  background: #202820;
+  color: #eff4d9;
+  font: inherit;
+}
+
+@media (max-width: 700px) {
+  .mine-information-overlay {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: min(13rem, 42svh);
+    gap: 0.25rem 0.7rem;
+    padding: 0.45rem 0.65rem;
+  }
+
+  .mine-information-overlay > .eyebrow,
+  .mine-information-overlay > h2,
+  .mine-information-overlay > .mine-information-list,
+  .mine-information-overlay > .ammo-selector,
+  .mine-information-overlay > .mine-layer-actions {
+    grid-column: 1;
+  }
+
+  .mine-information-overlay h2 {
+    text-align: center;
+  }
+
+  .mine-information-list {
+    flex: 0 1 auto;
+    justify-content: center;
+    gap: 0.35rem 0.7rem;
+  }
+
+  .mine-information-list div {
+    font-size: 0.68rem;
+  }
+
+  .mine-layer-actions {
+    justify-self: center;
+  }
+}
+
+@media (max-width: 900px) {
+  .mine-view .mine-layout {
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 1rem;
+    padding: 4rem 0.5rem 1rem;
+  }
+
+  .mine-view .excavation-panel {
+    grid-column: 1;
+    width: min(100%, calc(100vw - 1rem));
+    justify-self: center;
+  }
+
+  .mine-view .mine-information-overlay {
+    display: flex;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+    width: min(100%, 32rem);
+    max-height: none;
+  }
+}
+
+@media (max-width: 460px) {
+  .page-header {
+    top: 0.4rem;
+  }
+
+  .primary-nav {
+    width: calc(100vw - 0.8rem);
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.2rem;
+  }
+
+  .view-nav {
+    padding: 0.42rem 0.44rem;
+    font-size: 0.67rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    width: min(100vw, 34rem);
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .factory-crew-overlay {
+    position: static;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cash-overlay {
+    position: static;
+    width: 100%;
+    justify-items: center;
+  }
+}
+
+@media (max-width: 460px) {
+  .factory-crew-overlay-stat {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .factory-crew-overlay .button {
+    padding-inline: 0.5rem;
+  }
+}
