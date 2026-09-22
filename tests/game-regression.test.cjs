@@ -372,6 +372,24 @@ test("deposits receive their material-specific segment health", () => {
   assert.equal(clay.currentSegmentHitPoints, 2);
 });
 
+test("Graphite stockpile initializes, counts mined ore, and repairs invalid saved values", () => {
+  const state = freshState();
+  assert.equal(state.stockpile.graphite, 0);
+
+  const graphite = game.createDeposit({ cell: 0, type: "graphite" }, 0);
+  graphite.segmentsRemaining = 1;
+  graphite.currentSegmentHitPoints = 1;
+  assert.equal(game.applyDamageToDeposit(graphite, 1), true);
+  assert.equal(state.stockpile.graphite, 2);
+
+  const saved = game.createInitialState();
+  saved.stockpile.graphite = null;
+  assert.equal(game.hydrateSavedState(saved).stockpile.graphite, 0);
+
+  saved.stockpile.graphite = 7.5;
+  assert.equal(game.hydrateSavedState(saved).stockpile.graphite, 7.5);
+});
+
 test("mine layers, host rocks, and yield growth match the current tunnel rules", () => {
   assert.deepEqual(game.getLayerStats(1, 1), {
     band: 1,

@@ -1847,6 +1847,7 @@ function createInitialState() {
       ceramic: 0,
       limestone: 0,
       granite: 0,
+      graphite: 0,
       hematite: 0,
       chert: 0,
       iron: 0,
@@ -2097,6 +2098,9 @@ function hydrateSavedState(savedState) {
     stockpile: {
       ...initialState.stockpile,
       ...(isSaveRecord(savedState.stockpile) ? savedState.stockpile : {}),
+      graphite: Number.isFinite(savedState.stockpile?.graphite)
+        ? savedState.stockpile.graphite
+        : initialState.stockpile.graphite,
     },
     diamondFragments: Math.max(0, Number(savedState.diamondFragments) || 0),
     crew: {
