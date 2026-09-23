@@ -37,6 +37,9 @@ function freshState(overrides = {}) {
 
 test("Hamster Cloners notation rules remain stable", () => {
   assert.equal(game.formatNumber(999), "999");
+  assert.equal(game.formatNumber(602.288694), "602");
+  assert.equal(game.formatNumber(1.23456789), "1.23");
+  assert.equal(game.formatCash(602.288694), "$602");
   assert.equal(game.formatNumber(1000), "1.00k");
   assert.equal(game.formatNumber(1.234e4), "12.3k");
   assert.equal(game.formatNumber(1e303), "1.00e303");
@@ -98,7 +101,9 @@ test("unchanged status text does not trigger another DOM text replacement", () =
 test("fractional cargo labels hide binary floating-point tails without mutating quantity", () => {
   const fractionalStack = { quantity: 1.20000000000002 };
   assert.equal(game.formatQuantity(fractionalStack.quantity), "1.2");
-  assert.equal(game.formatQuantity(1.23456789), "1.23456789");
+  assert.equal(game.formatQuantity(1.23456789), "1.23");
+  assert.equal(game.formatQuantity(602.288694), "602");
+  assert.equal(game.formatQuantity(0.01234567), "0.0123");
   assert.equal(game.formatQuantity(0.4), "0.4");
   assert.equal(fractionalStack.quantity, 1.20000000000002);
 });
@@ -165,6 +170,23 @@ test("expanded factory keeps the starter layout upper-center and migrates old sa
   const migrated = game.hydrateSavedState(old);
   assert.equal(migrated.machines[0].column, 23);
   assert.equal(migrated.factoryLayoutVersion, 2);
+});
+
+test("factory camera can pan three tiles beyond the unchanged placement grid", () => {
+  assert.equal(game.FACTORY_PAN_MARGIN_TILES, 3);
+  const limits = game.getFactoryCameraScrollLimits(320, 256, 1);
+  assert.equal(limits.minScrollX, -96);
+  assert.equal(limits.maxScrollX + 320, game.FACTORY_COLUMNS * 32 + 96);
+  assert.equal(limits.minScrollY, -96);
+  assert.equal(limits.maxScrollY + 256, (game.FACTORY_ROWS + 3) * 32 + 96);
+
+  const zoomedLimits = game.getFactoryCameraScrollLimits(320, 256, 2);
+  assert.equal(zoomedLimits.minScrollX, -96);
+  assert.equal(zoomedLimits.maxScrollX + 160, game.FACTORY_COLUMNS * 32 + 96);
+
+  const zoomedOutLimits = game.getFactoryCameraScrollLimits(2e3, 1300, 1);
+  assert.equal(zoomedOutLimits.minScrollX, zoomedOutLimits.maxScrollX);
+  assert.equal(zoomedOutLimits.minScrollY, zoomedOutLimits.maxScrollY);
 });
 
 test("factory conveyor topology is reused until the layout changes", () => {

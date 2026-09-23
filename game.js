@@ -128,6 +128,8 @@ const FACTORY_TOP_ROWS = 3;
 const FACTORY_TILE_SIZE = 32;
 const FACTORY_CANVAS_WIDTH = FACTORY_COLUMNS * FACTORY_TILE_SIZE;
 const FACTORY_CANVAS_HEIGHT = (FACTORY_ROWS + FACTORY_TOP_ROWS) * FACTORY_TILE_SIZE;
+const FACTORY_PAN_MARGIN_TILES = 3;
+const FACTORY_PAN_MARGIN = FACTORY_PAN_MARGIN_TILES * FACTORY_TILE_SIZE;
 const IS_NODE_TEST_ENVIRONMENT = typeof module !== "undefined" && Boolean(module.exports);
 const PLAYTEST_CHEAT_DEFAULTS = Object.freeze({
   drillDpsX10: false,
@@ -135,6 +137,29 @@ const PLAYTEST_CHEAT_DEFAULTS = Object.freeze({
   productionSpeedX5: false,
   sellValueX10: false,
 });
+
+function getFactoryCameraScrollLimits(viewportWidth, viewportHeight, zoom) {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  const worldLeft = -FACTORY_PAN_MARGIN;
+  const worldTop = -FACTORY_PAN_MARGIN;
+  const worldRight = FACTORY_CANVAS_WIDTH + FACTORY_PAN_MARGIN;
+  const worldBottom = FACTORY_CANVAS_HEIGHT + FACTORY_PAN_MARGIN;
+  const visibleWidth = Math.max(0, Number(viewportWidth) || 0) / safeZoom;
+  const visibleHeight = Math.max(0, Number(viewportHeight) || 0) / safeZoom;
+  const minScrollX = visibleWidth >= worldRight - worldLeft
+    ? (worldLeft + worldRight - visibleWidth) / 2
+    : worldLeft;
+  const minScrollY = visibleHeight >= worldBottom - worldTop
+    ? (worldTop + worldBottom - visibleHeight) / 2
+    : worldTop;
+
+  return {
+    minScrollX,
+    maxScrollX: Math.max(minScrollX, worldRight - visibleWidth),
+    minScrollY,
+    maxScrollY: Math.max(minScrollY, worldBottom - visibleHeight),
+  };
+}
 
 function normalizeGunSchedule(schedule) {
   if (!Array.isArray(schedule)) {
@@ -8865,7 +8890,7 @@ function getMachineActionProgressNote(machine) {
       liquidMetal.kilnInstanceId === machine.instanceId
     ));
     return kilnJob
-      ? `Smelting: ${kilnJob.secondsRemaining.toFixed(1)}s · 2 crew assigned.`
+      ? `Smelting: ${formatNumber(kilnJob.secondsRemaining)}s · 2 crew assigned.`
       : blockedByLiquid
         ? "Liquid copper is waiting for an adjacent Ingot Molder or Bullet Core Caster."
         : !hasInput
@@ -8885,7 +8910,7 @@ function getMachineActionProgressNote(machine) {
     return molderJob
       ? molderJob.secondsRemaining <= 0
         ? "Finished ingot is waiting for its output lane to clear."
-        : `Molding: ${molderJob.secondsRemaining.toFixed(1)}s · 1 crew assigned.`
+        : `Molding: ${formatNumber(molderJob.secondsRemaining)}s · 1 crew assigned.`
       : outputBuffer
         ? "Finished ingot is waiting for its output lane to clear."
         : !link
@@ -8905,7 +8930,7 @@ function getMachineActionProgressNote(machine) {
     ));
     const mode = getArcFurnaceMode(machine);
     return job
-      ? `Smelting ${job.material === "bronze" ? "Bronze alloy" : "one metal"}: ${job.secondsRemaining.toFixed(1)}s · 1 crew assigned.`
+      ? `Smelting ${job.material === "bronze" ? "Bronze alloy" : "one metal"}: ${formatNumber(job.secondsRemaining)}s · 1 crew assigned.`
       : mode === "alloy2"
         ? "2-input alloy mode accepts copper through the primary input and tin through either alloy input: 5 copper + 1 tin produces 6 liquid Bronze in 12 seconds."
         : mode === "alloy3"
@@ -9529,7 +9554,7 @@ function renderStatus() {
   ) / getProcessingSpeedMultiplier();
   setTextContentIfChanged(elements.planterRate, `${getGunDisplayName()} · ${getSelectedGun() === "buckshot" ? `${BUCKSHOT_FIRE_PER_SECOND} shot/s · ${BUCKSHOT_SEGMENTS_PER_SHOT} random hits` : `${CONFIG.autoFirePerSecond} shots/s`}`);
   setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && !getConveyorItem(planterInputConveyor)
-    ? `${secondsUntilPlanter.toFixed(1)}s`
+    ? `${formatNumber(secondsUntilPlanter)}s`
     : `${state.planterQueue} / ${CONFIG.maxPlanterQueue} leeks queued`);
   setTextContentIfChanged(elements.crewValue, `${getAvailableCrew()} / ${state.crew.total} available`);
   setTextContentIfChanged(elements.crewStatus, `Assigned: ${getBusyCrew()}`);
@@ -9755,7 +9780,12 @@ function renderMachineGrid() {
       create() {
         machineScene = this;
         const camera = machineScene.cameras.main;
-        camera.setBounds(0, 0, FACTORY_CANVAS_WIDTH, FACTORY_CANVAS_HEIGHT);
+        camera.setBounds(
+          -FACTORY_PAN_MARGIN,
+          -FACTORY_PAN_MARGIN,
+          FACTORY_CANVAS_WIDTH + FACTORY_PAN_MARGIN * 2,
+          FACTORY_CANVAS_HEIGHT + FACTORY_PAN_MARGIN * 2,
+        );
         camera.roundPixels = true;
         camera.setZoom(factoryCameraZoom);
         camera.scrollX = Math.max(
@@ -9804,8 +9834,7 @@ function renderMachineGrid() {
                 ? (pointer.y - (machineScene.scale.height - edgeDistance)) / edgeDistance
                 : 0;
           const panSpeed = 650 * (delta / 1000) / camera.zoom;
-          const maxScrollX = Math.max(0, FACTORY_CANVAS_WIDTH - camera.width / camera.zoom);
-          const maxScrollY = Math.max(0, FACTORY_CANVAS_HEIGHT - camera.height / camera.zoom);
+          const scrollLimits = getFactoryCameraScrollLimits(camera.width, camera.height, camera.zoom);
           const nextScrollX = Number.isFinite(camera.scrollX)
             ? camera.scrollX + horizontalStrength * panSpeed
             : 0;
@@ -9813,8 +9842,8 @@ function renderMachineGrid() {
             ? camera.scrollY + verticalStrength * panSpeed
             : 0;
           camera.setScroll(
-            Phaser.Math.Clamp(nextScrollX, 0, maxScrollX),
-            Phaser.Math.Clamp(nextScrollY, 0, maxScrollY),
+            Phaser.Math.Clamp(nextScrollX, scrollLimits.minScrollX, scrollLimits.maxScrollX),
+            Phaser.Math.Clamp(nextScrollY, scrollLimits.minScrollY, scrollLimits.maxScrollY),
           );
         });
         renderMachineOverlay();
@@ -9845,11 +9874,18 @@ function resizeFactoryScene() {
   machineGame.scale.resize(width, height);
   machineScene.cameras.main.setViewport(0, 0, width, height);
   const camera = machineScene.cameras.main;
-  const maxScrollX = Math.max(0, FACTORY_CANVAS_WIDTH - camera.width / camera.zoom);
-  const maxScrollY = Math.max(0, FACTORY_CANVAS_HEIGHT - camera.height / camera.zoom);
+  const scrollLimits = getFactoryCameraScrollLimits(camera.width, camera.height, camera.zoom);
   camera.setScroll(
-    Phaser.Math.Clamp(Number.isFinite(camera.scrollX) ? camera.scrollX : 0, 0, maxScrollX),
-    Phaser.Math.Clamp(Number.isFinite(camera.scrollY) ? camera.scrollY : 0, 0, maxScrollY),
+    Phaser.Math.Clamp(
+      Number.isFinite(camera.scrollX) ? camera.scrollX : 0,
+      scrollLimits.minScrollX,
+      scrollLimits.maxScrollX,
+    ),
+    Phaser.Math.Clamp(
+      Number.isFinite(camera.scrollY) ? camera.scrollY : 0,
+      scrollLimits.minScrollY,
+      scrollLimits.maxScrollY,
+    ),
   );
 }
 
@@ -12612,7 +12648,7 @@ function formatPlainNumber(value, maximumFractionDigits, minimumFractionDigits =
 
 function formatNumber(
   value,
-  maximumFractionDigits = 1,
+  maximumFractionDigits = 100,
   significantDigits = NUMBER_SUFFIX_SIGNIFICANT_DIGITS,
 ) {
   const parts = getNumberParts(value);
@@ -12621,7 +12657,26 @@ function formatNumber(
 
   const sign = parts.negative ? "−" : "";
   if (parts.exponent < 3) {
-    return `${sign}${formatPlainNumber(parts.mantissa * 10 ** parts.exponent, maximumFractionDigits)}`;
+    const plainSignificantDigits = Math.max(1, Math.min(3, Math.floor(significantDigits)));
+    if (parts.exponent < -97) {
+      const scientificMantissa = Number(parts.mantissa.toPrecision(plainSignificantDigits));
+      return `${sign}${formatPlainNumber(
+        scientificMantissa,
+        plainSignificantDigits - 1,
+        plainSignificantDigits - 1,
+      )}e${parts.exponent}`;
+    }
+
+    const maximumPlainFractionDigits = Math.min(
+      100,
+      Math.max(0, Math.floor(maximumFractionDigits)),
+      Math.max(0, plainSignificantDigits - 1 - parts.exponent),
+    );
+    const roundedValue = Number((parts.mantissa * 10 ** parts.exponent).toPrecision(plainSignificantDigits));
+    if (roundedValue >= 1e3) {
+      return `${sign}${formatNumber(roundedValue, maximumFractionDigits, significantDigits)}`;
+    }
+    return `${sign}${formatPlainNumber(roundedValue, maximumPlainFractionDigits)}`;
   }
 
   if (parts.exponent >= NUMBER_SCIENTIFIC_EXPONENT || !getNumberSuffixForGroup(Math.floor(parts.exponent / 3))) {
@@ -12673,10 +12728,7 @@ function formatQuantity(value) {
   }
 
   const normalized = Number(quantity.toPrecision(12));
-  if (Math.abs(normalized) >= 1e3) {
-    return formatNumber(normalized);
-  }
-  return formatPlainNumber(normalized, 12);
+  return formatNumber(normalized);
 }
 
 function getSaveKeyForPath(pathname) {
@@ -12824,7 +12876,9 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getActiveSaveKey,
     FACTORY_COLUMNS,
     FACTORY_ROWS,
+    FACTORY_PAN_MARGIN_TILES,
     FACTORY_STARTER_COLUMN_OFFSET,
+    getFactoryCameraScrollLimits,
     RESOURCE_DEFINITIONS,
     PLAYTEST_PANEL_CHEAT_CODE,
     isObtainableMaterial,

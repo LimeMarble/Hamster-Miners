@@ -9,8 +9,9 @@ future pipe systems) are not treated as current acceptance requirements.
 
 ## Save, notation, and state migration
 
-- Whole values below 1,000 use comma-separated numbers; values at 1,000 and
-  above use Hamster Cloners suffix notation with three significant digits.
+- Values below 1,000, including fractional quantities and timers, display at
+  most three significant figures; values at 1,000 and above retain the existing
+  Hamster Cloners suffix notation.
 - Suffix notation reaches scientific notation at the same threshold as Hamster
   Cloners; currency keeps the `$` prefix.
 - Refresh and import/export retain the selected ammunition material.
@@ -179,6 +180,8 @@ future pipe systems) are not treated as current acceptance requirements.
 
 ## Factory and visual layout
 
+- Edge panning can move the camera up to three tiles beyond each edge of the
+  unchanged 50×30 placement grid, including after zoom and viewport resizing.
 - Factory crew text appears in the reserved inert rows beside the gun.
 - The Clay Kiln, Bullet Core Caster, Ingot Molder, and Annealer liquid ports use
   the temporary blue conveyor styling until pipes exist.
