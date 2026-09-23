@@ -4707,6 +4707,7 @@ function transformItemLeavingConveyor(conveyor, item) {
       item.saleValueBase = contactStackValue / item.quantity;
       item.baseValue = 8.8;
       item.saleValueBonus = 0;
+      item.annealedValueMultiplier = 1;
       item.freshMoldedAt = Date.now();
       addLog(`Contact Maker produced ${formatNumber(item.quantity)} Silver-Copper Contacts from Copper Wire and Silver.`);
     }

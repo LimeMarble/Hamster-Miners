@@ -2027,6 +2027,44 @@ test("Contact Maker scales Silver, value, and output for stacked wires", () => {
   });
 });
 
+test("Contact Maker carries annealed wire value once without duplicating its multiplier", () => {
+  const maker = machine("contactMaker", "contact-annealed-wire", 8, 2);
+  const annealer = machine("graphiteCopperAnnealer", "anneal-finished-contact", 14, 2);
+  freshState({
+    machines: [maker, annealer],
+    contactMakerInputs: {
+      [maker.instanceId]: { silver: 0.5, silverValue: 156.5 },
+    },
+  });
+  const contactConveyor = {
+    ...game.getInternalConveyorTiles(maker)[1],
+    internalMachineId: "contactMaker",
+    internalMachineInstanceId: maker.instanceId,
+    internalIndex: 1,
+  };
+  const contacts = game.transformItemLeavingConveyor(contactConveyor, {
+    kind: "material",
+    material: "wire",
+    quantity: 5,
+    saleValueBase: 31.529411764705884,
+    annealedValueMultiplier: game.ANNEALER_MULTIPLIER,
+  });
+
+  assert.equal(contacts.quantity, 5);
+  assert.equal(contacts.annealedValueMultiplier, 1);
+  assert.ok(Math.abs(game.getItemSaleValue(contacts) * contacts.quantity - 849) < 1e-9);
+
+  const annealerConveyor = {
+    ...game.getInternalConveyorTiles(annealer)[2],
+    internalMachineId: "graphiteCopperAnnealer",
+    internalMachineInstanceId: annealer.instanceId,
+    internalIndex: 2,
+  };
+  game.transformItemLeavingConveyor(annealerConveyor, contacts);
+  assert.equal(contacts.annealedValueMultiplier, game.ANNEALER_MULTIPLIER);
+  assert.ok(Math.abs(game.getItemSaleValue(contacts) * contacts.quantity - 1443.3) < 1e-9);
+});
+
 test("loading a legacy save discards buffered Contact Maker Leek Fiber", () => {
   const savedState = game.createInitialState();
   savedState.contactMakerInputs = {

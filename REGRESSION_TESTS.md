@@ -84,7 +84,7 @@ future pipe systems) are not treated as current acceptance requirements.
 - Send unmodified Malachite or Native Copper through the Clay Kiln and Ingot Molder: either ingot has value `$20` (`$5 × 4`).
 - Send a fresh `$10` Copper Wire through the Annealer and Sell Tube: it sells for `$17` (`$10 × 1.7`).
 - Fresh Wires, pressed metal Plates, and Silver-Copper Contacts each receive one ×1.7 value pass; raw ores and ingots are not accepted.
-- Contact Maker keeps its 100 Leek Fiber purchase requirement, but Contacts use only five Copper Wires and 0.5 Silver Ingots per batch of five. Legacy buffered Leek Fiber is discarded on load; silver buffer and existing contact value behavior remain intact.
+- Contact Maker keeps its 100 Leek Fiber purchase requirement, but Contacts use only five Copper Wires and 0.5 Silver Ingots per batch of five. It preserves an annealed wire's value once without carrying its multiplier onto the new Contact. Legacy buffered Leek Fiber is discarded on load; Silver buffer is preserved.
 - Mineral ammo still receives ×1.7 damage from the Annealer; Leek ammo is not accepted.
 - Put an ingot into Material Storage, then output it to a Sell Tube: it resets to the `$20` minimum before later upgrades.
 - Route annealed Wire through Duster and verify the ×1.25 and ×1.7 effects are each applied once, not twice.
