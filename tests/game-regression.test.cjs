@@ -132,6 +132,41 @@ test("hidden shop cards stay hidden despite the construction card display rule",
   assert.match(styles, /\.construction-card\[hidden\]\s*\{\s*display:\s*none;\s*\}/);
 });
 
+test("the browser title is simply Hamster Miners on every screen", () => {
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  assert.match(markup, /<title>Hamster Miners<\/title>/);
+  assert.match(markup, /name="description"\s+content="version idkbutsomethingprealpha"/);
+  assert.match(source, /document\.title = "Hamster Miners";/);
+  assert.doesNotMatch(markup, /prototype/i);
+});
+
+test("player-facing machine copy omits roadmap and redundant threshold notes", () => {
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const playerFacingCopy = `${markup}\n${source}`;
+  const removedSnippets = [
+    "Wire and coil modes will be configured later.",
+    "The fiber recipe will be configured later.",
+    "the processing recipe will be configured later.",
+    "Bronze is currently the available 2-input alloy",
+    "reserved for future recipes",
+    "No 3-input recipes are available yet.",
+    "Later gem types can use the same cutter.",
+    "output may exceed $50",
+    "the output may exceed $750",
+    "the final output may exceed $50k",
+    "with no value cap",
+    "Quartz is a construction cost, not a recipe input.",
+    "Quartz is a construction cost, not an operating input.",
+  ];
+  for (const snippet of removedSnippets) {
+    assert.equal(playerFacingCopy.includes(snippet), false, `Unexpected player-facing copy: ${snippet}`);
+  }
+  assert.match(markup, /Converts one Leek into one Leek Fiber\./);
+  assert.match(markup, /Wire mode turns one Copper Ingot into five Copper Wires\./);
+});
+
 test("inventory detail placement keeps the conveyor tutorial selection flow", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
   assert.match(
@@ -2573,7 +2608,7 @@ test("Quartz Wheel Cutter rejects non-Malachite cargo and cut gems cannot be dus
   assert.equal(gem.saleValueBase, 468.75);
 });
 
-test("Bronze Pillars has its stress-test cost, asymmetric footprint, and three capped multiplier uses", () => {
+test("Bronze Pillars has its cost, asymmetric footprint, and one capped multiplier use", () => {
   const layout = game.MACHINE_LAYOUT.bronzePillars;
   assert.equal(layout.width, 3);
   assert.equal(layout.height, 3);
@@ -2610,10 +2645,10 @@ test("Bronze Pillars has its stress-test cost, asymmetric footprint, and three c
   game.transformItemLeavingConveyor(processConveyor, item);
   game.transformItemLeavingConveyor(processConveyor, item);
   game.transformItemLeavingConveyor(processConveyor, item);
-  assert.ok(Math.abs(item.saleValueBase - 2744) < 1e-9);
-  assert.equal(item.bronzePillarsUses, 3);
+  assert.equal(item.saleValueBase, 1400);
+  assert.equal(item.bronzePillarsUses, 1);
   game.transformItemLeavingConveyor(processConveyor, item);
-  assert.ok(Math.abs(item.saleValueBase - 2744) < 1e-9);
+  assert.equal(item.saleValueBase, 1400);
 
   const belowCap = {
     kind: "material", material: "bronzeIngot", quantity: 1, saleValueBase: 49999, baseValue: 20,

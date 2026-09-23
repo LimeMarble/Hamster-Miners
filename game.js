@@ -584,7 +584,7 @@ const BRONZE_STAMP_VALUE_BONUS = 100;
 const BRONZE_STAMP_MIN_BASE_VALUE = 8;
 const BRONZE_STAMP_MIN_VALUE = 150;
 const BRONZE_PILLARS_MULTIPLIER = 1.4;
-const BRONZE_PILLARS_MAX_USES = 3;
+const BRONZE_PILLARS_MAX_USES = 1;
 const BRONZE_PILLARS_MIN_BASE_VALUE = 20;
 const BRONZE_PILLARS_MAX_VALUE = 5e4;
 const CASH_UPGRADER_ELIGIBILITY_TAGS = Object.freeze([
@@ -3264,7 +3264,7 @@ const CRAFTING_RECIPES = Object.freeze([
     machine: "Quartz Wheel Cutter",
     input: "1 Malachite Ore",
     output: "0.4 Cut Malachite",
-    note: "Each Cut Malachite has ×250 of the input’s current per-item value and ×250 base value. Cut Malachite cannot receive a Leek Duster pass; dust the ore first if desired. Quartz is a construction cost, not a recipe input.",
+    note: "Each Cut Malachite has ×250 of the input’s current per-item value and ×250 base value. Cut Malachite cannot receive a Leek Duster pass; dust the ore first if desired.",
   }),
 ]);
 
@@ -6834,7 +6834,7 @@ function pickUpSelectedFactoryEntity(entity = selectedFactoryEntity, moveForPlac
 
   const machine = getMachineByInstanceId(entity.instanceId);
   if (!machine?.movable) {
-    addLog(`${getMachineDisplayName(entity.id)} cannot be moved in this prototype.`);
+    addLog(`${getMachineDisplayName(entity.id)} cannot be moved.`);
     render();
     return;
   }
@@ -8507,10 +8507,7 @@ function setActiveView(view) {
     button.setAttribute("aria-current", isActive ? "page" : "false");
   });
 
-  const viewTitle = activeView === "construction"
-    ? "Shop"
-    : `${activeView[0].toUpperCase()}${activeView.slice(1)}`;
-  document.title = `Hamster Miners — ${viewTitle}`;
+  document.title = "Hamster Miners";
   render();
   if (activeView === "factory") {
     resizeFactoryScene();
@@ -8952,7 +8949,7 @@ function getMachineActionProgressNote(machine) {
       : mode === "alloy2"
         ? "2-input alloy mode accepts copper through the primary input and tin through either alloy input: 5 copper + 1 tin produces 6 liquid Bronze in 12 seconds."
         : mode === "alloy3"
-          ? "3-input alloy mode is reserved for recipes requiring three different metal inputs. No 3-input recipes are available yet."
+          ? "3-input alloy mode combines three different metal inputs."
           : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
   }
 
@@ -9280,17 +9277,17 @@ function renderMachineActions(machine) {
   }
 
   if (machine.id === "graniteProcessor") {
-    addMachineActionNote("No crew required. Sellable materials with base value $1 or more and current value from $10 to under $50 are processed at ×1.3 value; output may exceed $50.");
+    addMachineActionNote("No crew required. Sellable materials with base value $1 or more and current value from $10 to under $50 are processed at ×1.3 value.");
     addMachineActionNote("Two horizontal processing lanes; each processor applies its value change as the item passes through.");
   }
 
   if (machine.id === "bronzeStamp") {
-    addMachineActionNote("No crew required. Sellables with base value $8 or more and current value from $150 to under $750 gain $100 value; the output may exceed $750.");
+    addMachineActionNote("No crew required. Sellables with base value $8 or more and current value from $150 to under $750 gain $100 value, up to 6 times per item.");
     addMachineActionNote("Its centre conveyor runs at speed 5.");
   }
 
   if (machine.id === "bronzePillars") {
-    addMachineActionNote("No crew required. Sellables with base value $20 or more and current value under $50k gain ×1.4, up to 3 uses per item; the final output may exceed $50k.");
+    addMachineActionNote("No crew required. Sellables with base value $20 or more and current value under $50k gain ×1.4 once per item.");
     addMachineActionNote("Its central pass-through tile uses the default conveyor speed.");
   }
 
@@ -9310,12 +9307,12 @@ function renderMachineActions(machine) {
       {
         value: "alloy2",
         label: "2-input alloy",
-        description: "the current Bronze recipe",
+        description: "5 Copper + 1 Tin → 6 liquid Bronze",
       },
       {
         value: "alloy3",
         label: "3-input alloy",
-        description: "reserved for future recipes",
+        description: "three different metal inputs",
       },
     ].forEach(({ value, label, description }) => {
       const selected = mode === value;

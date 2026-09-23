@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="A small extraction-loop prototype for Hamster Miners."
+      content="version idkbutsomethingprealpha"
     />
-    <title>Hamster Miners — Prototype</title>
+    <title>Hamster Miners</title>
     <link rel="stylesheet" href="styles.css?v=6" />
   </head>
   <body>
@@ -286,16 +286,16 @@
           <article class="machine-card" data-inventory-machine="ingotMolder"><span class="machine-label">Crew-operated molding</span><h3>Ingot Molder</h3><p>1×2. Place it against a kiln’s liquid outlet. Its reusable mold casts one liquid metal unit into one ingot on its marked lane.</p><strong id="ingotMolderInventoryCount">Stored: 0</strong><button class="button" id="selectIngotMolderButton" type="button">Place Ingot Molder</button></article>
           <article class="machine-card" data-inventory-machine="graphiteCopperAnnealer"><span class="machine-label">Mineral upgrader</span><h3>Granite-Copper Annealer</h3><p>3×3. Speed 2. Mineral ammo gains ×1.7 damage; fresh Copper Wires, metal Plates, and Silver-Copper Contacts gain ×1.7 value once. Ores and ingots are not accepted.</p><strong id="graphiteCopperAnnealerInventoryCount">Stored: 0</strong><button class="button" id="selectGraphiteCopperAnnealerButton" type="button">Place Granite-Copper Annealer</button></article>
           <article class="machine-card" data-inventory-machine="graniteProcessor"><span class="machine-label">Value processor</span><h3>Granite Processor</h3><p>1×2. Two horizontal lanes accept sellables with $1+ base value when their current value is $10 to under $50, then multiply it by ×1.3.</p><strong id="graniteProcessorInventoryCount">Stored: 0</strong><button class="button" id="selectGraniteProcessorButton" type="button">Place Granite Processor</button></article>
-          <article class="machine-card" data-inventory-machine="bronzeStamp"><span class="machine-label">Value upgrader</span><h3>Bronze Stamp</h3><p>1×3. No crew required. Sellables with at least $8 base value and $150 current value gain $100 up to 6 times per item, with no value cap. Its centre conveyor runs at speed 5.</p><strong id="bronzeStampInventoryCount">Stored: 0</strong><button class="button" id="selectBronzeStampButton" type="button">Place Bronze Stamp</button></article>
-          <article class="machine-card" data-inventory-machine="bronzePillars"><span class="machine-label">Value upgrader</span><h3>Bronze Pillars</h3><p>3×3 asymmetric footprint. No crew required. Sellables with at least $20 base value gain ×1.4 up to 3 times while their current value is under $50k.</p><strong id="bronzePillarsInventoryCount">Stored: 0</strong><button class="button" id="selectBronzePillarsButton" type="button">Place Bronze Pillars</button></article>
-          <article class="machine-card" data-inventory-machine="extruder"><span class="machine-label">Metal forming</span><h3>Extruder</h3><p>3×1. Three horizontal conveyor cells. Wire and coil modes will be configured later.</p><strong id="extruderInventoryCount">Stored: 0</strong><button class="button" id="selectExtruderButton" type="button">Place Extruder</button></article>
-          <article class="machine-card" data-inventory-machine="leekFiberExtractor"><span class="machine-label">Leek processing</span><h3>Leek Fiber Extractor</h3><p>2×2. The fiber recipe will be configured later.</p><strong id="leekFiberExtractorInventoryCount">Stored: 0</strong><button class="button" id="selectLeekFiberExtractorButton" type="button">Place Leek Fiber Extractor</button></article>
+          <article class="machine-card" data-inventory-machine="bronzeStamp"><span class="machine-label">Value upgrader</span><h3>Bronze Stamp</h3><p>1×3. No crew required. Sellables with at least $8 base value and $150 current value gain $100 up to 6 times per item. Its centre conveyor runs at speed 5.</p><strong id="bronzeStampInventoryCount">Stored: 0</strong><button class="button" id="selectBronzeStampButton" type="button">Place Bronze Stamp</button></article>
+          <article class="machine-card" data-inventory-machine="bronzePillars"><span class="machine-label">Value upgrader</span><h3>Bronze Pillars</h3><p>3×3 asymmetric footprint. No crew required. Sellables with at least $20 base value and current value under $50k gain ×1.4 once per item.</p><strong id="bronzePillarsInventoryCount">Stored: 0</strong><button class="button" id="selectBronzePillarsButton" type="button">Place Bronze Pillars</button></article>
+          <article class="machine-card" data-inventory-machine="extruder"><span class="machine-label">Metal forming</span><h3>Extruder</h3><p>3×1. Three horizontal conveyor cells. Wire mode turns one Copper Ingot into five Copper Wires.</p><strong id="extruderInventoryCount">Stored: 0</strong><button class="button" id="selectExtruderButton" type="button">Place Extruder</button></article>
+          <article class="machine-card" data-inventory-machine="leekFiberExtractor"><span class="machine-label">Leek processing</span><h3>Leek Fiber Extractor</h3><p>2×2. Converts one Leek into one Leek Fiber.</p><strong id="leekFiberExtractorInventoryCount">Stored: 0</strong><button class="button" id="selectLeekFiberExtractorButton" type="button">Place Leek Fiber Extractor</button></article>
           <article class="machine-card" data-inventory-machine="contactMaker"><span class="machine-label">Electrical assembly</span><h3>Contact Maker</h3><p>4×3. Combines five Copper Wires with 0.5 Silver Ingots per batch of five Contacts.</p><strong id="contactMakerInventoryCount">Stored: 0</strong><button class="button" id="selectContactMakerButton" type="button">Place Contact Maker</button></article>
-          <article class="machine-card" data-inventory-machine="miniElectricArcFurnace"><span class="machine-label">Final pre-reality smelting</span><h3>Mini Electric Arc Furnace</h3><p>3×3. One crew smelts a single metal in 2 seconds. Choose single smelting, a 2-input alloy mode, or a 3-input alloy mode; Bronze is currently the available 2-input alloy.</p><strong id="miniElectricArcFurnaceInventoryCount">Stored: 0</strong><button class="button" id="selectMiniElectricArcFurnaceButton" type="button">Place Mini Electric Arc Furnace</button></article>
+          <article class="machine-card" data-inventory-machine="miniElectricArcFurnace"><span class="machine-label">Final pre-reality smelting</span><h3>Mini Electric Arc Furnace</h3><p>3×3. One crew smelts a single metal in 2 seconds per input unit. Bronze alloy mode uses 5 Copper and 1 Tin to produce 6 liquid Bronze in 12 seconds.</p><strong id="miniElectricArcFurnaceInventoryCount">Stored: 0</strong><button class="button" id="selectMiniElectricArcFurnaceButton" type="button">Place Mini Electric Arc Furnace</button></article>
           <article class="machine-card" data-inventory-machine="metalPress"><span class="machine-label">Metal forming</span><h3>Metal Press</h3><p>2×3. Presses ingots into matching plates without changing their value. Its two conveyor cells run at speed 5.</p><strong id="metalPressInventoryCount">Stored: 0</strong><button class="button" id="selectMetalPressButton" type="button">Place Metal Press</button></article>
           <article class="machine-card" data-inventory-machine="stacker"><span class="machine-label">Batch handling</span><h3>Stacker</h3><p>1×1. No crew required. Takes matching items from three sides and releases configured stacks of up to 3 in its facing direction.</p><strong id="stackerInventoryCount">Stored: 0</strong><button class="button" id="selectStackerButton" type="button">Place Stacker</button></article>
           <article class="machine-card" data-inventory-machine="splitter"><span class="machine-label">Batch routing</span><h3>Splitter</h3><p>1×1. No crew required. Takes one incoming line and cycles full stacks among three exits, skipping occupied or incompatible ones.</p><strong id="splitterInventoryCount">Stored: 0</strong><button class="button" id="selectSplitterButton" type="button">Place Splitter</button></article>
-          <article class="machine-card" data-inventory-machine="quartzWheelCutter"><span class="machine-label">Gem processing · cash</span><h3>Quartz Wheel Cutter</h3><p>4×5. Two independent conveyor lines run at speed 1. Each Malachite Ore becomes 0.4 Cut Malachite at ×250 current value. Dust the ore first; Cut Malachite cannot be dusted. Later gem types can use the same cutter.</p><strong id="quartzWheelCutterInventoryCount">Stored: 0</strong><button class="button" id="selectQuartzWheelCutterButton" type="button">Place Quartz Wheel Cutter</button></article>
+          <article class="machine-card" data-inventory-machine="quartzWheelCutter"><span class="machine-label">Gem processing · cash</span><h3>Quartz Wheel Cutter</h3><p>4×5. Two independent conveyor lines run at speed 1. Each Malachite Ore becomes 0.4 Cut Malachite at ×250 current value. Dust the ore first; Cut Malachite cannot be dusted.</p><strong id="quartzWheelCutterInventoryCount">Stored: 0</strong><button class="button" id="selectQuartzWheelCutterButton" type="button">Place Quartz Wheel Cutter</button></article>
           <article class="machine-card" data-inventory-machine="gun"><span class="machine-label">Fixed</span><h3>Rapidfire Gun Mk. 0</h3><p>4×3 display. Fires four rounds per second while enabled; Malachite bullet cores deal 3 damage.</p></article>
         </div>
         </div>
@@ -409,7 +409,7 @@
           <article class="panel construction-card" data-shop-machine="graniteProcessor">
             <span class="machine-label">Value processor</span>
             <h3>Granite Processor</h3>
-            <p class="panel-copy">1×2, two horizontal lanes, no crew. Accepts sellables with $1+ base value and current value from $10 to under $50, then multiplies their value by ×1.3; output may exceed $50.</p>
+            <p class="panel-copy">1×2, two horizontal lanes, no crew. Accepts sellables with $1+ base value and current value from $10 to under $50, then multiplies their value by ×1.3.</p>
             <dl class="machine-build-cost" aria-label="Granite Processor build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$150</dd></div>
               <div data-shop-cost-material="granite"><dt>Granite</dt><dd>80</dd></div>
@@ -420,7 +420,7 @@
           <article class="panel construction-card" data-shop-machine="bronzeStamp">
             <span class="machine-label">Value upgrader</span>
             <h3>Bronze Stamp</h3>
-            <p class="panel-copy">1×3, no crew, speed 5. Accepts sellables with at least $8 base value and at least $150 current value, then adds $100 up to 6 times per item with no value cap.</p>
+            <p class="panel-copy">1×3, no crew, speed 5. Accepts sellables with at least $8 base value and at least $150 current value, then adds $100 up to 6 times per item.</p>
             <dl class="machine-build-cost" aria-label="Bronze Stamp build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$25k</dd></div>
               <div data-shop-cost-material="bronzePlate"><dt>Bronze Plates</dt><dd>4</dd></div>
@@ -433,7 +433,7 @@
           <article class="panel construction-card" data-shop-machine="bronzePillars">
             <span class="machine-label">Value upgrader</span>
             <h3>Bronze Pillars</h3>
-            <p class="panel-copy">Asymmetric 3×3 footprint, no crew. Sellables with at least $20 base value and current value under $50k gain ×1.4 value, up to three uses per item; the final output may exceed $50k.</p>
+            <p class="panel-copy">Asymmetric 3×3 footprint, no crew. Sellables with at least $20 base value and current value under $50k gain ×1.4 once per item.</p>
             <dl class="machine-build-cost" aria-label="Bronze Pillars build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$100k</dd></div>
               <div data-shop-cost-material="bronzePlate"><dt>Bronze Plates</dt><dd>20</dd></div>
@@ -457,7 +457,7 @@
           <article class="panel construction-card" data-shop-machine="leekFiberExtractor">
             <span class="machine-label">Leek processing</span>
             <h3>Leek Fiber Extractor</h3>
-            <p class="panel-copy">2×2, no crew. Converts Leeks into Leek Fiber; the processing recipe will be configured later.</p>
+            <p class="panel-copy">2×2, no crew. Converts one Leek into one Leek Fiber.</p>
             <dl class="machine-build-cost" aria-label="Leek Fiber Extractor build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$2.5k</dd></div>
               <div data-shop-cost-material="limestone"><dt>Limestone</dt><dd>50</dd></div>
@@ -496,7 +496,7 @@
           <article class="panel construction-card" data-shop-machine="miniElectricArcFurnace">
             <span class="machine-label">Final pre-reality smelting</span>
             <h3>Mini Electric Arc Furnace</h3>
-            <p class="panel-copy">3×3, one crew. Single smelting takes 2 seconds per input unit; choose a 2-input or 3-input alloy mode when a multi-metal recipe is available. Bronze is currently the available 2-input alloy and takes 5 copper plus 1 tin to produce 6 liquid Bronze in 12 seconds.</p>
+            <p class="panel-copy">3×3, one crew. Single-metal smelting takes 2 seconds per input unit. Bronze alloy mode uses 5 Copper and 1 Tin to produce 6 liquid Bronze in 12 seconds.</p>
             <dl class="machine-build-cost" aria-label="Mini Electric Arc Furnace build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$100k</dd></div>
               <div data-shop-cost-material="graphite"><dt>Graphite</dt><dd>30</dd></div>
@@ -558,7 +558,7 @@
           <article class="panel construction-card" data-shop-machine="quartzWheelCutter">
             <span class="machine-label">Gem processing · cash</span>
             <h3>Quartz Wheel Cutter</h3>
-            <p class="panel-copy">4×5, no crew. Two independent four-tile lines run at speed 1. Malachite Ore becomes 0.4 Cut Malachite at ×250 current value per gem. Cut gems can’t receive a Duster pass; dust the ore first. Quartz is a construction cost, not an operating input.</p>
+            <p class="panel-copy">4×5, no crew. Two independent four-tile lines run at speed 1. Malachite Ore becomes 0.4 Cut Malachite at ×250 current value per gem. Cut gems can’t receive a Duster pass; dust the ore first.</p>
             <dl class="machine-build-cost" aria-label="Quartz Wheel Cutter build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$600k</dd></div>
               <div data-shop-cost-material="quartz"><dt>Quartz</dt><dd>200</dd></div>
@@ -645,7 +645,7 @@
           </section>
           <section class="panel options-card danger-card" aria-labelledby="hardResetTitle">
             <h3 id="hardResetTitle">Hard reset</h3>
-            <p class="panel-copy">Erase all local progress and begin the prototype again. This has no reward and cannot be undone.</p>
+            <p class="panel-copy">Erase all local progress and begin again. This has no reward and cannot be undone.</p>
             <button class="button button-warning" id="hardResetButton" type="button">Hard reset all progress</button>
           </section>
           <section class="panel options-card" aria-labelledby="codesTitle">

@@ -93,8 +93,8 @@ future pipe systems) are not treated as current acceptance requirements.
 - Rock Shack remains crew-free and applies its additive value effect only on
   its built-in conveyor tile.
 - Bronze Pillars accepts sellables with base value at least `$20` and current
-  value below `$50k`, multiplies by ×1.4, tracks three uses per item, and lets
-  the final output exceed `$50k`.
+  value below `$50k`, multiplies by ×1.4 once per item, and can cross `$50k` on
+  that application.
 - Bronze Stamp and Bronze Pillars keep per-item use tags through same-product
   remelting, but reset those tags when processing changes a sellable's material
   type; the already-earned value remains, and the new product can qualify anew.
