@@ -161,6 +161,24 @@ function getFactoryCameraScrollLimits(viewportWidth, viewportHeight, zoom) {
   };
 }
 
+function clampFactoryCameraScroll(camera, scrollX = camera.scrollX, scrollY = camera.scrollY) {
+  const limits = getFactoryCameraScrollLimits(camera.width, camera.height, camera.zoom);
+  const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
+  const nextScrollX = clamp(
+    Number.isFinite(scrollX) ? scrollX : limits.minScrollX,
+    limits.minScrollX,
+    limits.maxScrollX,
+  );
+  const nextScrollY = clamp(
+    Number.isFinite(scrollY) ? scrollY : limits.minScrollY,
+    limits.minScrollY,
+    limits.maxScrollY,
+  );
+
+  camera.setScroll(nextScrollX, nextScrollY);
+  return { ...limits, scrollX: nextScrollX, scrollY: nextScrollY };
+}
+
 function normalizeGunSchedule(schedule) {
   if (!Array.isArray(schedule)) {
     return [];
@@ -1216,7 +1234,7 @@ const TUNNEL_ONE_SPAWN_POOLS = Object.freeze([
     ]),
   },
   {
-    startsAtBand: 25,
+    startsAtBand: 24,
     deposits: Object.freeze([
       { cell: 2, type: "copper" },
       { cell: 7, type: "copper" },
@@ -9780,12 +9798,6 @@ function renderMachineGrid() {
       create() {
         machineScene = this;
         const camera = machineScene.cameras.main;
-        camera.setBounds(
-          -FACTORY_PAN_MARGIN,
-          -FACTORY_PAN_MARGIN,
-          FACTORY_CANVAS_WIDTH + FACTORY_PAN_MARGIN * 2,
-          FACTORY_CANVAS_HEIGHT + FACTORY_PAN_MARGIN * 2,
-        );
         camera.roundPixels = true;
         camera.setZoom(factoryCameraZoom);
         camera.scrollX = Math.max(
@@ -9794,6 +9806,7 @@ function renderMachineGrid() {
             - camera.width / (2 * camera.zoom),
         );
         camera.scrollY = 0;
+        clampFactoryCameraScroll(camera);
         drawMachineFloor(machineScene);
         machineOverlay = machineScene.add.graphics();
         machineOverlay.setDepth(2);
@@ -9816,6 +9829,7 @@ function renderMachineGrid() {
           );
           camera.setZoom(nextZoom);
           factoryCameraZoom = nextZoom;
+          clampFactoryCameraScroll(camera);
         });
         machineScene.events.on("update", (time, delta) => {
           const pointer = machineScene.input.activePointer;
@@ -9834,17 +9848,13 @@ function renderMachineGrid() {
                 ? (pointer.y - (machineScene.scale.height - edgeDistance)) / edgeDistance
                 : 0;
           const panSpeed = 650 * (delta / 1000) / camera.zoom;
-          const scrollLimits = getFactoryCameraScrollLimits(camera.width, camera.height, camera.zoom);
           const nextScrollX = Number.isFinite(camera.scrollX)
             ? camera.scrollX + horizontalStrength * panSpeed
             : 0;
           const nextScrollY = Number.isFinite(camera.scrollY)
             ? camera.scrollY + verticalStrength * panSpeed
             : 0;
-          camera.setScroll(
-            Phaser.Math.Clamp(nextScrollX, scrollLimits.minScrollX, scrollLimits.maxScrollX),
-            Phaser.Math.Clamp(nextScrollY, scrollLimits.minScrollY, scrollLimits.maxScrollY),
-          );
+          clampFactoryCameraScroll(camera, nextScrollX, nextScrollY);
         });
         renderMachineOverlay();
         window.requestAnimationFrame?.(() => resizeFactoryScene());
@@ -9873,20 +9883,7 @@ function resizeFactoryScene() {
 
   machineGame.scale.resize(width, height);
   machineScene.cameras.main.setViewport(0, 0, width, height);
-  const camera = machineScene.cameras.main;
-  const scrollLimits = getFactoryCameraScrollLimits(camera.width, camera.height, camera.zoom);
-  camera.setScroll(
-    Phaser.Math.Clamp(
-      Number.isFinite(camera.scrollX) ? camera.scrollX : 0,
-      scrollLimits.minScrollX,
-      scrollLimits.maxScrollX,
-    ),
-    Phaser.Math.Clamp(
-      Number.isFinite(camera.scrollY) ? camera.scrollY : 0,
-      scrollLimits.minScrollY,
-      scrollLimits.maxScrollY,
-    ),
-  );
+  clampFactoryCameraScroll(machineScene.cameras.main);
 }
 
 function getFactoryTextResolution() {
@@ -12879,6 +12876,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     FACTORY_PAN_MARGIN_TILES,
     FACTORY_STARTER_COLUMN_OFFSET,
     getFactoryCameraScrollLimits,
+    clampFactoryCameraScroll,
     RESOURCE_DEFINITIONS,
     PLAYTEST_PANEL_CHEAT_CODE,
     isObtainableMaterial,

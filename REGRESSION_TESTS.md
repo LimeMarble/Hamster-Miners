@@ -39,7 +39,7 @@ future pipe systems) are not treated as current acceptance requirements.
 - Tunnel 1 Band 10 introduces two Silver deposits; Band 9's milestone reveals
   Silver, while Band 4's milestone reveals Lead appearing in Band 5.
 - Tunnel 1 Band 20's milestone reward label is `???`.
-- Tunnel 1 keeps the Band 20 pool through Band 24; Zinc joins at Band 25.
+- Tunnel 1 keeps the Band 20 pool through Band 23; Zinc joins at Band 24.
 - Mine information lists only deposit types in the active band’s spawn pool,
   while keeping a depleted type visible until the player changes band.
 - Target information shows current and maximum HP for the active segment.
@@ -182,6 +182,8 @@ future pipe systems) are not treated as current acceptance requirements.
 
 - Edge panning can move the camera up to three tiles beyond each edge of the
   unchanged 50×30 placement grid, including after zoom and viewport resizing.
+- Panning stays within those bounds throughout the full 45%–200% zoom range;
+  changing zoom immediately reclamps the current view.
 - Factory crew text appears in the reserved inert rows beside the gun.
 - The Clay Kiln, Bullet Core Caster, Ingot Molder, and Annealer liquid ports use
   the temporary blue conveyor styling until pipes exist.

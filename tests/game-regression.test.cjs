@@ -187,6 +187,42 @@ test("factory camera can pan three tiles beyond the unchanged placement grid", (
   const zoomedOutLimits = game.getFactoryCameraScrollLimits(2e3, 1300, 1);
   assert.equal(zoomedOutLimits.minScrollX, zoomedOutLimits.maxScrollX);
   assert.equal(zoomedOutLimits.minScrollY, zoomedOutLimits.maxScrollY);
+
+  for (const zoom of [0.45, 0.7, 1, 1.5, 2]) {
+    const limitsAtZoom = game.getFactoryCameraScrollLimits(320, 256, zoom);
+    assert.equal(limitsAtZoom.minScrollX, -96);
+    assert.equal(limitsAtZoom.minScrollY, -96);
+    assert.equal(limitsAtZoom.maxScrollX + 320 / zoom, game.FACTORY_COLUMNS * 32 + 96);
+    assert.equal(limitsAtZoom.maxScrollY + 256 / zoom, (game.FACTORY_ROWS + 3) * 32 + 96);
+  }
+});
+
+test("factory panning clamps immediately and consistently across zoom changes", () => {
+  const camera = {
+    width: 320,
+    height: 256,
+    zoom: 1,
+    scrollX: 0,
+    scrollY: 0,
+    setScroll(x, y) {
+      this.scrollX = x;
+      this.scrollY = y;
+    },
+  };
+
+  for (const zoom of [0.45, 0.7, 1, 1.5, 2]) {
+    camera.zoom = zoom;
+    const limits = game.getFactoryCameraScrollLimits(camera.width, camera.height, zoom);
+    const clampedLow = game.clampFactoryCameraScroll(camera, limits.minScrollX - 500, limits.minScrollY - 500);
+    assert.equal(clampedLow.scrollX, limits.minScrollX);
+    assert.equal(clampedLow.scrollY, limits.minScrollY);
+
+    const clampedHigh = game.clampFactoryCameraScroll(camera, limits.maxScrollX + 500, limits.maxScrollY + 500);
+    assert.equal(clampedHigh.scrollX, limits.maxScrollX);
+    assert.equal(clampedHigh.scrollY, limits.maxScrollY);
+    assert.ok(camera.scrollX + camera.width / zoom <= game.FACTORY_COLUMNS * 32 + 96 + 1e-9);
+    assert.ok(camera.scrollY + camera.height / zoom <= (game.FACTORY_ROWS + 3) * 32 + 96 + 1e-9);
+  }
 });
 
 test("factory conveyor topology is reused until the layout changes", () => {
@@ -440,6 +476,7 @@ test("mining definitions preserve the agreed deposit durability and yields", () 
   assert.equal(game.RESOURCE_DEFINITIONS.graphite.segments, 6);
   assert.equal(game.RESOURCE_DEFINITIONS.graphite.hitPointsPerSegment, 8);
   assert.equal(game.RESOURCE_DEFINITIONS.graphite.yield, 2);
+  assert.equal(game.RESOURCE_DEFINITIONS.zinc.yield, 2);
   assert.deepEqual(game.RESOURCE_DEFINITIONS.tin, {
     label: "Tin ore",
     shortLabel: "Sn",
@@ -619,17 +656,22 @@ test("spawn pools change only at the specified band threshold", () => {
   assert.equal(bandTwenty.filter(({ type }) => type === "silver").length, 4);
   assert.equal(bandTwenty.length, 11);
 
+  const bandTwentyThree = game.getSpawnPoolForBand(23, 1);
+  assert.deepEqual(bandTwentyThree, bandTwenty);
   const bandTwentyFour = game.getSpawnPoolForBand(24, 1);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 4);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 3);
-  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 4);
-  assert.equal(bandTwentyFour.length, 11);
+  assert.equal(bandTwentyFour.length, 9, "Zinc joins at Band 24");
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "copper").length, 2);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "lead").length, 2);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "silver").length, 3);
+  assert.equal(bandTwentyFour.filter(({ type }) => type === "zinc").length, 2);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "beryl").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawAquamarine").length, 0);
   assert.equal(bandTwentyFour.filter(({ type }) => type === "rawEmerald").length, 0);
-  assert.deepEqual(bandTwentyFour, bandTwenty);
   const bandTwentyFive = game.getSpawnPoolForBand(25, 1);
   assert.equal(bandTwentyFive.length, 18, "the full pool resumes at Band 25");
+  assert.equal(bandTwentyFive.filter(({ type }) => type === "copper").length, 4);
+  assert.equal(bandTwentyFive.filter(({ type }) => type === "lead").length, 4);
+  assert.equal(bandTwentyFive.filter(({ type }) => type === "silver").length, 6);
   assert.equal(bandTwentyFive.filter(({ type }) => type === "zinc").length, 4);
   assert.equal(bandTwentyFive.filter(({ type }) => type === "beryl").length, 0);
   assert.equal(game.RESOURCE_DEFINITIONS.beryl.yield, 2);
