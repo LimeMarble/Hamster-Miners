@@ -615,9 +615,9 @@ test("Tunnel 3 uses alternating Hematite and Chert bands with a Kimberlite cap b
   assert.equal(game.getHostRockYield(3, 20), 0);
   state.mine.unlockedTunnels = [1, 2];
   state.mine.tunnelThreeRightsPurchased = false;
-  state.cash = 7.99999e5;
+  state.cash = 1.99999e6;
   assert.equal(game.canBuyTunnelThreeRights(), false);
-  state.cash = 8e5;
+  state.cash = 2e6;
   assert.equal(game.canBuyTunnelThreeRights(), true);
 });
 
@@ -833,7 +833,27 @@ test("both tunnels switch to ×1.32 band HP growth after Band 5", () => {
   assert.equal(game.getLayerStats(51, 1).hitPoints, Math.ceil(100 * (2 ** 4) * 1.32));
   assert.equal(game.getLayerStats(51, 2).hitPoints, Math.ceil(250 * (2.5 ** 4) * 1.32));
   assert.equal(game.getLayerStats(61, 2).hitPoints, Math.ceil(250 * (2.5 ** 4) * (1.32 ** 2)));
-  assert.equal(game.CONFIG.remineHitPointDivisor, 5);
+  assert.equal(game.CONFIG.remineChunkFraction, 1);
+  assert.equal(game.CONFIG.remineHitPointDivisor, 3);
+});
+
+test("re-mining keeps the full deposit pool and reduces layer HP to one third", () => {
+  const state = freshState();
+  const layer = 41; // Tunnel 1 Band 5 has a deterministic, non-chance pool.
+  const countByType = (deposits) => deposits.reduce((counts, deposit) => {
+    counts[deposit.type] = (counts[deposit.type] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  game.loadLayer(layer, { tunnel: 1 });
+  const normalCountsByType = countByType(state.deposits);
+
+  game.loadLayer(layer, { tunnel: 1, isRemine: true });
+  const remineCountsByType = countByType(state.deposits);
+  const layerHp = game.getLayerStats(layer, 1).hitPoints;
+
+  assert.deepEqual(remineCountsByType, normalCountsByType);
+  assert.equal(state.drill.hitPointsTotal, Math.ceil(layerHp / 3));
 });
 
 test("Clay Kilns accept Lead ore as a low-melting metal", () => {
@@ -1082,13 +1102,17 @@ test("Mini Electric Arc Furnace alloy inputs accept full recipe quantities acros
   assert.equal(inputs.tertiary.reduce((sum, item) => sum + item.quantity, 0), 0);
 });
 
-test("Mini Electric Arc Furnace keeps the empty 3-input mode separate from Bronze", () => {
-  const furnace = machine("miniElectricArcFurnace", "arc-alloy3", 0, 0);
-  furnace.mode = "alloy3";
+test("Mini Electric Arc Furnace exposes only implemented recipes for manual selection", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-recipes", 0, 0);
   freshState({ machines: [furnace] });
 
-  assert.equal(game.receiveConveyorItem({ kind: "material", material: "copper", quantity: 5 }, 0, 1), false);
-  assert.equal(game.receiveConveyorItem({ kind: "material", material: "tin", quantity: 1 }, 1, 0), false);
+  assert.deepEqual(
+    game.ARC_FURNACE_RECIPE_OPTIONS.map(({ value }) => value),
+    ["smelting", "alloy2", "copperContactAlloy"],
+  );
+  assert.equal(game.switchArcFurnaceMode(furnace, "alloy3"), false);
+  assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), true);
+  assert.equal(game.getArcFurnaceMode(furnace), "copperContactAlloy");
 });
 
 test("Bronze recipe waits for the alternate alloy inlet and consumes exact mixed inputs", () => {
@@ -1124,9 +1148,51 @@ test("Bronze recipe waits for the alternate alloy inlet and consumes exact mixed
   });
 });
 
+test("Copper Contact Alloy manually selected recipe uses four Silver and one Copper for five liquid alloy", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-copper-contact", 0, 0);
+  furnace.mode = "copperContactAlloy";
+  const molder = machine("ingotMolder", "molder-copper-contact", 3, 0);
+  const press = machine("metalPress", "press-copper-contact", 10, 0);
+  const state = freshState({
+    machines: [furnace, molder, press],
+    crew: { total: 2 },
+  });
+
+  assert.equal(game.receiveConveyorItem({
+    kind: "material", material: "silverIngot", quantity: 4, saleValueBase: 34,
+  }, 0, 1), true);
+  assert.equal(game.receiveConveyorItem({
+    kind: "material", material: "copperIngot", quantity: 1, saleValueBase: 2,
+  }, 1, 0), true);
+
+  const recipe = game.getArcFurnaceRecipe(furnace);
+  assert.equal(recipe.outputMaterial, "copperContactAlloy");
+  assert.equal(recipe.outputQuantity, 5);
+  assert.equal(recipe.outputValue, 27.6);
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 10);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 5);
+  game.updateCrewOperatedMachines(10);
+  assert.equal(state.moltenCopper[0].material, "copperContactAlloy");
+  assert.equal(state.moltenCopper[0].quantity, 4);
+  assert.equal(state.molderJobs[0].material, "copperContactAlloy");
+
+  game.updateCrewOperatedMachines(1);
+  const output = state.internalConveyorItems[`${molder.instanceId}:0`];
+  assert.equal(output.material, "copperContactAlloyIngot");
+  assert.equal(output.saleValueBase, 27.6);
+  assert.equal(output.baseValue, 27.6);
+  assert.equal(game.getFactoryMaterialVisualKind(output.material), "ingot");
+  assert.equal(game.getSaleValue(output.material), 27.6);
+  assert.equal(game.canReceiveConveyorItem({
+    kind: "material", material: output.material, quantity: 1,
+  }, 10, 1), false, "the undefined alloy plate recipe must not enter the Metal Press");
+});
+
 test("moving and saving a furnace preserves its mode, orientation, and instance", () => {
   const furnace = machine("miniElectricArcFurnace", "arc-move-mode", 10, 10, "up");
-  furnace.mode = "alloy3";
+  furnace.mode = "copperContactAlloy";
   const state = freshState({ machines: [furnace] });
   const selection = {
     type: "machine",
@@ -1138,16 +1204,16 @@ test("moving and saving a furnace preserves its mode, orientation, and instance"
 
   game.pickUpSelectedFactoryEntity(selection, true);
   assert.equal(state.machineInventory.miniElectricArcFurnace, 1);
-  assert.equal(state.machineInventoryInstances[0].mode, "alloy3");
+  assert.equal(state.machineInventoryInstances[0].mode, "copperContactAlloy");
 
   const reloaded = game.hydrateSavedState(state);
-  assert.equal(reloaded.machineInventoryInstances[0].mode, "alloy3");
+  assert.equal(reloaded.machineInventoryInstances[0].mode, "copperContactAlloy");
   game.__setState(reloaded);
   game.placeMachine("miniElectricArcFurnace", 30, 15);
 
   const restoredFurnace = reloaded.machines.find(({ id }) => id === "miniElectricArcFurnace");
   assert.equal(restoredFurnace.instanceId, furnace.instanceId);
-  assert.equal(restoredFurnace.mode, "alloy3");
+  assert.equal(restoredFurnace.mode, "copperContactAlloy");
   assert.equal(restoredFurnace.orientation, "up");
   assert.equal(reloaded.machineInventoryInstances.length, 0);
 });
@@ -1165,6 +1231,7 @@ test("Recipes catalogue includes every implemented production branch", () => {
     "Liquid Iron",
     "Ceramic",
     "Bronze",
+    "Copper Contact Alloy",
     "Metal Ingots",
     "Metal Plates",
   ].forEach((name) => assert.equal(recipes.has(name), true));
@@ -1174,6 +1241,8 @@ test("Recipes catalogue includes every implemented production branch", () => {
   );
   assert.match(recipes.get("Ceramic").input, /2 Clay/);
   assert.match(recipes.get("Bronze").output, /6 liquid Bronze/);
+  assert.equal(recipes.get("Copper Contact Alloy").input, "4 Silver + 1 Copper");
+  assert.equal(recipes.get("Copper Contact Alloy").output, "5 liquid Copper Contact Alloy");
 });
 
 test("Mini Electric Arc Furnace preserves its selected mode when saves are hydrated", () => {
@@ -1185,6 +1254,49 @@ test("Mini Electric Arc Furnace preserves its selected mode when saves are hydra
   });
 
   assert.equal(hydrated.machines[0].mode, "alloy2");
+});
+
+test("legacy empty three-input furnace mode migrates to single smelting", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-legacy-empty", 2, 3);
+  furnace.mode = "alloy3";
+  const hydrated = game.hydrateSavedState({
+    ...game.createInitialState(),
+    machines: [furnace],
+  });
+
+  assert.equal(hydrated.machines[0].mode, "smelting");
+});
+
+test("a saved manual furnace recipe hydrates during initial game startup", () => {
+  const modulePath = require.resolve("../game.js");
+  const cachedModule = require.cache[modulePath];
+  const originalGetItem = global.window.localStorage.getItem;
+  const savedState = game.createInitialState();
+  savedState.machines = [machine(
+    "miniElectricArcFurnace",
+    "arc-startup-save",
+    2,
+    3,
+  )];
+  savedState.machines[0].mode = "copperContactAlloy";
+  const encodedSave = Buffer.from(JSON.stringify({
+    version: game.CONFIG.saveVersion,
+    state: savedState,
+  })).toString("base64");
+
+  try {
+    global.window.localStorage.getItem = () => encodedSave;
+    delete require.cache[modulePath];
+    const bootedGame = require("../game.js");
+    assert.equal(
+      bootedGame.__getState().machines[0].mode,
+      "copperContactAlloy",
+    );
+  } finally {
+    delete require.cache[modulePath];
+    require.cache[modulePath] = cachedModule;
+    global.window.localStorage.getItem = originalGetItem;
+  }
 });
 
 test("Mini Electric Arc Furnace mode switching is always enabled and discards only its own unfinished contents", () => {
@@ -1227,21 +1339,22 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
     arcFurnaceOutputBuffers: { [furnace.instanceId]: ceramicOutput },
   });
 
-  assert.equal(game.switchArcFurnaceMode(furnace, "alloy3"), true);
-  assert.equal(furnace.mode, "alloy3");
+  assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), true);
+  assert.equal(furnace.mode, "copperContactAlloy");
   assert.deepEqual(state.arcFurnaceInputs[furnace.instanceId], {
     primary: [], secondary: [], tertiary: [],
   });
   assert.deepEqual(state.arcFurnaceJobs.map((job) => job.furnaceInstanceId), [otherFurnace.instanceId]);
   assert.deepEqual(state.moltenCopper.map((item) => item.smelterInstanceId), [otherFurnace.instanceId]);
   assert.strictEqual(state.arcFurnaceOutputBuffers[furnace.instanceId], ceramicOutput);
-  assert.equal(game.switchArcFurnaceMode(furnace, "alloy3"), false);
+  assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), false);
 
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
   const controls = source.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  if \(machine\.id === "metalPress"\)/);
   assert.ok(controls, "arc furnace controls should exist");
-  assert.match(controls[1], /switchArcFurnaceMode\(machine, value\)/);
-  assert.match(controls[1], /\r?\n\s+selected,\r?\n\s+\);/);
+  assert.match(controls[1], /document\.createElement\("select"\)/);
+  assert.match(controls[1], /ARC_FURNACE_RECIPE_OPTIONS\.forEach/);
+  assert.match(controls[1], /switchArcFurnaceMode\(machine, recipeSelect\.value\)/);
   assert.doesNotMatch(controls[1], /\boccupied\b/);
 });
 

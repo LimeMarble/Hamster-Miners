@@ -27,8 +27,8 @@ const CONFIG = Object.freeze({
   layerHitPointsGrowth: 1.05,
   bandHitPointsGrowth: 2,
   bandYieldGrowth: 1.25,
-  remineChunkFraction: 0.5,
-  remineHitPointDivisor: 5,
+  remineChunkFraction: 1,
+  remineHitPointDivisor: 3,
   drillDamagePerSecond: 50,
   firstLayerLimestoneYield: 30,
   limestoneYieldPerBand: 5,
@@ -350,6 +350,7 @@ const STOCKPILE_LABELS = Object.freeze({
   wire: "Copper wire",
   leekFiber: "Leek fiber",
   silverIngot: "Silver ingot",
+  copperContactAlloyIngot: "Copper Contact Alloy ingot",
   zincIngot: "Zinc ingot",
   contact: "Silver-Copper Contact",
   cutMalachite: "Cut Malachite",
@@ -390,6 +391,8 @@ const MATERIAL_LABELS = Object.freeze({
   wire: "Copper wire",
   leekFiber: "Leek fiber",
   silverIngot: "Silver ingot",
+  copperContactAlloy: "Copper Contact Alloy",
+  copperContactAlloyIngot: "Copper Contact Alloy ingot",
   zincIngot: "Zinc ingot",
   contact: "Silver-Copper Contact",
   cutMalachite: "Cut Malachite",
@@ -431,6 +434,8 @@ const MATERIAL_COLORS = Object.freeze({
   wire: 0xd8a45e,
   leekFiber: 0xb6c86e,
   silverIngot: 0xd7dce5,
+  copperContactAlloy: 0xc5b49d,
+  copperContactAlloyIngot: 0xc5b49d,
   zincIngot: 0xb6c8d0,
   contact: 0xc8b86c,
   cutMalachite: 0x45b995,
@@ -470,6 +475,7 @@ const INGOT_MATERIALS = Object.freeze(["copperIngot", "brittleCopperIngot"]);
 const SMELTABLE_INGOT_MATERIALS = Object.freeze([
   ...INGOT_MATERIALS,
   "silverIngot",
+  "copperContactAlloyIngot",
   "tinIngot",
   "zincIngot",
   "bronzeIngot",
@@ -514,7 +520,9 @@ const KILN_INPUT_MATERIALS = Object.freeze([
   ...SMELTABLE_INGOT_MATERIALS,
 ]);
 const ARC_FURNACE_ORE_INPUTS = Object.freeze(["hematite", "clay"]);
-const MOLDER_METAL_ORES = Object.freeze(["copper", "nativeCopper", "silver", "tin", "zinc", "bronze", "iron"]);
+const MOLDER_METAL_ORES = Object.freeze([
+  "copper", "nativeCopper", "silver", "tin", "zinc", "bronze", "iron", "copperContactAlloy",
+]);
 const SELL_TUBE_MACHINE_IDS = Object.freeze(["sellTube", "graphiteLacedSellTube"]);
 const SELL_TUBE_VALUE_MULTIPLIERS = Object.freeze({
   sellTube: 1,
@@ -555,6 +563,7 @@ const MINIMUM_SALE_VALUES = Object.freeze({
   ...SELL_VALUES,
   copperIngot: 2,
   brittleCopperIngot: 2,
+  copperContactAlloyIngot: 27.6,
   wire: 1,
   cutMalachite: 125,
 });
@@ -1880,6 +1889,7 @@ function createInitialState() {
       leekFiber: 0,
       contact: 0,
       silverIngot: 0,
+      copperContactAlloyIngot: 0,
       zincIngot: 0,
       tin: 0,
       tinIngot: 0,
@@ -2073,8 +2083,8 @@ function hydrateSavedState(savedState) {
         column: Number.isInteger(machine.column) ? machine.column : MACHINE_LAYOUT[type].column,
         row: Number.isInteger(machine.row) ? machine.row : MACHINE_LAYOUT[type].row,
         orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
-        mode: type === "miniElectricArcFurnace" && machine.mode === "alloy"
-          ? "alloy2"
+        mode: type === "miniElectricArcFurnace"
+          ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
           : machine.mode ?? MACHINE_LAYOUT[type].mode,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,
         splitterNextOutputIndex: type === "splitter"
@@ -2105,8 +2115,8 @@ function hydrateSavedState(savedState) {
         column: Number.isInteger(machine.column) ? machine.column : MACHINE_LAYOUT[type].column,
         row: Number.isInteger(machine.row) ? machine.row : MACHINE_LAYOUT[type].row,
         orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
-        mode: type === "miniElectricArcFurnace" && machine.mode === "alloy"
-          ? "alloy2"
+        mode: type === "miniElectricArcFurnace"
+          ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
           : machine.mode ?? MACHINE_LAYOUT[type].mode,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,
         splitterNextOutputIndex: type === "splitter"
@@ -3132,6 +3142,10 @@ function isTinAlloyInput(material) {
   return material === "tin" || material === "tinIngot";
 }
 
+function isSilverAlloyInput(material) {
+  return material === "silver" || material === "silverIngot";
+}
+
 function isSmeltableMetalInput(material) {
   return KILN_INPUT_MATERIALS.includes(material)
     || SMELTABLE_INGOT_MATERIALS.includes(material)
@@ -3140,18 +3154,51 @@ function isSmeltableMetalInput(material) {
 
 const ARC_FURNACE_RECIPES = Object.freeze({
   alloy2: Object.freeze({
+    name: "Bronze",
+    description: "5 Copper + 1 Tin → 6 liquid Bronze",
     outputMaterial: "bronze",
     outputQuantity: 6,
     inputCount: 6,
+    ingredients: Object.freeze([
+      Object.freeze({ quantity: 5, slots: Object.freeze(["primary"]), materials: isCopperAlloyInput }),
+      Object.freeze({ quantity: 1, slots: Object.freeze(["secondary", "tertiary"]), materials: isTinAlloyInput }),
+    ]),
     slots: Object.freeze({
       primary: Object.freeze({ quantity: 5, materials: isCopperAlloyInput }),
       secondary: Object.freeze({ quantity: 1, materials: isTinAlloyInput }),
       tertiary: Object.freeze({ quantity: 1, materials: isTinAlloyInput }),
     }),
-    sharedSlots: Object.freeze(["secondary", "tertiary"]),
-    sharedQuantity: 1,
+  }),
+  copperContactAlloy: Object.freeze({
+    name: "Copper Contact Alloy",
+    description: "4 Silver + 1 Copper → 5 liquid Copper Contact Alloy",
+    outputMaterial: "copperContactAlloy",
+    outputQuantity: 5,
+    inputCount: 5,
+    ingredients: Object.freeze([
+      Object.freeze({ quantity: 4, slots: Object.freeze(["primary"]), materials: isSilverAlloyInput }),
+      Object.freeze({ quantity: 1, slots: Object.freeze(["secondary", "tertiary"]), materials: isCopperAlloyInput }),
+    ]),
+    slots: Object.freeze({
+      primary: Object.freeze({ quantity: 4, materials: isSilverAlloyInput }),
+      secondary: Object.freeze({ quantity: 1, materials: isCopperAlloyInput }),
+      tertiary: Object.freeze({ quantity: 1, materials: isCopperAlloyInput }),
+    }),
   }),
 });
+
+const ARC_FURNACE_RECIPE_OPTIONS = Object.freeze([
+  Object.freeze({
+    value: "smelting",
+    label: "Single smelting",
+    description: "one metal input; Hematite and Clay use two inputs",
+  }),
+  ...Object.entries(ARC_FURNACE_RECIPES).map(([value, recipe]) => Object.freeze({
+    value,
+    label: recipe.name,
+    description: recipe.description,
+  })),
+]);
 
 const CRAFTING_RECIPES = Object.freeze([
   Object.freeze({
@@ -3237,16 +3284,24 @@ const CRAFTING_RECIPES = Object.freeze([
   Object.freeze({
     category: "Alloy smelting",
     name: "Bronze",
-    machine: "Mini Electric Arc Furnace · 2-input alloy mode",
+    machine: "Mini Electric Arc Furnace · manual recipe selection",
     input: "5 Copper + 1 Tin",
     output: "6 liquid Bronze",
     note: "Uses 1 crew and takes 12 seconds; the existing Ingot Molder casts it into Bronze Ingots.",
   }),
   Object.freeze({
+    category: "Alloy smelting",
+    name: "Copper Contact Alloy",
+    machine: "Mini Electric Arc Furnace · manual recipe selection",
+    input: "4 Silver + 1 Copper",
+    output: "5 liquid Copper Contact Alloy",
+    note: "Uses 1 crew and takes 10 seconds; the Ingot Molder casts it into Copper Contact Alloy Ingots.",
+  }),
+  Object.freeze({
     category: "Casting",
     name: "Metal Ingots",
     machine: "Ingot Molder",
-    input: "1 supported liquid Copper, Native copper, Silver, Tin, Bronze, or Iron",
+    input: "1 supported liquid metal or alloy",
     output: "1 matching ingot",
     note: "Uses 1 crew and takes 1 second.",
   }),
@@ -3268,19 +3323,26 @@ const CRAFTING_RECIPES = Object.freeze([
   }),
 ]);
 
-function getArcFurnaceMode(furnace) {
-  if (furnace?.mode === "alloy") {
-    // Saves made before the explicit alloy mode split used this value.
+function normalizeArcFurnaceMode(mode) {
+  if (mode === "alloy" || mode === "alloy2") {
     return "alloy2";
   }
-  return ["smelting", "alloy2", "alloy3"].includes(furnace?.mode)
-    ? furnace.mode
+  if (mode === "alloy3") {
+    // The old empty 3-input setting had no recipe; default it to a usable path.
+    return "smelting";
+  }
+  return ["smelting", "alloy2", "copperContactAlloy"].includes(mode)
+    ? mode
     : "smelting";
+}
+
+function getArcFurnaceMode(furnace) {
+  return normalizeArcFurnaceMode(furnace?.mode);
 }
 
 function switchArcFurnaceMode(furnace, mode) {
   if (!furnace || furnace.id !== "miniElectricArcFurnace"
-    || !["smelting", "alloy2", "alloy3"].includes(mode)) {
+    || !ARC_FURNACE_RECIPE_OPTIONS.some((option) => option.value === mode)) {
     return false;
   }
 
@@ -3328,9 +3390,8 @@ function switchArcFurnaceMode(furnace, mode) {
   if (cancelledJobCount > 0) {
     losses.push("the in-progress batch");
   }
-  addLog(`Mini Electric Arc Furnace switched to ${mode === "smelting"
-    ? "Single smelting"
-    : mode === "alloy2" ? "2-input alloy" : "3-input alloy"} mode${losses.length > 0
+  const recipeLabel = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode)?.label;
+  addLog(`Mini Electric Arc Furnace selected ${recipeLabel ?? "Single smelting"} recipe${losses.length > 0
     ? `; lost ${losses.join(", ")}`
     : "."}`);
   return true;
@@ -3378,6 +3439,7 @@ function getSmeltedLiquidMaterial(material) {
     copperIngot: "nativeCopper",
     brittleCopperIngot: "copper",
     silverIngot: "silver",
+    copperContactAlloyIngot: "copperContactAlloy",
     tinIngot: "tin",
     zincIngot: "zinc",
     bronzeIngot: "bronze",
@@ -3494,30 +3556,36 @@ function getArcFurnaceRecipe(furnace) {
     return null;
   }
 
-  const copperQuantity = getArcFurnaceInputQuantity(furnace, "primary");
-  const tinQuantity = recipe.sharedSlots.reduce(
-    (total, slot) => total + getArcFurnaceInputQuantity(furnace, slot),
-    0,
-  );
-  const primary = inputState.primary;
-  if (copperQuantity < recipe.slots.primary.quantity || tinQuantity < recipe.sharedQuantity
-    || !primary.every((item) => recipe.slots.primary.materials(item.material))
-    || !inputState.secondary.concat(inputState.tertiary)
-      .every((item) => recipe.slots.secondary.materials(item.material))) {
+  const hasAllIngredients = recipe.ingredients.every((ingredient) => {
+    const available = ingredient.slots.reduce(
+      (total, slot) => total + getArcFurnaceInputQuantity(furnace, slot),
+      0,
+    );
+    const bufferedItems = ingredient.slots.flatMap((slot) => inputState[slot]);
+    return available >= ingredient.quantity
+      && bufferedItems.every((item) => ingredient.materials(item.material));
+  });
+  if (!hasAllIngredients) {
     return null;
   }
 
   return {
+    name: recipe.name,
+    description: recipe.description,
     inputCount: recipe.inputCount,
     outputMaterial: recipe.outputMaterial,
     outputQuantity: recipe.outputQuantity,
-    outputValue: (
-      getArcFurnaceInputValueAcrossSlots(inputState, ["primary"], recipe.slots.primary.quantity)
-      + getArcFurnaceInputValueAcrossSlots(inputState, recipe.sharedSlots, recipe.sharedQuantity)
-    ) / recipe.inputCount,
+    outputValue: recipe.ingredients.reduce((total, ingredient) => (
+      total + getArcFurnaceInputValueAcrossSlots(
+        inputState,
+        ingredient.slots,
+        ingredient.quantity,
+      )
+    ), 0) / recipe.inputCount,
     consume: () => {
-      takeArcFurnaceInputUnits(inputState, "primary", recipe.slots.primary.quantity);
-      takeArcFurnaceInputUnitsAcrossSlots(inputState, recipe.sharedSlots, recipe.sharedQuantity);
+      recipe.ingredients.forEach((ingredient) => {
+        takeArcFurnaceInputUnitsAcrossSlots(inputState, ingredient.slots, ingredient.quantity);
+      });
     },
   };
 }
@@ -4678,7 +4746,7 @@ function canItemLeaveConveyor(conveyor, item) {
     }
     if (conveyor.internalMachineId === "metalPress"
       && (conveyor.internalIndex === 0 || isMetalPressProcessConveyor(conveyor))) {
-      return item.kind === "material" && SMELTABLE_INGOT_MATERIALS.includes(item.material);
+      return item.kind === "material" && Object.hasOwn(INGOT_TO_PLATE, item.material);
     }
     return true;
   }
@@ -4758,7 +4826,7 @@ function transformItemLeavingConveyor(conveyor, item) {
   }
 
   if (isMetalPressProcessConveyor(conveyor)) {
-    if (item.kind === "material" && SMELTABLE_INGOT_MATERIALS.includes(item.material)) {
+    if (item.kind === "material" && Object.hasOwn(INGOT_TO_PLATE, item.material)) {
       const sourceMaterial = item.material;
       item.material = INGOT_TO_PLATE[sourceMaterial];
       item.saleValueBonus = 0;
@@ -5927,13 +5995,11 @@ function startArcFurnaceJobs() {
       inputCount: recipe.inputCount,
       secondsRemaining: recipe.inputCount * 2,
     });
-    addLog(
-      getArcFurnaceMode(furnace) === "alloy2"
-        ? "Mini Electric Arc Furnace began the Bronze alloy: 5 copper + 1 tin → 6 liquid Bronze."
-        : recipe.inputCount === 2
-          ? `Mini Electric Arc Furnace began firing 2 ${MATERIAL_LABELS[recipe.inputMaterial]} → 1 ${MATERIAL_LABELS[recipe.outputMaterial]}.`
-        : "Mini Electric Arc Furnace began smelting one metal input.",
-    );
+    addLog(recipe.name
+      ? `Mini Electric Arc Furnace began the ${recipe.name} recipe: ${recipe.description}.`
+      : recipe.inputCount === 2
+        ? `Mini Electric Arc Furnace began firing 2 ${MATERIAL_LABELS[recipe.inputMaterial]} → 1 ${MATERIAL_LABELS[recipe.outputMaterial]}.`
+        : "Mini Electric Arc Furnace began smelting one metal input.");
     started = true;
   });
   return started;
@@ -6154,6 +6220,8 @@ function completeMolderJob(job) {
           ? "bronzeIngot"
           : job.material === "iron"
             ? "ironIngot"
+            : job.material === "copperContactAlloy"
+              ? "copperContactAlloyIngot"
             : job.material === "ceramic"
               ? "ceramic"
       : "brittleCopperIngot";
@@ -7707,7 +7775,7 @@ function completeDrilling() {
 
     if (completedBands > priorCompletedBands) {
       addLog(
-        `Tunnel ${tunnel} Band ${completedBands} cleared. Its first layer can now be re-mined with half of its ore chunks.`,
+        `Tunnel ${tunnel} Band ${completedBands} cleared. Its first layer can now be re-mined with its full deposit pool.`,
       );
       if (tunnel === 1 && completedBands >= 1) {
         state.mine.autoDrillUnlocked = true;
@@ -7773,7 +7841,7 @@ function buyMiningRights() {
 function canBuyTunnelThreeRights() {
   return !state.mine.tunnelThreeRightsPurchased
     && state.mine.unlockedTunnels.includes(2)
-    && state.cash >= 8e5;
+    && state.cash >= 2e6;
 }
 
 function buyTunnelThreeRights() {
@@ -7781,12 +7849,12 @@ function buyTunnelThreeRights() {
     return;
   }
 
-  state.cash -= 8e5;
+  state.cash -= 2e6;
   state.mine.tunnelThreeRightsPurchased = true;
   if (!state.mine.unlockedTunnels.includes(3)) {
     state.mine.unlockedTunnels.push(3);
   }
-  addLog("Tunnel 3 Mining Rights purchased for $800,000. Tunnel 3 unlocked.");
+  addLog("Tunnel 3 Mining Rights purchased for $2,000,000. Tunnel 3 unlocked.");
   saveGame();
   render();
 }
@@ -8944,13 +9012,13 @@ function getMachineActionProgressNote(machine) {
       candidate.furnaceInstanceId === machine.instanceId
     ));
     const mode = getArcFurnaceMode(machine);
+    const recipeOption = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode);
+    const alloyRecipe = ARC_FURNACE_RECIPES[mode];
     return job
-      ? `Smelting ${job.material === "bronze" ? "Bronze alloy" : "one metal"}: ${formatNumber(job.secondsRemaining)}s · 1 crew assigned.`
-      : mode === "alloy2"
-        ? "2-input alloy mode accepts copper through the primary input and tin through either alloy input: 5 copper + 1 tin produces 6 liquid Bronze in 12 seconds."
-        : mode === "alloy3"
-          ? "3-input alloy mode combines three different metal inputs."
-          : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
+      ? `Processing ${recipeOption?.label ?? "metal"}: ${formatNumber(job.secondsRemaining)}s · 1 crew assigned.`
+      : alloyRecipe
+        ? `Selected recipe: ${alloyRecipe.description}. Uses 1 crew and takes ${alloyRecipe.inputCount * 2} seconds per batch.`
+        : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
   }
 
   return null;
@@ -9298,45 +9366,37 @@ function renderMachineActions(machine) {
 
   if (machine.id === "miniElectricArcFurnace") {
     const mode = getArcFurnaceMode(machine);
-    [
-      {
-        value: "smelting",
-        label: "Single smelting",
-        description: "one input metal",
-      },
-      {
-        value: "alloy2",
-        label: "2-input alloy",
-        description: "5 Copper + 1 Tin → 6 liquid Bronze",
-      },
-      {
-        value: "alloy3",
-        label: "3-input alloy",
-        description: "three different metal inputs",
-      },
-    ].forEach(({ value, label, description }) => {
-      const selected = mode === value;
-      addMachineAction(
-        selected ? `${label} (selected)` : label,
-        () => {
-          if (!switchArcFurnaceMode(machine, value)) {
-            return;
-          }
-          saveGame();
-          render();
-        },
-        selected,
-      );
-      if (selected) {
-        addMachineActionNote(`Selected: ${description}.`);
-      }
+    const recipeSelectLabel = document.createElement("label");
+    recipeSelectLabel.className = "machine-action-recipe-label";
+    recipeSelectLabel.textContent = "Recipe";
+    const recipeSelect = document.createElement("select");
+    recipeSelect.className = "button button-secondary machine-action-recipe-select";
+    recipeSelect.setAttribute("aria-label", "Mini Electric Arc Furnace recipe");
+    ARC_FURNACE_RECIPE_OPTIONS.forEach(({ value, label }) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      recipeSelect.append(option);
     });
+    recipeSelect.value = mode;
+    recipeSelect.addEventListener("change", () => {
+      if (!switchArcFurnaceMode(machine, recipeSelect.value)) {
+        return;
+      }
+      saveGame();
+      render();
+    });
+    recipeSelectLabel.append(recipeSelect);
+    elements.machineActions.append(recipeSelectLabel);
+
+    const selectedRecipeOption = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode);
+    addMachineActionNote(`Selected: ${selectedRecipeOption?.description ?? "single-metal smelting"}.`);
 
     addMachineActionNote(
       getMachineActionProgressNote(machine),
       "arc-furnace-progress",
     );
-    addMachineActionNote("Modes can always be changed. Switching discards this furnace's buffered inputs and liquid output, and cancels its in-progress batch; completed Ceramic output is kept.");
+    addMachineActionNote("Recipes can always be changed. Switching discards this furnace's buffered inputs and liquid output, and cancels its in-progress batch; completed Ceramic output is kept.");
     const outlet = getMachinePort(machine, "liquidOutput");
     if (outlet?.direction) {
       addMachineActionNote(`Its output feeds the adjacent tile ${outlet.direction}. Liquid metals go to an Ingot Molder; fired Ceramic goes to a conveyor.`);
@@ -12218,8 +12278,8 @@ function renderMineLayerActions() {
     rightsButton.type = "button";
     rightsButton.className = "button button-warning mine-layer-action";
     rightsButton.textContent = canBuyTunnelThreeRights()
-      ? "Buy Tunnel 3 Rights · $800,000"
-      : "Tunnel 3 Rights · $800,000 needed";
+      ? "Buy Tunnel 3 Rights · $2,000,000"
+      : "Tunnel 3 Rights · $2,000,000 needed";
     rightsButton.disabled = !canBuyTunnelThreeRights();
     bindImmediateAction(rightsButton, buyTunnelThreeRights);
     fragment.append(rightsButton);
@@ -12887,6 +12947,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getMachineCategories,
     machineBelongsToCategory,
     CRAFTING_RECIPES,
+    ARC_FURNACE_RECIPE_OPTIONS,
     ANNEALER_MULTIPLIER,
     PRIMITIVE_UPGRADER_VALUE_BONUS,
     PRIMITIVE_UPGRADER_MIN_BASE_VALUE,
@@ -12958,6 +13019,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     pickUpSelectedFactoryEntities,
     pickUpSelectedFactoryEntity,
     getArcFurnaceRecipe,
+    getArcFurnaceMode,
     switchArcFurnaceMode,
     getFactoryMachineProgressState,
     getMachineUpgradeTile,

@@ -40,6 +40,7 @@ future pipe systems) are not treated as current acceptance requirements.
   Silver, while Band 4's milestone reveals Lead appearing in Band 5.
 - Tunnel 1 Band 20's milestone reward label is `???`.
 - Tunnel 1 keeps the Band 20 pool through Band 23; Zinc joins at Band 24.
+- Re-mining uses the full deposit pool and has one-third of the normal layer HP.
 - Mine information lists only deposit types in the active band’s spawn pool,
   while keeping a depleted type visible until the player changes band.
 - Target information shows current and maximum HP for the active segment.
@@ -137,9 +138,11 @@ future pipe systems) are not treated as current acceptance requirements.
   a parallel line.
 - Clay Kilns use 2 crew, Ingot Molders use 1, Leek Dusters use 1 while working,
   and Rock Shacks use 0. The factory crew display reports available / total.
-- Mini Electric Arc Furnace alloy mode accepts five copper inputs and one Tin
-  through either side alloy inlet, consumes exactly those recipe quantities,
-  and produces six liquid Bronze in twelve seconds.
+- Mini Electric Arc Furnace uses a manual recipe selector. Bronze consumes five
+  Copper and one Tin through either side inlet, producing six liquid Bronze in
+  twelve seconds; Copper Contact Alloy consumes four Silver and one Copper,
+  producing five liquid alloy in ten seconds. Both alloys can be cast by the
+  Ingot Molder.
 - Picking up, moving, saving, and re-placing machinery preserves per-instance
   modes, orientation, and identity.
 - Selected machine action buttons stay mounted while process countdowns tick;

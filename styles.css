@@ -2158,6 +2158,20 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   line-height: 1.25;
 }
 
+.machine-action-recipe-label {
+  display: grid;
+  gap: 0.25rem;
+  color: #bec9b5;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.machine-action-recipe-select {
+  appearance: auto;
+  cursor: pointer;
+  text-align: left;
+}
+
 .machine-action-note {
   color: #bfc8af;
   font-size: 0.68rem !important;
