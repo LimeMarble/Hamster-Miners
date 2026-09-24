@@ -776,6 +776,10 @@ const MACHINE_PURCHASES = Object.freeze({
   rockShack: { cash: 2.5, materials: { limestone: 25 } },
   clayKiln: { cash: 10, materials: { clay: 25 } },
   ingotMolder: { cash: 5, materials: { clay: 5 } },
+  refractoryCaster: {
+    cash: 5e5,
+    materials: { ironIngot: 50, ironPlate: 25, ceramic: 25 },
+  },
   graphiteCopperAnnealer: { cash: 700, materials: { granite: 150, copperIngot: 20, wire: 50 } },
   graniteProcessor: { cash: 150, materials: { granite: 80, limestone: 120 } },
   bronzeStamp: { cash: 2.5e4, materials: { bronzePlate: 4, copperIngot: 20, wire: 50, contact: 20 } },
@@ -837,6 +841,7 @@ const MACHINE_CATEGORY_BY_ID = Object.freeze({
   planter: "material",
   clayKiln: "material",
   ingotMolder: "material",
+  refractoryCaster: "material",
   extruder: "material",
   leekFiberExtractor: "material",
   contactMaker: ["material", "cash"],
@@ -1010,11 +1015,24 @@ const MACHINE_LAYOUT = Object.freeze({
     width: 1,
     height: 2,
     orientation: "right",
+    clayInput: { column: 0, row: 0, direction: "down" },
     // The one marked Input/Output tile carries the completed ingot onward.
     internalConveyors: [
       { column: 0, row: 1, direction: "right" },
     ],
     liquidInputOutput: { column: 0, row: 1, direction: "right" },
+    movable: true,
+  },
+  refractoryCaster: {
+    width: 2,
+    height: 2,
+    orientation: "right",
+    // The top row is machine body; the lower row has a liquid input and
+    // four-ingot output lane.
+    internalConveyors: [
+      { column: 1, row: 1, direction: "right" },
+    ],
+    liquidInput: { column: 0, row: 1, direction: "right" },
     movable: true,
   },
   graphiteCopperAnnealer: {
@@ -1683,6 +1701,7 @@ const elements = {
   selectRockShackButton: document.querySelector("#selectRockShackButton"),
   selectClayKilnButton: document.querySelector("#selectClayKilnButton"),
   selectIngotMolderButton: document.querySelector("#selectIngotMolderButton"),
+  selectRefractoryCasterButton: document.querySelector("#selectRefractoryCasterButton"),
   selectGraphiteCopperAnnealerButton: document.querySelector("#selectGraphiteCopperAnnealerButton"),
   selectGraniteProcessorButton: document.querySelector("#selectGraniteProcessorButton"),
   selectBronzeStampButton: document.querySelector("#selectBronzeStampButton"),
@@ -1708,6 +1727,7 @@ const elements = {
   rockShackInventoryCount: document.querySelector("#rockShackInventoryCount"),
   clayKilnInventoryCount: document.querySelector("#clayKilnInventoryCount"),
   ingotMolderInventoryCount: document.querySelector("#ingotMolderInventoryCount"),
+  refractoryCasterInventoryCount: document.querySelector("#refractoryCasterInventoryCount"),
   graphiteCopperAnnealerInventoryCount: document.querySelector("#graphiteCopperAnnealerInventoryCount"),
   graniteProcessorInventoryCount: document.querySelector("#graniteProcessorInventoryCount"),
   bronzeStampInventoryCount: document.querySelector("#bronzeStampInventoryCount"),
@@ -1758,6 +1778,7 @@ const elements = {
   buyRockShackButton: document.querySelector("#buyRockShackButton"),
   buyClayKilnButton: document.querySelector("#buyClayKilnButton"),
   buyIngotMolderButton: document.querySelector("#buyIngotMolderButton"),
+  buyRefractoryCasterButton: document.querySelector("#buyRefractoryCasterButton"),
   buyGraphiteCopperAnnealerButton: document.querySelector("#buyGraphiteCopperAnnealerButton"),
   buyGraniteProcessorButton: document.querySelector("#buyGraniteProcessorButton"),
   buyBronzeStampButton: document.querySelector("#buyBronzeStampButton"),
@@ -1880,6 +1901,7 @@ function createInitialState() {
       rockShack: 0,
       clayKiln: 0,
       ingotMolder: 0,
+      refractoryCaster: 0,
       graphiteCopperAnnealer: 0,
       graniteProcessor: 0,
       bronzeStamp: 0,
@@ -1974,6 +1996,7 @@ function createInitialState() {
     kilnJobs: [],
     molderJob: null,
     molderJobs: [],
+    molderClayBuffers: {},
     molderOutputBuffers: {},
     contactMakerInputs: {},
     arcFurnaceInputs: {},
@@ -2306,6 +2329,11 @@ function hydrateSavedState(savedState) {
     molderJobs: Array.isArray(savedState.molderJobs)
       ? savedState.molderJobs
       : (isSaveRecord(savedState.molderJob) ? [savedState.molderJob] : []),
+    molderClayBuffers: isSaveRecord(savedState.molderClayBuffers)
+      ? Object.fromEntries(Object.entries(savedState.molderClayBuffers).map(([instanceId, quantity]) => (
+        [instanceId, Number.isFinite(Number(quantity)) ? Math.max(0, Number(quantity)) : 0]
+      )))
+      : {},
     molderOutputBuffers: isSaveRecord(savedState.molderOutputBuffers)
       ? savedState.molderOutputBuffers
       : {},
@@ -2417,6 +2445,14 @@ function hydrateSavedState(savedState) {
     ...job,
     molderInstanceId: job.molderInstanceId ?? firstMolderInstanceId,
   })).filter((job) => job.molderInstanceId);
+  Object.entries(hydratedState.molderClayBuffers).forEach(([instanceId, quantity]) => {
+    if (!hydratedState.machines.some((machine) => (
+      machine.id === "ingotMolder" && machine.instanceId === instanceId
+    ))) {
+      hydratedState.stockpile.clay += quantity;
+      delete hydratedState.molderClayBuffers[instanceId];
+    }
+  });
 
   // Ceramic used to be routed through the Ingot Molder while the recipe was
   // still provisional. Convert that stale representation into a solid output
@@ -3108,8 +3144,8 @@ function getMachineUpgradeTile(machine) {
   };
 }
 
-function getMolderKilnLink(molder = getMachine("ingotMolder")) {
-  const molderPort = getMachinePort(molder, "liquidInputOutput");
+function getMolderKilnLink(molder = getMachine("ingotMolder"), portName = "liquidInputOutput") {
+  const molderPort = getMachinePort(molder, portName);
   if (!molderPort || !molderPort.direction) {
     return null;
   }
@@ -3347,7 +3383,7 @@ const CRAFTING_RECIPES = Object.freeze([
     machine: "Clay Kiln",
     input: "1 supported low-melting ore or ingot",
     output: "1 liquid metal",
-    note: "Uses 2 crew and takes 5 seconds. The liquid output feeds an Ingot Molder or Bullet Core Caster.",
+    note: "Uses 2 crew and takes 5 seconds. The liquid output feeds an Ingot Molder, Refractory Caster, or Bullet Core Caster.",
   }),
   Object.freeze({
     category: "High-temperature firing",
@@ -3396,6 +3432,14 @@ const CRAFTING_RECIPES = Object.freeze([
     input: "1 supported liquid metal or alloy",
     output: "1 matching ingot",
     note: "Uses 1 crew and takes 1 second.",
+  }),
+  Object.freeze({
+    category: "Casting",
+    name: "High-throughput Metal Ingots",
+    machine: "Refractory Caster",
+    input: "4 units of one supported liquid metal",
+    output: "4 matching ingots",
+    note: "Uses no crew and takes 2 seconds per batch.",
   }),
   Object.freeze({
     category: "Metal forming",
@@ -3815,7 +3859,7 @@ function isBulletCoreCasterLinkedToKiln() {
 function getBusyCrew() {
   return (state.dusterJob ? 1 : 0)
     + (state.kilnJobs.length * 2)
-    + state.molderJobs.length
+    + state.molderJobs.reduce((total, job) => total + (job.crewRequired ?? 1), 0)
     + state.arcFurnaceJobs.length;
 }
 
@@ -3864,7 +3908,7 @@ function isMachineBusy(machine) {
         liquidMetal.kilnInstanceId === machine.instanceId
       )),
     ))
-    || (machine?.id === "ingotMolder" && state.molderJobs.some((job) => (
+    || (["ingotMolder", "refractoryCaster"].includes(machine?.id) && state.molderJobs.some((job) => (
       job.molderInstanceId === machine.instanceId
     )))
     || (machine?.id === "miniElectricArcFurnace" && (
@@ -4119,6 +4163,15 @@ function canReceiveConveyorItem(item, column, row) {
     return true;
   }
 
+  const molderClayInput = getIngotMolderClayInputAt(column, row);
+  if (molderClayInput) {
+    const quantity = Number(item.quantity ?? 1);
+    return item.kind === "material"
+      && item.material === "clay"
+      && Number.isFinite(quantity)
+      && quantity > 0;
+  }
+
   const arcFurnaceInput = getArcFurnaceInputAt(column, row);
   if (arcFurnaceInput && canArcFurnaceAcceptInput(
     arcFurnaceInput.furnace,
@@ -4192,6 +4245,17 @@ function receiveConveyorItem(item, column, row) {
     // and never enters the material-value reset path.
     state.stockpile[item.material] += item.quantity;
     addLog(`Material Storage received ${formatNumber(item.quantity)} ${MATERIAL_LABELS[item.material]}.`);
+    return true;
+  }
+
+  const molderClayInput = getIngotMolderClayInputAt(column, row);
+  if (molderClayInput && item.kind === "material" && item.material === "clay") {
+    const instanceId = molderClayInput.molder.instanceId;
+    const quantity = Number(item.quantity ?? 1);
+    state.molderClayBuffers[instanceId] = (
+      state.molderClayBuffers[instanceId] ?? 0
+    ) + quantity;
+    addLog(`Ingot Molder buffered ${formatNumber(quantity)} Clay for Iron molds.`);
     return true;
   }
 
@@ -4753,6 +4817,15 @@ function getReadyContactMakerMetalInput(maker, wireQuantity = null) {
       inputState[input.quantityKey] ?? 0,
       recipeCount * input.ingotsPerBatch,
     )
+  )) ?? null;
+}
+
+function getIngotMolderClayInputAt(column, row) {
+  return getMachines("ingotMolder").map((molder) => ({
+    molder,
+    input: getMachinePort(molder, "clayInput"),
+  })).find(({ input }) => (
+    input?.column === column && input?.row === row
   )) ?? null;
 }
 
@@ -5728,6 +5801,7 @@ function getMachineDisplayName(machineId) {
     rockShack: "Rock Shack",
     clayKiln: "Clay Kiln",
     ingotMolder: "Ingot Molder",
+    refractoryCaster: "Refractory Caster",
     graphiteCopperAnnealer: "Granite-Copper Annealer",
     graniteProcessor: "Granite Processor",
     bronzeStamp: "Bronze Stamp",
@@ -6085,7 +6159,7 @@ function completeKilnJob(job) {
     sourceValueIsEffective: job.sourceValueIsEffective === true,
     quantity: job.quantity ?? 1,
   });
-  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder or Bullet Core Caster.`);
+  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, or Bullet Core Caster.`);
 }
 
 function startArcFurnaceJobs() {
@@ -6289,15 +6363,24 @@ function startCasingMachineLiquid() {
 
 function startMolderJob() {
   let started = false;
-  getMachines("ingotMolder").forEach((molder) => {
+  const castingMachines = [
+    ...getMachines("ingotMolder"),
+    ...getMachines("refractoryCaster"),
+  ];
+  castingMachines.forEach((molder) => {
+    const isRefractoryCaster = molder.id === "refractoryCaster";
+    const crewRequired = isRefractoryCaster ? 0 : 1;
+    const maximumBatchQuantity = isRefractoryCaster ? 4 : 1;
+    const secondsPerBatch = isRefractoryCaster ? 2 : CONFIG.ingotMolderProcessSeconds;
+    const inputPortName = isRefractoryCaster ? "liquidInput" : "liquidInputOutput";
     const outputConveyor = getInternalConveyor(molder, 0);
     if (state.molderJobs.some((job) => job.molderInstanceId === molder.instanceId)
       || state.molderOutputBuffers[molder.instanceId]
-      || getAvailableCrew() < 1) {
+      || getAvailableCrew() < crewRequired) {
       return;
     }
 
-    const link = getMolderKilnLink(molder);
+    const link = getMolderKilnLink(molder, inputPortName);
     if (!link || !outputConveyor) {
       return;
     }
@@ -6307,12 +6390,19 @@ function startMolderJob() {
       return;
     }
 
-    if (!MOLDER_METAL_ORES.includes(state.moltenCopper[moltenCopperIndex].material)) {
+    const moltenCopper = state.moltenCopper[moltenCopperIndex];
+    if (!MOLDER_METAL_ORES.includes(moltenCopper.material)) {
+      return;
+    }
+    const needsClayMold = !isRefractoryCaster && moltenCopper.material === "iron";
+    const bufferedClay = state.molderClayBuffers[molder.instanceId] ?? 0;
+    if (needsClayMold && !hasAtLeastQuantity(bufferedClay, 1)) {
       return;
     }
 
-    const moltenCopper = state.moltenCopper[moltenCopperIndex];
-    if (!hasAtLeastQuantity(moltenCopper.quantity ?? 1, 1)) {
+    const availableQuantity = Math.max(0, Math.floor(Number(moltenCopper.quantity ?? 1) || 0));
+    const batchQuantity = Math.min(maximumBatchQuantity, availableQuantity);
+    if (batchQuantity < 1 || !hasAtLeastQuantity(moltenCopper.quantity ?? 1, batchQuantity)) {
       return;
     }
     const sourceValue = moltenCopper.sourceValue;
@@ -6325,13 +6415,23 @@ function startMolderJob() {
       cashUpgraderEligibility: moltenCopper.cashUpgraderEligibility ?? {},
       sourceValue,
       sourceValueIsEffective,
-      quantity: 1,
-      secondsRemaining: CONFIG.ingotMolderProcessSeconds,
+      quantity: batchQuantity,
+      crewRequired,
+      secondsRemaining: secondsPerBatch,
     });
-    if (subtractQuantity(moltenCopper, 1, 1) === 0) {
+    if (needsClayMold) {
+      const remainingClay = bufferedClay - 1;
+      const tolerance = Number.EPSILON * Math.max(1, Math.abs(bufferedClay)) * 16;
+      state.molderClayBuffers[molder.instanceId] = Math.abs(remainingClay) <= tolerance
+        ? 0
+        : remainingClay;
+    }
+    if (subtractQuantity(moltenCopper, batchQuantity, 1) === 0) {
       state.moltenCopper.splice(moltenCopperIndex, 1);
     }
-    addLog(`Ingot Molder began shaping one ${MATERIAL_LABELS[moltenCopper.material]} ingot with its reusable mold and 1 crew.`);
+    addLog(isRefractoryCaster
+      ? `Refractory Caster began molding ${formatNumber(batchQuantity)} ${MATERIAL_LABELS[moltenCopper.material]} Ingots.`
+      : `Ingot Molder began shaping one ${MATERIAL_LABELS[moltenCopper.material]} ingot ${needsClayMold ? "with one Clay mold" : "with its reusable mold"} and 1 crew.`);
     started = true;
   });
   return started;
@@ -6343,6 +6443,7 @@ function completeMolderJob(job) {
   }
 
   const molder = getMachineByInstanceId(job.molderInstanceId);
+  const machineName = getMachineDisplayName(molder?.id ?? "ingotMolder");
   const outputConveyor = molder ? getInternalConveyor(molder, 0) : null;
   const outputMaterial = job.material === "nativeCopper"
     ? "copperIngot"
@@ -6381,11 +6482,11 @@ function completeMolderJob(job) {
   if (!outputConveyor || !placeItemOnConveyor(outputConveyor, outputItem)) {
     state.molderOutputBuffers[job.molderInstanceId] = outputItem;
     state.molderJobs = state.molderJobs.filter((candidate) => candidate !== job);
-    addLog(`${MATERIAL_LABELS[outputMaterial]} finished and is waiting for the Ingot Molder output lane.`);
+    addLog(`${MATERIAL_LABELS[outputMaterial]} finished and is waiting for the ${machineName} output lane.`);
     return;
   }
 
-  addLog(`${MATERIAL_LABELS[outputMaterial]} finished and entered the Ingot Molder output lane.`);
+  addLog(`${MATERIAL_LABELS[outputMaterial]} finished and entered the ${machineName} output lane.`);
   state.molderJobs = state.molderJobs.filter((candidate) => candidate !== job);
 }
 
@@ -6398,7 +6499,7 @@ function flushMolderOutputs() {
     }
 
     delete state.molderOutputBuffers[molderInstanceId];
-    addLog(`${MATERIAL_LABELS[item.material]} left the Ingot Molder output buffer.`);
+    addLog(`${MATERIAL_LABELS[item.material]} left the ${getMachineDisplayName(molder.id)} output buffer.`);
   });
 }
 
@@ -6604,6 +6705,17 @@ function recoverFactoryItem(item) {
   return "cargo";
 }
 
+function recoverMolderClayBuffer(molder) {
+  const quantity = Number(state.molderClayBuffers[molder.instanceId]) || 0;
+  if (quantity <= 0) {
+    return null;
+  }
+
+  state.stockpile.clay += quantity;
+  delete state.molderClayBuffers[molder.instanceId];
+  return `${formatNumber(quantity)} Clay`;
+}
+
 function recoverFactoryEntityCargo(entity) {
   const entityTileKeys = new Set(getFactoryEntityTileKeys(entity));
   const recovered = [];
@@ -6620,6 +6732,12 @@ function recoverFactoryEntityCargo(entity) {
     setConveyorItem(conveyor, null);
     recovered.push(recoverFactoryItem(item));
   });
+  if (entity.type === "machine" && entity.id === "ingotMolder") {
+    const recoveredClay = recoverMolderClayBuffer(getMachineByInstanceId(entity.instanceId));
+    if (recoveredClay) {
+      recovered.push(recoveredClay);
+    }
+  }
   return recovered;
 }
 
@@ -6919,6 +7037,14 @@ function recoverFactoryEntitiesCargo(records) {
         recovered.push(`${formatNumber(inputState.casing.quantity)} ${MATERIAL_LABELS[inputState.casing.material] ?? inputState.casing.material}`);
       }
       delete state.casingMachineInputs[object.instanceId];
+    });
+  records
+    .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "ingotMolder")
+    .forEach(({ object }) => {
+      const recoveredClay = recoverMolderClayBuffer(object);
+      if (recoveredClay) {
+        recovered.push(recoveredClay);
+      }
     });
   return recovered;
 }
@@ -8947,6 +9073,7 @@ function renderMachineInventory() {
   elements.rockShackInventoryCount.textContent = `Stored: ${formatNumber(inventory.rockShack)}`;
   elements.clayKilnInventoryCount.textContent = `Stored: ${formatNumber(inventory.clayKiln)}`;
   elements.ingotMolderInventoryCount.textContent = `Stored: ${formatNumber(inventory.ingotMolder)}`;
+  elements.refractoryCasterInventoryCount.textContent = `Stored: ${formatNumber(inventory.refractoryCaster)}`;
   elements.graphiteCopperAnnealerInventoryCount.textContent = `Stored: ${formatNumber(inventory.graphiteCopperAnnealer)}`;
   elements.graniteProcessorInventoryCount.textContent = `Stored: ${formatNumber(inventory.graniteProcessor)}`;
   elements.bronzeStampInventoryCount.textContent = `Stored: ${formatNumber(inventory.bronzeStamp)}`;
@@ -8973,6 +9100,7 @@ function renderMachineInventory() {
   elements.selectRockShackButton.disabled = inventory.rockShack <= 0;
   elements.selectClayKilnButton.disabled = inventory.clayKiln <= 0;
   elements.selectIngotMolderButton.disabled = inventory.ingotMolder <= 0;
+  elements.selectRefractoryCasterButton.disabled = inventory.refractoryCaster <= 0;
   elements.selectGraphiteCopperAnnealerButton.disabled = inventory.graphiteCopperAnnealer <= 0;
   elements.selectGraniteProcessorButton.disabled = inventory.graniteProcessor <= 0;
   elements.selectBronzeStampButton.disabled = inventory.bronzeStamp <= 0;
@@ -9089,6 +9217,7 @@ function getFactoryMachineProgressState(machine) {
     state.kilnJobs.map((job) => job.kilnInstanceId).join(","),
     state.kilnInputs.map((input) => input.kilnInstanceId).join(","),
     state.molderJobs.map((job) => job.molderInstanceId).join(","),
+    machine.id === "ingotMolder" ? state.molderClayBuffers[machine.instanceId] ?? 0 : "",
     JSON.stringify(state.molderOutputBuffers[machine.instanceId] ?? {}),
     state.arcFurnaceJobs.map((job) => job.furnaceInstanceId).join(","),
     JSON.stringify(state.arcFurnaceOutputBuffers[machine.instanceId] ?? {}),
@@ -9113,7 +9242,7 @@ function getMachineActionProgressNote(machine) {
     return kilnJob
       ? `Smelting: ${formatNumber(kilnJob.secondsRemaining)}s · 2 crew assigned.`
       : blockedByLiquid
-        ? "Liquid copper is waiting for an adjacent Ingot Molder or Bullet Core Caster."
+        ? "Liquid copper is waiting for an adjacent Ingot Molder, Refractory Caster, or Bullet Core Caster."
         : !hasInput
           ? "Waiting for a low-melting metal at its centre input."
           : getAvailableCrew() < 2
@@ -9127,11 +9256,14 @@ function getMachineActionProgressNote(machine) {
     const outputConveyor = getInternalConveyor(machine, 0);
     const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
     const outputBuffer = state.molderOutputBuffers[machine.instanceId];
-    const hasLinkedLiquid = Boolean(link && findMoltenCopperIndex(link.kiln.instanceId) >= 0);
+    const linkedLiquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
+    const linkedLiquid = linkedLiquidIndex >= 0 ? state.moltenCopper[linkedLiquidIndex] : null;
+    const hasLinkedLiquid = Boolean(linkedLiquid);
+    const bufferedClay = state.molderClayBuffers[machine.instanceId] ?? 0;
     return molderJob
       ? molderJob.secondsRemaining <= 0
         ? "Finished ingot is waiting for its output lane to clear."
-        : `Molding: ${formatNumber(molderJob.secondsRemaining)}s · 1 crew assigned.`
+        : `Molding: ${formatNumber(molderJob.secondsRemaining)}s · 1 crew assigned${molderJob.material === "iron" ? " · Clay mold used" : ""}.`
       : outputBuffer
         ? "Finished ingot is waiting for its output lane to clear."
         : !link
@@ -9140,9 +9272,41 @@ function getMachineActionProgressNote(machine) {
             ? "Its output lane is occupied. Move the ingot onward before molding another."
             : !hasLinkedLiquid
               ? "Waiting for liquid metal."
+              : linkedLiquid.material === "iron" && !hasAtLeastQuantity(bufferedClay, 1)
+                ? `Waiting for 1 Clay for the Iron mold · ${formatNumber(bufferedClay)} buffered.`
               : getAvailableCrew() < 1
                 ? "Waiting for 1 available crew hamster."
-                : "Crew will mold the next ingot in its reusable mold.";
+                : `Crew will mold the next ingot in its reusable mold${bufferedClay > 0 ? ` · ${formatNumber(bufferedClay)} Clay buffered` : ""}.`;
+  }
+
+  if (machine?.id === "refractoryCaster") {
+    const link = getMolderKilnLink(machine, "liquidInput");
+    const job = state.molderJobs.find((candidate) => candidate.molderInstanceId === machine.instanceId);
+    const outputConveyor = getInternalConveyor(machine, 0);
+    const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
+    const outputBuffer = state.molderOutputBuffers[machine.instanceId];
+    const liquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
+    const liquid = liquidIndex >= 0 ? state.moltenCopper[liquidIndex] : null;
+    const availableQuantity = liquid
+      ? Math.max(0, Math.floor(Number(liquid.quantity ?? 1) || 0))
+      : 0;
+    const hasBatch = liquid
+      && MOLDER_METAL_ORES.includes(liquid.material)
+      && availableQuantity > 0;
+    const metalLabel = liquid ? MATERIAL_LABELS[liquid.material] ?? liquid.material : "metal";
+    return job
+      ? job.secondsRemaining <= 0
+        ? "Finished ingots are waiting for the output lane to clear."
+        : `Molding ${formatNumber(job.quantity)} ${MATERIAL_LABELS[job.material] ?? job.material} Ingots: ${formatNumber(job.secondsRemaining)}s.`
+      : outputBuffer
+        ? "Finished ingots are waiting for the output lane to clear."
+        : !link
+          ? "Place its Input tile directly against a smelter's liquid outlet."
+              : outputBlocked
+                ? "Its output lane is occupied. Move the ingots onward before molding another batch."
+                : !hasBatch
+                  ? "Waiting for supported liquid metal."
+                  : `Ready to mold ${formatNumber(Math.min(4, availableQuantity))} ${metalLabel}.`;
   }
 
   if (machine?.id === "miniElectricArcFurnace") {
@@ -9166,6 +9330,7 @@ function updateMachineActionProgressNote(machine) {
   const noteKey = {
     clayKiln: "kiln-progress",
     ingotMolder: "molder-progress",
+    refractoryCaster: "refractory-caster-progress",
     miniElectricArcFurnace: "arc-furnace-progress",
   }[machine?.id];
   if (!noteKey || !elements.machineActions) {
@@ -9465,7 +9630,7 @@ function renderMachineActions(machine) {
     const outlet = getMachinePort(machine, "liquidOutput");
     if (outlet?.direction) {
       addMachineActionNote(`Its single liquid outlet feeds the adjacent tile ${outlet.direction}.`);
-      addMachineActionNote("Place an Ingot Molder's input/output tile or either Bullet Core Caster side-center liquid input directly beside it with the same facing.");
+      addMachineActionNote("Place an Ingot Molder or Refractory Caster input tile, or either Bullet Core Caster side-center liquid input, directly beside it with the same facing.");
     }
     return;
   }
@@ -9474,7 +9639,14 @@ function renderMachineActions(machine) {
     const link = getMolderKilnLink(machine);
     const linked = Boolean(link);
     addMachineActionNote(getMachineActionProgressNote(machine), "molder-progress");
+    addMachineActionNote("Feed Clay into its other tile; each Iron ingot consumes one Clay mold. Other metals use the reusable mold.");
     addMachineActionNote("Completed ingots leave through its marked output lane; connect a conveyor in its facing direction.");
+  }
+
+  if (machine.id === "refractoryCaster") {
+    addMachineActionNote(getMachineActionProgressNote(machine), "refractory-caster-progress");
+    addMachineActionNote("Its installed reusable mold casts up to four ingots from a supported liquid metal every 2 seconds without crew; smaller available quantities are molded as they arrive.");
+    addMachineActionNote("Place its Input tile directly against a smelter's liquid outlet; connect a conveyor to its marked Output tile.");
   }
 
   if (machine.id === "graphiteCopperAnnealer") {
@@ -10136,6 +10308,7 @@ function drawMachineFloor(scene) {
   const rockShack = getMachine("rockShack");
   const kiln = getMachine("clayKiln");
   const molder = getMachine("ingotMolder");
+  const refractoryCaster = getMachine("refractoryCaster");
   const annealer = getMachine("graphiteCopperAnnealer");
   const graniteProcessor = getMachine("graniteProcessor");
   const bronzeStamp = getMachine("bronzeStamp");
@@ -10165,6 +10338,7 @@ function drawMachineFloor(scene) {
     { machine: rockShack, fill: 0x5c554a, border: 0xdfc48a, opacity: 0.85 },
     { machine: kiln, fill: 0x614431, border: 0xe4a46b, opacity: 0.85 },
     { machine: molder, fill: 0x5e505a, border: 0xdcb1cb, opacity: 0.85 },
+    { machine: refractoryCaster, fill: 0x634b4b, border: 0xe9b0a0, opacity: 0.9 },
     { machine: annealer, fill: 0x3f5360, border: 0x9ed1d0, opacity: 0.9 },
     { machine: graniteProcessor, fill: 0x554d62, border: 0xd0b7f2, opacity: 0.9 },
     { machine: bronzeStamp, fill: 0x6b4d35, border: 0xe7b878, opacity: 0.9 },
@@ -10202,6 +10376,9 @@ function drawMachineFloor(scene) {
     })),
     ...getMachines("ingotMolder").slice(1).map((machine) => ({
       machine, fill: 0x5e505a, border: 0xdcb1cb, opacity: 0.85,
+    })),
+    ...getMachines("refractoryCaster").slice(1).map((machine) => ({
+      machine, fill: 0x634b4b, border: 0xe9b0a0, opacity: 0.9,
     })),
     ...getMachines("graphiteCopperAnnealer").slice(1).map((machine) => ({
       machine, fill: 0x3f5360, border: 0x9ed1d0, opacity: 0.9,
@@ -10539,6 +10716,17 @@ function drawMachineFloor(scene) {
       lineSpacing: 1,
     });
   }
+  if (refractoryCaster) {
+    const casterLabel = getMachineLabelCenter(refractoryCaster);
+    addMachineFloorLabel(scene, casterLabel.x, casterLabel.y, `REFRACTORY\nCASTER ${getOrientationSymbol(refractoryCaster.orientation)}`, {
+      color: "#ffe1d8",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "8px",
+      fontStyle: "bold",
+      align: "center",
+      lineSpacing: 1,
+    });
+  }
   if (annealer) {
     const annealerLabel = getMachineLabelCenter(annealer);
     addMachineFloorLabel(scene, annealerLabel.x, annealerLabel.y, `GRAPHITE-COPPER\nANNEALER ${getOrientationSymbol(annealer.orientation)}`, {
@@ -10703,6 +10891,7 @@ FORMER ${getOrientationSymbol(jacketFormer.orientation)}`, {
     ["graphiteLacedSellTube", () => "GRAPHITE-LACED\nSELL TUBE", "#e1edf4", 8, 0],
     ["clayKiln", (machine) => `CLAY\nKILN ${getOrientationSymbol(machine.orientation)}`, "#ffe0bc", 10, 0],
     ["ingotMolder", (machine) => `INGOT\nMOLDER ${getOrientationSymbol(machine.orientation)}`, "#ffe0f1", 9, 0],
+    ["refractoryCaster", (machine) => `REFRACTORY\nCASTER ${getOrientationSymbol(machine.orientation)}`, "#ffe1d8", 8, 0],
     ["graphiteCopperAnnealer", (machine) => `GRANITE-COPPER\nANNEALER ${getOrientationSymbol(machine.orientation)}`, "#d9ffff", 8, 0],
     ["jacketFormer", (machine) => `JACKET\nFORMER ${getOrientationSymbol(machine.orientation)}`, "#f0c8f4", 10, 0],
     ["graniteProcessor", () => "GRANITE\nPROCESSOR", "#eadbff", 9, 0],
@@ -11276,6 +11465,16 @@ function drawMachinePreviewConveyors(graphics, machine, isValid) {
       opacity: 0.82,
     });
   });
+  if (machine.id === "ingotMolder") {
+    const clayInput = getMachinePort(machine, "clayInput");
+    if (clayInput) {
+      drawConveyorTile(graphics, clayInput.column, clayInput.row, clayInput.direction, {
+        fillColor: isValid ? 0x80684e : 0x713f3a,
+        arrowColor: isValid ? 0xe8c89b : 0xf1b0a4,
+        opacity: 0.82,
+      });
+    }
+  }
   if (machine.id === "stacker") {
     drawStackerPorts(graphics, machine, {
       inputFillColor: fillColor,
@@ -11676,7 +11875,17 @@ function drawMachineLiquidPorts(graphics) {
     getMachinePorts(casingMachine, "liquidInputs").forEach(drawLiquidPort);
   });
   getMachines("ingotMolder").forEach((molder) => {
+    const clayInput = getMachinePort(molder, "clayInput");
+    if (clayInput) {
+      drawConveyorTile(graphics, clayInput.column, clayInput.row, clayInput.direction, {
+        fillColor: 0x80684e,
+        arrowColor: 0xe8c89b,
+      });
+    }
     drawLiquidPort(getMachinePort(molder, "liquidInputOutput"));
+  });
+  getMachines("refractoryCaster").forEach((caster) => {
+    drawLiquidPort(getMachinePort(caster, "liquidInput"));
   });
   getMachines("clayKiln").forEach((kiln) => {
     drawLiquidPort(getMachinePort(kiln, "liquidOutput"));
@@ -13284,6 +13493,7 @@ elements.selectPrimitiveUpgraderButton.addEventListener("click", () => selectMac
 elements.selectRockShackButton.addEventListener("click", () => selectMachineForPlacement("rockShack"));
 elements.selectClayKilnButton.addEventListener("click", () => selectMachineForPlacement("clayKiln"));
 elements.selectIngotMolderButton.addEventListener("click", () => selectMachineForPlacement("ingotMolder"));
+elements.selectRefractoryCasterButton.addEventListener("click", () => selectMachineForPlacement("refractoryCaster"));
 elements.selectGraphiteCopperAnnealerButton.addEventListener("click", () => selectMachineForPlacement("graphiteCopperAnnealer"));
 elements.selectGraniteProcessorButton.addEventListener("click", () => selectMachineForPlacement("graniteProcessor"));
 elements.selectBronzeStampButton.addEventListener("click", () => selectMachineForPlacement("bronzeStamp"));
@@ -13320,6 +13530,7 @@ elements.buyConveyorButton.addEventListener("click", () => purchaseMachine("conv
 elements.buyRockShackButton.addEventListener("click", () => purchaseMachine("rockShack"));
 elements.buyClayKilnButton.addEventListener("click", () => purchaseMachine("clayKiln"));
 elements.buyIngotMolderButton.addEventListener("click", () => purchaseMachine("ingotMolder"));
+elements.buyRefractoryCasterButton.addEventListener("click", () => purchaseMachine("refractoryCaster"));
 elements.buyGraphiteCopperAnnealerButton.addEventListener("click", () => purchaseMachine("graphiteCopperAnnealer"));
 elements.buyGraniteProcessorButton.addEventListener("click", () => purchaseMachine("graniteProcessor"));
 elements.buyBronzeStampButton.addEventListener("click", () => purchaseMachine("bronzeStamp"));

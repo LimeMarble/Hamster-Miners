@@ -1273,6 +1273,7 @@ test("Recipes catalogue includes every implemented production branch", () => {
     "Copper Contact Alloy",
     "Tin Contact Alloy",
     "Metal Ingots",
+    "High-throughput Metal Ingots",
     "Metal Plates",
   ].forEach((name) => assert.equal(recipes.has(name), true));
   assert.equal(
@@ -1451,11 +1452,137 @@ test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four second
   assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary.length, 0);
 
   game.updateCrewOperatedMachines(4);
+  assert.equal(state.molderJobs.length, 0, "Iron waits for a Clay mold on the Molder's other tile");
+  assert.equal(state.moltenCopper[0].material, "iron");
+  assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "clay", quantity: 2 }, 5, 2), true);
+  assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "copper", quantity: 1 }, 5, 2), false);
+  assert.equal(game.receiveConveyorItem({ kind: "material", material: "clay", quantity: 2 }, 5, 2), true);
+  assert.equal(state.molderClayBuffers[molder.instanceId], 2);
+
+  game.updateCrewOperatedMachines(0);
   assert.equal(state.molderJobs.length, 1);
   assert.equal(state.molderJobs[0].material, "iron");
+  assert.equal(state.molderClayBuffers[molder.instanceId], 1, "one Clay is consumed when each Iron ingot starts molding");
 
   game.updateCrewOperatedMachines(1);
   assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "ironIngot");
+  assert.equal(state.molderJobs.length, 0);
+  assert.equal(state.molderClayBuffers[molder.instanceId], 1, "only one Clay is used for the one Iron ingot produced");
+});
+
+test("Ingot Molder consumes one separate Clay mold for every Iron ingot", () => {
+  const furnace = machine("miniElectricArcFurnace", "eaf-iron-clay-batch", 2, 2);
+  const molder = machine("ingotMolder", "molder-iron-clay-batch", 5, 2);
+  const state = freshState({
+    machines: [furnace, molder],
+    crew: { total: 1 },
+    molderClayBuffers: { [molder.instanceId]: 2 },
+    moltenCopper: [{
+      kilnInstanceId: furnace.instanceId,
+      smelterInstanceId: furnace.instanceId,
+      material: "iron",
+      quantity: 2,
+      sourceValue: 10,
+      sourceValueIsEffective: true,
+    }],
+  });
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.molderJobs[0].material, "iron");
+  assert.equal(state.molderClayBuffers[molder.instanceId], 1);
+  assert.equal(state.moltenCopper[0].quantity, 1);
+
+  game.updateCrewOperatedMachines(1);
+  assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "ironIngot");
+  assert.equal(state.molderJobs.length, 1);
+  assert.equal(state.molderClayBuffers[molder.instanceId], 0);
+  assert.equal(state.moltenCopper.length, 0);
+});
+
+test("Ingot Molder Clay input buffers remain per-instance and survive save hydration", () => {
+  const firstMolder = machine("ingotMolder", "clay-buffer-a", 5, 2);
+  const secondMolder = machine("ingotMolder", "clay-buffer-b", 9, 2);
+  const state = freshState({ machines: [firstMolder, secondMolder] });
+  const clayInput = game.MACHINE_LAYOUT.ingotMolder.clayInput;
+
+  assert.equal(game.receiveConveyorItem(
+    { kind: "material", material: "clay", quantity: 3 },
+    firstMolder.column + clayInput.column,
+    firstMolder.row + clayInput.row,
+  ), true);
+  assert.equal(game.receiveConveyorItem(
+    { kind: "material", material: "clay", quantity: 1 },
+    secondMolder.column + clayInput.column,
+    secondMolder.row + clayInput.row,
+  ), true);
+  assert.deepEqual(state.molderClayBuffers, {
+    [firstMolder.instanceId]: 3,
+    [secondMolder.instanceId]: 1,
+  });
+
+  const hydrated = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
+  assert.equal(hydrated.molderClayBuffers[firstMolder.instanceId], 3);
+  assert.equal(hydrated.molderClayBuffers[secondMolder.instanceId], 1);
+});
+
+test("Refractory Caster has its specified cost, footprint, and high-throughput batch", () => {
+  const casterLayout = game.MACHINE_LAYOUT.refractoryCaster;
+  assert.deepEqual(game.MACHINE_PURCHASES.refractoryCaster, {
+    cash: 5e5,
+    materials: { ironIngot: 50, ironPlate: 25, ceramic: 25 },
+  });
+  assert.equal(casterLayout.width, 2);
+  assert.equal(casterLayout.height, 2);
+  assert.deepEqual(casterLayout.liquidInput, { column: 0, row: 1, direction: "right" });
+  assert.deepEqual(casterLayout.internalConveyors, [
+    { column: 1, row: 1, direction: "right" },
+  ]);
+  assert.equal(game.MACHINE_CATEGORY_BY_ID.refractoryCaster, "material");
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8"), /data-shop-machine="refractoryCaster"/);
+});
+
+test("Refractory Caster casts available supported metals, up to four every two seconds without crew", () => {
+  const outputs = {
+    copper: "brittleCopperIngot",
+    nativeCopper: "copperIngot",
+    iron: "ironIngot",
+    silver: "silverIngot",
+    bronze: "bronzeIngot",
+    tin: "tinIngot",
+    zinc: "zincIngot",
+    copperContactAlloy: "copperContactAlloyIngot",
+    tinContactAlloy: "tinContactAlloyIngot",
+  };
+
+  Object.entries(outputs).forEach(([liquidMaterial, ingotMaterial]) => {
+    const furnace = machine("miniElectricArcFurnace", `eaf-caster-${liquidMaterial}`, 2, 2);
+    const caster = machine("refractoryCaster", `caster-${liquidMaterial}`, 5, 2);
+    const inputQuantity = liquidMaterial === "iron" ? 2 : liquidMaterial === "silver" ? 1 : 4;
+    const state = freshState({
+      machines: [furnace, caster],
+      crew: { total: 0 },
+      moltenCopper: [{
+        kilnInstanceId: furnace.instanceId,
+        material: liquidMaterial,
+        quantity: inputQuantity,
+        sourceValue: 30,
+        sourceValueIsEffective: true,
+      }],
+      molderJobs: [],
+    });
+
+    game.updateCrewOperatedMachines(0);
+    assert.equal(state.molderJobs.length, 1, `${liquidMaterial} should start molding`);
+    assert.equal(state.molderJobs[0].quantity, inputQuantity);
+    assert.equal(state.molderJobs[0].secondsRemaining, 2);
+    assert.equal(state.molderJobs[0].crewRequired, 0);
+    assert.equal(game.getBusyCrew(), 0);
+    assert.equal(state.moltenCopper.length, 0);
+
+    game.updateCrewOperatedMachines(2);
+    assert.equal(state.internalConveyorItems[`${caster.instanceId}:0`].material, ingotMaterial);
+    assert.equal(state.internalConveyorItems[`${caster.instanceId}:0`].quantity, inputQuantity);
+  });
 });
 
 test("Mini Electric Arc Furnace fires two Clay into one standalone Ceramic output", () => {

@@ -126,7 +126,11 @@ future pipe systems) are not treated as current acceptance requirements.
 - Feed two Clay Kilns at once with at least four available crew: both smelt concurrently.
 - Block one kiln's liquid output while leaving another kiln's output clear: the clear kiln continues working.
 - Feed multiple Ingot Molders: each job, output lane, and crew assignment stays associated with its own instance.
+- The Ingot Molder accepts Clay on its other tile and buffers it per instance. Each Iron ingot consumes one Clay when molding starts; without Clay, Iron liquid remains buffered. Other metals and the Refractory Caster do not consume Clay.
+- Refractory Caster costs $500k, 50 Iron Ingots, 25 Iron Plates, and 25 Ceramic; it occupies a 2×2 footprint with its liquid input and ingot output on the lower row.
+- Refractory Caster accepts all liquid-metal/alloy types supported by Ingot Molder and converts up to four available matching liquid units into the same number of ingots per two-second cycle, without crew.
 - Place a machine preview in every orientation: all internal conveyors and arrows match the eventual placed machine.
+- Ingot Molder previews and placed machines visibly mark the separate Clay input tile and the shared liquid/output tile.
 - Preview invalid placements in every orientation: footprint, internal belts,
   arrows, liquid ports, and upgrade tiles use the invalid state consistently.
 - Holding placement continues to place owned machines until inventory is empty;
@@ -136,7 +140,7 @@ future pipe systems) are not treated as current acceptance requirements.
   state, collision bounds, hitboxes, job queues, and conveyor-item ownership.
 - A blocked kiln/molder/annealer output blocks only that machine instance, not
   a parallel line.
-- Clay Kilns use 2 crew, Ingot Molders use 1, Leek Dusters use 1 while working,
+- Clay Kilns use 2 crew, Ingot Molders use 1, Refractory Casters use no crew, Leek Dusters use 1 while working,
   and Rock Shacks use 0. The factory crew display reports available / total.
 - Mini Electric Arc Furnace uses a manual recipe selector. Bronze consumes five
   Copper and one Tin through either side inlet, producing six liquid Bronze in
