@@ -1108,11 +1108,13 @@ test("Mini Electric Arc Furnace exposes only implemented recipes for manual sele
 
   assert.deepEqual(
     game.ARC_FURNACE_RECIPE_OPTIONS.map(({ value }) => value),
-    ["smelting", "alloy2", "copperContactAlloy"],
+    ["smelting", "alloy2", "copperContactAlloy", "tinContactAlloy"],
   );
   assert.equal(game.switchArcFurnaceMode(furnace, "alloy3"), false);
   assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), true);
   assert.equal(game.getArcFurnaceMode(furnace), "copperContactAlloy");
+  assert.equal(game.switchArcFurnaceMode(furnace, "tinContactAlloy"), true);
+  assert.equal(game.getArcFurnaceMode(furnace), "tinContactAlloy");
 });
 
 test("Bronze recipe waits for the alternate alloy inlet and consumes exact mixed inputs", () => {
@@ -1190,6 +1192,41 @@ test("Copper Contact Alloy manually selected recipe uses four Silver and one Cop
   }, 10, 1), false, "the undefined alloy plate recipe must not enter the Metal Press");
 });
 
+test("Tin Contact Alloy uses nine Silver and one Tin and casts ten alloy ingots", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-tin-contact", 0, 0);
+  furnace.mode = "tinContactAlloy";
+  const molder = machine("ingotMolder", "molder-tin-contact", 3, 0);
+  const state = freshState({
+    machines: [furnace, molder],
+    crew: { total: 2 },
+  });
+
+  assert.equal(game.receiveConveyorItem({
+    kind: "material", material: "silverIngot", quantity: 9, saleValueBase: 34,
+  }, 0, 1), true);
+  assert.equal(game.receiveConveyorItem({
+    kind: "material", material: "tinIngot", quantity: 1, saleValueBase: 0,
+  }, 1, 0), true);
+
+  const recipe = game.getArcFurnaceRecipe(furnace);
+  assert.equal(recipe.outputMaterial, "tinContactAlloy");
+  assert.equal(recipe.outputQuantity, 10);
+  assert.ok(Math.abs(recipe.outputValue - 30.6) < 1e-10);
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 20);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 10);
+  game.updateCrewOperatedMachines(20);
+  assert.equal(state.moltenCopper[0].material, "tinContactAlloy");
+  assert.equal(state.moltenCopper[0].quantity, 9);
+  assert.equal(state.molderJobs[0].material, "tinContactAlloy");
+
+  game.updateCrewOperatedMachines(1);
+  const output = state.internalConveyorItems[`${molder.instanceId}:0`];
+  assert.equal(output.material, "tinContactAlloyIngot");
+  assert.ok(Math.abs(output.saleValueBase - 30.6) < 1e-10);
+});
+
 test("moving and saving a furnace preserves its mode, orientation, and instance", () => {
   const furnace = machine("miniElectricArcFurnace", "arc-move-mode", 10, 10, "up");
   furnace.mode = "copperContactAlloy";
@@ -1223,7 +1260,9 @@ test("Recipes catalogue includes every implemented production branch", () => {
   [
     "Leek Fiber",
     "Copper Wire",
+    "Silver Contacts",
     "Silver-Copper Contacts",
+    "Silver-Tin Contacts",
     "Leek Rapidfire Rounds",
     "Mineral-Coated Rapidfire Rounds",
     "Copper-Jacketed Rounds",
@@ -1232,17 +1271,28 @@ test("Recipes catalogue includes every implemented production branch", () => {
     "Ceramic",
     "Bronze",
     "Copper Contact Alloy",
+    "Tin Contact Alloy",
     "Metal Ingots",
     "Metal Plates",
   ].forEach((name) => assert.equal(recipes.has(name), true));
   assert.equal(
-    recipes.get("Silver-Copper Contacts").input,
+    recipes.get("Silver Contacts").input,
     "5 Copper Wires + 0.5 Silver Ingots",
+  );
+  assert.equal(
+    recipes.get("Silver-Copper Contacts").input,
+    "5 Copper Wires + 0.5 Copper Contact Alloy Ingots",
+  );
+  assert.equal(
+    recipes.get("Silver-Tin Contacts").input,
+    "5 Copper Wires + 0.5 Tin Contact Alloy Ingots",
   );
   assert.match(recipes.get("Ceramic").input, /2 Clay/);
   assert.match(recipes.get("Bronze").output, /6 liquid Bronze/);
   assert.equal(recipes.get("Copper Contact Alloy").input, "4 Silver + 1 Copper");
   assert.equal(recipes.get("Copper Contact Alloy").output, "5 liquid Copper Contact Alloy");
+  assert.equal(recipes.get("Tin Contact Alloy").input, "9 Silver + 1 Tin");
+  assert.equal(recipes.get("Tin Contact Alloy").output, "10 liquid Tin Contact Alloy");
 });
 
 test("Mini Electric Arc Furnace preserves its selected mode when saves are hydrated", () => {
@@ -2116,7 +2166,7 @@ test("Leek Fiber Extractor has the specified cost and footprint", () => {
   assert.equal(game.getBusyCrew(), 0);
 });
 
-test("Contact Maker keeps its purchase cost and uses only the Silver input", () => {
+test("Contact Maker keeps its purchase cost and has one Silver/contact-alloy input", () => {
   const maker = game.MACHINE_LAYOUT.contactMaker;
   assert.equal(maker.width, 4);
   assert.equal(maker.height, 3);
@@ -2275,6 +2325,73 @@ test("Contact Maker carries annealed wire value once without duplicating its mul
   game.transformItemLeavingConveyor(annealerConveyor, contacts);
   assert.equal(contacts.annealedValueMultiplier, game.ANNEALER_MULTIPLIER);
   assert.ok(Math.abs(game.getItemSaleValue(contacts) * contacts.quantity - 1443.3) < 1e-9);
+});
+
+test("Contact Maker makes alloy-specific contacts with the ×3 alloy bonus", () => {
+  const cases = [
+    {
+      inputMaterial: "copperContactAlloyIngot",
+      inputValue: 27.6,
+      outputMaterial: "silverCopperContact",
+      expectedContactValue: 164.28,
+      quantityKey: "copperAlloy",
+      valueKey: "copperAlloyValue",
+    },
+    {
+      inputMaterial: "tinContactAlloyIngot",
+      inputValue: 30.6,
+      outputMaterial: "silverTinContact",
+      expectedContactValue: 165.18,
+      quantityKey: "tinAlloy",
+      valueKey: "tinAlloyValue",
+    },
+  ];
+
+  cases.forEach((testCase) => {
+    const maker = machine("contactMaker", `maker-${testCase.inputMaterial}`, 8, 2);
+    const state = freshState({ machines: [maker] });
+    const inputColumn = maker.column + maker.silverInput.column;
+    const inputRow = maker.row + maker.silverInput.row;
+    const input = {
+      kind: "material",
+      material: testCase.inputMaterial,
+      quantity: 1,
+      saleValueBase: testCase.inputValue,
+    };
+
+    assert.equal(game.canReceiveConveyorItem(input, inputColumn, inputRow), true);
+    assert.equal(game.receiveConveyorItem(input, inputColumn, inputRow), true);
+    assert.equal(state.contactMakerInputs[maker.instanceId][testCase.quantityKey], 1);
+    assert.equal(state.contactMakerInputs[maker.instanceId][testCase.valueKey], testCase.inputValue);
+    assert.equal(game.canReceiveConveyorItem(input, inputColumn, inputRow), false);
+
+    const processConveyor = {
+      ...game.getInternalConveyorTiles(maker)[1],
+      internalMachineId: "contactMaker",
+      internalMachineInstanceId: maker.instanceId,
+      internalIndex: 1,
+    };
+    const contacts = game.transformItemLeavingConveyor(processConveyor, {
+      kind: "material",
+      material: "wire",
+      quantity: 5,
+      saleValueBase: 52,
+    });
+
+    assert.equal(contacts.material, testCase.outputMaterial);
+    assert.equal(contacts.quantity, 5);
+    assert.equal(contacts.baseValue, 8.8);
+    assert.ok(Math.abs(contacts.saleValueBase - testCase.expectedContactValue) < 1e-10);
+    const outputConveyor = {
+      ...game.getInternalConveyorTiles(maker)[2],
+      internalMachineId: "contactMaker",
+      internalMachineInstanceId: maker.instanceId,
+      internalIndex: 2,
+    };
+    assert.equal(game.canItemLeaveConveyor(outputConveyor, contacts), true);
+    assert.ok(Math.abs(state.contactMakerInputs[maker.instanceId][testCase.quantityKey] - 0.5) < 1e-12);
+    assert.ok(Math.abs(state.contactMakerInputs[maker.instanceId][testCase.valueKey] - testCase.inputValue / 2) < 1e-10);
+  });
 });
 
 test("loading a legacy save discards buffered Contact Maker Leek Fiber", () => {

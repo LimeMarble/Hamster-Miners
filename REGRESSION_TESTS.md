@@ -85,8 +85,8 @@ future pipe systems) are not treated as current acceptance requirements.
 - Send Duster-processed Malachite into a Clay Kiln and Ingot Molder: the resulting ingot has value `$25` (`$6.25 × 4`).
 - Send unmodified Malachite or Native Copper through the Clay Kiln and Ingot Molder: either ingot has value `$20` (`$5 × 4`).
 - Send a fresh `$10` Copper Wire through the Annealer and Sell Tube: it sells for `$17` (`$10 × 1.7`).
-- Fresh Wires, pressed metal Plates, and Silver-Copper Contacts each receive one ×1.7 value pass; raw ores and ingots are not accepted.
-- Contact Maker keeps its 100 Leek Fiber purchase requirement, but Contacts use only five Copper Wires and 0.5 Silver Ingots per batch of five. It preserves an annealed wire's value once without carrying its multiplier onto the new Contact. Legacy buffered Leek Fiber is discarded on load; Silver buffer is preserved.
+- Fresh Wires, pressed metal Plates, and all Contact types each receive one ×1.7 value pass; raw ores and ingots are not accepted.
+- Contact Maker keeps its 100 Leek Fiber purchase requirement. Five Copper Wires plus 0.5 Silver or Contact Alloy Ingots produce five matching Contacts; Silver Contacts use ×2 and alloy Contacts use ×3. It preserves an annealed wire's value once without carrying its multiplier onto the new Contact. Legacy buffered Leek Fiber is discarded on load; buffered metal inputs remain instance-specific.
 - Mineral ammo still receives ×1.7 damage from the Annealer; Leek ammo is not accepted.
 - Put an ingot into Material Storage, then output it to a Sell Tube: it resets to the `$20` minimum before later upgrades.
 - Route annealed Wire through Duster and verify the ×1.25 and ×1.7 effects are each applied once, not twice.
@@ -141,8 +141,9 @@ future pipe systems) are not treated as current acceptance requirements.
 - Mini Electric Arc Furnace uses a manual recipe selector. Bronze consumes five
   Copper and one Tin through either side inlet, producing six liquid Bronze in
   twelve seconds; Copper Contact Alloy consumes four Silver and one Copper,
-  producing five liquid alloy in ten seconds. Both alloys can be cast by the
-  Ingot Molder.
+  producing five liquid alloy in ten seconds; Tin Contact Alloy consumes nine
+  Silver and one Tin, producing ten liquid alloy in twenty seconds. Both
+  contact alloys can be cast by the Ingot Molder.
 - Picking up, moving, saving, and re-placing machinery preserves per-instance
   modes, orientation, and identity.
 - Selected machine action buttons stay mounted while process countdowns tick;
@@ -159,7 +160,7 @@ future pipe systems) are not treated as current acceptance requirements.
 - Bronze Pillars uses its asymmetric occupied footprint: top-right, center, and
   bottom-left tiles only; blank cells remain available for placement.
 - Splitter is a 1×1 Logistics machine with the Stacker's $2k, 5 Bronze Plate,
-  10 Copper Wire, and 10 Silver-Copper Contact cost.
+  10 Copper Wire, and 10 Silver Contact cost.
 - Splitter accepts a single rear-fed line and round-robins whole stacks over
   forward/left/right conveyors; it skips occupied or item-incompatible exits,
   does not consume its turn when all exits are blocked, and preserves its

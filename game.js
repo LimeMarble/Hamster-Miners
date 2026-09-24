@@ -351,8 +351,11 @@ const STOCKPILE_LABELS = Object.freeze({
   leekFiber: "Leek fiber",
   silverIngot: "Silver ingot",
   copperContactAlloyIngot: "Copper Contact Alloy ingot",
+  tinContactAlloyIngot: "Tin Contact Alloy ingot",
   zincIngot: "Zinc ingot",
-  contact: "Silver-Copper Contact",
+  contact: "Silver Contact",
+  silverCopperContact: "Silver-Copper Contact",
+  silverTinContact: "Silver-Tin Contact",
   cutMalachite: "Cut Malachite",
   tin: "Tin ore",
   tinIngot: "Tin ingot",
@@ -393,8 +396,12 @@ const MATERIAL_LABELS = Object.freeze({
   silverIngot: "Silver ingot",
   copperContactAlloy: "Copper Contact Alloy",
   copperContactAlloyIngot: "Copper Contact Alloy ingot",
+  tinContactAlloy: "Tin Contact Alloy",
+  tinContactAlloyIngot: "Tin Contact Alloy ingot",
   zincIngot: "Zinc ingot",
-  contact: "Silver-Copper Contact",
+  contact: "Silver Contact",
+  silverCopperContact: "Silver-Copper Contact",
+  silverTinContact: "Silver-Tin Contact",
   cutMalachite: "Cut Malachite",
   tin: "Tin ore",
   tinIngot: "Tin ingot",
@@ -436,8 +443,12 @@ const MATERIAL_COLORS = Object.freeze({
   silverIngot: 0xd7dce5,
   copperContactAlloy: 0xc5b49d,
   copperContactAlloyIngot: 0xc5b49d,
+  tinContactAlloy: 0xb8c3c4,
+  tinContactAlloyIngot: 0xb8c3c4,
+  contact: 0xd7dce5,
+  silverCopperContact: 0xc5b49d,
+  silverTinContact: 0xb8c3c4,
   zincIngot: 0xb6c8d0,
-  contact: 0xc8b86c,
   cutMalachite: 0x45b995,
   tin: 0xb8a99a,
   tinIngot: 0xc8b49a,
@@ -476,6 +487,7 @@ const SMELTABLE_INGOT_MATERIALS = Object.freeze([
   ...INGOT_MATERIALS,
   "silverIngot",
   "copperContactAlloyIngot",
+  "tinContactAlloyIngot",
   "tinIngot",
   "zincIngot",
   "bronzeIngot",
@@ -521,7 +533,8 @@ const KILN_INPUT_MATERIALS = Object.freeze([
 ]);
 const ARC_FURNACE_ORE_INPUTS = Object.freeze(["hematite", "clay"]);
 const MOLDER_METAL_ORES = Object.freeze([
-  "copper", "nativeCopper", "silver", "tin", "zinc", "bronze", "iron", "copperContactAlloy",
+  "copper", "nativeCopper", "silver", "tin", "zinc", "bronze", "iron",
+  "copperContactAlloy", "tinContactAlloy",
 ]);
 const SELL_TUBE_MACHINE_IDS = Object.freeze(["sellTube", "graphiteLacedSellTube"]);
 const SELL_TUBE_VALUE_MULTIPLIERS = Object.freeze({
@@ -564,9 +577,45 @@ const MINIMUM_SALE_VALUES = Object.freeze({
   copperIngot: 2,
   brittleCopperIngot: 2,
   copperContactAlloyIngot: 27.6,
+  tinContactAlloyIngot: 30.6,
+  contact: 8.8,
+  silverCopperContact: 8.8,
+  silverTinContact: 8.8,
   wire: 1,
   cutMalachite: 125,
 });
+
+const CONTACT_MAKER_METAL_INPUTS = Object.freeze([
+  Object.freeze({
+    material: "silverIngot",
+    quantityKey: "silver",
+    valueKey: "silverValue",
+    outputMaterial: "contact",
+    valueMultiplier: 2,
+    ingotsPerBatch: 0.5,
+  }),
+  Object.freeze({
+    material: "copperContactAlloyIngot",
+    quantityKey: "copperAlloy",
+    valueKey: "copperAlloyValue",
+    outputMaterial: "silverCopperContact",
+    valueMultiplier: 3,
+    ingotsPerBatch: 0.5,
+  }),
+  Object.freeze({
+    material: "tinContactAlloyIngot",
+    quantityKey: "tinAlloy",
+    valueKey: "tinAlloyValue",
+    outputMaterial: "silverTinContact",
+    valueMultiplier: 3,
+    ingotsPerBatch: 0.5,
+  }),
+]);
+const CONTACT_PRODUCT_MATERIALS = Object.freeze([
+  "contact",
+  "silverCopperContact",
+  "silverTinContact",
+]);
 
 const SALE_VALUE_MULTIPLIERS = Object.freeze({
   brittleCopperIngot: Object.freeze({ baseMaterial: "copper", multiplier: 4 }),
@@ -583,7 +632,7 @@ const ANNEALER_MULTIPLIER = 1.7;
 const ANNEALER_VALUE_MATERIALS = Object.freeze([
   "wire",
   ...Object.values(INGOT_TO_PLATE),
-  "contact",
+  ...CONTACT_PRODUCT_MATERIALS,
 ]);
 const GRANITE_PROCESSOR_MULTIPLIER = 1.3;
 const GRANITE_PROCESSOR_MIN_BASE_VALUE = 1;
@@ -1888,8 +1937,11 @@ function createInitialState() {
       quartz: 0,
       leekFiber: 0,
       contact: 0,
+      silverCopperContact: 0,
+      silverTinContact: 0,
       silverIngot: 0,
       copperContactAlloyIngot: 0,
+      tinContactAlloyIngot: 0,
       zincIngot: 0,
       tin: 0,
       tinIngot: 0,
@@ -3185,6 +3237,22 @@ const ARC_FURNACE_RECIPES = Object.freeze({
       tertiary: Object.freeze({ quantity: 1, materials: isCopperAlloyInput }),
     }),
   }),
+  tinContactAlloy: Object.freeze({
+    name: "Tin Contact Alloy",
+    description: "9 Silver + 1 Tin → 10 liquid Tin Contact Alloy",
+    outputMaterial: "tinContactAlloy",
+    outputQuantity: 10,
+    inputCount: 10,
+    ingredients: Object.freeze([
+      Object.freeze({ quantity: 9, slots: Object.freeze(["primary"]), materials: isSilverAlloyInput }),
+      Object.freeze({ quantity: 1, slots: Object.freeze(["secondary", "tertiary"]), materials: isTinAlloyInput }),
+    ]),
+    slots: Object.freeze({
+      primary: Object.freeze({ quantity: 9, materials: isSilverAlloyInput }),
+      secondary: Object.freeze({ quantity: 1, materials: isTinAlloyInput }),
+      tertiary: Object.freeze({ quantity: 1, materials: isTinAlloyInput }),
+    }),
+  }),
 });
 
 const ARC_FURNACE_RECIPE_OPTIONS = Object.freeze([
@@ -3219,11 +3287,27 @@ const CRAFTING_RECIPES = Object.freeze([
   }),
   Object.freeze({
     category: "Electrical assembly",
-    name: "Silver-Copper Contacts",
+    name: "Silver Contacts",
     machine: "Contact Maker",
     input: "5 Copper Wires + 0.5 Silver Ingots",
+    output: "5 Silver Contacts",
+    note: "Uses the ×2 contact value multiplier; base value is $8.8.",
+  }),
+  Object.freeze({
+    category: "Electrical assembly",
+    name: "Silver-Copper Contacts",
+    machine: "Contact Maker",
+    input: "5 Copper Wires + 0.5 Copper Contact Alloy Ingots",
     output: "5 Silver-Copper Contacts",
-    note: "The contact stack has a base value of $8.8.",
+    note: "Uses the ×3 contact-alloy value multiplier.",
+  }),
+  Object.freeze({
+    category: "Electrical assembly",
+    name: "Silver-Tin Contacts",
+    machine: "Contact Maker",
+    input: "5 Copper Wires + 0.5 Tin Contact Alloy Ingots",
+    output: "5 Silver-Tin Contacts",
+    note: "Uses the ×3 contact-alloy value multiplier.",
   }),
   Object.freeze({
     category: "Ammunition",
@@ -3298,6 +3382,14 @@ const CRAFTING_RECIPES = Object.freeze([
     note: "Uses 1 crew and takes 10 seconds; the Ingot Molder casts it into Copper Contact Alloy Ingots.",
   }),
   Object.freeze({
+    category: "Alloy smelting",
+    name: "Tin Contact Alloy",
+    machine: "Mini Electric Arc Furnace · manual recipe selection",
+    input: "9 Silver + 1 Tin",
+    output: "10 liquid Tin Contact Alloy",
+    note: "Uses 1 crew and takes 20 seconds; the Ingot Molder casts it into Tin Contact Alloy Ingots.",
+  }),
+  Object.freeze({
     category: "Casting",
     name: "Metal Ingots",
     machine: "Ingot Molder",
@@ -3331,7 +3423,7 @@ function normalizeArcFurnaceMode(mode) {
     // The old empty 3-input setting had no recipe; default it to a usable path.
     return "smelting";
   }
-  return ["smelting", "alloy2", "copperContactAlloy"].includes(mode)
+  return ["smelting", "alloy2", "copperContactAlloy", "tinContactAlloy"].includes(mode)
     ? mode
     : "smelting";
 }
@@ -3440,6 +3532,7 @@ function getSmeltedLiquidMaterial(material) {
     brittleCopperIngot: "copper",
     silverIngot: "silver",
     copperContactAlloyIngot: "copperContactAlloy",
+    tinContactAlloyIngot: "tinContactAlloy",
     tinIngot: "tin",
     zincIngot: "zinc",
     bronzeIngot: "bronze",
@@ -4078,11 +4171,7 @@ function canReceiveConveyorItem(item, column, row) {
   }
 
   const silverInputMaker = getContactMakerPortAt(column, row, "silverInput");
-  if (silverInputMaker
-    && item.kind === "material"
-    && item.material === "silverIngot"
-    && getContactMakerInputState(silverInputMaker.instanceId).silver
-      < getContactMakerInputRequirements(silverInputMaker).silver) {
+  if (silverInputMaker && canContactMakerReceiveMetal(silverInputMaker, item)) {
     return true;
   }
 
@@ -4203,18 +4292,8 @@ function receiveConveyorItem(item, column, row) {
   }
 
   const silverInputMaker = getContactMakerPortAt(column, row, "silverInput");
-  if (silverInputMaker
-    && item.kind === "material"
-    && item.material === "silverIngot"
-    && getContactMakerInputState(silverInputMaker.instanceId).silver
-      < getContactMakerInputRequirements(silverInputMaker).silver) {
-    const current = getContactMakerInputState(silverInputMaker.instanceId);
-    const value = getItemSaleValue(item);
-    state.contactMakerInputs[silverInputMaker.instanceId] = {
-      ...current,
-      silver: current.silver + item.quantity,
-      silverValue: current.silverValue + value * item.quantity,
-    };
+  if (silverInputMaker && canContactMakerReceiveMetal(silverInputMaker, item)) {
+    receiveContactMakerMetal(silverInputMaker, item);
     return true;
   }
 
@@ -4651,7 +4730,56 @@ function emitStackerOutputs() {
 }
 
 function getContactMakerInputState(instanceId) {
-  return state.contactMakerInputs[instanceId] ?? { silver: 0, silverValue: 0 };
+  const inputs = state.contactMakerInputs[instanceId] ?? {};
+  return {
+    ...inputs,
+    silver: Number.isFinite(inputs.silver) ? inputs.silver : 0,
+    silverValue: Number.isFinite(inputs.silverValue) ? inputs.silverValue : 0,
+  };
+}
+
+function getContactMakerMetalInput(material) {
+  return CONTACT_MAKER_METAL_INPUTS.find((input) => input.material === material) ?? null;
+}
+
+function getReadyContactMakerMetalInput(maker, wireQuantity = null) {
+  if (!maker) {
+    return null;
+  }
+  const inputState = getContactMakerInputState(maker.instanceId);
+  const recipeCount = getContactMakerRecipeCount(maker, wireQuantity);
+  return CONTACT_MAKER_METAL_INPUTS.find((input) => (
+    hasAtLeastQuantity(
+      inputState[input.quantityKey] ?? 0,
+      recipeCount * input.ingotsPerBatch,
+    )
+  )) ?? null;
+}
+
+function canContactMakerReceiveMetal(maker, item) {
+  const metalInput = getContactMakerMetalInput(item?.material);
+  if (!maker || item?.kind !== "material" || !metalInput
+    || !Number.isFinite(item.quantity) || item.quantity <= 0) {
+    return false;
+  }
+
+  const buffered = getContactMakerInputState(maker.instanceId)[metalInput.quantityKey] ?? 0;
+  const required = getContactMakerInputRequirements(maker)[metalInput.quantityKey];
+  return !hasAtLeastQuantity(buffered, required);
+}
+
+function receiveContactMakerMetal(maker, item) {
+  const metalInput = getContactMakerMetalInput(item.material);
+  if (!metalInput) {
+    return;
+  }
+  const current = getContactMakerInputState(maker.instanceId);
+  const value = getItemSaleValue(item);
+  state.contactMakerInputs[maker.instanceId] = {
+    ...current,
+    [metalInput.quantityKey]: (current[metalInput.quantityKey] ?? 0) + item.quantity,
+    [metalInput.valueKey]: (current[metalInput.valueKey] ?? 0) + value * item.quantity,
+  };
 }
 
 function getContactMakerRecipeCount(maker, wireQuantity = null) {
@@ -4665,10 +4793,12 @@ function getContactMakerRecipeCount(maker, wireQuantity = null) {
 
 function getContactMakerInputRequirements(maker) {
   const recipeCount = getContactMakerRecipeCount(maker);
-  return {
+  return CONTACT_MAKER_METAL_INPUTS.reduce((requirements, input) => {
+    requirements[input.quantityKey] = recipeCount * input.ingotsPerBatch;
+    return requirements;
+  }, {
     recipeCount,
-    silver: recipeCount * 0.5,
-  };
+  });
 }
 
 function getContactMakerPortAt(column, row, portName) {
@@ -4731,18 +4861,15 @@ function canItemLeaveConveyor(conveyor, item) {
     }
     if (conveyor.internalMachineId === "contactMaker") {
       if (isContactMakerProcessConveyor(conveyor)) {
-        const inputState = getContactMakerInputState(conveyor.internalMachineInstanceId);
-        const recipeCount = getContactMakerRecipeCount(
-          getInternalConveyorMachine(conveyor),
-          item.quantity,
-        );
+        const maker = getInternalConveyorMachine(conveyor);
         return item.kind === "material"
           && item.material === "wire"
           && item.quantity >= 5
           && item.quantity % 5 === 0
-          && inputState.silver >= recipeCount * 0.5;
+          && getReadyContactMakerMetalInput(maker, item.quantity) !== null;
       }
-      return item.kind === "material" && ["wire", "contact"].includes(item.material);
+      return item.kind === "material"
+        && ["wire", ...CONTACT_PRODUCT_MATERIALS].includes(item.material);
     }
     if (conveyor.internalMachineId === "metalPress"
       && (conveyor.internalIndex === 0 || isMetalPressProcessConveyor(conveyor))) {
@@ -4799,28 +4926,37 @@ function transformItemLeavingConveyor(conveyor, item) {
       const maker = getInternalConveyorMachine(conveyor);
       const inputState = getContactMakerInputState(maker.instanceId);
       const recipeCount = getContactMakerRecipeCount(maker, item.quantity);
-      if (item.quantity % 5 !== 0
-        || inputState.silver < recipeCount * 0.5) {
+      const metalInput = getReadyContactMakerMetalInput(maker, item.quantity);
+      if (item.quantity % 5 !== 0 || !metalInput) {
         return finishMaterialTransform();
       }
-      const silverValuePerIngot = inputState.silver > 0
-        ? inputState.silverValue / inputState.silver
+      const bufferedQuantity = inputState[metalInput.quantityKey] ?? 0;
+      const bufferedValue = inputState[metalInput.valueKey] ?? 0;
+      const valuePerIngot = bufferedQuantity > 0
+        ? bufferedValue / bufferedQuantity
         : 0;
+      const consumedMetalQuantity = recipeCount * metalInput.ingotsPerBatch;
       const contactStackValue = (
         getItemSaleValue(item) * 5 * recipeCount
-        + silverValuePerIngot * 0.5 * recipeCount
-      ) * 2;
-      inputState.silver -= recipeCount * 0.5;
-      inputState.silverValue -= silverValuePerIngot * 0.5 * recipeCount;
+        + valuePerIngot * consumedMetalQuantity
+      ) * metalInput.valueMultiplier;
+      inputState[metalInput.quantityKey] = Math.max(
+        0,
+        bufferedQuantity - consumedMetalQuantity,
+      );
+      inputState[metalInput.valueKey] = Math.max(
+        0,
+        bufferedValue - valuePerIngot * consumedMetalQuantity,
+      );
       state.contactMakerInputs[maker.instanceId] = inputState;
-      item.material = "contact";
+      item.material = metalInput.outputMaterial;
       item.quantity = recipeCount * 5;
       item.saleValueBase = contactStackValue / item.quantity;
       item.baseValue = 8.8;
       item.saleValueBonus = 0;
       item.annealedValueMultiplier = 1;
       item.freshMoldedAt = Date.now();
-      addLog(`Contact Maker produced ${formatNumber(item.quantity)} Silver-Copper Contacts from Copper Wire and Silver.`);
+      addLog(`Contact Maker produced ${formatNumber(item.quantity)} ${MATERIAL_LABELS[item.material]} from Copper Wire and ${MATERIAL_LABELS[metalInput.material]}.`);
     }
     return finishMaterialTransform();
   }
@@ -6220,8 +6356,10 @@ function completeMolderJob(job) {
           ? "bronzeIngot"
           : job.material === "iron"
             ? "ironIngot"
-            : job.material === "copperContactAlloy"
+          : job.material === "copperContactAlloy"
               ? "copperContactAlloyIngot"
+              : job.material === "tinContactAlloy"
+                ? "tinContactAlloyIngot"
             : job.material === "ceramic"
               ? "ceramic"
       : "brittleCopperIngot";
@@ -9340,7 +9478,7 @@ function renderMachineActions(machine) {
   }
 
   if (machine.id === "graphiteCopperAnnealer") {
-    addMachineActionNote("Mineral ammo gains ×1.7 damage. Fresh Copper Wires, metal Plates, and Silver-Copper Contacts gain ×1.7 value once; ores and ingots are not accepted.");
+    addMachineActionNote("Mineral ammo gains ×1.7 damage. Fresh Copper Wires, metal Plates, and Contacts gain ×1.7 value once; ores and ingots are not accepted.");
     addMachineActionNote("Speed 2. Connect one input and output line through its center transformer tile.");
   }
 
