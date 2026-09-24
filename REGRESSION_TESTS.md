@@ -115,6 +115,8 @@ future pipe systems) are not treated as current acceptance requirements.
 
 ## Ammunition
 
+- Casing Machine mode can be switched with buffered ammo or liquid present; switching preserves those inputs and uses the selected mode when processing.
+- Casing Machine accepts jacketed Rapidfire ammo through its actual conveyor input. Matching partial stacks merge, incompatible ammo compositions stay separate, and Buckshot waits until at least 25 rounds plus a casing are available.
 - Send a normal Malachite bullet stack to the Gun Deposit: it remains a separate normal stack at 3 damage.
 - Send a fresh Malachite bullet stack through the Annealer to the Gun Deposit: it becomes a separate annealed stack at 5.1 damage.
 - Repeat the previous case with an existing normal Malachite stack present: the two stacks must not merge.

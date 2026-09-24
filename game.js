@@ -723,6 +723,23 @@ function getCasingMachineMode(machine) {
   return CASING_MACHINE_MODES.includes(machine?.mode) ? machine.mode : "buckshot";
 }
 
+function switchCasingMachineMode(machine, mode) {
+  if (!machine || machine.id !== "casingMachine" || !CASING_MACHINE_MODES.includes(mode)) {
+    return false;
+  }
+  if (getCasingMachineMode(machine) === mode) {
+    return false;
+  }
+
+  machine.mode = mode;
+  addLog(`Casing Machine switched to ${mode === "buckshot" ? "Buckshot" : "Penetrating rapidfire"} mode.`);
+  saveGame();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
+  return true;
+}
+
 function normalizeAmmoStack(stack) {
   const annealed = stack.annealed === true;
   const damage = getCasedAmmoDamage({ ...stack, annealed });
@@ -4565,18 +4582,33 @@ function canCasingMachineAcceptItem(machine, item) {
 }
 
 function canCasingMachineAcceptAmmoInput(machine, item) {
-  if (!machine || item?.kind !== "ammo" || !Number.isFinite(item.quantity) || item.quantity < 1) {
+  const quantity = Number(item?.quantity);
+  if (!machine || item?.kind !== "ammo" || !Number.isFinite(quantity) || quantity < 1) {
     return false;
   }
 
   const inputState = getCasingMachineInputState(machine);
-  return Boolean(
-    (item.type === "rapidfire" || item.type == null)
-      && item.quantity >= BUCKSHOT_INPUT_ROUNDS
-      && !item.casingMaterial
-      && (getCasingMachineMode(machine) === "penetratingRapidfire" || isJacketedAmmo(item))
-      && !inputState.ammo,
-  );
+  if ((item.type ?? "rapidfire") !== "rapidfire"
+    || item.casingMaterial
+    || (getCasingMachineMode(machine) === "buckshot" && !isJacketedAmmo(item))) {
+    return false;
+  }
+
+  return !inputState.ammo
+    || getCasingMachineAmmoIdentity(inputState.ammo) === getCasingMachineAmmoIdentity(item);
+}
+
+function getCasingMachineAmmoIdentity(item) {
+  const normalized = normalizeAmmoStack(item);
+  return [
+    normalized.type,
+    normalized.material,
+    normalized.coreMaterial ?? normalized.material,
+    normalized.jacketMaterial ?? "",
+    Number.isFinite(item.damage) ? item.damage : normalized.damage,
+    normalized.annealed === true,
+    isJacketedAmmo(normalized),
+  ].join("|");
 }
 
 function receiveCasingMachineItem(machine, item) {
@@ -4586,8 +4618,13 @@ function receiveCasingMachineItem(machine, item) {
 
   const inputState = getCasingMachineInputState(machine);
   if (item.kind === "ammo") {
-    inputState.ammo = { ...item, quantity: item.quantity };
-    addLog(`Casing Machine buffered ${formatNumber(item.quantity)} jacketed rounds.`);
+    const quantity = Number(item.quantity);
+    if (inputState.ammo) {
+      inputState.ammo.quantity = Number(inputState.ammo.quantity) + quantity;
+    } else {
+      inputState.ammo = { ...item, quantity };
+    }
+    addLog(`Casing Machine buffered ${formatNumber(quantity)} jacketed rounds.`);
   } else {
     inputState.casing = { ...item, quantity: item.quantity };
     addLog(`Casing Machine buffered one ${CASING_MATERIAL_LABELS[item.material] ?? item.material} ingot.`);
@@ -4600,7 +4637,11 @@ function emitCasingMachineOutputs() {
   getMachines("casingMachine").forEach((machine) => {
     const inputState = getCasingMachineInputState(machine);
     const processConveyor = getInternalConveyor(machine, getMachineProcessLaneIndex(machine));
-    if (!inputState.ammo || !inputState.casing || !processConveyor || getConveyorItem(processConveyor)) {
+    if (!inputState.ammo
+      || Number(inputState.ammo.quantity) < BUCKSHOT_INPUT_ROUNDS
+      || !inputState.casing
+      || !processConveyor
+      || getConveyorItem(processConveyor)) {
       return;
     }
 
@@ -9769,18 +9810,18 @@ function renderMachineActions(machine) {
       addMachineAction(
         selected ? `${label} (selected)` : label,
         () => {
-          machine.mode = value;
-          addLog(`Casing Machine switched to ${label} mode.`);
-          saveGame();
-          render();
+          switchCasingMachineMode(machine, value);
         },
-        occupied || selected,
+        selected,
       );
       if (selected) {
         addMachineActionNote(`Selected: ${description}.`);
       }
     });
     addMachineActionNote("No crew required. Buffers one Rapidfire ammunition stack on its main line and waits for liquid Bronze, Brass, or Steel through either side-center input.");
+    if (occupied) {
+      addMachineActionNote("Mode changes keep buffered inputs; those inputs will be processed using the newly selected mode.");
+    }
     addMachineActionNote(`Bronze currently multiplies damage by ×3.${inputState.ammo ? ` Rapidfire buffered: ${formatNumber(inputState.ammo.quantity)}.` : ""}${inputState.casing ? ` Liquid casing buffered: ${formatNumber(inputState.casing.quantity)} ${MATERIAL_LABELS[inputState.casing.material] ?? inputState.casing.material}.` : ""}`);
   }
 }
@@ -13328,6 +13369,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getBaseAmmoDamage,
     getCasingDamageMultiplier,
     getCasingMachineMode,
+    switchCasingMachineMode,
     createInitialState,
     hydrateSavedState,
     createDeposit,
