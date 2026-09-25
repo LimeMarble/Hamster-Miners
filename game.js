@@ -1182,18 +1182,18 @@ const MACHINE_LAYOUT = Object.freeze({
     height: 3,
     orientation: "up",
     mode: "buckshot",
-    // The main line carries jacketed ammunition. Casing ingots enter through
-    // either side-center casing port and wait until both inputs are present.
+    // Ammo physically crosses input, transformer, and output tiles; linked
+    // casing liquid is consumed only when its transformer stack advances.
     internalConveyors: [
       { column: 0, row: 1, direction: "right", casingMachineSlot: "input" },
-      { column: 1, row: 1, direction: "right" },
-      { column: 2, row: 1, direction: "right", casingMachineSlot: "process" },
+      { column: 1, row: 1, direction: "right", casingMachineSlot: "process" },
+      { column: 2, row: 1, direction: "right" },
     ],
     liquidInputs: [
       { column: 1, row: 0, direction: "down" },
       { column: 1, row: 2, direction: "up" },
     ],
-    processLaneIndex: 2,
+    processLaneIndex: 1,
     movable: true,
   },
   gunDeposit: {
@@ -2019,7 +2019,6 @@ function createInitialState() {
     arcFurnaceInputs: {},
     arcFurnaceJobs: [],
     arcFurnaceOutputBuffers: {},
-    casingMachineInputs: {},
     stackerBuffers: {},
     moltenCopper: [],
     mine: {
@@ -2565,7 +2564,59 @@ function hydrateSavedState(savedState) {
   if (hydratedState.mine.unlockedTunnels.includes(3)) {
     hydratedState.mine.tunnelThreeRightsPurchased = true;
   }
+  migrateLegacyCasingMachineBuffers(hydratedState);
   return hydratedState;
+}
+
+function migrateLegacyCasingMachineBuffers(hydratedState) {
+  const legacyBuffers = hydratedState.casingMachineInputs;
+  if (!isSaveRecord(legacyBuffers)) {
+    delete hydratedState.casingMachineInputs;
+    return;
+  }
+
+  Object.values(legacyBuffers).forEach((inputState) => {
+    if (!isSaveRecord(inputState)) {
+      return;
+    }
+
+    const ammo = inputState.ammo;
+    const ammoQuantity = Number(ammo?.quantity ?? ammo?.count);
+    if (ammo?.kind === "ammo" && Number.isFinite(ammoQuantity) && ammoQuantity > 0) {
+      const { quantity: _legacyQuantity, ...ammoStack } = ammo;
+      const normalizedStack = {
+        ...ammoStack,
+        count: ammoQuantity,
+      };
+      hydratedState.ammoStacks = normalizeAmmoStacks([
+        ...hydratedState.ammoStacks,
+        normalizedStack,
+      ]);
+    }
+
+    const liquid = inputState.casing;
+    const liquidQuantity = Number(liquid?.quantity ?? 1);
+    if (!liquid || !Number.isFinite(liquidQuantity) || liquidQuantity <= 0) {
+      return;
+    }
+
+    const smelterInstanceId = liquid.smelterInstanceId ?? liquid.kilnInstanceId;
+    const existingLiquid = hydratedState.moltenCopper.find((candidate) => (
+      (candidate.smelterInstanceId ?? candidate.kilnInstanceId) === smelterInstanceId
+        && candidate.material === liquid.material
+    ));
+    if (existingLiquid) {
+      existingLiquid.quantity = Number(existingLiquid.quantity ?? 1) + liquidQuantity;
+    } else {
+      hydratedState.moltenCopper.push({
+        ...liquid,
+        ...(smelterInstanceId ? { smelterInstanceId, kilnInstanceId: smelterInstanceId } : {}),
+        quantity: liquidQuantity,
+      });
+    }
+  });
+
+  delete hydratedState.casingMachineInputs;
 }
 
 function loadSavedGame() {
@@ -2580,7 +2631,19 @@ function loadSavedGame() {
       return null;
     }
 
-    return hydrateSavedState(payload.state);
+    const hadLegacyCasingBuffers = isSaveRecord(payload.state?.casingMachineInputs);
+    const hydratedState = hydrateSavedState(payload.state);
+    if (hadLegacyCasingBuffers) {
+      try {
+        window.localStorage.setItem(getActiveSaveKey(), encodeSavePayload({
+          version: CONFIG.saveVersion,
+          state: hydratedState,
+        }));
+      } catch {
+        // The in-memory migration still succeeds if browser storage is full.
+      }
+    }
+    return hydratedState;
   } catch {
     return null;
   }
@@ -3802,7 +3865,9 @@ function findMoltenCopperIndex(kilnInstanceId) {
 
   // Entries from saves created before kiln outputs were tagged can still be
   // consumed by the connected machine.
-  return state.moltenCopper.findIndex((liquidMetal) => !liquidMetal.kilnInstanceId);
+  return state.moltenCopper.findIndex((liquidMetal) => (
+    !(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
+  ));
 }
 
 function getBulletCoreCasterKilnLink() {
@@ -4198,18 +4263,6 @@ function canReceiveConveyorItem(item, column, row) {
     return true;
   }
 
-  const casingInput = getFactoryConveyors()
-    .map(({ conveyor }) => conveyor)
-    .find((conveyor) => (
-      conveyor.column === column
-      && conveyor.row === row
-      && getCasingMachineInputForConveyor(conveyor)
-    ));
-  if (casingInput) {
-    const { machine } = getCasingMachineInputForConveyor(casingInput);
-    return canCasingMachineAcceptAmmoInput(machine, item);
-  }
-
   const stacker = getStackerAt(column, row);
   if (stacker && canStackerAcceptItem(stacker, item)) {
     return true;
@@ -4301,18 +4354,6 @@ function receiveConveyorItem(item, column, row) {
     }
     addLog(`Mini Electric Arc Furnace received ${formatNumber(acceptedQuantity)} ${MATERIAL_LABELS[item.material]}.`);
     return true;
-  }
-
-  const casingInput = getFactoryConveyors()
-    .map(({ conveyor }) => conveyor)
-    .find((conveyor) => (
-      conveyor.column === column
-      && conveyor.row === row
-      && getCasingMachineInputForConveyor(conveyor)
-    ));
-  if (casingInput) {
-    const { machine } = getCasingMachineInputForConveyor(casingInput);
-    return receiveCasingMachineItem(machine, item);
   }
 
   const stacker = getStackerAt(column, row);
@@ -4542,27 +4583,20 @@ function isMetalPressProcessConveyor(conveyor) {
   );
 }
 
-function getCasingMachineInputForConveyor(conveyor) {
-  if (!isInternalConveyor(conveyor) || conveyor.internalMachineId !== "casingMachine") {
-    return null;
-  }
-
-  const machine = getInternalConveyorMachine(conveyor);
-  const input = getInternalConveyorTiles(machine)[conveyor.internalIndex];
-  return input?.casingMachineSlot === "input"
-    ? { machine, input }
+function getCasingMachineForConveyor(conveyor) {
+  return isInternalConveyor(conveyor) && conveyor.internalMachineId === "casingMachine"
+    ? getInternalConveyorMachine(conveyor)
     : null;
 }
 
-function getCasingMachineInputState(machine) {
-  const existing = state.casingMachineInputs[machine.instanceId];
-  if (existing && isSaveRecord(existing)) {
-    return existing;
-  }
+function isCasingMachineInputConveyor(conveyor) {
+  return getCasingMachineForConveyor(conveyor)?.id === "casingMachine"
+    && conveyor.internalIndex === 0;
+}
 
-  const inputState = { ammo: null, casing: null };
-  state.casingMachineInputs[machine.instanceId] = inputState;
-  return inputState;
+function isCasingMachineProcessConveyor(conveyor) {
+  const machine = getCasingMachineForConveyor(conveyor);
+  return Boolean(machine && conveyor.internalIndex === getMachineProcessLaneIndex(machine));
 }
 
 function getCasingMaterial(material) {
@@ -4578,112 +4612,110 @@ function isJacketedAmmo(item) {
 }
 
 function canCasingMachineAcceptItem(machine, item) {
-  return canCasingMachineAcceptAmmoInput(machine, item);
-}
-
-function canCasingMachineAcceptAmmoInput(machine, item) {
   const quantity = Number(item?.quantity);
-  if (!machine || item?.kind !== "ammo" || !Number.isFinite(quantity) || quantity < 1) {
+  if (!machine
+    || machine.id !== "casingMachine"
+    || item?.kind !== "ammo"
+    || !Number.isFinite(quantity)
+    || quantity !== BUCKSHOT_INPUT_ROUNDS) {
     return false;
   }
 
-  const inputState = getCasingMachineInputState(machine);
   if ((item.type ?? "rapidfire") !== "rapidfire"
     || item.casingMaterial
     || (getCasingMachineMode(machine) === "buckshot" && !isJacketedAmmo(item))) {
     return false;
   }
 
-  return !inputState.ammo
-    || getCasingMachineAmmoIdentity(inputState.ammo) === getCasingMachineAmmoIdentity(item);
+  return true;
 }
 
-function getCasingMachineAmmoIdentity(item) {
-  const normalized = normalizeAmmoStack(item);
-  return [
-    normalized.type,
-    normalized.material,
-    normalized.coreMaterial ?? normalized.material,
-    normalized.jacketMaterial ?? "",
-    Number.isFinite(item.damage) ? item.damage : normalized.damage,
-    normalized.annealed === true,
-    isJacketedAmmo(normalized),
-  ].join("|");
+function getCasingMachineAvailableLiquid(machine) {
+  const link = getCasingMachineSmelterLink(machine);
+  let liquids = link
+    ? state.moltenCopper.filter((liquidMetal) => (
+      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === link.smelter.instanceId
+    ))
+    : [];
+  if (liquids.length === 0) {
+    liquids = state.moltenCopper.filter((liquidMetal) => (
+      !(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
+    ));
+  }
+  const supportedMaterial = liquids.find((liquidMetal) => getCasingMaterial(liquidMetal.material));
+  const material = supportedMaterial ? getCasingMaterial(supportedMaterial.material) : null;
+  liquids = material
+    ? liquids.filter((liquidMetal) => getCasingMaterial(liquidMetal.material) === material)
+    : [];
+  const liquid = supportedMaterial ?? null;
+  const quantity = liquids.reduce((total, liquidMetal) => (
+    total + Math.max(0, Number(liquidMetal.quantity ?? 1) || 0)
+  ), 0);
+  return {
+    link,
+    liquids,
+    liquid,
+    material,
+    quantity,
+  };
 }
 
-function receiveCasingMachineItem(machine, item) {
+function canCasingMachineProcessItem(machine, item) {
   if (!canCasingMachineAcceptItem(machine, item)) {
     return false;
   }
 
-  const inputState = getCasingMachineInputState(machine);
-  if (item.kind === "ammo") {
-    const quantity = Number(item.quantity);
-    if (inputState.ammo) {
-      inputState.ammo.quantity = Number(inputState.ammo.quantity) + quantity;
-    } else {
-      inputState.ammo = { ...item, quantity };
-    }
-    addLog(`Casing Machine buffered ${formatNumber(quantity)} jacketed rounds.`);
-  } else {
-    inputState.casing = { ...item, quantity: item.quantity };
-    addLog(`Casing Machine buffered one ${CASING_MATERIAL_LABELS[item.material] ?? item.material} ingot.`);
-  }
-  state.casingMachineInputs[machine.instanceId] = inputState;
-  return true;
+  const batchCount = Number(item.quantity) / BUCKSHOT_INPUT_ROUNDS;
+  const liquid = getCasingMachineAvailableLiquid(machine);
+  return Boolean(liquid.material && liquid.quantity >= batchCount);
 }
 
-function emitCasingMachineOutputs() {
-  getMachines("casingMachine").forEach((machine) => {
-    const inputState = getCasingMachineInputState(machine);
-    const processConveyor = getInternalConveyor(machine, getMachineProcessLaneIndex(machine));
-    if (!inputState.ammo
-      || Number(inputState.ammo.quantity) < BUCKSHOT_INPUT_ROUNDS
-      || !inputState.casing
-      || !processConveyor
-      || getConveyorItem(processConveyor)) {
-      return;
-    }
+function applyCasingMachineToItem(machine, item) {
+  if (!canCasingMachineProcessItem(machine, item)) {
+    return false;
+  }
 
-    const ammo = inputState.ammo;
-    const casing = inputState.casing;
-    const mode = getCasingMachineMode(machine);
-    const casingMaterial = getCasingMaterial(casing.material);
-    if (!casingMaterial) {
+  const { liquids, material: casingMaterial } = getCasingMachineAvailableLiquid(machine);
+  const batchCount = Number(item.quantity) / BUCKSHOT_INPUT_ROUNDS;
+  let liquidToConsume = batchCount;
+  liquids.forEach((liquid) => {
+    if (liquidToConsume <= 0) {
       return;
     }
-    const isBuckshot = mode === "buckshot";
-    const incomingDamage = Number.isFinite(ammo.damage)
-      ? ammo.damage
-      : normalizeAmmoStack(ammo).damage;
-    const output = {
-      kind: "ammo",
-      type: isBuckshot ? "buckshot" : "rapidfire",
-      material: ammo.material,
-      quantity: isBuckshot ? BUCKSHOT_OUTPUT_ROUNDS : BUCKSHOT_INPUT_ROUNDS,
-      damage: incomingDamage
-        * getCasingDamageMultiplier(casingMaterial)
-        * (isBuckshot ? BUCKSHOT_DAMAGE_MULTIPLIER : 1),
-      annealed: ammo.annealed === true,
-      coreMaterial: ammo.coreMaterial ?? ammo.material,
-      jacketMaterial: ammo.jacketMaterial,
-      casingMaterial,
-      jacketed: ammo.jacketed === true || Boolean(ammo.jacketMaterial),
-      dusted: false,
-    };
-    ammo.quantity -= BUCKSHOT_INPUT_ROUNDS;
-    casing.quantity -= 1;
-    inputState.ammo = ammo.quantity > 0 ? ammo : null;
-    inputState.casing = casing.quantity > 0 ? casing : null;
-    state.casingMachineInputs[machine.instanceId] = inputState;
-    placeItemOnConveyor(processConveyor, output);
-    const casingLabel = CASING_MATERIAL_LABELS[casing.material]
-      ?? CASING_MATERIAL_LABELS[`${casingMaterial}Ingot`]
-      ?? casingMaterial;
-    addLog(mode === "buckshot"
-      ? `Casing Machine formed ${BUCKSHOT_OUTPUT_ROUNDS} Buckshot rounds with a ${casingLabel} casing.`
-      : `Casing Machine formed ${BUCKSHOT_INPUT_ROUNDS} penetrating Rapidfire rounds with a ${casingLabel} casing.`);
+    const available = Math.max(0, Number(liquid.quantity ?? 1) || 0);
+    const consumed = Math.min(available, liquidToConsume);
+    const liquidLeft = available - consumed;
+    liquidToConsume -= consumed;
+    if (liquidLeft > 1e-9) {
+      liquid.quantity = liquidLeft;
+    } else {
+      liquid.quantity = 0;
+    }
   });
+  state.moltenCopper = state.moltenCopper.filter((liquid) => Number(liquid.quantity ?? 1) > 1e-9);
+
+  const mode = getCasingMachineMode(machine);
+  const isBuckshot = mode === "buckshot";
+  const incomingDamage = Number.isFinite(item.damage)
+    ? item.damage
+    : normalizeAmmoStack(item).damage;
+  item.type = isBuckshot ? "buckshot" : "rapidfire";
+  item.quantity = isBuckshot
+    ? batchCount * BUCKSHOT_OUTPUT_ROUNDS
+    : Number(item.quantity);
+  item.damage = incomingDamage
+    * getCasingDamageMultiplier(casingMaterial)
+    * (isBuckshot ? BUCKSHOT_DAMAGE_MULTIPLIER : 1);
+  item.casingMaterial = casingMaterial;
+  item.jacketed = isJacketedAmmo(item);
+  item.dusted = false;
+
+  const casingLabel = CASING_MATERIAL_LABELS[casingMaterial]
+    ?? casingMaterial;
+  addLog(isBuckshot
+    ? `Casing Machine formed ${formatNumber(item.quantity)} Buckshot rounds with a ${casingLabel} casing.`
+    : `Casing Machine formed ${formatNumber(item.quantity)} penetrating Rapidfire rounds with a ${casingLabel} casing.`);
+  return true;
 }
 
 function getStackerAt(column, row) {
@@ -4938,6 +4970,13 @@ function canItemLeaveConveyor(conveyor, item) {
     return canArcFurnaceAcceptInput(arcFurnaceInput.furnace, arcFurnaceInput.slot, item);
   }
 
+  if (isCasingMachineInputConveyor(conveyor)) {
+    return canCasingMachineAcceptItem(getCasingMachineForConveyor(conveyor), item);
+  }
+  if (isCasingMachineProcessConveyor(conveyor)) {
+    return canCasingMachineProcessItem(getCasingMachineForConveyor(conveyor), item);
+  }
+
   if (isBulletCoreCasterInputConveyor(conveyor)
     && state.mine.ammoShaperMode === "coated") {
     return item.kind === "material"
@@ -5008,6 +5047,11 @@ function transformItemLeavingConveyor(conveyor, item) {
     resetCashUpgraderEligibilityOnMaterialChange(item, sourceMaterial, wasSellable);
     return item;
   };
+
+  if (isCasingMachineProcessConveyor(conveyor)) {
+    applyCasingMachineToItem(getCasingMachineForConveyor(conveyor), item);
+    return item;
+  }
 
   if (isLeekFiberExtractorProcessConveyor(conveyor)) {
     if (item.kind === "material" && item.material === "leek") {
@@ -5294,12 +5338,9 @@ function getConveyorAdvanceDestination(conveyor, item) {
         ? { type: "receiver", destination }
         : null;
     }
-    const casingInput = getCasingMachineInputForConveyor(nextConveyor);
-    if (casingInput) {
-      return canConveyorFeedInto(conveyor, nextConveyor)
-        && canCasingMachineAcceptAmmoInput(casingInput.machine, item)
-        ? { type: "receiver", destination }
-        : null;
+    if (isCasingMachineInputConveyor(nextConveyor)
+      && !canCasingMachineAcceptItem(getCasingMachineForConveyor(nextConveyor), item)) {
+      return null;
     }
     if (isBulletCoreCasterInputConveyor(nextConveyor)
       && !canBulletCoreCasterAcceptItem(item)) {
@@ -6370,38 +6411,6 @@ function startJacketFormerCoating() {
   return started;
 }
 
-function startCasingMachineLiquid() {
-  let started = false;
-  getMachines("casingMachine").forEach((casingMachine) => {
-    const inputState = getCasingMachineInputState(casingMachine);
-    if (!inputState.ammo || inputState.casing) {
-      return;
-    }
-
-    const link = getCasingMachineSmelterLink(casingMachine);
-    if (!link) {
-      return;
-    }
-
-    const liquidMetalIndex = findMoltenCopperIndex(link.smelter.instanceId);
-    if (liquidMetalIndex < 0) {
-      return;
-    }
-
-    const liquidMetal = state.moltenCopper[liquidMetalIndex];
-    if (!getCasingMaterial(liquidMetal.material)) {
-      return;
-    }
-
-    state.moltenCopper.splice(liquidMetalIndex, 1);
-    inputState.casing = { ...liquidMetal, quantity: Math.max(1, liquidMetal.quantity ?? 1) };
-    state.casingMachineInputs[casingMachine.instanceId] = inputState;
-    addLog(`Casing Machine buffered ${formatNumber(inputState.casing.quantity)} liquid ${MATERIAL_LABELS[liquidMetal.material] ?? liquidMetal.material}.`);
-    started = true;
-  });
-  return started;
-}
-
 function startMolderJob() {
   let started = false;
   const castingMachines = [
@@ -7049,36 +7058,6 @@ function recoverFactoryEntitiesCargo(records) {
     setConveyorItem(conveyor, null);
     recovered.push(recoverFactoryItem(item));
   });
-  records
-    .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "casingMachine")
-    .forEach(({ object }) => {
-      const inputState = state.casingMachineInputs[object.instanceId];
-      if (!inputState) {
-        return;
-      }
-      if (inputState.ammo) {
-        addAmmo(
-          inputState.ammo.quantity,
-          inputState.ammo.material,
-          inputState.ammo.type,
-          inputState.ammo.damage,
-          inputState.ammo.annealed === true,
-          {
-            casingMaterial: inputState.ammo.casingMaterial,
-            jacketMaterial: inputState.ammo.jacketMaterial,
-            coreMaterial: inputState.ammo.coreMaterial,
-          },
-        );
-        recovered.push(`${formatNumber(inputState.ammo.quantity)} jacketed rounds`);
-      }
-      if (inputState.casing) {
-        state.stockpile[inputState.casing.material] = (
-          state.stockpile[inputState.casing.material] ?? 0
-        ) + inputState.casing.quantity;
-        recovered.push(`${formatNumber(inputState.casing.quantity)} ${MATERIAL_LABELS[inputState.casing.material] ?? inputState.casing.material}`);
-      }
-      delete state.casingMachineInputs[object.instanceId];
-    });
   records
     .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "ingotMolder")
     .forEach(({ object }) => {
@@ -8760,13 +8739,11 @@ function updateCrewOperatedMachines(deltaSeconds) {
   startMolderJob();
   startBulletCoreCasting();
   startJacketFormerCoating();
-  startCasingMachineLiquid();
   startArcFurnaceJobs();
   startKilnJobs();
 }
 
 function updateFactory(deltaSeconds) {
-  emitCasingMachineOutputs();
   advanceConveyorItems(deltaSeconds);
   flushMolderOutputs();
   flushArcFurnaceOutputs();
@@ -9253,6 +9230,21 @@ function getFactoryMachineProgressState(machine) {
     return "";
   }
 
+  const casingCargoState = machine.id === "casingMachine"
+    ? getInternalConveyorTiles(machine).map((_conveyor, index) => {
+      const item = getConveyorItem(getInternalConveyor(machine, index));
+      return item
+        ? `${index}:${item.kind}:${item.type ?? item.material}:${item.quantity}:${item.casingMaterial ?? ""}`
+        : `${index}:empty`;
+    }).join(",")
+    : "";
+  const casingLiquidState = machine.id === "casingMachine"
+    ? (() => {
+      const available = getCasingMachineAvailableLiquid(machine);
+      return `${available.material ?? ""}:${available.quantity}`;
+    })()
+    : "";
+
   return [
     state.dusterJob?.material ?? "",
     state.kilnJobs.map((job) => job.kilnInstanceId).join(","),
@@ -9266,10 +9258,8 @@ function getFactoryMachineProgressState(machine) {
     machine.stackSize ?? "",
     JSON.stringify(state.arcFurnaceInputs[machine.instanceId] ?? {}),
     JSON.stringify(state.stackerBuffers[machine.instanceId] ?? {}),
-    JSON.stringify(state.casingMachineInputs[machine.instanceId] ?? {}),
-    state.moltenCopper.some((liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
-    )),
+    casingCargoState,
+    casingLiquidState,
   ].join("|");
 }
 
@@ -9364,6 +9354,28 @@ function getMachineActionProgressNote(machine) {
         : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
   }
 
+  if (machine?.id === "casingMachine") {
+    const inputItem = getConveyorItem(getInternalConveyor(machine, 0));
+    const transformerItem = getConveyorItem(getInternalConveyor(machine, 1));
+    const outputItem = getConveyorItem(getInternalConveyor(machine, 2));
+    const liquid = getCasingMachineAvailableLiquid(machine);
+    if (transformerItem && !transformerItem.casingMaterial) {
+      const required = Number(transformerItem.quantity) / BUCKSHOT_INPUT_ROUNDS;
+      return !liquid.link
+        ? "Place either side-center liquid input against a smelter outlet."
+        : liquid.quantity < required
+          ? `Transformer waiting for ${formatNumber(required)} liquid ${liquid.material ?? "casing metal"} (${formatNumber(liquid.quantity)} available).`
+          : "Casing is ready; the completed stack will move onto the output lane.";
+    }
+    if (outputItem) {
+      return `Output lane carries ${formatNumber(outputItem.quantity)} ${outputItem.type === "buckshot" ? "Buckshot" : "cased Rapidfire"} rounds.`;
+    }
+    if (inputItem) {
+      return `Input lane carries ${formatNumber(inputItem.quantity)} Rapidfire rounds toward the transformer.`;
+    }
+    return "Waiting for a complete Rapidfire stack on the input conveyor.";
+  }
+
   return null;
 }
 
@@ -9373,6 +9385,7 @@ function updateMachineActionProgressNote(machine) {
     ingotMolder: "molder-progress",
     refractoryCaster: "refractory-caster-progress",
     miniElectricArcFurnace: "arc-furnace-progress",
+    casingMachine: "casing-machine-progress",
   }[machine?.id];
   if (!noteKey || !elements.machineActions) {
     return;
@@ -9790,10 +9803,10 @@ function renderMachineActions(machine) {
   }
 
   if (machine.id === "casingMachine") {
-    const inputState = getCasingMachineInputState(machine);
     const mode = getCasingMachineMode(machine);
-    const occupied = Boolean(inputState.ammo || inputState.casing)
-      || getInternalConveyorTiles(machine).some((conveyor) => getConveyorItem(conveyor));
+    const inputItem = getConveyorItem(getInternalConveyor(machine, 0));
+    const transformerItem = getConveyorItem(getInternalConveyor(machine, 1));
+    const outputItem = getConveyorItem(getInternalConveyor(machine, 2));
     [
       {
         value: "penetratingRapidfire",
@@ -9818,11 +9831,18 @@ function renderMachineActions(machine) {
         addMachineActionNote(`Selected: ${description}.`);
       }
     });
-    addMachineActionNote("No crew required. Buffers one Rapidfire ammunition stack on its main line and waits for liquid Bronze, Brass, or Steel through either side-center input.");
-    if (occupied) {
-      addMachineActionNote("Mode changes keep buffered inputs; those inputs will be processed using the newly selected mode.");
+    addMachineActionNote("No crew required. Ammo moves on the three physical conveyors; casing metal must arrive as liquid through either side-center input. Each 25 rounds uses 1 liquid unit.");
+    addMachineActionNote("Mode changes affect uncased ammo currently on the machine's conveyors.");
+    if (inputItem) {
+      addMachineActionNote(`Input conveyor: ${formatNumber(inputItem.quantity)} Rapidfire rounds.`);
     }
-    addMachineActionNote(`Bronze currently multiplies damage by ×3.${inputState.ammo ? ` Rapidfire buffered: ${formatNumber(inputState.ammo.quantity)}.` : ""}${inputState.casing ? ` Liquid casing buffered: ${formatNumber(inputState.casing.quantity)} ${MATERIAL_LABELS[inputState.casing.material] ?? inputState.casing.material}.` : ""}`);
+    if (transformerItem) {
+      addMachineActionNote(`Transformer: ${formatNumber(transformerItem.quantity)} uncased Rapidfire rounds.`);
+    }
+    if (outputItem) {
+      addMachineActionNote(`Output conveyor: ${formatNumber(outputItem.quantity)} ${outputItem.type === "buckshot" ? "Buckshot" : "cased Rapidfire"} rounds.`);
+    }
+    addMachineActionNote("Bronze currently multiplies damage by ×3.", "casing-machine-progress");
   }
 }
 
@@ -13420,7 +13440,6 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getJacketFormerKilnLink,
     getCasingMachineSmelterLink,
     startJacketFormerCoating,
-    startCasingMachineLiquid,
     getBusyCrew,
     getAvailableCrew,
     getHiredCrewCount,
@@ -13495,10 +13514,10 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     buyRapidfireGunMk1,
     selectGun,
     switchTunnel,
-    getCasingMachineInputState,
     canCasingMachineAcceptItem,
-    receiveCasingMachineItem,
-    emitCasingMachineOutputs,
+    canCasingMachineProcessItem,
+    applyCasingMachineToItem,
+    getCasingMachineAvailableLiquid,
     __setFactorySelection: (selection) => {
       selectedFactoryEntities = Array.isArray(selection) ? selection : [];
       selectedFactoryEntity = selectedFactoryEntities.length === 1

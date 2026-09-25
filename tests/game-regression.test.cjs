@@ -1855,10 +1855,10 @@ test("Casing Machine is a shop machine with the agreed buckshot cost and Jacket 
   });
   assert.deepEqual(game.MACHINE_LAYOUT.casingMachine.internalConveyors, [
     { column: 0, row: 1, direction: "right", casingMachineSlot: "input" },
-    { column: 1, row: 1, direction: "right" },
-    { column: 2, row: 1, direction: "right", casingMachineSlot: "process" },
+    { column: 1, row: 1, direction: "right", casingMachineSlot: "process" },
+    { column: 2, row: 1, direction: "right" },
   ]);
-  assert.equal(game.MACHINE_LAYOUT.casingMachine.processLaneIndex, 2);
+  assert.equal(game.MACHINE_LAYOUT.casingMachine.processLaneIndex, 1);
   assert.deepEqual(game.MACHINE_LAYOUT.casingMachine.liquidInputs, [
     { column: 1, row: 0, direction: "down" },
     { column: 1, row: 2, direction: "up" },
@@ -1872,7 +1872,7 @@ test("Casing Machine is a shop machine with the agreed buckshot cost and Jacket 
   assert.deepEqual(game.CASING_MATERIALS, ["bronzeIngot", "brassIngot", "steelIngot"]);
 });
 
-test("Casing Machine turns jacketed ammunition and liquid Bronze into Buckshot", () => {
+test("Casing Machine transforms physical jacketed ammo using linked liquid Bronze", () => {
   const casingMachine = machine("casingMachine", "casing-test", 5, 5, "up");
   const kiln = machine("clayKiln", "casing-kiln", 4, 5);
   const state = freshState({ machines: [casingMachine, kiln] });
@@ -1888,7 +1888,6 @@ test("Casing Machine turns jacketed ammunition and liquid Bronze into Buckshot",
     annealed: true,
   };
   assert.equal(game.canCasingMachineAcceptItem(casingMachine, jacketedAmmo), true);
-  assert.equal(game.receiveCasingMachineItem(casingMachine, jacketedAmmo), true);
   assert.equal(game.getCasingMachineSmelterLink(casingMachine)?.smelter.instanceId, kiln.instanceId);
   assert.equal(game.canCasingMachineAcceptItem(casingMachine, {
     kind: "material",
@@ -1901,16 +1900,104 @@ test("Casing Machine turns jacketed ammunition and liquid Bronze into Buckshot",
     material: "bronze",
     quantity: 1,
   });
-  assert.equal(game.startCasingMachineLiquid(), true);
-  game.emitCasingMachineOutputs();
+  const transformer = { ...game.getInternalConveyorTiles(casingMachine)[1], internalMachineId: "casingMachine", internalMachineInstanceId: casingMachine.instanceId, internalIndex: 1 };
+  state.internalConveyorItems[`${casingMachine.instanceId}:1`] = { ...jacketedAmmo };
+  assert.equal(game.canCasingMachineProcessItem(casingMachine, jacketedAmmo), true);
+  game.transformItemLeavingConveyor(transformer, state.internalConveyorItems[`${casingMachine.instanceId}:1`]);
 
-  const output = state.internalConveyorItems[`${casingMachine.instanceId}:2`];
+  const output = state.internalConveyorItems[`${casingMachine.instanceId}:1`];
   assert.equal(output.type, "buckshot");
   assert.equal(output.quantity, 5);
   assert.equal(output.damage, 25.5);
   assert.equal(output.casingMaterial, "bronze");
   assert.equal(output.annealed, true);
+  assert.equal(state.moltenCopper.length, 0);
+  assert.equal(Object.hasOwn(state, "casingMachineInputs"), false);
   assert.equal(game.getSelectedGun(), "rapidfire");
+});
+
+test("Casing Machine waits physically on the transformer until enough liquid arrives", () => {
+  const casingMachine = machine("casingMachine", "casing-update-cycle-test", 5, 5, "up");
+  const kiln = machine("clayKiln", "casing-update-kiln", 4, 5);
+  const state = freshState({ machines: [casingMachine, kiln] });
+  const ammo = {
+    kind: "ammo",
+    type: "rapidfire",
+    material: "lead",
+    quantity: 25,
+    damage: 17,
+    coreMaterial: "lead",
+    jacketMaterial: "nativeCopper",
+    jacketed: true,
+    annealed: true,
+  };
+  const transformer = { ...game.getInternalConveyorTiles(casingMachine)[1], internalMachineId: "casingMachine", internalMachineInstanceId: casingMachine.instanceId, internalIndex: 1 };
+  state.internalConveyorItems[`${casingMachine.instanceId}:1`] = { ...ammo };
+  state.moltenCopper.push({
+    kilnInstanceId: kiln.instanceId,
+    smelterInstanceId: kiln.instanceId,
+    material: "bronze",
+    quantity: 0.5,
+  });
+  assert.equal(game.canItemLeaveConveyor(transformer, ammo), false);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`].quantity, 25);
+  state.moltenCopper[0].quantity = 1;
+  assert.equal(game.canItemLeaveConveyor(transformer, ammo), true);
+  game.transformItemLeavingConveyor(transformer, state.internalConveyorItems[`${casingMachine.instanceId}:1`]);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`].casingMaterial, "bronze");
+  assert.equal(state.moltenCopper.length, 0);
+});
+
+test("Arc Furnace and physical ammo belt feed the Casing Machine and its output reaches the outlet", () => {
+  const furnace = machine("miniElectricArcFurnace", "casing-e2e-furnace", 2, 2, "right");
+  furnace.mode = "alloy2";
+  const casingMachine = machine("casingMachine", "casing-e2e-machine", 5, 2, "up");
+  const ammo = {
+    kind: "ammo",
+    type: "rapidfire",
+    material: "lead",
+    quantity: 25,
+    damage: 17,
+    coreMaterial: "lead",
+    jacketMaterial: "nativeCopper",
+    jacketed: true,
+    tileProgress: 1,
+  };
+  const ammoFeeder = { column: 6, row: 5, direction: "up", item: ammo };
+  const outputBelt = { column: 6, row: 1, direction: "up", item: null };
+  const state = freshState({
+    machines: [furnace, casingMachine],
+    placedConveyors: [ammoFeeder, outputBelt],
+    crew: { total: 1 },
+    arcFurnaceInputs: {
+      [furnace.instanceId]: {
+        primary: [{ kind: "material", material: "copperIngot", quantity: 5 }],
+        secondary: [{ kind: "material", material: "tinIngot", quantity: 1 }],
+        tertiary: [],
+      },
+    },
+  });
+  assert.equal(game.getCasingMachineSmelterLink(casingMachine)?.smelter.instanceId, furnace.instanceId);
+
+  game.update(0);
+  assert.equal(ammoFeeder.item, null);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:0`]?.quantity, 25);
+  assert.equal(state.arcFurnaceJobs.length, 1);
+  game.update(2);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`]?.quantity, 25);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`]?.casingMaterial, undefined);
+  game.update(12);
+
+  const output = state.internalConveyorItems[`${casingMachine.instanceId}:2`];
+  assert.equal(output?.type, "buckshot");
+  assert.equal(output?.quantity, 5);
+  assert.equal(output?.casingMaterial, "bronze");
+  assert.equal(state.moltenCopper[0]?.quantity, 5);
+  assert.equal(Object.hasOwn(state, "casingMachineInputs"), false);
+
+  game.update(1);
+  assert.equal(outputBelt.item?.type, "buckshot");
+  assert.equal(outputBelt.item?.quantity, 5);
 });
 
 test("Casing Machine accepts legacy jacketed Rapidfire cargo without an explicit type", () => {
@@ -1928,7 +2015,7 @@ test("Casing Machine accepts legacy jacketed Rapidfire cargo without an explicit
   }), true);
 });
 
-test("Casing Machine merges matching jacketed ammo stacks and waits for a full Buckshot batch", () => {
+test("Casing Machine has no hidden ammo buffer and rejects partial or invalid stacks", () => {
   const casingMachine = machine("casingMachine", "casing-partial-stack-test", 5, 5, "up");
   const state = freshState({ machines: [casingMachine] });
   const ammo = {
@@ -1943,28 +2030,22 @@ test("Casing Machine merges matching jacketed ammo stacks and waits for a full B
     annealed: true,
   };
 
-  assert.equal(game.canCasingMachineAcceptItem(casingMachine, ammo), true);
-  assert.equal(game.receiveCasingMachineItem(casingMachine, ammo), true);
-  state.casingMachineInputs[casingMachine.instanceId].casing = {
-    material: "bronze",
-    quantity: 1,
-  };
-  game.emitCasingMachineOutputs();
-  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:2`], undefined);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.quantity, 12);
-
-  const matchingAmmo = { ...ammo, quantity: 13 };
-  assert.equal(game.canCasingMachineAcceptItem(casingMachine, matchingAmmo), true);
-  assert.equal(game.receiveCasingMachineItem(casingMachine, matchingAmmo), true);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.quantity, 25);
-
-  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...matchingAmmo, damage: 18 }), false);
-  game.emitCasingMachineOutputs();
-  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:2`].quantity, 5);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo, null);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, ammo), false);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...ammo, quantity: 25 }), true);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...ammo, quantity: 26 }), false);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...ammo, quantity: 50 }), false);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...ammo, quantity: 400 }), false);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, { ...ammo, quantity: 25, casingMaterial: "bronze" }), false);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, {
+    ...ammo,
+    quantity: 25,
+    jacketMaterial: undefined,
+    jacketed: false,
+  }), false);
+  assert.equal(Object.hasOwn(state, "casingMachineInputs"), false);
 });
 
-test("Casing Machine can switch modes while preserving buffered inputs", () => {
+test("Casing Machine can switch modes while its cargo remains on the physical line", () => {
   const casingMachine = machine("casingMachine", "casing-mode-switch-test", 5, 5, "up");
   const state = freshState({ machines: [casingMachine] });
   const ammo = {
@@ -1977,13 +2058,14 @@ test("Casing Machine can switch modes while preserving buffered inputs", () => {
     jacketMaterial: "nativeCopper",
     jacketed: true,
   };
-  assert.equal(game.receiveCasingMachineItem(casingMachine, ammo), true);
+  state.internalConveyorItems[`${casingMachine.instanceId}:0`] = { ...ammo };
 
   assert.equal(game.switchCasingMachineMode(casingMachine, "penetratingRapidfire"), true);
   assert.equal(game.getCasingMachineMode(casingMachine), "penetratingRapidfire");
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.quantity, 12);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:0`].quantity, 12);
+  assert.equal(game.canCasingMachineAcceptItem(casingMachine, ammo), false);
   assert.equal(game.switchCasingMachineMode(casingMachine, "buckshot"), true);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.quantity, 12);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:0`].quantity, 12);
   assert.equal(game.switchCasingMachineMode(casingMachine, "unknown"), false);
 });
 
@@ -2004,13 +2086,13 @@ test("Jacketed ammo routes from a factory belt into the Casing Machine input", (
   const state = freshState({ machines: [casingMachine], placedConveyors: [feeder] });
 
   const destination = game.getConveyorAdvanceDestination(feeder, ammo);
-  assert.equal(destination.type, "receiver");
+  assert.equal(destination.type, "conveyor");
   assert.deepEqual(destination.destination, { column: 6, row: 7 });
   game.advanceConveyorItems(0.1);
 
   assert.equal(feeder.item, null);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.quantity, 25);
-  assert.equal(state.casingMachineInputs[casingMachine.instanceId].ammo.jacketMaterial, "nativeCopper");
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:0`].quantity, 25);
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:0`].jacketMaterial, "nativeCopper");
 });
 
 test("Casing Machine penetrating rapidfire mode keeps the stack and triples Bronze-cased damage", () => {
@@ -2030,43 +2112,65 @@ test("Casing Machine penetrating rapidfire mode keeps the stack and triples Bron
     annealed: true,
   };
   assert.equal(game.canCasingMachineAcceptItem(casingMachine, rapidfireAmmo), true);
-  assert.equal(game.receiveCasingMachineItem(casingMachine, rapidfireAmmo), true);
+  const transformer = { ...game.getInternalConveyorTiles(casingMachine)[1], internalMachineId: "casingMachine", internalMachineInstanceId: casingMachine.instanceId, internalIndex: 1 };
+  state.internalConveyorItems[`${casingMachine.instanceId}:1`] = { ...rapidfireAmmo };
   state.moltenCopper.push({
     kilnInstanceId: kiln.instanceId,
     smelterInstanceId: kiln.instanceId,
     material: "bronze",
     quantity: 1,
   });
-  assert.equal(game.startCasingMachineLiquid(), true);
-  game.emitCasingMachineOutputs();
+  assert.equal(game.canCasingMachineProcessItem(casingMachine, rapidfireAmmo), true);
+  game.transformItemLeavingConveyor(transformer, state.internalConveyorItems[`${casingMachine.instanceId}:1`]);
 
-  const output = state.internalConveyorItems[`${casingMachine.instanceId}:2`];
+  const output = state.internalConveyorItems[`${casingMachine.instanceId}:1`];
   assert.equal(output.type, "rapidfire");
   assert.equal(output.quantity, 25);
   assert.equal(output.damage, 51);
   assert.equal(output.casingMaterial, "bronze");
   assert.equal(output.annealed, true);
-
-  game.addAmmo(output.quantity, output.material, output.type, output.damage, output.annealed, {
-    casingMaterial: output.casingMaterial,
-    jacketMaterial: output.jacketMaterial,
-    coreMaterial: output.coreMaterial,
-  });
-  state.mine.rapidfireGunMk1Purchased = true;
-  state.mine.selectedGun = "rapidfire";
-  state.mine.selectedAmmoGunType = "rapidfire";
-  state.mine.selectedAmmoMaterial = "lead";
-  state.mine.selectedAmmoCoreMaterial = "lead";
-  state.mine.selectedAmmoCasingMaterial = "bronze";
-  state.mine.selectedAmmoJacketMaterial = "nativeCopper";
-  state.mine.selectedAmmoDamage = state.ammoStacks[0].damage;
-  state.mine.selectedAmmoAnnealed = true;
-  assert.equal(game.getSelectedAmmoStack()?.count, 25);
+  assert.equal(state.moltenCopper.length, 0);
 
   const saved = game.createInitialState();
   saved.machines.push(casingMachine);
   const hydrated = game.hydrateSavedState(saved);
   assert.equal(hydrated.machines.find(({ instanceId }) => instanceId === casingMachine.instanceId).mode, "penetratingRapidfire");
+});
+
+test("legacy Casing Machine buffers migrate back to ammo inventory and smelter liquid", () => {
+  const casingMachine = machine("casingMachine", "casing-legacy-buffer-machine", 5, 5, "up");
+  const kiln = machine("clayKiln", "casing-legacy-buffer-kiln", 4, 5);
+  const saved = game.createInitialState();
+  saved.machines = [casingMachine, kiln];
+  saved.casingMachineInputs = {
+    [casingMachine.instanceId]: {
+      ammo: {
+        kind: "ammo",
+        type: "rapidfire",
+        material: "lead",
+        quantity: 400,
+        damage: 5,
+        coreMaterial: "lead",
+        jacketMaterial: "nativeCopper",
+        jacketed: true,
+      },
+      casing: {
+        kilnInstanceId: kiln.instanceId,
+        smelterInstanceId: kiln.instanceId,
+        material: "bronze",
+        quantity: 16,
+      },
+    },
+  };
+
+  const hydrated = game.hydrateSavedState(saved);
+  const restoredAmmo = hydrated.ammoStacks.find((stack) => (
+    stack.type === "rapidfire" && stack.material === "lead" && stack.jacketMaterial === "nativeCopper"
+  ));
+  const restoredLiquid = hydrated.moltenCopper.find((liquid) => liquid.smelterInstanceId === kiln.instanceId);
+  assert.equal(restoredAmmo?.count, 400);
+  assert.equal(restoredLiquid?.quantity, 16);
+  assert.equal(Object.hasOwn(hydrated, "casingMachineInputs"), false);
 });
 
 test("Tunnel 1 Band 20 unlocks Rapidfire Gun Mk. 1 and makes it a Buckshot prerequisite", () => {
