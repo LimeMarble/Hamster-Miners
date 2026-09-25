@@ -3913,16 +3913,16 @@ function getJacketFormerKilnLink(jacketFormer = getMachine("jacketFormer")) {
   }).find(Boolean) ?? null;
 }
 
-function getCasingMachineSmelterLink(casingMachine = getMachine("casingMachine")) {
+function getCasingMachineSmelterLinks(casingMachine = getMachine("casingMachine")) {
   if (!casingMachine) {
-    return null;
+    return [];
   }
 
   const casingInputs = getMachinePorts(casingMachine, "liquidInputs");
-  return [...getMachines("clayKiln"), ...getMachines("miniElectricArcFurnace")].map((smelter) => {
+  return [...getMachines("clayKiln"), ...getMachines("miniElectricArcFurnace")].flatMap((smelter) => {
     const smelterOutput = getMachinePort(smelter, "liquidOutput");
     if (!smelterOutput?.direction) {
-      return null;
+      return [];
     }
 
     const direction = DIRECTION_VECTORS[smelterOutput.direction];
@@ -3930,8 +3930,12 @@ function getCasingMachineSmelterLink(casingMachine = getMachine("casingMachine")
       smelterOutput.column + direction.column === input.column
         && smelterOutput.row + direction.row === input.row
     ));
-    return casingInput ? { smelter, smelterOutput, casingInput } : null;
-  }).find(Boolean) ?? null;
+    return casingInput ? [{ smelter, smelterOutput, casingInput }] : [];
+  });
+}
+
+function getCasingMachineSmelterLink(casingMachine = getMachine("casingMachine")) {
+  return getCasingMachineSmelterLinks(casingMachine)[0] ?? null;
 }
 
 function isBulletCoreCasterLinkedToKiln() {
@@ -4631,10 +4635,11 @@ function canCasingMachineAcceptItem(machine, item) {
 }
 
 function getCasingMachineAvailableLiquid(machine) {
-  const link = getCasingMachineSmelterLink(machine);
-  let liquids = link
+  const links = getCasingMachineSmelterLinks(machine);
+  const linkedSmelterIds = new Set(links.map(({ smelter }) => smelter.instanceId));
+  let liquids = linkedSmelterIds.size > 0
     ? state.moltenCopper.filter((liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === link.smelter.instanceId
+      linkedSmelterIds.has(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
     ))
     : [];
   if (liquids.length === 0) {
@@ -4642,7 +4647,10 @@ function getCasingMachineAvailableLiquid(machine) {
       !(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
     ));
   }
-  const supportedMaterial = liquids.find((liquidMetal) => getCasingMaterial(liquidMetal.material));
+  const supportedMaterial = liquids.find((liquidMetal) => (
+    getCasingMaterial(liquidMetal.material)
+      && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
+  ));
   const material = supportedMaterial ? getCasingMaterial(supportedMaterial.material) : null;
   liquids = material
     ? liquids.filter((liquidMetal) => getCasingMaterial(liquidMetal.material) === material)
@@ -4652,7 +4660,8 @@ function getCasingMachineAvailableLiquid(machine) {
     total + Math.max(0, Number(liquidMetal.quantity ?? 1) || 0)
   ), 0);
   return {
-    link,
+    link: links[0] ?? null,
+    links,
     liquids,
     liquid,
     material,

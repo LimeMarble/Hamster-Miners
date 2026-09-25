@@ -1948,6 +1948,42 @@ test("Casing Machine waits physically on the transformer until enough liquid arr
   assert.equal(state.moltenCopper.length, 0);
 });
 
+test("Casing Machine checks both liquid ports when Bronze comes from the second smelter", () => {
+  const casingMachine = machine("casingMachine", "casing-two-sources-machine", 5, 2, "up");
+  const idleKiln = machine("clayKiln", "casing-two-sources-idle-kiln", 4, 2, "right");
+  const bronzeFurnace = machine("miniElectricArcFurnace", "casing-two-sources-bronze-furnace", 8, 2, "left");
+  const state = freshState({ machines: [casingMachine, idleKiln, bronzeFurnace] });
+  const ammo = {
+    kind: "ammo",
+    type: "rapidfire",
+    material: "lead",
+    quantity: 25,
+    damage: 17,
+    coreMaterial: "lead",
+    jacketMaterial: "nativeCopper",
+    jacketed: true,
+  };
+  const processConveyor = {
+    ...game.getInternalConveyorTiles(casingMachine)[1],
+    internalMachineId: "casingMachine",
+    internalMachineInstanceId: casingMachine.instanceId,
+    internalIndex: 1,
+  };
+  state.internalConveyorItems[`${casingMachine.instanceId}:1`] = { ...ammo };
+  state.moltenCopper.push({
+    smelterInstanceId: bronzeFurnace.instanceId,
+    material: "bronze",
+    quantity: 1,
+  });
+
+  assert.equal(game.getCasingMachineSmelterLink(casingMachine)?.smelter.instanceId, idleKiln.instanceId);
+  assert.equal(game.canCasingMachineProcessItem(casingMachine, ammo), true);
+  game.transformItemLeavingConveyor(processConveyor, state.internalConveyorItems[`${casingMachine.instanceId}:1`]);
+
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`].casingMaterial, "bronze");
+  assert.equal(state.moltenCopper.length, 0);
+});
+
 test("Arc Furnace and physical ammo belt feed the Casing Machine and its output reaches the outlet", () => {
   const furnace = machine("miniElectricArcFurnace", "casing-e2e-furnace", 2, 2, "right");
   furnace.mode = "alloy2";
