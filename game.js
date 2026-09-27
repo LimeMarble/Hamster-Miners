@@ -6250,7 +6250,7 @@ function completeKilnJob(job) {
     sourceValueIsEffective: job.sourceValueIsEffective === true,
     quantity: job.quantity ?? 1,
   });
-  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, or Bullet Core Caster.`);
+  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`);
 }
 
 function startArcFurnaceJobs() {
@@ -6758,7 +6758,7 @@ function recoverFactoryItem(item) {
       sourceValueIsEffective: item.sourceValueIsEffective === true,
       quantity: item.quantity ?? 1,
     });
-    return "liquid copper";
+    return `liquid ${MATERIAL_LABELS[item.material] ?? item.material ?? "metal"}`;
   }
 
   return "cargo";
@@ -9276,13 +9276,17 @@ function getMachineActionProgressNote(machine) {
   if (machine?.id === "clayKiln") {
     const kilnJob = state.kilnJobs.find((job) => job.kilnInstanceId === machine.instanceId);
     const hasInput = state.kilnInputs.some((input) => input.kilnInstanceId === machine.instanceId);
-    const blockedByLiquid = state.moltenCopper.some((liquidMetal) => (
-      liquidMetal.kilnInstanceId === machine.instanceId
+    const kilnLiquids = state.moltenCopper.filter((liquidMetal) => (
+      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
+        && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
     ));
+    const liquidLabels = [...new Set(kilnLiquids.map(({ material }) => (
+      MATERIAL_LABELS[material] ?? material ?? "unknown metal"
+    )))];
     return kilnJob
       ? `Smelting: ${formatNumber(kilnJob.secondsRemaining)}s · 2 crew assigned.`
-      : blockedByLiquid
-        ? "Liquid copper is waiting for an adjacent Ingot Molder, Refractory Caster, or Bullet Core Caster."
+      : liquidLabels.length > 0
+        ? `${liquidLabels.length === 1 ? `Liquid ${liquidLabels[0]} is` : `Liquid metals (${liquidLabels.join(", ")}) are`} waiting for an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`
         : !hasInput
           ? "Waiting for a low-melting metal at its centre input."
           : getAvailableCrew() < 2
@@ -13527,6 +13531,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     canCasingMachineProcessItem,
     applyCasingMachineToItem,
     getCasingMachineAvailableLiquid,
+    getMachineActionProgressNote,
     __setFactorySelection: (selection) => {
       selectedFactoryEntities = Array.isArray(selection) ? selection : [];
       selectedFactoryEntity = selectedFactoryEntities.length === 1

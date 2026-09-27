@@ -1948,6 +1948,57 @@ test("Casing Machine waits physically on the transformer until enough liquid arr
   assert.equal(state.moltenCopper.length, 0);
 });
 
+test("Casing Machine consumes Bronze emitted by its connected Clay Kiln", () => {
+  const casingMachine = machine("casingMachine", "casing-kiln-output-machine", 5, 2, "up");
+  const kiln = machine("clayKiln", "casing-kiln-output-source", 4, 2, "right");
+  const state = freshState({
+    machines: [casingMachine, kiln],
+    crew: { total: 2 },
+    kilnJobs: [{
+      kilnInstanceId: kiln.instanceId,
+      material: "bronzeIngot",
+      sourceMaterial: "bronzeIngot",
+      sourceValue: 300,
+      sourceValueIsEffective: true,
+      quantity: 1,
+      secondsRemaining: 1,
+    }],
+  });
+  const ammo = {
+    kind: "ammo",
+    type: "rapidfire",
+    material: "lead",
+    quantity: 25,
+    damage: 17,
+    coreMaterial: "lead",
+    jacketMaterial: "nativeCopper",
+    jacketed: true,
+  };
+  const processConveyor = {
+    ...game.getInternalConveyorTiles(casingMachine)[1],
+    internalMachineId: "casingMachine",
+    internalMachineInstanceId: casingMachine.instanceId,
+    internalIndex: 1,
+  };
+  state.internalConveyorItems[`${casingMachine.instanceId}:1`] = { ...ammo };
+
+  game.updateCrewOperatedMachines(1);
+
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].material, "bronze");
+  assert.equal(state.moltenCopper[0].kilnInstanceId, kiln.instanceId);
+  assert.equal(
+    game.getMachineActionProgressNote(kiln),
+    "Liquid Bronze is waiting for an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.",
+  );
+  assert.equal(game.getCasingMachineAvailableLiquid(casingMachine).quantity, 1);
+  assert.equal(game.canCasingMachineProcessItem(casingMachine, ammo), true);
+  game.transformItemLeavingConveyor(processConveyor, state.internalConveyorItems[`${casingMachine.instanceId}:1`]);
+
+  assert.equal(state.internalConveyorItems[`${casingMachine.instanceId}:1`].casingMaterial, "bronze");
+  assert.equal(state.moltenCopper.length, 0);
+});
+
 test("Casing Machine checks both liquid ports when Bronze comes from the second smelter", () => {
   const casingMachine = machine("casingMachine", "casing-two-sources-machine", 5, 2, "up");
   const idleKiln = machine("clayKiln", "casing-two-sources-idle-kiln", 4, 2, "right");
