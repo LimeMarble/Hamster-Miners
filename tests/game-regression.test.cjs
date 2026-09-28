@@ -1427,6 +1427,31 @@ test("Mini Electric Arc Furnace single smelting accepts a stack and processes on
   assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 4);
 });
 
+test("Mini Electric Arc Furnace remelts Bronze Ingots as liquid Bronze and labels its output", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-bronze-remelt", 2, 2);
+  const state = freshState({
+    machines: [furnace],
+    crew: { total: 1 },
+    arcFurnaceInputs: {
+      [furnace.instanceId]: {
+        primary: [{ kind: "material", material: "bronzeIngot", quantity: 1, saleValueBase: 25 }],
+        secondary: [],
+        tertiary: [],
+      },
+    },
+    arcFurnaceJobs: [],
+    moltenCopper: [],
+  });
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].material, "bronze");
+  game.updateCrewOperatedMachines(2);
+
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].material, "bronze");
+  assert.equal(game.getMachineActionProgressNote(furnace), "Liquid output at outlet: Bronze 1.");
+});
+
 test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four seconds", () => {
   const furnace = machine("miniElectricArcFurnace", "eaf-iron", 2, 2);
   const molder = machine("ingotMolder", "molder-iron", 5, 2);
@@ -1640,6 +1665,35 @@ test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier"
     bronzeStampUses: 2,
     bronzePillarsUses: 1,
   });
+});
+
+test("Clay Kiln remelting preserves Bronze through the connected Ingot Molder", () => {
+  const kiln = machine("clayKiln", "kiln-bronze-roundtrip", 2, 2);
+  const molder = machine("ingotMolder", "molder-bronze-roundtrip", 3, 2);
+  const state = freshState({
+    machines: [kiln, molder],
+    crew: { total: 3 },
+    kilnInputs: [],
+  });
+  const bronzeIngot = {
+    kind: "material",
+    material: "bronzeIngot",
+    quantity: 1,
+    saleValueBase: 25,
+    bronzeStampUses: 2,
+    bronzePillarsUses: 1,
+  };
+
+  assert.equal(game.canReceiveConveyorItem(bronzeIngot, 2, 3), true);
+  assert.equal(game.receiveConveyorItem(bronzeIngot, 2, 3), true);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.kilnJobs[0].material, "bronzeIngot");
+
+  game.updateCrewOperatedMachines(5);
+  assert.equal(state.molderJobs[0].material, "bronze");
+
+  game.updateCrewOperatedMachines(2);
+  assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "bronzeIngot");
 });
 
 test("same-product remelting preserves cash upgrader uses, while a new ingot type resets them", () => {

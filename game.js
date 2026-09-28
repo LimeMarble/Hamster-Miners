@@ -9357,11 +9357,26 @@ function getMachineActionProgressNote(machine) {
     const job = state.arcFurnaceJobs.find((candidate) => (
       candidate.furnaceInstanceId === machine.instanceId
     ));
+    const bufferedLiquids = state.moltenCopper.filter((liquidMetal) => (
+      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
+        && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
+    ));
+    const bufferedByMaterial = new Map();
+    bufferedLiquids.forEach(({ material, quantity }) => {
+      bufferedByMaterial.set(
+        material,
+        (bufferedByMaterial.get(material) ?? 0) + Math.max(0, Number(quantity ?? 1) || 0),
+      );
+    });
     const mode = getArcFurnaceMode(machine);
     const recipeOption = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode);
     const alloyRecipe = ARC_FURNACE_RECIPES[mode];
     return job
       ? `Processing ${recipeOption?.label ?? "metal"}: ${formatNumber(job.secondsRemaining)}s · 1 crew assigned.`
+      : bufferedByMaterial.size > 0
+        ? `Liquid output at outlet: ${[...bufferedByMaterial.entries()]
+          .map(([material, quantity]) => `${MATERIAL_LABELS[material] ?? material ?? "unknown metal"} ${formatNumber(quantity)}`)
+          .join(", ")}.`
       : alloyRecipe
         ? `Selected recipe: ${alloyRecipe.description}. Uses 1 crew and takes ${alloyRecipe.inputCount * 2} seconds per batch.`
         : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
@@ -9776,7 +9791,7 @@ function renderMachineActions(machine) {
     addMachineActionNote("Recipes can always be changed. Switching discards this furnace's buffered inputs and liquid output, and cancels its in-progress batch; completed Ceramic output is kept.");
     const outlet = getMachinePort(machine, "liquidOutput");
     if (outlet?.direction) {
-      addMachineActionNote(`Its output feeds the adjacent tile ${outlet.direction}. Liquid metals go to an Ingot Molder; fired Ceramic goes to a conveyor.`);
+      addMachineActionNote(`Its output feeds the adjacent tile ${outlet.direction}. Liquid metal can feed an Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine; fired Ceramic goes to a conveyor.`);
       addMachineActionNote("Place an Ingot Molder input/output tile directly beside it with the same facing for liquid metal recipes.");
     }
   }
