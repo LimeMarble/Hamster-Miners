@@ -582,42 +582,54 @@ function startBulletCoreCasting() {
     return false;
   }
 
-  const caster = getMachine("ammoShaper");
-  const processConveyor = caster
-    ? getInternalConveyor(caster, getMachineProcessLaneIndex(caster))
-    : null;
-  const link = getBulletCoreCasterKilnLink();
-  if (!caster || !processConveyor || !link) {
-    return false;
-  }
+  let started = false;
+  getMachines("ammoShaper").forEach((caster) => {
+    const processConveyor = getInternalConveyor(
+      caster,
+      getMachineProcessLaneIndex(caster),
+    );
+    const link = getBulletCoreCasterKilnLink(caster);
+    const processItem = processConveyor ? getConveyorItem(processConveyor) : null;
+    if (!link
+      || !processItem
+      || processItem.kind !== "material"
+      || processItem.material !== "leek"
+      || processItem.metalMaterial) {
+      return;
+    }
 
-  const processItem = getConveyorItem(processConveyor);
-  if (!processItem || processItem.kind !== "material" || processItem.material !== "leek") {
-    return false;
-  }
+    const liquidMetalIndex = findMoltenCopperIndex(link.kiln.instanceId);
+    if (liquidMetalIndex < 0) {
+      return;
+    }
 
-  if (processItem.metalMaterial) {
-    return false;
-  }
+    const liquidMetal = state.moltenCopper[liquidMetalIndex];
+    if (!canBulletCoreCasterAcceptItem({
+      kind: "liquidMetal",
+      material: liquidMetal.material,
+    })) {
+      return;
+    }
 
-  const liquidMetalIndex = findMoltenCopperIndex(link.kiln.instanceId);
-  if (liquidMetalIndex < 0) {
-    return false;
-  }
+    const requiredQuantity = Math.max(0, Number(processItem.quantity ?? 1) || 0);
+    const availableQuantity = Math.max(0, Number(liquidMetal.quantity ?? 1) || 0);
+    if (requiredQuantity <= 0 || availableQuantity + 1e-9 < requiredQuantity) {
+      return;
+    }
 
-  const liquidMetal = state.moltenCopper.splice(liquidMetalIndex, 1)[0];
-  if (!canBulletCoreCasterAcceptItem({
-    kind: "liquidMetal",
-    material: liquidMetal.material,
-  })) {
-    state.moltenCopper.splice(liquidMetalIndex, 0, liquidMetal);
-    return false;
-  }
+    const remainingQuantity = availableQuantity - requiredQuantity;
+    if (remainingQuantity > 1e-9) {
+      liquidMetal.quantity = remainingQuantity;
+    } else {
+      state.moltenCopper.splice(liquidMetalIndex, 1);
+    }
 
-  processItem.metalMaterial = liquidMetal.material;
-  processItem.kilnInstanceId = liquidMetal.kilnInstanceId;
-  addLog(`Bullet Core Caster reinforced one leek core with liquid ${MATERIAL_LABELS[liquidMetal.material]}.`);
-  return true;
+    processItem.metalMaterial = liquidMetal.material;
+    processItem.kilnInstanceId = getMoltenMetalOwnerInstanceId(liquidMetal);
+    addLog(`Bullet Core Caster reinforced ${formatNumber(requiredQuantity)} leek core${requiredQuantity === 1 ? "" : "s"} with liquid ${MATERIAL_LABELS[liquidMetal.material]}.`);
+    started = true;
+  });
+  return started;
 }
 
 function startJacketFormerCoating() {

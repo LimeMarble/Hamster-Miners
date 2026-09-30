@@ -2464,8 +2464,8 @@ function createFactoryInteractions(scene) {
 }
 
 function getFactoryOverlaySignature() {
-  const conveyorState = getActiveFactoryConveyorItems().map(({ conveyor, item }) => (
-    `${getConveyorIdentity(conveyor)}:${conveyor.direction}:${item.kind}:${item.material}:${item.quantity}:${Number(item.tileProgress ?? 0).toFixed(2)}`
+  const conveyorState = getActiveFactoryConveyorItems().map(({ conveyor, item, slot }) => (
+    `${getConveyorIdentity(conveyor)}:${slot}:${conveyor.direction}:${item.kind}:${item.material}:${item.quantity}:${item.beltEntryDirection ?? ""}:${Number(item.tileProgress ?? 0).toFixed(2)}`
   )).join("|");
   const machineState = state.machines.map((machine) => (
     `${machine.instanceId}:${machine.column}:${machine.row}:${machine.orientation ?? "right"}`
@@ -2868,29 +2868,66 @@ function clearConveyorItemLabels() {
 }
 
 function getConveyorCargoVisualOffset(conveyor, slot) {
-  const direction = DIRECTION_VECTORS[conveyor?.direction] ?? DIRECTION_VECTORS.right;
-  const lane = slot % 2 === 0 ? -1 : 1;
-  const depth = slot < 2 ? -1 : 1;
-  const perpendicular = { column: -direction.row, row: direction.column };
-  const laneOffset = 5 * lane;
-  const depthOffset = 5 * depth;
+  const offset = getConveyorCargoSlotOffset(conveyor?.direction, slot);
   return {
-    x: perpendicular.column * laneOffset + direction.column * depthOffset,
-    y: perpendicular.row * laneOffset + direction.row * depthOffset,
+    x: offset.column,
+    y: offset.row,
+  };
+}
+
+function getConveyorCargoVisualPosition(conveyor, slot, progress, item = null) {
+  const origin = getMachineTileCenter(conveyor.column, conveyor.row);
+  const direction = DIRECTION_VECTORS[conveyor.direction] ?? DIRECTION_VECTORS.right;
+  const offset = getConveyorCargoVisualOffset(conveyor, slot);
+  const start = { x: origin.x + offset.x, y: origin.y + offset.y };
+  const t = Math.max(0, Math.min(1, Number(progress) || 0));
+  const entryDirection = DIRECTION_VECTORS[item?.beltEntryDirection];
+  const directionsArePerpendicular = entryDirection
+    && entryDirection.column * direction.column + entryDirection.row * direction.row === 0;
+
+  if (!directionsArePerpendicular) {
+    return {
+      x: start.x + direction.column * FACTORY_TILE_SIZE * t,
+      y: start.y + direction.row * FACTORY_TILE_SIZE * t,
+    };
+  }
+
+  // Cargo enters a corner on the lane-preserving slot selected by the
+  // simulation, then rounds the bend from its incoming heading to this belt's
+  // heading. The endpoint is the next tile's matching lane position, so the
+  // drawing stays continuous when the item transfers.
+  const end = {
+    x: start.x + direction.column * FACTORY_TILE_SIZE,
+    y: start.y + direction.row * FACTORY_TILE_SIZE,
+  };
+  const handle = FACTORY_TILE_SIZE * 0.42;
+  const control1 = {
+    x: start.x + entryDirection.column * handle,
+    y: start.y + entryDirection.row * handle,
+  };
+  const control2 = {
+    x: end.x - direction.column * handle,
+    y: end.y - direction.row * handle,
+  };
+  const inverse = 1 - t;
+  return {
+    x: inverse ** 3 * start.x
+      + 3 * inverse ** 2 * t * control1.x
+      + 3 * inverse * t ** 2 * control2.x
+      + t ** 3 * end.x,
+    y: inverse ** 3 * start.y
+      + 3 * inverse ** 2 * t * control1.y
+      + 3 * inverse * t ** 2 * control2.y
+      + t ** 3 * end.y,
   };
 }
 
 function drawConveyorItemBuffers() {
   const activeLabelKeys = new Set();
   getActiveFactoryConveyorItems().forEach(({ conveyor, item, slot }) => {
-    const origin = getMachineTileCenter(conveyor.column, conveyor.row);
     const vector = DIRECTION_VECTORS[conveyor.direction];
     const progress = Math.min(item.tileProgress ?? 0, 0.92);
-    const laneOffset = getConveyorCargoVisualOffset(conveyor, slot);
-    const point = {
-      x: origin.x + vector.column * FACTORY_TILE_SIZE * progress + laneOffset.x,
-      y: origin.y + vector.row * FACTORY_TILE_SIZE * progress + laneOffset.y,
-    };
+    const point = getConveyorCargoVisualPosition(conveyor, slot, progress, item);
     const color = MATERIAL_COLORS[item.material] ?? 0xf4f5da;
     const visualKind = getFactoryMaterialVisualKind(item.material);
     const horizontal = vector.column !== 0;

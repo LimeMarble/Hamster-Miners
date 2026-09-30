@@ -1299,8 +1299,7 @@ function queueMoltenMetalOutput(liquidMetal) {
   return true;
 }
 
-function getBulletCoreCasterKilnLink() {
-  const caster = getMachine("ammoShaper");
+function getBulletCoreCasterKilnLink(caster = getMachine("ammoShaper")) {
   if (!caster) {
     return null;
   }
@@ -1563,6 +1562,55 @@ function getConveyorOutputPosition(conveyor) {
     column: conveyor.column + vector.column,
     row: conveyor.row + vector.row,
   };
+}
+
+function getConveyorCargoSlotOffset(direction, slot) {
+  const vector = DIRECTION_VECTORS[direction] ?? DIRECTION_VECTORS.right;
+  const lane = slot % 2 === 0 ? -1 : 1;
+  const depth = slot < 2 ? -1 : 1;
+  const perpendicular = { column: -vector.row, row: vector.column };
+  return {
+    column: perpendicular.column * 5 * lane + vector.column * 5 * depth,
+    row: perpendicular.row * 5 * lane + vector.row * 5 * depth,
+  };
+}
+
+function getConveyorTurnDestinationSlot(source, destination, sourceSlot) {
+  if (!source || !destination
+    || !Number.isInteger(sourceSlot)
+    || sourceSlot < 0
+    || sourceSlot >= CONVEYOR_CARGO_CAPACITY) {
+    return sourceSlot;
+  }
+
+  const output = getConveyorOutputPosition(source);
+  if (output.column !== destination.column || output.row !== destination.row
+    || !canConveyorFeedInto(source, destination)) {
+    return sourceSlot;
+  }
+
+  const sourceDirection = DIRECTION_VECTORS[source.direction];
+  const destinationDirection = DIRECTION_VECTORS[destination.direction];
+  if (!sourceDirection || !destinationDirection) {
+    return sourceSlot;
+  }
+
+  const directionsArePerpendicular = sourceDirection.column * destinationDirection.column
+    + sourceDirection.row * destinationDirection.row === 0;
+  if (!directionsArePerpendicular) {
+    return sourceSlot;
+  }
+
+  const sourceOffset = getConveyorCargoSlotOffset(source.direction, sourceSlot);
+  for (let destinationSlot = 0; destinationSlot < CONVEYOR_CARGO_CAPACITY; destinationSlot += 1) {
+    const destinationOffset = getConveyorCargoSlotOffset(destination.direction, destinationSlot);
+    if (destinationOffset.column === sourceOffset.column
+      && destinationOffset.row === sourceOffset.row) {
+      return destinationSlot;
+    }
+  }
+
+  return sourceSlot;
 }
 
 function canConveyorFeedInto(source, destination) {
@@ -1897,7 +1945,7 @@ function isAmmoShaperProcessConveyor(conveyor) {
     return false;
   }
 
-  const shaper = getMachine("ammoShaper");
+  const shaper = getInternalConveyorMachine(conveyor);
   return conveyor.internalIndex === getMachineProcessLaneIndex(shaper);
 }
 
@@ -2418,9 +2466,17 @@ function getContactMakerPortAt(column, row, portName) {
   }) ?? null;
 }
 
-function hasLiquidMetalForBulletCoreCaster() {
-  const link = getBulletCoreCasterKilnLink();
-  return Boolean(link && findMoltenCopperIndex(link.kiln.instanceId) >= 0);
+function hasLiquidMetalForBulletCoreCaster(caster, requiredQuantity = 1) {
+  const link = getBulletCoreCasterKilnLink(caster);
+  const liquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
+  if (liquidIndex < 0) {
+    return false;
+  }
+
+  const liquid = state.moltenCopper[liquidIndex];
+  const available = Math.max(0, Number(liquid.quantity ?? 1) || 0);
+  return LIQUID_METAL_AMMO_MATERIALS.includes(liquid.material)
+    && available + 1e-9 >= requiredQuantity;
 }
 
 function canBulletCoreCasterAcceptItem(item) {
@@ -2455,9 +2511,10 @@ function canItemLeaveConveyor(conveyor, item) {
 
   if (isBulletCoreCasterInputConveyor(conveyor)
     && state.mine.ammoShaperMode === "coated") {
+    const caster = getInternalConveyorMachine(conveyor);
     return item.kind === "material"
       && item.material === "leek"
-      && hasLiquidMetalForBulletCoreCaster();
+      && hasLiquidMetalForBulletCoreCaster(caster, Number(item.quantity ?? 1));
   }
 
   if (isQuartzWheelCutterInputConveyor(conveyor)) {
@@ -2939,7 +2996,13 @@ function advanceConveyorItems(deltaSeconds) {
         entry.item,
         routingState,
       );
-      return target ? { ...target, ...entry } : null;
+      return target ? {
+        ...target,
+        ...entry,
+        destinationSlot: target.type === "conveyor"
+          ? getConveyorTurnDestinationSlot(entry.conveyor, target.nextConveyor, entry.slot)
+          : entry.slot,
+      } : null;
     })
     .filter(Boolean);
 
@@ -2982,10 +3045,16 @@ function advanceConveyorItems(deltaSeconds) {
 
   conveyorMovements.forEach((movement) => {
     const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
+    const adjacentPosition = getConveyorOutputPosition(movement.conveyor);
+    const isAdjacentTransfer = adjacentPosition.column === movement.nextConveyor.column
+      && adjacentPosition.row === movement.nextConveyor.row;
+    transformedItem.beltEntryDirection = isAdjacentTransfer
+      ? movement.conveyor.direction
+      : movement.nextConveyor.direction;
     const placed = placeItemOnConveyor(
       movement.nextConveyor,
       transformedItem,
-      movement.slot,
+      movement.destinationSlot,
     );
     if (placed && movement.splitterInstanceId) {
       const splitter = getMachineByInstanceId(movement.splitterInstanceId);

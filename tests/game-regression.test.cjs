@@ -2211,6 +2211,39 @@ test("Casing Machine is a shop machine with the agreed buckshot cost and Jacket 
   assert.deepEqual(game.CASING_MATERIALS, ["bronzeIngot", "brassIngot", "steelIngot"]);
 });
 
+test("Bullet Core Caster consumes only the required liquid from a kiln batch", () => {
+  const caster = machine("ammoShaper", "core-caster-batch", 5, 5, "up");
+  const kiln = machine("clayKiln", "core-caster-batch-kiln", 4, 5);
+  const state = freshState({ machines: [caster, kiln] });
+  state.mine.ammoShaperMode = "coated";
+  const leek = { kind: "material", material: "leek", quantity: 1, tileProgress: 0 };
+  state.internalConveyorItems[`${caster.instanceId}:1`] = leek;
+  state.moltenCopper.push({
+    kilnInstanceId: kiln.instanceId,
+    smelterInstanceId: kiln.instanceId,
+    material: "lead",
+    quantity: 4,
+  });
+
+  game.updateCrewOperatedMachines(0);
+
+  assert.equal(leek.metalMaterial, "lead");
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].quantity, 3);
+
+  const processTile = {
+    ...game.getInternalConveyorTiles(caster)[1],
+    internalMachineId: caster.id,
+    internalMachineInstanceId: caster.instanceId,
+    internalIndex: 1,
+  };
+  const ammunition = game.transformItemLeavingConveyor(processTile, leek);
+  assert.equal(ammunition.kind, "ammo");
+  assert.equal(ammunition.material, "lead");
+  assert.equal(ammunition.quantity, 25);
+  assert.equal(ammunition.damage, 5);
+});
+
 test("Casing Machine transforms physical jacketed ammo using linked liquid Bronze", () => {
   const casingMachine = machine("casingMachine", "casing-test", 5, 5, "up");
   const kiln = machine("clayKiln", "casing-kiln", 4, 5);
@@ -4445,7 +4478,7 @@ test("standard cargo uses two across-belt lanes and two positions along a tile",
   );
 });
 
-test("cargo keeps its right lane through a left turn from a right-facing conveyor", () => {
+test("cargo curves through a belt turn and enters the matching outgoing slot", () => {
   const cargo = {
     kind: "material",
     material: "copper",
@@ -4454,15 +4487,69 @@ test("cargo keeps its right lane through a left turn from a right-facing conveyo
   };
   const source = { column: 10, row: 10, direction: "right", item: null };
   const turned = { column: 11, row: 10, direction: "up", item: null };
-  const state = freshState({ placedConveyors: [source, turned] });
+  const next = { column: 11, row: 9, direction: "up", item: null };
+  freshState({ placedConveyors: [source, turned, next] });
   assert.equal(game.placeItemOnConveyor(source, cargo, 1), true);
   cargo.tileProgress = 0.9;
 
   game.advanceConveyorItems(0.1);
   assert.equal(source.item, null);
-  assert.equal(state.extraConveyorItems["placed:11,10"][1], cargo);
-  assert.deepEqual(game.getConveyorCargoVisualOffset(source, 1), { x: -5, y: 5 });
-  assert.deepEqual(game.getConveyorCargoVisualOffset(turned, 1), { x: 5, y: 5 });
+  assert.equal(turned.item, cargo);
+  assert.equal(cargo.beltEntryDirection, "right");
+  assert.equal(game.getConveyorTurnDestinationSlot(source, turned, 1), 0);
+
+  const sourceEnd = game.getConveyorCargoVisualPosition(source, 1, 1, cargo);
+  const turnStart = game.getConveyorCargoVisualPosition(turned, 0, 0, cargo);
+  const turnMidpoint = game.getConveyorCargoVisualPosition(turned, 0, 0.5, cargo);
+  const turnEnd = game.getConveyorCargoVisualPosition(turned, 0, 1, cargo);
+  const nextStart = game.getConveyorCargoVisualPosition(next, 0, 0, cargo);
+
+  assert.deepEqual(sourceEnd, turnStart, "the curve begins exactly where the incoming lane arrives");
+  assert.deepEqual(turnEnd, nextStart, "the curve ends exactly on the outgoing lane");
+  assert.notEqual(turnMidpoint.x, turnStart.x, "the item visibly sweeps around the corner");
+});
+
+test("all quarter-turns route each cargo slot to the same physical corner lane", () => {
+  const directionVectors = {
+    up: { column: 0, row: -1 },
+    right: { column: 1, row: 0 },
+    down: { column: 0, row: 1 },
+    left: { column: -1, row: 0 },
+  };
+  const leftTurns = { up: "left", left: "down", down: "right", right: "up" };
+  const rightTurns = { up: "right", right: "down", down: "left", left: "up" };
+
+  Object.keys(directionVectors).forEach((direction) => {
+    [leftTurns[direction], rightTurns[direction]].forEach((turnedDirection) => {
+      const vector = directionVectors[direction];
+      const source = {
+        column: 10,
+        row: 10,
+        direction,
+      };
+      const destination = {
+        column: source.column + vector.column,
+        row: source.row + vector.row,
+        direction: turnedDirection,
+      };
+      const routedSlots = new Set();
+
+      for (let sourceSlot = 0; sourceSlot < game.CONVEYOR_CARGO_CAPACITY; sourceSlot += 1) {
+        const destinationSlot = game.getConveyorTurnDestinationSlot(
+          source,
+          destination,
+          sourceSlot,
+        );
+        routedSlots.add(destinationSlot);
+        assert.deepEqual(
+          game.getConveyorCargoVisualOffset(source, sourceSlot),
+          game.getConveyorCargoVisualOffset(destination, destinationSlot),
+        );
+      }
+
+      assert.equal(routedSlots.size, game.CONVEYOR_CARGO_CAPACITY);
+    });
+  });
 });
 
 test("storage emits at 2 items per second and alternates its left and right lanes", () => {
