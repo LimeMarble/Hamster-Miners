@@ -1786,6 +1786,50 @@ test("Mini Electric Arc Furnace fires up to eight Clay into four standalone Cera
   assert.equal(outputConveyor.item.quantity, 4);
 });
 
+test("Mini Electric Arc Furnace takes only one recipe batch from an oversized Clay stack", () => {
+  const furnace = machine("miniElectricArcFurnace", "eaf-clay-intake-cap", 2, 2);
+  const clayStack = {
+    kind: "material",
+    material: "clay",
+    quantity: 20,
+    tileProgress: 1,
+  };
+  const inputConveyor = { column: 1, row: 3, direction: "right", item: clayStack };
+  const state = freshState({
+    machines: [furnace],
+    crew: { total: 1 },
+    placedConveyors: [inputConveyor],
+    arcFurnaceInputs: {
+      [furnace.instanceId]: { primary: [], secondary: [], tertiary: [] },
+    },
+    arcFurnaceJobs: [],
+    arcFurnaceOutputBuffers: {},
+    moltenCopper: [],
+  });
+
+  game.advanceConveyorItems(0);
+  assert.equal(clayStack.quantity, 12);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary.length, 0);
+  assert.equal(state.arcFurnaceJobs.length, 1);
+  assert.equal(state.arcFurnaceJobs[0].inputCount, 8);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
+  assert.equal(clayStack.quantity, 12);
+
+  // One further batch may queue during processing, but a blocked solid
+  // outlet must stop the furnace from pulling the rest of the stack forever.
+  game.advanceConveyorItems(0);
+  assert.equal(clayStack.quantity, 4);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
+  game.updateCrewOperatedMachines(4);
+  assert.equal(state.arcFurnaceOutputBuffers[furnace.instanceId].quantity, 4);
+  game.advanceConveyorItems(0);
+  assert.equal(clayStack.quantity, 4);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
+});
+
 test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier", () => {
   const kiln = machine("clayKiln", "kiln-bronze", 2, 2);
   const state = freshState({ machines: [kiln], crew: { total: 2 }, kilnInputs: [] });

@@ -678,18 +678,59 @@ function getArcFurnaceInputQuantity(furnace, slot) {
     .reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
 }
 
-function getArcFurnaceInputCapacity(furnace, slot) {
+function getArcFurnaceInputCapacity(furnace, slot, incomingMaterial = null) {
   const recipe = getArcFurnaceRecipeDefinition(furnace);
   const batchSize = CONFIG.arcFurnaceBatchSize;
   if (!recipe) {
     if (slot !== "primary") {
       return 0;
     }
-    return getArcFurnaceInputState(furnace).primary.some((item) => ARC_FURNACE_ORE_INPUTS.includes(item.material))
+    return ARC_FURNACE_ORE_INPUTS.includes(incomingMaterial)
+      || getArcFurnaceInputState(furnace).primary.some((item) => ARC_FURNACE_ORE_INPUTS.includes(item.material))
       ? 2 * batchSize
       : batchSize;
   }
   return (recipe.slots[slot]?.quantity ?? 0) * batchSize;
+}
+
+function getArcFurnaceInputSpace(furnace, slot, material) {
+  const inputState = getArcFurnaceInputState(furnace);
+  const recipe = getArcFurnaceRecipeDefinition(furnace);
+  if (recipe) {
+    const slotRecipe = recipe.slots[slot];
+    if (!slotRecipe?.materials(material)
+      || !inputState[slot].every((item) => slotRecipe.materials(item.material))) {
+      return 0;
+    }
+  } else if (getArcFurnaceMode(furnace) !== "smelting"
+    || slot !== "primary"
+    || !isSmeltableMetalInput(material)
+    || !inputState.primary.every((item) => item.material === material)) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    getArcFurnaceInputCapacity(furnace, slot, material)
+      - getArcFurnaceInputQuantity(furnace, slot),
+  );
+}
+
+function hasArcFurnaceInputSpace(furnace, slot, item) {
+  if (item?.kind !== "material"
+    || !Number.isFinite(Number(item.quantity ?? 1))
+    || Number(item.quantity ?? 1) <= 0) {
+    return false;
+  }
+
+  const currentQuantity = getArcFurnaceInputQuantity(furnace, slot);
+  const capacity = getArcFurnaceInputCapacity(furnace, slot, item.material);
+  if (getArcFurnaceMode(furnace) === "smelting"
+    && slot === "primary"
+    && !ARC_FURNACE_ORE_INPUTS.includes(item.material)) {
+    return currentQuantity < capacity;
+  }
+  return getArcFurnaceInputSpace(furnace, slot, item.material) > 1e-9;
 }
 
 function isCopperAlloyInput(material) {
@@ -1011,25 +1052,20 @@ function canArcFurnaceAcceptInput(furnace, slot, item) {
   if (!furnace || item?.kind !== "material" || !Number.isFinite(item.quantity) || item.quantity < 1) {
     return false;
   }
-
-  const recipe = getArcFurnaceRecipeDefinition(furnace);
-  const mode = getArcFurnaceMode(furnace);
-  if (mode !== "smelting" && !recipe) {
+  if (!hasArcFurnaceInputSpace(furnace, slot, item)) {
     return false;
   }
-  if (recipe) {
-    const slotRecipe = recipe.slots[slot];
-    return Boolean(slotRecipe)
-      && slotRecipe.materials(item.material)
-      && getArcFurnaceInputQuantity(furnace, slot) < getArcFurnaceInputCapacity(furnace, slot);
+
+  if (getArcFurnaceMode(furnace) !== "smelting"
+    || slot !== "primary"
+    || !ARC_FURNACE_ORE_INPUTS.includes(item.material)) {
+    return true;
   }
 
-  return slot === "primary"
-    && isSmeltableMetalInput(item.material)
-    && (getArcFurnaceInputState(furnace).primary.length === 0
-      || getArcFurnaceInputState(furnace).primary.every(({ material }) => material === item.material))
-    && getArcFurnaceInputQuantity(furnace, "primary")
-      < getArcFurnaceInputCapacity(furnace, "primary");
+  const availableSpace = getArcFurnaceInputSpace(furnace, slot, item.material);
+  const quantity = Number(item.quantity ?? 1);
+  const tolerance = Number.EPSILON * Math.max(1, Math.abs(availableSpace), Math.abs(quantity)) * 16;
+  return availableSpace + tolerance >= quantity;
 }
 
 function getSmeltedLiquidMaterial(material) {
@@ -2511,7 +2547,7 @@ function canItemLeaveConveyor(conveyor, item) {
 
   const arcFurnaceInput = getArcFurnaceInputForConveyor(conveyor);
   if (arcFurnaceInput) {
-    return canArcFurnaceAcceptInput(arcFurnaceInput.furnace, arcFurnaceInput.slot, item);
+    return hasArcFurnaceInputSpace(arcFurnaceInput.furnace, arcFurnaceInput.slot, item);
   }
 
   if (isCasingMachineInputConveyor(conveyor)) {
@@ -2879,7 +2915,7 @@ function getConveyorAdvanceDestination(conveyor, item, routingState = null) {
     const arcFurnaceInput = getArcFurnaceInputForConveyor(nextConveyor);
     if (arcFurnaceInput) {
       return canConveyorFeedInto(conveyor, nextConveyor)
-        && canArcFurnaceAcceptInput(arcFurnaceInput.furnace, arcFurnaceInput.slot, item)
+        && hasArcFurnaceInputSpace(arcFurnaceInput.furnace, arcFurnaceInput.slot, item)
         ? { type: "receiver", destination }
         : null;
     }
@@ -3030,20 +3066,71 @@ function advanceConveyorItems(deltaSeconds) {
     emptiedFrontLanes.set(key, { conveyor: movement.conveyor, lane: movement.slot % 2 });
   };
   receiverMovements.forEach((movement) => {
-    if (!canReceiveConveyorItem(
-      movement.item,
+    const arcFurnaceInput = getArcFurnaceInputAt(
       movement.destination.column,
       movement.destination.row,
-    )) {
-      return;
-    }
-    const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
-    if (!receiveConveyorItem(
-      transformedItem,
-      movement.destination.column,
-      movement.destination.row,
-    )) {
-      return;
+    );
+    if (arcFurnaceInput) {
+      const availableSpace = getArcFurnaceInputSpace(
+        arcFurnaceInput.furnace,
+        arcFurnaceInput.slot,
+        movement.item.material,
+      );
+      if (!(availableSpace > 1e-9)) {
+        return;
+      }
+      const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
+      const originalQuantity = Number(transformedItem.quantity ?? 1);
+      const isMultiInputOre = getArcFurnaceMode(arcFurnaceInput.furnace) === "smelting"
+        && arcFurnaceInput.slot === "primary"
+        && ARC_FURNACE_ORE_INPUTS.includes(transformedItem.material);
+      const acceptedQuantity = isMultiInputOre
+        ? Math.min(originalQuantity, availableSpace)
+        : originalQuantity;
+      if (!(acceptedQuantity > 1e-9)) {
+        return;
+      }
+
+      const acceptedItem = acceptedQuantity + 1e-9 >= originalQuantity
+        ? transformedItem
+        : {
+          ...transformedItem,
+          quantity: acceptedQuantity,
+          ...(Array.isArray(transformedItem.arcValueUnits)
+            ? { arcValueUnits: transformedItem.arcValueUnits.slice(0, acceptedQuantity) }
+            : {}),
+        };
+      if (!receiveConveyorItem(
+        acceptedItem,
+        movement.destination.column,
+        movement.destination.row,
+      )) {
+        return;
+      }
+
+      if (acceptedQuantity + 1e-9 < originalQuantity) {
+        transformedItem.quantity = originalQuantity - acceptedQuantity;
+        if (Array.isArray(transformedItem.arcValueUnits)) {
+          transformedItem.arcValueUnits = transformedItem.arcValueUnits.slice(acceptedQuantity);
+        }
+        return;
+      }
+    } else {
+      if (!canReceiveConveyorItem(
+        movement.item,
+        movement.destination.column,
+        movement.destination.row,
+      )) {
+        return;
+      }
+      const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
+      if (!receiveConveyorItem(
+        transformedItem,
+        movement.destination.column,
+        movement.destination.row,
+      )) {
+        return;
+      }
     }
     releaseDusterForItem(movement.item);
     removeConveyorItem(movement.conveyor, movement.item);
