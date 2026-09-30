@@ -39,6 +39,9 @@ const CONFIG = Object.freeze({
   startingAmmo: 0,
   startingCrew: 10,
   clayKilnProcessSeconds: 5,
+  clayKilnBatchSize: 4,
+  arcFurnaceBatchSize: 4,
+  storageOutputItemsPerSecond: 2,
   ingotMolderProcessSeconds: 1,
   simulationFramesPerSecond: 10,
   factoryRenderFramesPerSecond: 10,
@@ -113,6 +116,10 @@ const AUTO_DRILL_MODE_LABELS = Object.freeze({
   afterOres: "After ores",
   ignoreOres: "Ignore Ores",
 });
+
+// Current one-tile belts pack two lanes by two positions per segment. A cargo
+// spanning tile boundaries will need an explicit multi-segment footprint.
+const CONVEYOR_CARGO_CAPACITY = 4;
 const MALACHITE_AMMO_DAMAGE = 3;
 const LEAD_AMMO_DAMAGE = 5;
 
@@ -1941,6 +1948,9 @@ function createInitialState() {
       FIXED_CONVEYORS.map((conveyor) => [getFactoryTileKey(conveyor.column, conveyor.row), null]),
     ),
     internalConveyorItems: {},
+    // The legacy item fields above remain slot zero; these sparse lane arrays
+    // hold the other three simultaneous cargo slots on each conveyor tile.
+    extraConveyorItems: {},
     tutorial: {
       stage: "intro",
       visible: true,
@@ -1953,6 +1963,8 @@ function createInitialState() {
     ammoInTransit: 0,
     storageExportsInTransit: 0,
     storageOutputFilters: {},
+    storageOutputTimers: {},
+    storageOutputNextLanes: {},
     autoExtractorEnabled: true,
     selectedDepositId: null,
     shotsFired: 0,
@@ -2148,6 +2160,59 @@ function resolveSavedMachineType(machine) {
   ))?.[0] ?? null;
 }
 
+function getMoltenMetalOwnerInstanceId(liquidMetal) {
+  return liquidMetal?.smelterInstanceId ?? liquidMetal?.kilnInstanceId ?? null;
+}
+
+function normalizeMoltenMetalQueues(targetState) {
+  const smelterMachines = [
+    ...(targetState.machines ?? []),
+    ...(targetState.machineInventoryInstances ?? []),
+  ].filter((machine) => MACHINE_LAYOUT[machine?.id]?.liquidOutput
+    && typeof machine.instanceId === "string"
+    && machine.instanceId.length > 0);
+  const validSmelterIds = new Set(smelterMachines.map(({ instanceId }) => instanceId));
+  const queuesBySmelter = new Map();
+
+  (Array.isArray(targetState.moltenCopper) ? targetState.moltenCopper : []).forEach((liquidMetal) => {
+    const ownerInstanceId = getMoltenMetalOwnerInstanceId(liquidMetal);
+    if (!ownerInstanceId || !validSmelterIds.has(ownerInstanceId)
+      || !Number.isFinite(Number(liquidMetal.quantity ?? 1))
+      || Number(liquidMetal.quantity ?? 1) <= 1e-9
+      || typeof liquidMetal.material !== "string") {
+      return;
+    }
+    if (!queuesBySmelter.has(ownerInstanceId)) {
+      queuesBySmelter.set(ownerInstanceId, []);
+    }
+    queuesBySmelter.get(ownerInstanceId).push({ ...liquidMetal });
+  });
+
+  targetState.moltenCopper = [];
+  queuesBySmelter.forEach((liquids, ownerInstanceId) => {
+    const kilnJob = targetState.kilnJobs?.find((job) => job.kilnInstanceId === ownerInstanceId);
+    const furnaceJob = targetState.arcFurnaceJobs?.find((job) => job.furnaceInstanceId === ownerInstanceId);
+    const inProgressMaterial = kilnJob
+      ? getSmeltedLiquidMaterial(kilnJob.material)
+      : furnaceJob?.material ?? null;
+    const selectedMaterial = inProgressMaterial
+      && liquids.some(({ material }) => material === inProgressMaterial)
+      ? inProgressMaterial
+      : liquids.at(-1).material;
+
+    // One physical smelter can only have one liquid material in its outlet.
+    // Keep the most recent material for malformed/legacy queues, rather than
+    // letting an older tile's output be consumed first after a move or reload.
+    liquids.filter(({ material }) => material === selectedMaterial).forEach((liquidMetal) => {
+      targetState.moltenCopper.push({
+        ...liquidMetal,
+        kilnInstanceId: ownerInstanceId,
+        smelterInstanceId: ownerInstanceId,
+      });
+    });
+  });
+}
+
 function hydrateSavedState(savedState) {
   if (!isSaveRecord(savedState)) {
     return null;
@@ -2239,6 +2304,17 @@ function hydrateSavedState(savedState) {
     },
     internalConveyorItems: isSaveRecord(savedState.internalConveyorItems)
       ? savedState.internalConveyorItems
+      : {},
+    extraConveyorItems: isSaveRecord(savedState.extraConveyorItems)
+      ? savedState.extraConveyorItems
+      : {},
+    storageOutputTimers: isSaveRecord(savedState.storageOutputTimers)
+      ? savedState.storageOutputTimers
+      : {},
+    storageOutputNextLanes: isSaveRecord(savedState.storageOutputNextLanes)
+      ? Object.fromEntries(Object.entries(savedState.storageOutputNextLanes).map(([key, lane]) => (
+        [key, Number(lane) === 1 ? 1 : 0]
+      )))
       : {},
     tutorial: {
       ...initialState.tutorial,
@@ -2446,6 +2522,21 @@ function hydrateSavedState(savedState) {
         return [`${shiftedColumn}:${row}`, item];
       }),
     );
+    hydratedState.extraConveyorItems = Object.fromEntries(
+      Object.entries(hydratedState.extraConveyorItems).map(([identity, slots]) => {
+        const match = /^(placed|fixed):(\d+),(\d+)$/.exec(identity);
+        if (!match) {
+          return [identity, slots];
+        }
+        const [, kind, columnText, rowText] = match;
+        const column = Number(columnText);
+        const row = Number(rowText);
+        const shiftedColumn = column < FACTORY_STARTER_COLUMN_OFFSET
+          ? column + FACTORY_STARTER_COLUMN_OFFSET
+          : column;
+        return [`${kind}:${shiftedColumn},${row}`, slots];
+      }),
+    );
     hydratedState.factoryLayoutVersion = FACTORY_LAYOUT_VERSION;
   }
 
@@ -2558,13 +2649,16 @@ function hydrateSavedState(savedState) {
       annealed: hydratedState.mine.selectedAmmoAnnealed === true,
     };
   }
-  hydratedState.mine.selectedAmmoGunType = hydratedState.mine.selectedGun === "buckshot"
-    ? "buckshot"
-    : "rapidfire";
+  hydratedState.mine.selectedAmmoGunType = GUN_IDS.includes(savedState.mine?.selectedAmmoGunType)
+    ? savedState.mine.selectedAmmoGunType
+    : hydratedState.mine.selectedGun === "buckshot"
+      ? "buckshot"
+      : "rapidfire";
   if (hydratedState.mine.unlockedTunnels.includes(3)) {
     hydratedState.mine.tunnelThreeRightsPurchased = true;
   }
   migrateLegacyCasingMachineBuffers(hydratedState);
+  normalizeMoltenMetalQueues(hydratedState);
   return hydratedState;
 }
 
@@ -2996,9 +3090,7 @@ function toggleStorageOutputFilter(storage, port, material) {
 }
 
 function getFactoryCargoInTransit() {
-  return getFactoryConveyors().filter(({ conveyor }) => (
-    getConveyorItem(conveyor) !== null
-  )).length;
+  return getActiveFactoryConveyorItems().length;
 }
 
 function getFactoryTileKey(column, row) {
@@ -3064,28 +3156,10 @@ function invalidateFactoryConveyorCache() {
 function getActiveFactoryConveyorItems() {
   getFactoryConveyors();
   const activeItems = [];
-
-  state.placedConveyors.forEach((conveyor) => {
-    if (conveyor.item) {
-      activeItems.push({ conveyor, item: conveyor.item });
-    }
-  });
-
-  getActiveFixedConveyors().forEach((conveyor) => {
-    const item = state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)];
-    if (item) {
-      activeItems.push({ conveyor, item });
-    }
-  });
-
-  Object.entries(state.internalConveyorItems).forEach(([key, item]) => {
-    if (!item) {
-      return;
-    }
-    const conveyor = factoryConveyorByIdentity?.get(`internal:${key}`);
-    if (conveyor) {
-      activeItems.push({ conveyor, item });
-    }
+  getFactoryConveyors().forEach(({ conveyor }) => {
+    getConveyorItems(conveyor).forEach(({ item, slot }) => {
+      activeItems.push({ conveyor, item, slot });
+    });
   });
 
   return activeItems;
@@ -3113,7 +3187,7 @@ function getInternalConveyor(machine, index) {
   } : null;
 }
 
-function getConveyorItem(conveyor) {
+function getConveyorPrimaryItem(conveyor) {
   if (!conveyor) {
     return null;
   }
@@ -3129,29 +3203,103 @@ function getConveyorItem(conveyor) {
   return conveyor.item ?? null;
 }
 
+function getConveyorLaneItem(conveyor, slot) {
+  if (!conveyor || !Number.isInteger(slot) || slot < 0 || slot >= CONVEYOR_CARGO_CAPACITY) {
+    return null;
+  }
+  if (slot === 0) {
+    return getConveyorPrimaryItem(conveyor);
+  }
+  const slots = state.extraConveyorItems?.[getConveyorIdentity(conveyor)];
+  return slots?.[slot] ?? null;
+}
+
+function getConveyorItems(conveyor) {
+  const items = [];
+  for (let slot = 0; slot < CONVEYOR_CARGO_CAPACITY; slot += 1) {
+    const item = getConveyorLaneItem(conveyor, slot);
+    if (item) {
+      items.push({ item, slot });
+    }
+  }
+  return items;
+}
+
+function getConveyorItem(conveyor) {
+  return getConveyorItems(conveyor)[0]?.item ?? null;
+}
+
+function getConveyorItemCount(conveyor) {
+  return getConveyorItems(conveyor).length;
+}
+
+function getConveyorUsedSlotCount(conveyor) {
+  if (!conveyor) {
+    return 0;
+  }
+  return getConveyorItems(conveyor).length;
+}
+
+function hasOpenConveyorSlot(conveyor) {
+  return getConveyorUsedSlotCount(conveyor) < CONVEYOR_CARGO_CAPACITY;
+}
+
+function isConveyorFull(conveyor) {
+  return !conveyor || getConveyorUsedSlotCount(conveyor) >= CONVEYOR_CARGO_CAPACITY;
+}
+
+function setConveyorItemAtSlot(conveyor, slot, item) {
+  if (!conveyor || !Number.isInteger(slot) || slot < 0 || slot >= CONVEYOR_CARGO_CAPACITY) {
+    return false;
+  }
+
+  if (slot === 0) {
+    if (isInternalConveyor(conveyor)) {
+      state.internalConveyorItems[getInternalConveyorKey(conveyor)] = item;
+    } else if (isFixedConveyor(conveyor)) {
+      state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)] = item;
+    } else {
+      conveyor.item = item;
+    }
+    return true;
+  }
+
+  state.extraConveyorItems ??= {};
+  const identity = getConveyorIdentity(conveyor);
+  const slots = [...(state.extraConveyorItems[identity] ?? Array(CONVEYOR_CARGO_CAPACITY).fill(null))];
+  slots[slot] = item;
+  if (slots.every((candidate) => !candidate)) {
+    delete state.extraConveyorItems[identity];
+  } else {
+    state.extraConveyorItems[identity] = slots;
+  }
+  return true;
+}
+
 function setConveyorItem(conveyor, item) {
   if (!conveyor) {
     return;
   }
-
-  if (isInternalConveyor(conveyor)) {
-    state.internalConveyorItems[getInternalConveyorKey(conveyor)] = item;
-    return;
+  for (let slot = 1; slot < CONVEYOR_CARGO_CAPACITY; slot += 1) {
+    setConveyorItemAtSlot(conveyor, slot, null);
   }
+  setConveyorItemAtSlot(conveyor, 0, item);
+}
 
-  if (isFixedConveyor(conveyor)) {
-    state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)] = item;
-    return;
+function removeConveyorItem(conveyor, item) {
+  const entry = getConveyorItems(conveyor).find((candidate) => candidate.item === item);
+  if (!entry) {
+    return false;
   }
-
-  conveyor.item = item;
+  setConveyorItemAtSlot(conveyor, entry.slot, null);
+  return true;
 }
 
 function isFactoryEntityInTransit(entity) {
   const entityTileKeys = getFactoryEntityTileKeys(entity);
   return entityTileKeys.some((tileKey) => (
     getFactoryConveyors().some(({ conveyor }) => (
-      getConveyorItem(conveyor) !== null
+      getConveyorItemCount(conveyor) > 0
         && getFactoryTileKey(conveyor.column, conveyor.row) === tileKey
     ))
   ));
@@ -3291,15 +3439,16 @@ function getArcFurnaceInputQuantity(furnace, slot) {
 
 function getArcFurnaceInputCapacity(furnace, slot) {
   const recipe = getArcFurnaceRecipeDefinition(furnace);
+  const batchSize = CONFIG.arcFurnaceBatchSize;
   if (!recipe) {
     if (slot !== "primary") {
       return 0;
     }
     return getArcFurnaceInputState(furnace).primary.some((item) => ARC_FURNACE_ORE_INPUTS.includes(item.material))
-      ? 2
-      : 1;
+      ? 2 * batchSize
+      : batchSize;
   }
-  return recipe.slots[slot]?.quantity ?? 0;
+  return (recipe.slots[slot]?.quantity ?? 0) * batchSize;
 }
 
 function isCopperAlloyInput(material) {
@@ -3375,12 +3524,12 @@ const ARC_FURNACE_RECIPE_OPTIONS = Object.freeze([
   Object.freeze({
     value: "smelting",
     label: "Single smelting",
-    description: "one metal input; Hematite and Clay use two inputs",
+    description: "up to 4 product units per cycle; Hematite and Clay use two inputs each",
   }),
   ...Object.entries(ARC_FURNACE_RECIPES).map(([value, recipe]) => Object.freeze({
     value,
     label: recipe.name,
-    description: recipe.description,
+    description: `Up to 4 recipe cycles per batch. ${recipe.description}`,
   })),
 ]);
 
@@ -3461,49 +3610,49 @@ const CRAFTING_RECIPES = Object.freeze([
     category: "Low-temperature smelting",
     name: "Liquid Metal",
     machine: "Clay Kiln",
-    input: "1 supported low-melting ore or ingot",
-    output: "1 liquid metal",
-    note: "Uses 2 crew and takes 5 seconds. The liquid output feeds an Ingot Molder, Refractory Caster, or Bullet Core Caster.",
+    input: "Up to 4 supported low-melting ores or ingots",
+    output: "Up to 4 liquid metal",
+    note: "Uses 2 crew and takes 5 seconds per batch. Partial batches still take 5 seconds.",
   }),
   Object.freeze({
     category: "High-temperature firing",
     name: "Liquid Iron",
     machine: "Mini Electric Arc Furnace · Single smelting",
-    input: "2 Hematite ore",
-    output: "1 liquid Iron",
-    note: "Uses 1 crew and takes 4 seconds.",
+    input: "Up to 8 Hematite ore",
+    output: "Up to 4 liquid Iron",
+    note: "Uses 1 crew and takes 4 seconds per batch. Partial batches still take 4 seconds.",
   }),
   Object.freeze({
     category: "High-temperature firing",
     name: "Ceramic",
     machine: "Mini Electric Arc Furnace · Single smelting",
-    input: "2 Clay",
-    output: "1 Ceramic",
-    note: "Uses 1 crew and takes 4 seconds. The fired solid leaves through the furnace output; no Ingot Molder is required.",
+    input: "Up to 8 Clay",
+    output: "Up to 4 Ceramic",
+    note: "Uses 1 crew and takes 4 seconds per batch. The fired solid leaves through the furnace output; no Ingot Molder is required.",
   }),
   Object.freeze({
     category: "Alloy smelting",
     name: "Bronze",
     machine: "Mini Electric Arc Furnace · manual recipe selection",
-    input: "5 Copper + 1 Tin",
-    output: "6 liquid Bronze",
-    note: "Uses 1 crew and takes 12 seconds; the existing Ingot Molder casts it into Bronze Ingots.",
+    input: "Up to 20 Copper + 4 Tin",
+    output: "Up to 24 liquid Bronze",
+    note: "Uses 1 crew and takes 12 seconds per batch; the existing Ingot Molder casts it into Bronze Ingots.",
   }),
   Object.freeze({
     category: "Alloy smelting",
     name: "Copper Contact Alloy",
     machine: "Mini Electric Arc Furnace · manual recipe selection",
-    input: "4 Silver + 1 Copper",
-    output: "5 liquid Copper Contact Alloy",
-    note: "Uses 1 crew and takes 10 seconds; the Ingot Molder casts it into Copper Contact Alloy Ingots.",
+    input: "Up to 16 Silver + 4 Copper",
+    output: "Up to 20 liquid Copper Contact Alloy",
+    note: "Uses 1 crew and takes 10 seconds per batch; the Ingot Molder casts it into Copper Contact Alloy Ingots.",
   }),
   Object.freeze({
     category: "Alloy smelting",
     name: "Tin Contact Alloy",
     machine: "Mini Electric Arc Furnace · manual recipe selection",
-    input: "9 Silver + 1 Tin",
-    output: "10 liquid Tin Contact Alloy",
-    note: "Uses 1 crew and takes 20 seconds; the Ingot Molder casts it into Tin Contact Alloy Ingots.",
+    input: "Up to 36 Silver + 4 Tin",
+    output: "Up to 40 liquid Tin Contact Alloy",
+    note: "Uses 1 crew and takes 20 seconds per batch; the Ingot Molder casts it into Tin Contact Alloy Ingots.",
   }),
   Object.freeze({
     category: "Casting",
@@ -3574,7 +3723,7 @@ function switchArcFurnaceMode(furnace, mode) {
   );
   const discardedLiquidQuantity = state.moltenCopper
     .filter((liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === furnace.instanceId
+      getMoltenMetalOwnerInstanceId(liquidMetal) === furnace.instanceId
     ))
     .reduce((total, liquidMetal) => (
       total + Math.max(0, Number(liquidMetal.quantity ?? 1) || 0)
@@ -3592,7 +3741,7 @@ function switchArcFurnaceMode(furnace, mode) {
     job.furnaceInstanceId !== furnace.instanceId
   ));
   state.moltenCopper = state.moltenCopper.filter((liquidMetal) => (
-    (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) !== furnace.instanceId
+    getMoltenMetalOwnerInstanceId(liquidMetal) !== furnace.instanceId
   ));
   furnace.mode = mode;
 
@@ -3752,19 +3901,27 @@ function getArcFurnaceRecipe(furnace) {
   const recipe = getArcFurnaceRecipeDefinition(furnace);
   if (getArcFurnaceMode(furnace) === "smelting") {
     const item = inputState.primary[0];
-    const inputCount = ARC_FURNACE_ORE_INPUTS.includes(item?.material) ? 2 : 1;
-    if (!item || item.quantity < inputCount) {
+    const inputCountPerProduct = ARC_FURNACE_ORE_INPUTS.includes(item?.material) ? 2 : 1;
+    const batchCount = Math.min(
+      CONFIG.arcFurnaceBatchSize,
+      Math.floor(getArcFurnaceInputQuantity(furnace, "primary") / inputCountPerProduct),
+    );
+    if (!item || batchCount < 1) {
       return null;
     }
-    const inputValues = getArcFurnaceInputValueUnits(item).slice(0, inputCount);
+    const inputCount = inputCountPerProduct * batchCount;
+    const inputValue = getArcFurnaceInputValueAcrossSlots(inputState, ["primary"], inputCount);
     return {
       inputCount,
+      batchCount,
+      processingSeconds: inputCountPerProduct * 2,
       inputMaterial: item.material,
       sourceMaterial: item.material,
       cashUpgraderEligibility: getCashUpgraderEligibilityTags(item),
       outputMaterial: getSmeltedLiquidMaterial(item.material),
-      outputQuantity: 1,
-      outputValue: inputValues.reduce((sum, value) => sum + value, 0) / inputCount,
+      outputQuantity: batchCount,
+      maxCycleOutputQuantity: CONFIG.arcFurnaceBatchSize,
+      outputValue: inputValue / inputCount,
       consume: () => takeArcFurnaceInputUnits(inputState, "primary", inputCount),
     };
   }
@@ -3773,35 +3930,45 @@ function getArcFurnaceRecipe(furnace) {
     return null;
   }
 
-  const hasAllIngredients = recipe.ingredients.every((ingredient) => {
+  const availableBatches = recipe.ingredients.map((ingredient) => {
     const available = ingredient.slots.reduce(
       (total, slot) => total + getArcFurnaceInputQuantity(furnace, slot),
       0,
     );
     const bufferedItems = ingredient.slots.flatMap((slot) => inputState[slot]);
-    return available >= ingredient.quantity
-      && bufferedItems.every((item) => ingredient.materials(item.material));
+    if (!bufferedItems.every((item) => ingredient.materials(item.material))) {
+      return 0;
+    }
+    return Math.floor(available / ingredient.quantity);
   });
-  if (!hasAllIngredients) {
+  const batchCount = Math.min(CONFIG.arcFurnaceBatchSize, ...availableBatches);
+  if (batchCount < 1) {
     return null;
   }
 
   return {
     name: recipe.name,
     description: recipe.description,
-    inputCount: recipe.inputCount,
+    inputCount: recipe.inputCount * batchCount,
+    batchCount,
+    processingSeconds: recipe.inputCount * 2,
     outputMaterial: recipe.outputMaterial,
-    outputQuantity: recipe.outputQuantity,
+    outputQuantity: recipe.outputQuantity * batchCount,
+    maxCycleOutputQuantity: recipe.outputQuantity * CONFIG.arcFurnaceBatchSize,
     outputValue: recipe.ingredients.reduce((total, ingredient) => (
       total + getArcFurnaceInputValueAcrossSlots(
         inputState,
         ingredient.slots,
-        ingredient.quantity,
+        ingredient.quantity * batchCount,
       )
-    ), 0) / recipe.inputCount,
+    ), 0) / (recipe.inputCount * batchCount),
     consume: () => {
       recipe.ingredients.forEach((ingredient) => {
-        takeArcFurnaceInputUnitsAcrossSlots(inputState, ingredient.slots, ingredient.quantity);
+        takeArcFurnaceInputUnitsAcrossSlots(
+          inputState,
+          ingredient.slots,
+          ingredient.quantity * batchCount,
+        );
       });
     },
   };
@@ -3846,7 +4013,7 @@ function flushArcFurnaceOutputs() {
   Object.entries(state.arcFurnaceOutputBuffers).forEach(([furnaceInstanceId, item]) => {
     const furnace = getMachineByInstanceId(furnaceInstanceId);
     const outputConveyor = furnace ? getArcFurnaceSolidOutputConveyor(furnace) : null;
-    if (!outputConveyor || getConveyorItem(outputConveyor) || !placeItemOnConveyor(outputConveyor, item)) {
+    if (!outputConveyor || !placeItemOnConveyor(outputConveyor, item)) {
       return;
     }
 
@@ -3856,18 +4023,51 @@ function flushArcFurnaceOutputs() {
 }
 
 function findMoltenCopperIndex(kilnInstanceId) {
-  const linkedIndex = state.moltenCopper.findIndex((liquidMetal) => (
-    (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === kilnInstanceId
+  const ownerEntries = state.moltenCopper.filter((liquidMetal) => (
+    getMoltenMetalOwnerInstanceId(liquidMetal) === kilnInstanceId
   ));
-  if (linkedIndex >= 0) {
-    return linkedIndex;
+  if (ownerEntries.length === 0) {
+    return -1;
   }
 
-  // Entries from saves created before kiln outputs were tagged can still be
-  // consumed by the connected machine.
-  return state.moltenCopper.findIndex((liquidMetal) => (
-    !(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
+  const activeKilnJob = state.kilnJobs.find((job) => job.kilnInstanceId === kilnInstanceId);
+  const activeFurnaceJob = state.arcFurnaceJobs.find((job) => job.furnaceInstanceId === kilnInstanceId);
+  const inProgressMaterial = activeKilnJob
+    ? getSmeltedLiquidMaterial(activeKilnJob.material)
+    : activeFurnaceJob?.material ?? null;
+  const selectedMaterial = inProgressMaterial
+    && ownerEntries.some((liquidMetal) => liquidMetal.material === inProgressMaterial)
+    ? inProgressMaterial
+    : ownerEntries.at(-1).material;
+
+  // A physical smelter cannot hold two liquid products at once. Resolve any
+  // malformed runtime queue in favour of its active batch or newest output.
+  state.moltenCopper = state.moltenCopper.filter((liquidMetal) => (
+    getMoltenMetalOwnerInstanceId(liquidMetal) !== kilnInstanceId
+      || liquidMetal.material === selectedMaterial
   ));
+  return state.moltenCopper.findIndex((liquidMetal) => (
+    getMoltenMetalOwnerInstanceId(liquidMetal) === kilnInstanceId
+      && liquidMetal.material === selectedMaterial
+  ));
+}
+
+function queueMoltenMetalOutput(liquidMetal) {
+  const ownerInstanceId = getMoltenMetalOwnerInstanceId(liquidMetal);
+  if (!ownerInstanceId) {
+    return false;
+  }
+
+  state.moltenCopper = state.moltenCopper.filter((queuedLiquid) => (
+    getMoltenMetalOwnerInstanceId(queuedLiquid) !== ownerInstanceId
+      || queuedLiquid.material === liquidMetal.material
+  ));
+  state.moltenCopper.push({
+    ...liquidMetal,
+    kilnInstanceId: ownerInstanceId,
+    smelterInstanceId: ownerInstanceId,
+  });
+  return true;
 }
 
 function getBulletCoreCasterKilnLink() {
@@ -3991,7 +4191,7 @@ function isMachineBusy(machine) {
       state.kilnInputs.some((kilnInput) => kilnInput.kilnInstanceId === machine.instanceId)
       || state.kilnJobs.some((job) => job.kilnInstanceId === machine.instanceId)
       || state.moltenCopper.some((liquidMetal) => (
-        liquidMetal.kilnInstanceId === machine.instanceId
+        getMoltenMetalOwnerInstanceId(liquidMetal) === machine.instanceId
       )),
     ))
     || (["ingotMolder", "refractoryCaster"].includes(machine?.id) && state.molderJobs.some((job) => (
@@ -4000,7 +4200,7 @@ function isMachineBusy(machine) {
     || (machine?.id === "miniElectricArcFurnace" && (
       state.arcFurnaceJobs.some((job) => job.furnaceInstanceId === machine.instanceId)
       || state.moltenCopper.some((liquidMetal) => (
-        (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
+        getMoltenMetalOwnerInstanceId(liquidMetal) === machine.instanceId
       ))
       || Object.values(state.arcFurnaceInputs[machine.instanceId] ?? {})
         .some((items) => Array.isArray(items) && items.length > 0)
@@ -4220,13 +4420,31 @@ function markItemForRockShack(item, column, row) {
   });
 }
 
-function placeItemOnConveyor(conveyor, item) {
-  if (!conveyor || getConveyorItem(conveyor)) {
+function placeItemOnConveyor(conveyor, item, preferredSlot = null) {
+  if (!conveyor) {
+    return false;
+  }
+
+  const hasPreferredSlot = Number.isInteger(preferredSlot)
+    && preferredSlot >= 0
+    && preferredSlot < CONVEYOR_CARGO_CAPACITY;
+  const preferred = hasPreferredSlot && !getConveyorLaneItem(conveyor, preferredSlot)
+    ? preferredSlot
+    : null;
+  const freeSlots = Array.from(
+    { length: CONVEYOR_CARGO_CAPACITY },
+    (_, index) => index,
+  ).filter((index) => !getConveyorLaneItem(conveyor, index));
+  const sameLaneFallback = hasPreferredSlot
+    ? freeSlots.find((index) => index % 2 === preferredSlot % 2)
+    : undefined;
+  const slot = preferred ?? sameLaneFallback ?? freeSlots[0];
+  if (slot === undefined) {
     return false;
   }
 
   item.tileProgress = 0;
-  setConveyorItem(conveyor, item);
+  setConveyorItemAtSlot(conveyor, slot, item);
   markItemForDuster(item, conveyor.column, conveyor.row);
   markItemForRockShack(item, conveyor.column, conveyor.row);
   return true;
@@ -4395,7 +4613,7 @@ function receiveConveyorItem(item, column, row) {
       sourceValueIsEffective: !ORE_CHUNK_MATERIALS.includes(item.material),
       quantity: item.quantity,
     });
-    addLog(`Clay Kiln received one ${MATERIAL_LABELS[item.material]}.`);
+    addLog(`Clay Kiln received ${formatNumber(item.quantity ?? 1)} ${MATERIAL_LABELS[item.material]}.`);
     return true;
   }
 
@@ -4637,16 +4855,9 @@ function canCasingMachineAcceptItem(machine, item) {
 function getCasingMachineAvailableLiquid(machine) {
   const links = getCasingMachineSmelterLinks(machine);
   const linkedSmelterIds = new Set(links.map(({ smelter }) => smelter.instanceId));
-  let liquids = linkedSmelterIds.size > 0
-    ? state.moltenCopper.filter((liquidMetal) => (
-      linkedSmelterIds.has(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
-    ))
-    : [];
-  if (liquids.length === 0) {
-    liquids = state.moltenCopper.filter((liquidMetal) => (
-      !(liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId)
-    ));
-  }
+  let liquids = state.moltenCopper.filter((liquidMetal) => (
+    linkedSmelterIds.has(getMoltenMetalOwnerInstanceId(liquidMetal))
+  ));
   const supportedMaterial = liquids.find((liquidMetal) => (
     getCasingMaterial(liquidMetal.material)
       && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
@@ -4748,9 +4959,11 @@ function getSplitterOutputDirections(splitter) {
   ];
 }
 
-function getAvailableSplitterOutput(splitter, item) {
+function getAvailableSplitterOutput(splitter, item, routingState = null) {
   const directions = getSplitterOutputDirections(splitter);
-  const startIndex = ((Math.floor(Number(splitter.splitterNextOutputIndex) || 0) % directions.length)
+  const nextIndex = routingState?.splitterTurns.get(splitter.instanceId)
+    ?? splitter.splitterNextOutputIndex;
+  const startIndex = ((Math.floor(Number(nextIndex) || 0) % directions.length)
     + directions.length) % directions.length;
 
   for (let offset = 0; offset < directions.length; offset += 1) {
@@ -4761,13 +4974,26 @@ function getAvailableSplitterOutput(splitter, item) {
       splitter.column + vector.column,
       splitter.row + vector.row,
     );
+    const outputIdentity = outputConveyor ? getConveyorIdentity(outputConveyor) : null;
+    const reservedSlots = outputIdentity
+      ? routingState?.splitterReservations.get(outputIdentity) ?? 0
+      : 0;
     if (!outputConveyor
-      || getConveyorItem(outputConveyor)
+      || getConveyorUsedSlotCount(outputConveyor)
+        + reservedSlots
+        + 1 > CONVEYOR_CARGO_CAPACITY
       || !canConveyorFeedInto({ direction }, outputConveyor)
       || isInternalConveyor(outputConveyor) && !canItemLeaveConveyor(outputConveyor, item)) {
       continue;
     }
 
+    routingState?.splitterTurns.set(splitter.instanceId, (outputIndex + 1) % directions.length);
+    if (outputIdentity && routingState) {
+      routingState.splitterReservations.set(
+        outputIdentity,
+        reservedSlots + 1,
+      );
+    }
     return { direction, outputIndex, outputConveyor };
   }
 
@@ -4830,7 +5056,7 @@ function canStackerAcceptItem(stacker, item) {
   const outputDirection = stacker.orientation ?? "right";
   return Boolean(
     outputConveyor
-      && !getConveyorItem(outputConveyor)
+      && hasOpenConveyorSlot(outputConveyor)
       && canConveyorFeedInto({ direction: outputDirection }, outputConveyor),
   );
 }
@@ -4852,7 +5078,7 @@ function emitStackerOutputs() {
     const outputDirection = stacker.orientation ?? "right";
     const outputQuantity = Math.max(1, Math.min(3, stacker.stackSize ?? 1));
     if (!outputConveyor
-      || getConveyorItem(outputConveyor)
+      || isConveyorFull(outputConveyor)
       || !canConveyorFeedInto({ direction: outputDirection }, outputConveyor)
       || buffer.quantity < outputQuantity) {
       return;
@@ -4974,6 +5200,18 @@ function canBulletCoreCasterAcceptItem(item) {
 }
 
 function canItemLeaveConveyor(conveyor, item) {
+  const needsDusterPass = item.kind === "material"
+    && !item.dusted
+    && !DUSTER_INELIGIBLE_MATERIALS.includes(item.material)
+    && isSellableMaterial(item.material, item)
+    && getMachines("leekDuster").some((duster) => {
+      const upgradeTile = getMachineUpgradeTile(duster);
+      return upgradeTile?.column === conveyor.column && upgradeTile?.row === conveyor.row;
+    });
+  if (needsDusterPass) {
+    return false;
+  }
+
   const arcFurnaceInput = getArcFurnaceInputForConveyor(conveyor);
   if (arcFurnaceInput) {
     return canArcFurnaceAcceptInput(arcFurnaceInput.furnace, arcFurnaceInput.slot, item);
@@ -5296,7 +5534,7 @@ function getConveyorIdentity(conveyor) {
   return `placed:${conveyor.column},${conveyor.row}`;
 }
 
-function getConveyorAdvanceDestination(conveyor, item) {
+function getConveyorAdvanceDestination(conveyor, item, routingState = null) {
   if (!canItemLeaveConveyor(conveyor, item)) {
     return null;
   }
@@ -5323,7 +5561,7 @@ function getConveyorAdvanceDestination(conveyor, item) {
     if (!canSplitterReceiveFromConveyor(splitter, conveyor)) {
       return null;
     }
-    const output = getAvailableSplitterOutput(splitter, item);
+    const output = getAvailableSplitterOutput(splitter, item, routingState);
     return output
       ? {
         type: "conveyor",
@@ -5369,131 +5607,187 @@ function getConveyorAdvanceDestination(conveyor, item) {
     : null;
 }
 
-function createConveyorMovementResolver(requiresCompletedTile) {
-  const resolved = new Map();
-  const resolving = new Set();
+function filterConveyorMovesForSharedResources(candidates) {
+  const accepted = [];
+  const casingReservations = new Map();
+  const contactReservations = new Map();
 
-  const resolveMovement = (conveyor) => {
-    const identity = getConveyorIdentity(conveyor);
-    if (resolved.has(identity)) {
-      return resolved.get(identity);
+  candidates.forEach((movement) => {
+    const { conveyor, item } = movement;
+    if (isCasingMachineProcessConveyor(conveyor)) {
+      const machine = getCasingMachineForConveyor(conveyor);
+      const liquid = getCasingMachineAvailableLiquid(machine);
+      const required = Number(item.quantity) / BUCKSHOT_INPUT_ROUNDS;
+      let reservation = casingReservations.get(machine.instanceId);
+      if (!reservation) {
+        reservation = { material: liquid.material, quantity: 0 };
+        casingReservations.set(machine.instanceId, reservation);
+      }
+      if (!liquid.material
+        || reservation.material !== liquid.material
+        || liquid.quantity - reservation.quantity + 1e-9 < required) {
+        return;
+      }
+      reservation.quantity += required;
+    } else if (isContactMakerProcessConveyor(conveyor)) {
+      const maker = getInternalConveyorMachine(conveyor);
+      const metalInput = getReadyContactMakerMetalInput(maker, item.quantity);
+      if (!metalInput) {
+        return;
+      }
+      const inputState = getContactMakerInputState(maker.instanceId);
+      const required = getContactMakerRecipeCount(maker, item.quantity)
+        * metalInput.ingotsPerBatch;
+      const reservationKey = `${maker.instanceId}:${metalInput.quantityKey}`;
+      const alreadyReserved = contactReservations.get(reservationKey) ?? 0;
+      if ((inputState[metalInput.quantityKey] ?? 0) - alreadyReserved + 1e-9 < required) {
+        return;
+      }
+      contactReservations.set(reservationKey, alreadyReserved + required);
     }
+    accepted.push(movement);
+  });
 
-    const item = getConveyorItem(conveyor);
-    if (!item || (requiresCompletedTile && (item.tileProgress ?? 0) < 1) || resolving.has(identity)) {
-      return false;
-    }
+  return accepted;
+}
 
-    resolving.add(identity);
-    const target = getConveyorAdvanceDestination(conveyor, item);
-    const canMove = !target
-      ? false
-      : target.type === "receiver" || !getConveyorItem(target.nextConveyor)
-        ? true
-        : resolveMovement(target.nextConveyor);
-    resolving.delete(identity);
-    resolved.set(identity, canMove);
-    return canMove;
-  };
+function limitConveyorMovesToAvailableSlots(candidates) {
+  const accepted = new Set(candidates);
+  let removedMovement = true;
 
-  return resolveMovement;
+  while (removedMovement) {
+    removedMovement = false;
+    const departing = new Map();
+    const arriving = new Map();
+    accepted.forEach((movement) => {
+      const sourceIdentity = getConveyorIdentity(movement.conveyor);
+      departing.set(
+        sourceIdentity,
+        (departing.get(sourceIdentity) ?? 0) + 1,
+      );
+      const destinationIdentity = getConveyorIdentity(movement.nextConveyor);
+      const list = arriving.get(destinationIdentity) ?? [];
+      list.push(movement);
+      arriving.set(destinationIdentity, list);
+    });
+
+    arriving.forEach((incoming, destinationIdentity) => {
+      const destination = incoming[0].nextConveyor;
+      const finalCount = getConveyorUsedSlotCount(destination)
+        - (departing.get(destinationIdentity) ?? 0)
+        + incoming.length;
+      let overflow = finalCount - CONVEYOR_CARGO_CAPACITY;
+      for (let index = incoming.length - 1; index >= 0 && overflow > 0; index -= 1) {
+        accepted.delete(incoming[index]);
+        overflow -= 1;
+        removedMovement = true;
+      }
+    });
+  }
+
+  return candidates.filter((movement) => accepted.has(movement));
 }
 
 function advanceConveyorItems(deltaSeconds) {
-  const conveyors = getFactoryConveyors().map(({ conveyor }) => conveyor);
-  const canMakeProgress = createConveyorMovementResolver(false);
-  conveyors.forEach((conveyor) => {
-    const item = getConveyorItem(conveyor);
-    if (!item) {
-      return;
-    }
-
+  const activeItems = getActiveFactoryConveyorItems();
+  activeItems.forEach(({ conveyor, item }) => {
     markItemForDuster(item, conveyor.column, conveyor.row);
-
-    if (!canMakeProgress(conveyor)) {
-      item.tileProgress = 0;
-      return;
-    }
-
     item.tileProgress = Math.min(
       1,
       (item.tileProgress ?? 0) + deltaSeconds / getConveyorSecondsPerTile(conveyor),
     );
   });
 
-  const candidateMovements = new Map();
-  const claimedDestinations = new Set();
-  const willMove = createConveyorMovementResolver(true);
+  const routingState = {
+    splitterTurns: new Map(),
+    splitterReservations: new Map(),
+  };
+  const candidates = activeItems
+    .filter(({ item }) => (item.tileProgress ?? 0) >= 1)
+    .map((entry) => {
+      const target = getConveyorAdvanceDestination(
+        entry.conveyor,
+        entry.item,
+        routingState,
+      );
+      return target ? { ...target, ...entry } : null;
+    })
+    .filter(Boolean);
 
-  conveyors.forEach((conveyor) => {
-    const item = getConveyorItem(conveyor);
-    if (!item || !willMove(conveyor)) {
+  // Machine inputs are consumers rather than conveyor slots. Accept them one
+  // at a time against their live state so batches cannot overfill an input.
+  const receiverMovements = candidates.filter((movement) => movement.type === "receiver");
+  receiverMovements.forEach((movement) => {
+    if (!canReceiveConveyorItem(
+      movement.item,
+      movement.destination.column,
+      movement.destination.row,
+    )) {
       return;
     }
-
-    const target = getConveyorAdvanceDestination(conveyor, item);
-    const destinationKey = getFactoryTileKey(target.destination.column, target.destination.row);
-    if (claimedDestinations.has(destinationKey)) {
+    const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
+    if (!receiveConveyorItem(
+      transformedItem,
+      movement.destination.column,
+      movement.destination.row,
+    )) {
       return;
     }
-
-    candidateMovements.set(getConveyorIdentity(conveyor), { ...target, conveyor, item });
-    claimedDestinations.add(destinationKey);
-  });
-
-  // A full destination is only available if its own item was selected to leave.
-  // Remove dependent moves until every remaining chain can safely advance.
-  let removedDependentMove = true;
-  while (removedDependentMove) {
-    removedDependentMove = false;
-    candidateMovements.forEach((movement, identity) => {
-      if (movement.type !== "conveyor" || !getConveyorItem(movement.nextConveyor)) {
-        return;
-      }
-
-      if (!candidateMovements.has(getConveyorIdentity(movement.nextConveyor))) {
-        candidateMovements.delete(identity);
-        removedDependentMove = true;
-      }
-    });
-  }
-  const movements = [...candidateMovements.values()];
-
-  // Sources clear together before destinations fill, so an entire compatible line can advance.
-  movements.forEach((movement) => {
     releaseDusterForItem(movement.item);
-    setConveyorItem(movement.conveyor, null);
+    removeConveyorItem(movement.conveyor, movement.item);
   });
 
-  movements.forEach((movement) => {
-    if (movement.type === "conveyor") {
-      const placed = placeItemOnConveyor(
-        movement.nextConveyor,
-        transformItemLeavingConveyor(movement.conveyor, movement.item),
-      );
-      if (placed && movement.splitterInstanceId) {
-        const splitter = getMachineByInstanceId(movement.splitterInstanceId);
-        if (splitter) {
-          splitter.splitterNextOutputIndex = (movement.splitterOutputIndex + 1) % 3;
-        }
+  let conveyorMovements = candidates.filter((movement) => (
+    movement.type === "conveyor"
+  ));
+  conveyorMovements = filterConveyorMovesForSharedResources(conveyorMovements);
+  conveyorMovements = limitConveyorMovesToAvailableSlots(conveyorMovements);
+
+  // Remove every selected source before filling destinations. This preserves
+  // simultaneous movement through a full line and lets loops circulate when
+  // every occupied slot has a matching departure.
+  conveyorMovements.forEach((movement) => {
+    releaseDusterForItem(movement.item);
+    removeConveyorItem(movement.conveyor, movement.item);
+  });
+
+  conveyorMovements.forEach((movement) => {
+    const transformedItem = transformItemLeavingConveyor(movement.conveyor, movement.item);
+    const placed = placeItemOnConveyor(
+      movement.nextConveyor,
+      transformedItem,
+      movement.slot,
+    );
+    if (placed && movement.splitterInstanceId) {
+      const splitter = getMachineByInstanceId(movement.splitterInstanceId);
+      if (splitter) {
+        splitter.splitterNextOutputIndex = (movement.splitterOutputIndex + 1) % 3;
       }
-    } else {
-      receiveConveyorItem(
-        transformItemLeavingConveyor(movement.conveyor, movement.item),
-        movement.destination.column,
-        movement.destination.row,
-      );
     }
   });
 }
 
-function emitStorageOutputs() {
+function emitStorageOutputs(deltaSeconds = 0) {
   state.machines
     .filter((machine) => machine.id === "materialStorage")
     .forEach((storage) => {
       getActiveStorageOutputPorts(storage).forEach((port) => {
         const conveyor = getPlacedConveyor(port.column, port.row);
-        if (!conveyor || getConveyorItem(conveyor)) {
+        if (!conveyor) {
+          return;
+        }
+
+        const timerKey = `${storage.instanceId}:${port.number}`;
+        const remaining = Math.max(
+          0,
+          (Number(state.storageOutputTimers[timerKey]) || 0) - Math.max(0, deltaSeconds),
+        );
+        state.storageOutputTimers[timerKey] = remaining;
+        const nextLane = state.storageOutputNextLanes[timerKey] === 1 ? 1 : 0;
+        const outputSlot = [nextLane, nextLane + 2].find((slot) => (
+          !getConveyorLaneItem(conveyor, slot)
+        ));
+        if (remaining > 1e-9 || outputSlot === undefined) {
           return;
         }
 
@@ -5507,8 +5801,10 @@ function emitStorageOutputs() {
         // Storage emits material cargo only; ammo is kept separately and cannot
         // be pulled from storage, so its damage/annealed state is untouched.
         const item = { kind: "material", material, quantity: 1, dusted: false };
-        if (placeItemOnConveyor(conveyor, item)) {
+        if (placeItemOnConveyor(conveyor, item, outputSlot)) {
           state.stockpile[material] -= 1;
+          state.storageOutputTimers[timerKey] = 1 / CONFIG.storageOutputItemsPerSecond;
+          state.storageOutputNextLanes[timerKey] = 1 - nextLane;
         }
       });
     });
@@ -5917,7 +6213,10 @@ function createMachineInstanceId(machineId) {
     instanceId = `${machineId}-${state.nextMachineInstanceId}`;
     state.nextMachineInstanceId += 1;
   } while (state.machines.some((machine) => machine.instanceId === instanceId)
-    || state.machineInventoryInstances.some((machine) => machine.instanceId === instanceId));
+    || state.machineInventoryInstances.some((machine) => machine.instanceId === instanceId)
+    || state.moltenCopper.some((liquidMetal) => (
+      getMoltenMetalOwnerInstanceId(liquidMetal) === instanceId
+    )));
   return instanceId;
 }
 
@@ -6206,9 +6505,10 @@ function startKilnJobs() {
   let started = 0;
   while (getAvailableCrew() >= 2) {
     const pendingInput = state.kilnInputs.find((kilnInput) => (
-      !state.kilnJobs.some((job) => job.kilnInstanceId === kilnInput.kilnInstanceId)
+      Math.floor(Number(kilnInput.quantity ?? 1)) >= 1
+        && !state.kilnJobs.some((job) => job.kilnInstanceId === kilnInput.kilnInstanceId)
         && !state.moltenCopper.some((liquidMetal) => (
-          liquidMetal.kilnInstanceId === kilnInput.kilnInstanceId
+          getMoltenMetalOwnerInstanceId(liquidMetal) === kilnInput.kilnInstanceId
         ))
     ));
     const material = pendingInput?.material ?? null;
@@ -6219,7 +6519,14 @@ function startKilnJobs() {
       break;
     }
 
-    state.kilnInputs = state.kilnInputs.filter((kilnInput) => kilnInput !== pendingInput);
+    const inputQuantity = Math.max(0, Number(pendingInput.quantity ?? 1) || 0);
+    const quantity = Math.min(CONFIG.clayKilnBatchSize, Math.floor(inputQuantity));
+    const remainingQuantity = inputQuantity - quantity;
+    if (remainingQuantity <= 1e-9) {
+      state.kilnInputs = state.kilnInputs.filter((kilnInput) => kilnInput !== pendingInput);
+    } else {
+      pendingInput.quantity = remainingQuantity;
+    }
     state.kilnJobs.push({
       kilnInstanceId: kiln.instanceId,
       material,
@@ -6227,10 +6534,10 @@ function startKilnJobs() {
       cashUpgraderEligibility: pendingInput.cashUpgraderEligibility ?? {},
       sourceValue: pendingInput.sourceValue ?? MINIMUM_SALE_VALUES[material] ?? 0,
       sourceValueIsEffective: pendingInput.sourceValueIsEffective === true,
-      quantity: pendingInput.quantity ?? 1,
+      quantity,
       secondsRemaining: CONFIG.clayKilnProcessSeconds,
     });
-    addLog(`Clay Kiln began smelting one ${MATERIAL_LABELS[material]} with 2 crew.`);
+    addLog(`Clay Kiln began smelting ${formatNumber(quantity)} ${MATERIAL_LABELS[material]} with 2 crew.`);
     started += 1;
   }
   return started;
@@ -6241,8 +6548,9 @@ function completeKilnJob(job) {
     return;
   }
 
-  state.moltenCopper.push({
+  queueMoltenMetalOutput({
     kilnInstanceId: job.kilnInstanceId,
+    smelterInstanceId: job.kilnInstanceId,
     material: getSmeltedLiquidMaterial(job.material),
     sourceMaterial: job.sourceMaterial ?? job.material,
     cashUpgraderEligibility: job.cashUpgraderEligibility ?? {},
@@ -6250,7 +6558,7 @@ function completeKilnJob(job) {
     sourceValueIsEffective: job.sourceValueIsEffective === true,
     quantity: job.quantity ?? 1,
   });
-  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`);
+  addLog(`Clay Kiln produced ${formatNumber(job.quantity ?? 1)} liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`);
 }
 
 function startArcFurnaceJobs() {
@@ -6268,9 +6576,9 @@ function startArcFurnaceJobs() {
     }
 
     const cycleOutputQuantity = recipe.outputQuantity ?? 1;
-    const outputCapacity = cycleOutputQuantity * 2;
+    const outputCapacity = (recipe.maxCycleOutputQuantity ?? cycleOutputQuantity) * 2;
     const bufferedLiquidQuantity = state.moltenCopper.reduce((total, liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === furnace.instanceId
+      getMoltenMetalOwnerInstanceId(liquidMetal) === furnace.instanceId
         ? total + Math.max(0, Number(liquidMetal.quantity ?? 1) || 0)
         : total
     ), 0);
@@ -6294,13 +6602,12 @@ function startArcFurnaceJobs() {
       sourceValue: recipe.outputValue,
       sourceValueIsEffective: true,
       inputCount: recipe.inputCount,
-      secondsRemaining: recipe.inputCount * 2,
+      batchCount: recipe.batchCount ?? 1,
+      secondsRemaining: recipe.processingSeconds ?? recipe.inputCount * 2,
     });
     addLog(recipe.name
-      ? `Mini Electric Arc Furnace began the ${recipe.name} recipe: ${recipe.description}.`
-      : recipe.inputCount === 2
-        ? `Mini Electric Arc Furnace began firing 2 ${MATERIAL_LABELS[recipe.inputMaterial]} → 1 ${MATERIAL_LABELS[recipe.outputMaterial]}.`
-        : "Mini Electric Arc Furnace began smelting one metal input.");
+      ? `Mini Electric Arc Furnace began ${formatNumber(recipe.batchCount)} ${recipe.name} recipe cycle${recipe.batchCount === 1 ? "" : "s"}.`
+      : `Mini Electric Arc Furnace began smelting ${formatNumber(recipe.inputCount)} ${MATERIAL_LABELS[recipe.inputMaterial]} into ${formatNumber(recipe.outputQuantity)} ${MATERIAL_LABELS[recipe.outputMaterial]}.`);
     started = true;
   });
   return started;
@@ -6321,7 +6628,7 @@ function completeArcFurnaceJob(job) {
     };
     const furnace = getMachineByInstanceId(job.furnaceInstanceId);
     const outputConveyor = furnace ? getArcFurnaceSolidOutputConveyor(furnace) : null;
-    if (!outputConveyor || getConveyorItem(outputConveyor) || !placeItemOnConveyor(outputConveyor, outputItem)) {
+    if (!outputConveyor || !placeItemOnConveyor(outputConveyor, outputItem)) {
       state.arcFurnaceOutputBuffers[job.furnaceInstanceId] = outputItem;
       state.arcFurnaceJobs = state.arcFurnaceJobs.filter((candidate) => candidate !== job);
       addLog("Mini Electric Arc Furnace finished Ceramic; its solid output is waiting for a conveyor.");
@@ -6333,7 +6640,7 @@ function completeArcFurnaceJob(job) {
     return;
   }
 
-  state.moltenCopper.push({
+  queueMoltenMetalOutput({
     kilnInstanceId: job.furnaceInstanceId,
     smelterInstanceId: job.furnaceInstanceId,
     material: job.material,
@@ -6553,7 +6860,7 @@ function flushMolderOutputs() {
   Object.entries(state.molderOutputBuffers).forEach(([molderInstanceId, item]) => {
     const molder = getMachineByInstanceId(molderInstanceId);
     const outputConveyor = molder ? getInternalConveyor(molder, 0) : null;
-    if (!outputConveyor || getConveyorItem(outputConveyor) || !placeItemOnConveyor(outputConveyor, item)) {
+    if (!outputConveyor || !placeItemOnConveyor(outputConveyor, item)) {
       return;
     }
 
@@ -6749,8 +7056,9 @@ function recoverFactoryItem(item) {
   }
 
   if (item.kind === "liquidMetal") {
-    state.moltenCopper.push({
+    queueMoltenMetalOutput({
       kilnInstanceId: item.kilnInstanceId,
+      smelterInstanceId: item.smelterInstanceId ?? item.kilnInstanceId,
       material: item.material,
       sourceMaterial: item.sourceMaterial ?? item.material,
       cashUpgraderEligibility: item.cashUpgraderEligibility ?? {},
@@ -6783,13 +7091,13 @@ function recoverFactoryEntityCargo(entity) {
       return;
     }
 
-    const item = getConveyorItem(conveyor);
-    if (!item) {
+    const cargo = getConveyorItems(conveyor);
+    if (cargo.length === 0) {
       return;
     }
 
+    cargo.forEach(({ item }) => recovered.push(recoverFactoryItem(item)));
     setConveyorItem(conveyor, null);
-    recovered.push(recoverFactoryItem(item));
   });
   if (entity.type === "machine" && entity.id === "ingotMolder") {
     const recoveredClay = recoverMolderClayBuffer(getMachineByInstanceId(entity.instanceId));
@@ -6988,6 +7296,7 @@ function completeGroupMove(anchorColumn, anchorRow) {
   }
 
   const plan = getFactoryGroupPlacementPlan(anchorColumn, anchorRow);
+  const extraCargoMoves = [];
   plan.forEach((entry) => {
     if (entry.descriptor.type === "machine") {
       entry.object.column = entry.column;
@@ -6997,15 +7306,23 @@ function completeGroupMove(anchorColumn, anchorRow) {
     }
 
     const conveyor = entry.object;
+    const oldIdentity = getConveyorIdentity(conveyor);
+    const extraCargo = state.extraConveyorItems?.[oldIdentity];
     if (isFixedConveyor(conveyor)) {
       const oldItem = state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)] ?? null;
       delete state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)];
       state.tutorial.starterConveyorRemoved = true;
-      state.placedConveyors.push({
+      const movedConveyor = {
         column: entry.column,
         row: entry.row,
         direction: entry.direction,
         item: oldItem,
+      };
+      state.placedConveyors.push(movedConveyor);
+      extraCargoMoves.push({
+        oldIdentity,
+        newIdentity: getConveyorIdentity(movedConveyor),
+        extraCargo,
       });
       return;
     }
@@ -7013,6 +7330,19 @@ function completeGroupMove(anchorColumn, anchorRow) {
     conveyor.column = entry.column;
     conveyor.row = entry.row;
     conveyor.direction = entry.direction;
+    extraCargoMoves.push({
+      oldIdentity,
+      newIdentity: getConveyorIdentity(conveyor),
+      extraCargo,
+    });
+  });
+  extraCargoMoves.forEach(({ oldIdentity }) => {
+    delete state.extraConveyorItems[oldIdentity];
+  });
+  extraCargoMoves.forEach(({ newIdentity, extraCargo }) => {
+    if (extraCargo) {
+      state.extraConveyorItems[newIdentity] = extraCargo;
+    }
   });
 
   selectedFactoryEntities = plan.map(({ descriptor, column, row }) => (
@@ -7058,14 +7388,16 @@ function recoverFactoryEntitiesCargo(records) {
       return;
     }
 
-    const item = getConveyorItem(conveyor);
-    if (!item) {
+    const cargo = getConveyorItems(conveyor);
+    if (cargo.length === 0) {
       return;
     }
 
-    releaseDusterForItem(item);
+    cargo.forEach(({ item }) => {
+      releaseDusterForItem(item);
+      recovered.push(recoverFactoryItem(item));
+    });
     setConveyorItem(conveyor, null);
-    recovered.push(recoverFactoryItem(item));
   });
   records
     .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "ingotMolder")
@@ -7980,7 +8312,7 @@ function feedAmmoShaper() {
     || state.drill.completed
     || !shaper
     || !inputConveyor
-    || getConveyorItem(inputConveyor)
+    || !hasOpenConveyorSlot(inputConveyor)
   ) {
     return;
   }
@@ -8758,7 +9090,7 @@ function updateFactory(deltaSeconds) {
   flushArcFurnaceOutputs();
   startMolderJob();
   emitStackerOutputs();
-  emitStorageOutputs();
+  emitStorageOutputs(deltaSeconds);
 
   planterAccumulator += deltaSeconds * getProcessingSpeedMultiplier();
   while (
@@ -9277,7 +9609,7 @@ function getMachineActionProgressNote(machine) {
     const kilnJob = state.kilnJobs.find((job) => job.kilnInstanceId === machine.instanceId);
     const hasInput = state.kilnInputs.some((input) => input.kilnInstanceId === machine.instanceId);
     const kilnLiquids = state.moltenCopper.filter((liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
+      getMoltenMetalOwnerInstanceId(liquidMetal) === machine.instanceId
         && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
     ));
     const liquidLabels = [...new Set(kilnLiquids.map(({ material }) => (
@@ -9298,7 +9630,7 @@ function getMachineActionProgressNote(machine) {
     const link = getMolderKilnLink(machine);
     const molderJob = state.molderJobs.find((job) => job.molderInstanceId === machine.instanceId);
     const outputConveyor = getInternalConveyor(machine, 0);
-    const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
+    const outputBlocked = Boolean(outputConveyor && isConveyorFull(outputConveyor));
     const outputBuffer = state.molderOutputBuffers[machine.instanceId];
     const linkedLiquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
     const linkedLiquid = linkedLiquidIndex >= 0 ? state.moltenCopper[linkedLiquidIndex] : null;
@@ -9327,7 +9659,7 @@ function getMachineActionProgressNote(machine) {
     const link = getMolderKilnLink(machine, "liquidInput");
     const job = state.molderJobs.find((candidate) => candidate.molderInstanceId === machine.instanceId);
     const outputConveyor = getInternalConveyor(machine, 0);
-    const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
+    const outputBlocked = Boolean(outputConveyor && isConveyorFull(outputConveyor));
     const outputBuffer = state.molderOutputBuffers[machine.instanceId];
     const liquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
     const liquid = liquidIndex >= 0 ? state.moltenCopper[liquidIndex] : null;
@@ -9358,7 +9690,7 @@ function getMachineActionProgressNote(machine) {
       candidate.furnaceInstanceId === machine.instanceId
     ));
     const bufferedLiquids = state.moltenCopper.filter((liquidMetal) => (
-      (liquidMetal.smelterInstanceId ?? liquidMetal.kilnInstanceId) === machine.instanceId
+      getMoltenMetalOwnerInstanceId(liquidMetal) === machine.instanceId
         && Math.max(0, Number(liquidMetal.quantity ?? 1) || 0) > 0
     ));
     const bufferedByMaterial = new Map();
@@ -10027,7 +10359,7 @@ function renderStatus() {
     CONFIG.planterCycleSeconds - planterAccumulator,
   ) / getProcessingSpeedMultiplier();
   setTextContentIfChanged(elements.planterRate, `${getGunDisplayName()} · ${getSelectedGun() === "buckshot" ? `${BUCKSHOT_FIRE_PER_SECOND} shot/s · ${BUCKSHOT_SEGMENTS_PER_SHOT} random hits` : `${CONFIG.autoFirePerSecond} shots/s`}`);
-  setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && !getConveyorItem(planterInputConveyor)
+  setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && hasOpenConveyorSlot(planterInputConveyor)
     ? `${formatNumber(secondsUntilPlanter)}s`
     : `${state.planterQueue} / ${CONFIG.maxPlanterQueue} leeks queued`);
   setTextContentIfChanged(elements.crewValue, `${getAvailableCrew()} / ${state.crew.total} available`);
@@ -11701,76 +12033,85 @@ function clearConveyorItemLabels() {
   conveyorItemLabels.clear();
 }
 
+function getConveyorCargoVisualOffset(conveyor, slot) {
+  const direction = DIRECTION_VECTORS[conveyor?.direction] ?? DIRECTION_VECTORS.right;
+  const lane = slot % 2 === 0 ? -1 : 1;
+  const depth = slot < 2 ? -1 : 1;
+  const perpendicular = { column: -direction.row, row: direction.column };
+  const laneOffset = 5 * lane;
+  const depthOffset = 5 * depth;
+  return {
+    x: perpendicular.column * laneOffset + direction.column * depthOffset,
+    y: perpendicular.row * laneOffset + direction.row * depthOffset,
+  };
+}
+
 function drawConveyorItemBuffers() {
   const activeLabelKeys = new Set();
-  getActiveFactoryConveyorItems().forEach(({ conveyor, item }) => {
-
+  getActiveFactoryConveyorItems().forEach(({ conveyor, item, slot }) => {
     const origin = getMachineTileCenter(conveyor.column, conveyor.row);
     const vector = DIRECTION_VECTORS[conveyor.direction];
     const progress = Math.min(item.tileProgress ?? 0, 0.92);
+    const laneOffset = getConveyorCargoVisualOffset(conveyor, slot);
     const point = {
-      x: origin.x + vector.column * FACTORY_TILE_SIZE * progress,
-      y: origin.y + vector.row * FACTORY_TILE_SIZE * progress,
+      x: origin.x + vector.column * FACTORY_TILE_SIZE * progress + laneOffset.x,
+      y: origin.y + vector.row * FACTORY_TILE_SIZE * progress + laneOffset.y,
     };
     const color = MATERIAL_COLORS[item.material] ?? 0xf4f5da;
     const visualKind = getFactoryMaterialVisualKind(item.material);
+    const horizontal = vector.column !== 0;
+    const shape = visualKind === "ore"
+      ? { width: 8, height: 5, ellipse: true }
+      : visualKind === "ingot"
+        ? { width: 7, height: 4 }
+        : visualKind === "plate"
+          ? { width: 7, height: 7 }
+          : visualKind === "wire"
+            ? { width: horizontal ? 7 : 2, height: horizontal ? 2 : 7 }
+            : { width: 7, height: 7 };
+    const labelKey = `${getConveyorIdentity(conveyor)}:${slot}`;
     machineOverlay.fillStyle(color, 1);
-    if (visualKind === "ore") {
-      machineOverlay.fillEllipse(point.x, point.y, 16, 10);
-    } else if (visualKind === "ingot") {
-      machineOverlay.fillRoundedRect(point.x - 7, point.y - 4, 14, 8, 3);
-    } else if (visualKind === "plate") {
-      machineOverlay.fillRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
-    } else if (visualKind === "wire") {
-      const horizontal = vector.column !== 0;
+    if (shape.ellipse) {
+      machineOverlay.fillEllipse(point.x, point.y, shape.width, shape.height);
+    } else {
       machineOverlay.fillRoundedRect(
-        point.x - (horizontal ? 7 : 2),
-        point.y - (horizontal ? 2 : 7),
-        horizontal ? 14 : 4,
-        horizontal ? 4 : 14,
+        point.x - shape.width / 2,
+        point.y - shape.height / 2,
+        shape.width,
+        shape.height,
         2,
       );
-    } else {
-      machineOverlay.fillRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
     }
     machineOverlay.lineStyle(1, 0xf4f5da, 0.9);
-    if (visualKind === "ore") {
-      machineOverlay.strokeEllipse(point.x, point.y, 16, 10);
-    } else if (visualKind === "ingot") {
-      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 4, 14, 8, 3);
-    } else if (visualKind === "plate") {
-      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
-    } else if (visualKind === "wire") {
-      const horizontal = vector.column !== 0;
+    if (shape.ellipse) {
+      machineOverlay.strokeEllipse(point.x, point.y, shape.width, shape.height);
+    } else {
       machineOverlay.strokeRoundedRect(
-        point.x - (horizontal ? 7 : 2),
-        point.y - (horizontal ? 2 : 7),
-        horizontal ? 14 : 4,
-        horizontal ? 4 : 14,
+        point.x - shape.width / 2,
+        point.y - shape.height / 2,
+        shape.width,
+        shape.height,
         2,
       );
-    } else {
-      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
     }
 
     const displayedQuantity = Number(Number(item.quantity).toPrecision(12));
     if (displayedQuantity > 1 && machineScene) {
-      const labelKey = getConveyorIdentity(conveyor);
       activeLabelKeys.add(labelKey);
       let label = conveyorItemLabels.get(labelKey);
       const quantityText = formatQuantity(displayedQuantity);
       if (!label) {
-        label = machineScene.add.text(point.x + 7, point.y - 7, quantityText, {
+        label = machineScene.add.text(point.x, point.y, quantityText, {
           color: "#fffde1",
           fontFamily: "system-ui, sans-serif",
-          fontSize: "9px",
+          fontSize: "6px",
           fontStyle: "bold",
           stroke: "#172010",
-          strokeThickness: 2,
+          strokeThickness: 1,
         }).setResolution(factoryTextResolution).setOrigin(0.5).setDepth(3);
         conveyorItemLabels.set(labelKey, label);
       }
-      label.setPosition(point.x + 7, point.y - 7).setText(quantityText);
+      label.setPosition(point.x, point.y).setText(quantityText);
     }
   });
   conveyorItemLabels.forEach((label, labelKey) => {
@@ -12366,8 +12707,8 @@ function renderAmmoMaker() {
   const shaperInputConveyor = shaper ? getInternalConveyor(shaper, 0) : null;
   const planter = getMachine("planter");
   const planterInputConveyor = planter ? getInternalConveyor(planter, 0) : null;
-  const shaperInputOpen = Boolean(shaperInputConveyor && !getConveyorItem(shaperInputConveyor));
-  const planterInputOpen = Boolean(planterInputConveyor && !getConveyorItem(planterInputConveyor));
+  const shaperInputOpen = Boolean(shaperInputConveyor && hasOpenConveyorSlot(shaperInputConveyor));
+  const planterInputOpen = Boolean(planterInputConveyor && hasOpenConveyorSlot(planterInputConveyor));
   if (elements.feedAmmoButton) {
     elements.feedAmmoButton.disabled = selectedMaterial === "leek"
       || isLiquidMetalOnly
@@ -13439,8 +13780,14 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getSaleValue,
     getItemSaleValue,
     getFactoryMaterialVisualKind,
+    CONVEYOR_CARGO_CAPACITY,
     getFactoryConveyors,
     getConveyorAt,
+    getConveyorItems,
+    getConveyorItemCount,
+    getConveyorUsedSlotCount,
+    getConveyorCargoVisualOffset,
+    placeItemOnConveyor,
     getConveyorSpeed,
     getConveyorSecondsPerTile,
     placeMachine,
@@ -13501,6 +13848,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     canItemLeaveConveyor,
     getConveyorAdvanceDestination,
     advanceConveyorItems,
+    emitStorageOutputs,
     DRILL_UPGRADES,
     createRealityShieldWave,
     defeatRealityShieldOre,

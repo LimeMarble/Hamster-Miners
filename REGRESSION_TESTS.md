@@ -71,6 +71,9 @@ future pipe systems) are not treated as current acceptance requirements.
   mandatory core material.
 - The Mine ammo selector shows type/material visuals, damage, and separate
   counts. The Factory gun display shows the active material’s remaining rounds.
+- Scheduled Rapidfire and Buckshot steps preserve each gun’s selected ammo
+  composition across switches and save/load, even when the scheduled gun differs
+  from the manual gun selection.
 - Normal and annealed Malachite stacks never merge. Normal stacks are 3 damage;
   annealed stacks are 5.1 damage and remain distinct across refreshes.
 - Ammo does not enter Material Storage and never has its damage or annealed
@@ -126,6 +129,8 @@ future pipe systems) are not treated as current acceptance requirements.
 
 ## Machine concurrency and routing
 
+- Feed a Clay Kiln at least four items: it outputs up to four liquid units in
+  the existing five-second cycle; smaller final batches still take five seconds.
 - Feed two Clay Kilns at once with at least four available crew: both smelt concurrently.
 - Block one kiln's liquid output while leaving another kiln's output clear: the clear kiln continues working.
 - Feed multiple Ingot Molders: each job, output lane, and crew assignment stays associated with its own instance.
@@ -143,14 +148,20 @@ future pipe systems) are not treated as current acceptance requirements.
   state, collision bounds, hitboxes, job queues, and conveyor-item ownership.
 - A blocked kiln/molder/annealer output blocks only that machine instance, not
   a parallel line.
+- Liquid-metal output belongs to one live or stored smelter instance, survives
+  moving/saving that instance, and cannot be claimed by another line;
+  orphaned/conflicting old output is cleaned on load for both Clay Kilns and
+  Mini Electric Arc Furnaces.
 - Clay Kilns use 2 crew, Ingot Molders use 1, Refractory Casters use no crew, Leek Dusters use 1 while working,
   and Rock Shacks use 0. The factory crew display reports available / total.
-- Mini Electric Arc Furnace uses a manual recipe selector. Bronze consumes five
-  Copper and one Tin through either side inlet, producing six liquid Bronze in
-  twelve seconds; Copper Contact Alloy consumes four Silver and one Copper,
-  producing five liquid alloy in ten seconds; Tin Contact Alloy consumes nine
-  Silver and one Tin, producing ten liquid alloy in twenty seconds. Both
-  contact alloys can be cast by the Ingot Molder.
+- Mini Electric Arc Furnace uses a manual recipe selector and can process up
+  to four recipe cycles per existing processing duration. Single smelting
+  outputs up to four metal units in 2 seconds or four Iron/Ceramic units from
+  eight inputs in 4 seconds. Bronze consumes up to 20 Copper and 4 Tin, making
+  up to 24 liquid Bronze in 12 seconds; Copper Contact Alloy consumes up to 16
+  Silver and 4 Copper, making up to 20 liquid alloy in 10 seconds; Tin Contact
+  Alloy consumes up to 36 Silver and 4 Tin, making up to 40 liquid alloy in 20
+  seconds. Both contact alloys can be cast by the Ingot Molder.
 - Picking up, moving, saving, and re-placing machinery preserves per-instance
   modes, orientation, and identity.
 - Selected machine action buttons stay mounted while process countdowns tick;
@@ -169,9 +180,20 @@ future pipe systems) are not treated as current acceptance requirements.
 - Splitter is a 1×1 Logistics machine with the Stacker's $2k, 5 Bronze Plate,
   10 Copper Wire, and 10 Silver Contact cost.
 - Splitter accepts a single rear-fed line and round-robins whole stacks over
-  forward/left/right conveyors; it skips occupied or item-incompatible exits,
+  forward/left/right conveyors; it skips full or item-incompatible exits,
   does not consume its turn when all exits are blocked, and preserves its
   per-instance cursor across save/load.
+- A standard one-tile conveyor segment holds four independent cargo items in
+  two lanes by two positions; items advance concurrently, full chains can shift
+  simultaneously, and the extra cargo slots survive save/load and pickup.
+- Conveyor cargo positions rotate with belt direction. Left/right lanes are
+  relative to travel direction and preserve their lane through a turn when
+  available; the other position in that same lane is preferred if the exact
+  slot is occupied. Multi-tile belts and cargo footprints spanning segment
+  boundaries are not implied by the current one-tile capacity model.
+- Each active Material Storage outlet emits at 2 items per second and alternates
+  between the travel-relative left and right lanes. It waits if the next lane
+  is full instead of switching lanes or producing a catch-up burst.
 
 ## Storage, inventory, Shop, and tutorial
 

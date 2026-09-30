@@ -337,6 +337,9 @@ test("bulk movement rotates machines and conveyors clockwise and counterclockwis
     const kiln = machine("clayKiln", "rotation-kiln", 14, 5, "right");
     const conveyor = { column: 13, row: 6, direction: "right", item: null };
     const state = freshState({ machines: [planter, kiln], placedConveyors: [conveyor] });
+    assert.equal(game.placeItemOnConveyor(conveyor, {
+      kind: "material", material: "copper", quantity: 1,
+    }, 1), true);
     game.__setActiveViewForTests("factory");
     game.selectFactoryEntitiesInRectangle({ column: 10, row: 5 }, { column: 14, row: 7 });
     assert.equal(game.__getFactorySelection().length, 3);
@@ -358,6 +361,7 @@ test("bulk movement rotates machines and conveyors clockwise and counterclockwis
     clockwise.state.placedConveyors.map(({ column, row, direction }) => ({ column, row, direction })),
     [{ column: 21, row: 13, direction: "down" }],
   );
+  assert.equal(game.getConveyorItemCount(clockwise.state.placedConveyors[0]), 1);
 
   const counterclockwise = createMovingGroup();
   game.rotateSelectedBuild("counterclockwise");
@@ -450,6 +454,13 @@ test("factory multi-pickup returns selected conveyors and recovers their cargo",
     item: { kind: "material", material: "clay", quantity: 1 },
   };
   const state = freshState({ placedConveyors: [first, second] });
+  for (let slot = 1; slot < game.CONVEYOR_CARGO_CAPACITY; slot += 1) {
+    assert.equal(game.placeItemOnConveyor(first, {
+      kind: "material",
+      material: "copper",
+      quantity: 1,
+    }, slot), true);
+  }
   const copperBefore = state.stockpile.copper;
   const clayBefore = state.stockpile.clay;
 
@@ -461,7 +472,7 @@ test("factory multi-pickup returns selected conveyors and recovers their cargo",
 
   assert.equal(state.placedConveyors.length, 0);
   assert.equal(state.machineInventory.conveyor, 22);
-  assert.equal(state.stockpile.copper, copperBefore + 2);
+  assert.equal(state.stockpile.copper, copperBefore + 5);
   assert.equal(state.stockpile.clay, clayBefore + 1);
 });
 
@@ -862,6 +873,32 @@ test("Clay Kilns accept Lead ore as a low-melting metal", () => {
   assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "lead", quantity: 1 }, 2, 3), true);
 });
 
+test("Clay Kiln smelts up to four inputs in the existing five-second cycle", () => {
+  const kiln = machine("clayKiln", "kiln-four-batch", 2, 2);
+  const state = freshState({
+    machines: [kiln],
+    crew: { total: 2 },
+    kilnInputs: [{
+      kilnInstanceId: kiln.instanceId,
+      material: "silver",
+      quantity: 5,
+      sourceValue: 8.5,
+      sourceValueIsEffective: true,
+    }],
+    kilnJobs: [],
+    moltenCopper: [],
+  });
+
+  assert.equal(game.startKilnJobs(), 1);
+  assert.equal(state.kilnJobs[0].quantity, 4);
+  assert.equal(state.kilnJobs[0].secondsRemaining, 5);
+  assert.equal(state.kilnInputs[0].quantity, 1);
+  game.updateCrewOperatedMachines(5);
+  assert.equal(state.moltenCopper[0].material, "silver");
+  assert.equal(state.moltenCopper[0].quantity, 4);
+  assert.equal(state.kilnInputs[0].quantity, 1, "the partial tail waits for the kiln output to clear");
+});
+
 test("Mini Electric Arc Furnace has the specified cost, footprint, and crew requirement", () => {
   const furnace = game.MACHINE_LAYOUT.miniElectricArcFurnace;
   assert.deepEqual(furnace.internalConveyors, [
@@ -921,6 +958,36 @@ test("Mini Electric Arc Furnace makes six liquid Bronze from five copper and one
   assert.equal(output.saleValueBase, 65 / 3);
 });
 
+test("Mini Electric Arc Furnace smelts four Bronze recipes per existing cycle", () => {
+  const furnace = machine("miniElectricArcFurnace", "eaf-bronze-four-batch", 2, 2);
+  furnace.mode = "alloy2";
+  const state = freshState({
+    machines: [furnace],
+    crew: { total: 1 },
+    arcFurnaceInputs: {
+      [furnace.instanceId]: {
+        primary: [{ kind: "material", material: "copperIngot", quantity: 20, saleValueBase: 20 }],
+        secondary: [{ kind: "material", material: "tinIngot", quantity: 4, saleValueBase: 30 }],
+        tertiary: [],
+      },
+    },
+    arcFurnaceJobs: [],
+    moltenCopper: [],
+  });
+
+  const recipe = game.getArcFurnaceRecipe(furnace);
+  assert.equal(recipe.batchCount, 4);
+  assert.equal(recipe.inputCount, 24);
+  assert.equal(recipe.outputQuantity, 24);
+  assert.equal(recipe.processingSeconds, 12);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 24);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 12);
+  game.updateCrewOperatedMachines(12);
+  assert.equal(state.moltenCopper[0].material, "bronze");
+  assert.equal(state.moltenCopper[0].quantity, 24);
+});
+
 test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausing", () => {
   const bronzeFurnace = machine("miniElectricArcFurnace", "eaf-bronze-cap", 2, 2);
   bronzeFurnace.mode = "alloy2";
@@ -929,8 +996,8 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
     crew: { total: 1 },
     arcFurnaceInputs: {
       [bronzeFurnace.instanceId]: {
-        primary: [{ kind: "material", material: "copperIngot", quantity: 10 }],
-        secondary: [{ kind: "material", material: "tinIngot", quantity: 2 }],
+        primary: [{ kind: "material", material: "copperIngot", quantity: 40 }],
+        secondary: [{ kind: "material", material: "tinIngot", quantity: 8 }],
         tertiary: [],
       },
     },
@@ -938,7 +1005,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
       kilnInstanceId: bronzeFurnace.instanceId,
       smelterInstanceId: bronzeFurnace.instanceId,
       material: "bronze",
-      quantity: 6,
+      quantity: 24,
       sourceValue: 1,
       sourceValueIsEffective: true,
     }],
@@ -947,9 +1014,11 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
   game.updateCrewOperatedMachines(0);
   assert.equal(bronzeState.arcFurnaceJobs[0].secondsRemaining, 12);
   game.updateCrewOperatedMachines(12);
-  assert.equal(bronzeState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 12);
+  assert.equal(bronzeState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 48);
   assert.equal(bronzeState.arcFurnaceJobs.length, 0);
-  assert.equal(bronzeState.arcFurnaceInputs[bronzeFurnace.instanceId].primary[0].quantity, 5);
+  assert.equal(bronzeState.arcFurnaceInputs[bronzeFurnace.instanceId].primary[0].quantity, 20);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(bronzeState.arcFurnaceJobs.length, 0, "the two-batch liquid buffer is full");
 
   const ironFurnace = machine("miniElectricArcFurnace", "eaf-iron-cap", 2, 2);
   const ironState = freshState({
@@ -957,7 +1026,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
     crew: { total: 1 },
     arcFurnaceInputs: {
       [ironFurnace.instanceId]: {
-        primary: [{ kind: "material", material: "hematite", quantity: 4 }],
+        primary: [{ kind: "material", material: "hematite", quantity: 8 }],
         secondary: [],
         tertiary: [],
       },
@@ -966,7 +1035,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
       kilnInstanceId: ironFurnace.instanceId,
       smelterInstanceId: ironFurnace.instanceId,
       material: "iron",
-      quantity: 1,
+      quantity: 4,
       sourceValue: 1,
       sourceValueIsEffective: true,
     }],
@@ -975,9 +1044,9 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
   game.updateCrewOperatedMachines(0);
   assert.equal(ironState.arcFurnaceJobs[0].secondsRemaining, 4);
   game.updateCrewOperatedMachines(4);
-  assert.equal(ironState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 2);
+  assert.equal(ironState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 8);
   assert.equal(ironState.arcFurnaceJobs.length, 0);
-  assert.equal(ironState.arcFurnaceInputs[ironFurnace.instanceId].primary[0].quantity, 2);
+  assert.equal(ironState.arcFurnaceInputs[ironFurnace.instanceId].primary.length, 0);
 });
 
 test("Ingot Molder uses its internal lane as a buffer instead of waiting for the next belt", () => {
@@ -1043,6 +1112,19 @@ test("Ingot Molder queues one ingot while blocked and pauses when that queue is 
       },
     },
   });
+  const molderOutput = {
+    ...game.getInternalConveyorTiles(molder)[0],
+    internalMachineId: molder.id,
+    internalMachineInstanceId: molder.instanceId,
+    internalIndex: 0,
+  };
+  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+    assert.equal(game.placeItemOnConveyor(molderOutput, {
+      kind: "material",
+      material: "silverIngot",
+      quantity: 1,
+    }, index), true);
+  }
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.molderJobs.length, 1);
@@ -1288,12 +1370,14 @@ test("Recipes catalogue includes every implemented production branch", () => {
     recipes.get("Silver-Tin Contacts").input,
     "5 Copper Wires + 0.5 Tin Contact Alloy Ingots",
   );
-  assert.match(recipes.get("Ceramic").input, /2 Clay/);
-  assert.match(recipes.get("Bronze").output, /6 liquid Bronze/);
-  assert.equal(recipes.get("Copper Contact Alloy").input, "4 Silver + 1 Copper");
-  assert.equal(recipes.get("Copper Contact Alloy").output, "5 liquid Copper Contact Alloy");
-  assert.equal(recipes.get("Tin Contact Alloy").input, "9 Silver + 1 Tin");
-  assert.equal(recipes.get("Tin Contact Alloy").output, "10 liquid Tin Contact Alloy");
+  assert.match(recipes.get("Ceramic").input, /8 Clay/);
+  assert.match(recipes.get("Bronze").output, /24 liquid Bronze/);
+  assert.equal(recipes.get("Copper Contact Alloy").input, "Up to 16 Silver + 4 Copper");
+  assert.equal(recipes.get("Copper Contact Alloy").output, "Up to 20 liquid Copper Contact Alloy");
+  assert.equal(recipes.get("Tin Contact Alloy").input, "Up to 36 Silver + 4 Tin");
+  assert.equal(recipes.get("Tin Contact Alloy").output, "Up to 40 liquid Tin Contact Alloy");
+  assert.equal(recipes.get("Bronze").input, "Up to 20 Copper + 4 Tin");
+  assert.equal(recipes.get("Bronze").output, "Up to 24 liquid Bronze");
 });
 
 test("Mini Electric Arc Furnace preserves its selected mode when saves are hydrated", () => {
@@ -1409,7 +1493,7 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
   assert.doesNotMatch(controls[1], /\boccupied\b/);
 });
 
-test("Mini Electric Arc Furnace single smelting accepts a stack and processes one unit", () => {
+test("Mini Electric Arc Furnace single smelting accepts a stack and processes up to four units", () => {
   const furnace = machine("miniElectricArcFurnace", "arc-single", 2, 2);
   furnace.mode = "smelting";
   const state = freshState({ machines: [furnace], crew: { total: 1 } });
@@ -1424,7 +1508,13 @@ test("Mini Electric Arc Furnace single smelting accepts a stack and processes on
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs.length, 1);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 4);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 2);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 1);
+  game.updateCrewOperatedMachines(2);
+  assert.equal(state.moltenCopper[0].material, "silver");
+  assert.equal(state.moltenCopper[0].quantity, 4);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 1, "the leftover input starts the next same-duration cycle");
 });
 
 test("Mini Electric Arc Furnace remelts Bronze Ingots as liquid Bronze and labels its output", () => {
@@ -1473,6 +1563,7 @@ test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four second
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs.length, 1);
   assert.equal(state.arcFurnaceJobs[0].inputCount, 2);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 1);
   assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
   assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary.length, 0);
 
@@ -1493,6 +1584,31 @@ test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four second
   assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "ironIngot");
   assert.equal(state.molderJobs.length, 0);
   assert.equal(state.molderClayBuffers[molder.instanceId], 1, "only one Clay is used for the one Iron ingot produced");
+});
+
+test("Mini Electric Arc Furnace batches eight Hematite into four Iron in four seconds", () => {
+  const furnace = machine("miniElectricArcFurnace", "eaf-iron-four-batch", 2, 2);
+  const state = freshState({
+    machines: [furnace],
+    crew: { total: 1 },
+    arcFurnaceInputs: {
+      [furnace.instanceId]: {
+        primary: [{ kind: "material", material: "hematite", quantity: 8 }],
+        secondary: [],
+        tertiary: [],
+      },
+    },
+    arcFurnaceJobs: [],
+    moltenCopper: [],
+  });
+
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceJobs[0].inputCount, 8);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
+  game.updateCrewOperatedMachines(4);
+  assert.equal(state.moltenCopper[0].material, "iron");
+  assert.equal(state.moltenCopper[0].quantity, 4);
 });
 
 test("Ingot Molder consumes one separate Clay mold for every Iron ingot", () => {
@@ -1610,7 +1726,7 @@ test("Refractory Caster casts available supported metals, up to four every two s
   });
 });
 
-test("Mini Electric Arc Furnace fires two Clay into one standalone Ceramic output", () => {
+test("Mini Electric Arc Furnace fires up to eight Clay into four standalone Ceramic", () => {
   const furnace = machine("miniElectricArcFurnace", "eaf-ceramic", 2, 2);
   const outputConveyor = { column: 5, row: 3, direction: "right", item: null };
   const state = freshState({
@@ -1619,7 +1735,7 @@ test("Mini Electric Arc Furnace fires two Clay into one standalone Ceramic outpu
     placedConveyors: [outputConveyor],
     arcFurnaceInputs: {
       [furnace.instanceId]: {
-        primary: [{ kind: "material", material: "clay", quantity: 2 }],
+        primary: [{ kind: "material", material: "clay", quantity: 8 }],
         secondary: [],
         tertiary: [],
       },
@@ -1630,11 +1746,12 @@ test("Mini Electric Arc Furnace fires two Clay into one standalone Ceramic outpu
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
   game.updateCrewOperatedMachines(4);
   assert.equal(state.arcFurnaceJobs.length, 0);
   assert.equal(state.moltenCopper.length, 0);
   assert.equal(outputConveyor.item.material, "ceramic");
-  assert.equal(outputConveyor.item.quantity, 1);
+  assert.equal(outputConveyor.item.quantity, 4);
 });
 
 test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier", () => {
@@ -1694,6 +1811,142 @@ test("Clay Kiln remelting preserves Bronze through the connected Ingot Molder", 
 
   game.updateCrewOperatedMachines(2);
   assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "bronzeIngot");
+});
+
+test("smelter liquids stay with their instance and stale materials cannot replace the active output", () => {
+  const kiln = machine("clayKiln", "kiln-liquid-owner", 2, 2);
+  const molder = machine("ingotMolder", "molder-liquid-owner", 3, 2);
+  const saved = game.createInitialState();
+  saved.machines = [kiln, molder];
+  saved.crew.total = 1;
+  saved.moltenCopper = [
+    {
+      kilnInstanceId: "removed-kiln",
+      smelterInstanceId: "removed-kiln",
+      material: "nativeCopper",
+      quantity: 4,
+    },
+    {
+      kilnInstanceId: kiln.instanceId,
+      material: "nativeCopper",
+      quantity: 2,
+    },
+    {
+      kilnInstanceId: kiln.instanceId,
+      material: "bronze",
+      sourceMaterial: "bronzeIngot",
+      quantity: 1,
+    },
+  ];
+
+  const state = game.hydrateSavedState(saved);
+  game.__setState(state);
+
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].material, "bronze");
+  assert.equal(state.moltenCopper[0].smelterInstanceId, kiln.instanceId);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.molderJobs[0].material, "bronze");
+});
+
+test("unowned legacy liquid cannot be claimed by a connected smelter consumer", () => {
+  const kiln = machine("clayKiln", "kiln-unowned-liquid", 2, 2);
+  const molder = machine("ingotMolder", "molder-unowned-liquid", 3, 2);
+  const state = freshState({
+    machines: [kiln, molder],
+    crew: { total: 1 },
+    moltenCopper: [{ material: "nativeCopper", quantity: 1 }],
+  });
+
+  game.updateCrewOperatedMachines(0);
+
+  assert.equal(state.molderJobs.length, 0);
+  assert.equal(state.moltenCopper.length, 1);
+
+  const casingMachine = machine("casingMachine", "casing-unowned-liquid", 5, 2, "up");
+  const casingKiln = machine("clayKiln", "kiln-unowned-casing-liquid", 4, 2);
+  const casingState = freshState({
+    machines: [casingMachine, casingKiln],
+    moltenCopper: [{ material: "bronze", quantity: 1 }],
+  });
+  assert.equal(game.getCasingMachineAvailableLiquid(casingMachine).quantity, 0);
+  assert.equal(casingState.moltenCopper.length, 1);
+
+  const saved = game.createInitialState();
+  saved.machines = [kiln, molder];
+  saved.moltenCopper = [{ material: "nativeCopper", quantity: 1 }];
+  assert.equal(game.hydrateSavedState(saved).moltenCopper.length, 0);
+});
+
+test("moving a loaded smelter preserves its liquid output under the same instance ID", () => {
+  const kiln = machine("clayKiln", "kiln-moved-liquid", 2, 2);
+  const state = freshState({
+    machines: [kiln],
+    moltenCopper: [{
+      kilnInstanceId: kiln.instanceId,
+      smelterInstanceId: kiln.instanceId,
+      material: "bronze",
+      quantity: 3,
+    }],
+  });
+
+  game.pickUpSelectedFactoryEntity({ type: "machine", instanceId: kiln.instanceId }, true);
+  assert.equal(state.machineInventoryInstances[0].instanceId, kiln.instanceId);
+  game.placeMachine("clayKiln", 10, 10);
+
+  assert.equal(state.machines[0].instanceId, kiln.instanceId);
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].material, "bronze");
+  assert.equal(state.moltenCopper[0].quantity, 3);
+
+  const reloaded = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
+  assert.equal(reloaded.moltenCopper.length, 1);
+  assert.equal(reloaded.moltenCopper[0].smelterInstanceId, kiln.instanceId);
+  assert.equal(reloaded.moltenCopper[0].material, "bronze");
+});
+
+test("Mini Electric Arc Furnace liquid queues also discard stale products from its outlet", () => {
+  const furnace = machine("miniElectricArcFurnace", "arc-liquid-owner", 2, 2);
+  const saved = game.createInitialState();
+  saved.machines = [furnace];
+  saved.moltenCopper = [
+    {
+      smelterInstanceId: furnace.instanceId,
+      kilnInstanceId: furnace.instanceId,
+      material: "nativeCopper",
+      quantity: 2,
+    },
+    {
+      smelterInstanceId: furnace.instanceId,
+      kilnInstanceId: furnace.instanceId,
+      material: "bronze",
+      quantity: 6,
+    },
+  ];
+
+  const hydrated = game.hydrateSavedState(saved);
+
+  assert.equal(hydrated.moltenCopper.length, 1);
+  assert.equal(hydrated.moltenCopper[0].material, "bronze");
+  assert.equal(hydrated.moltenCopper[0].quantity, 6);
+});
+
+test("new smelter instances do not reuse an orphaned liquid owner ID", () => {
+  const state = freshState({
+    nextMachineInstanceId: 1,
+    machineInventory: { ...game.createInitialState().machineInventory, clayKiln: 1 },
+    moltenCopper: [{
+      kilnInstanceId: "clayKiln-1",
+      smelterInstanceId: "clayKiln-1",
+      material: "nativeCopper",
+      quantity: 1,
+    }],
+  });
+
+  game.placeMachine("clayKiln", 10, 10);
+
+  assert.notEqual(state.machines[0].instanceId, "clayKiln-1");
+  assert.equal(state.moltenCopper[0].material, "nativeCopper");
 });
 
 test("same-product remelting preserves cash upgrader uses, while a new ingot type resets them", () => {
@@ -2475,6 +2728,49 @@ test("gun schedules are independent per tunnel and resume when returning", () =>
   assert.equal(game.getSelectedGun(), "buckshot");
   assert.deepEqual(state.mine.gunScheduleRuntimeByTunnel[1], { stepIndex: 0, shotsFired: 1 });
   assert.deepEqual(state.mine.gunScheduleRuntimeByTunnel[2], { stepIndex: 0, shotsFired: 2 });
+});
+
+test("scheduled gun ammo selections survive saving while the scheduled gun differs from the manual selection", () => {
+  const state = freshState({
+    ammoStacks: [
+      { type: "rapidfire", material: "copper", coreMaterial: "copper", damage: 3, count: 10, annealed: false },
+      { type: "rapidfire", material: "lead", coreMaterial: "lead", damage: 5, count: 10, annealed: false },
+      { type: "buckshot", material: "lead", coreMaterial: "lead", damage: 5, count: 10, annealed: false },
+    ],
+  });
+  state.mine.rapidfireGunMk1Purchased = true;
+  state.mine.buckshotGunPurchased = true;
+  state.mine.gunSchedulingUnlocked = true;
+  state.mine.gunScheduleEnabledByTunnel[1] = true;
+  state.mine.gunSchedulesByTunnel[1] = [
+    { gun: "buckshot", shots: 1 },
+    { gun: "rapidfire", shots: 1 },
+  ];
+  state.mine.gunScheduleRuntimeByTunnel[1] = { stepIndex: 0, shotsFired: 0 };
+  state.mine.selectedGun = "rapidfire";
+  state.mine.selectedAmmoGunType = "buckshot";
+  state.mine.selectedAmmoMaterial = "lead";
+  state.mine.selectedAmmoCoreMaterial = "lead";
+  state.mine.selectedAmmoDamage = 5;
+  state.mine.selectedAmmoByGun.rapidfire = {
+    material: "copper", coreMaterial: "copper", damage: 3, annealed: false,
+  };
+  state.mine.selectedAmmoByGun.buckshot = {
+    material: "lead", coreMaterial: "lead", damage: 5, annealed: false,
+  };
+
+  const reloaded = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
+  game.__setState(reloaded);
+  assert.equal(reloaded.mine.selectedAmmoGunType, "buckshot");
+  assert.equal(game.getSelectedAmmoStack()?.type, "buckshot");
+
+  game.advanceGunScheduleAfterShot();
+  assert.equal(game.getSelectedAmmoStack()?.type, "rapidfire");
+  assert.equal(game.getSelectedAmmoStack()?.material, "copper");
+
+  game.advanceGunScheduleAfterShot();
+  assert.equal(game.getSelectedAmmoStack()?.type, "buckshot");
+  assert.equal(game.getSelectedAmmoStack()?.material, "lead");
 });
 
 test("gun schedule advances once per fired gun shot", () => {
@@ -4072,6 +4368,130 @@ test("factory cargo distinguishes all ingots from the older plate box shape", ()
   assert.equal(game.getFactoryMaterialVisualKind("bronzePlate"), "plate");
 });
 
+test("each one-tile conveyor segment holds four cargo items in two lanes and two positions", () => {
+  const first = { column: 10, row: 10, direction: "right", item: null };
+  const second = { column: 11, row: 10, direction: "right", item: null };
+  const third = { column: 12, row: 10, direction: "right", item: null };
+  const state = freshState({ placedConveyors: [first, second, third] });
+  const makeCargo = (index) => ({
+    kind: "material",
+    material: "copper",
+    quantity: index + 1,
+  });
+
+  for (let index = 0; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+    assert.equal(game.placeItemOnConveyor(first, makeCargo(index)), true);
+  }
+  assert.equal(game.getConveyorItemCount(first), 4);
+  assert.equal(game.getConveyorUsedSlotCount(first), 4);
+  assert.equal(game.placeItemOnConveyor(first, makeCargo(4)), false);
+
+  for (let index = 0; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+    assert.equal(game.placeItemOnConveyor(second, makeCargo(index)), true);
+  }
+  game.advanceConveyorItems(1);
+  assert.equal(game.getConveyorItemCount(first), 0);
+  assert.equal(game.getConveyorItemCount(second), 4);
+  assert.equal(game.getConveyorItemCount(third), 4);
+
+  const saved = JSON.parse(JSON.stringify(state));
+  const hydrated = game.hydrateSavedState(saved);
+  game.__setState(hydrated);
+  assert.equal(game.getConveyorItemCount(hydrated.placedConveyors[1]), 4);
+  assert.equal(game.getConveyorItemCount(hydrated.placedConveyors[2]), 4);
+});
+
+test("standard cargo uses two across-belt lanes and two positions along a tile", () => {
+  const conveyor = { direction: "right" };
+  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 0), { x: -5, y: -5 });
+  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 1), { x: -5, y: 5 });
+  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 2), { x: 5, y: -5 });
+  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 3), { x: 5, y: 5 });
+  assert.deepEqual(
+    game.getConveyorCargoVisualOffset({ direction: "down" }, 0),
+    { x: 5, y: -5 },
+  );
+});
+
+test("cargo keeps its right lane through a left turn from a right-facing conveyor", () => {
+  const cargo = {
+    kind: "material",
+    material: "copper",
+    quantity: 1,
+    tileProgress: 0.9,
+  };
+  const source = { column: 10, row: 10, direction: "right", item: null };
+  const turned = { column: 11, row: 10, direction: "up", item: null };
+  const state = freshState({ placedConveyors: [source, turned] });
+  assert.equal(game.placeItemOnConveyor(source, cargo, 1), true);
+  cargo.tileProgress = 0.9;
+
+  game.advanceConveyorItems(0.1);
+  assert.equal(source.item, null);
+  assert.equal(state.extraConveyorItems["placed:11,10"][1], cargo);
+  assert.deepEqual(game.getConveyorCargoVisualOffset(source, 1), { x: -5, y: 5 });
+  assert.deepEqual(game.getConveyorCargoVisualOffset(turned, 1), { x: 5, y: 5 });
+});
+
+test("storage emits at 2 items per second and alternates its left and right lanes", () => {
+  const storage = machine("materialStorage", "storage-four-flow", 10, 10);
+  const output = { column: 10, row: 9, direction: "up", item: null };
+  const state = freshState({
+    machines: [storage],
+    placedConveyors: [output],
+    stockpile: { ...game.createInitialState().stockpile, copper: 8 },
+    storageOutputFilters: { "10,10:1": ["copper"] },
+  });
+  const interval = 0.5;
+
+  game.emitStorageOutputs(0);
+  assert.equal(game.getConveyorItemCount(output), 1);
+  assert.equal(output.item.material, "copper");
+  assert.equal(state.stockpile.copper, 7);
+  assert.equal(state.storageOutputNextLanes["storage-four-flow:1"], 1);
+  game.emitStorageOutputs(interval / 2);
+  assert.equal(game.getConveyorItemCount(output), 1);
+  game.emitStorageOutputs(interval / 2);
+  assert.equal(state.extraConveyorItems["placed:10,9"][1].material, "copper");
+  game.emitStorageOutputs(interval);
+  game.emitStorageOutputs(interval);
+  assert.equal(game.getConveyorItemCount(output), game.CONVEYOR_CARGO_CAPACITY);
+  assert.equal(state.stockpile.copper, 4);
+  assert.equal(state.extraConveyorItems["placed:10,9"][2].material, "copper");
+  assert.equal(state.extraConveyorItems["placed:10,9"][3].material, "copper");
+  game.emitStorageOutputs(interval / 2);
+  assert.equal(game.getConveyorItemCount(output), game.CONVEYOR_CARGO_CAPACITY);
+  assert.equal(state.stockpile.copper, 4);
+
+  const saved = JSON.parse(JSON.stringify(state));
+  assert.equal(game.hydrateSavedState(saved).storageOutputNextLanes["storage-four-flow:1"], 0);
+});
+
+test("storage waits if its next lane is full instead of breaking alternation", () => {
+  const storage = machine("materialStorage", "storage-lane-block", 10, 10);
+  const output = { column: 10, row: 9, direction: "up", item: null };
+  const state = freshState({
+    machines: [storage],
+    placedConveyors: [output],
+    stockpile: { ...game.createInitialState().stockpile, copper: 2 },
+    storageOutputFilters: { "10,10:1": ["copper"] },
+  });
+  const leftFront = { kind: "material", material: "lead", quantity: 1 };
+  const leftBack = { kind: "material", material: "lead", quantity: 1 };
+  assert.equal(game.placeItemOnConveyor(output, leftFront, 0), true);
+  assert.equal(game.placeItemOnConveyor(output, leftBack, 2), true);
+
+  game.emitStorageOutputs(0);
+  assert.equal(game.getConveyorItemCount(output), 2);
+  assert.equal(state.stockpile.copper, 2, "a free right lane does not steal the left lane's turn");
+
+  output.item = null;
+  game.emitStorageOutputs(0);
+  assert.equal(output.item.material, "copper");
+  assert.equal(state.stockpile.copper, 1);
+  assert.equal(state.storageOutputNextLanes["storage-lane-block:1"], 1);
+});
+
 test("Stacker accepts three input directions and releases its configured batch size", () => {
   const stacker = machine("stacker", "stacker-1", 2, 5);
   stacker.stackSize = 3;
@@ -4110,9 +4530,17 @@ test("Stacker accepts three input directions and releases its configured batch s
   assert.equal(game.canStackerReceiveFromConveyor(stacker, { direction: "left" }), false);
   assert.equal(game.receiveConveyorItem(topInput, 2, 5), true);
   assert.equal(state.stackerBuffers[stacker.instanceId].quantity, 3);
+  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+    assert.equal(game.placeItemOnConveyor(outputConveyor, {
+      kind: "material",
+      material: "bronzePlate",
+      quantity: 1,
+    }, index), true);
+  }
   assert.equal(game.canReceiveConveyorItem(topInput, 2, 5), false);
   assert.equal(game.receiveConveyorItem(topInput, 2, 5), false);
   outputConveyor.item = null;
+  delete state.extraConveyorItems["placed:3,5"];
   assert.equal(game.canReceiveConveyorItem(topInput, 2, 5), true);
 });
 
@@ -4184,6 +4612,11 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
     { column: 10, row: 11, direction: "down", item: null },
   ];
   freshState({ machines: [splitter], placedConveyors: [input, ...exits] });
+  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+    assert.equal(game.placeItemOnConveyor(exits[0], {
+      kind: "material", material: "clay", quantity: 1, tileProgress: 1,
+    }, index), true);
+  }
   game.advanceConveyorItems(0.1);
   assert.equal(exits[1].item?.material, "copper");
   assert.equal(splitter.splitterNextOutputIndex, 2);
@@ -4201,6 +4634,13 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
     { column: 10, row: 11, direction: "down", item: { kind: "material", material: "clay", quantity: 1, tileProgress: 1 } },
   ];
   freshState({ machines: [fullyBlocked], placedConveyors: [blockedInput, ...blockedExits] });
+  blockedExits.forEach((exit) => {
+    for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
+      assert.equal(game.placeItemOnConveyor(exit, {
+        kind: "material", material: "clay", quantity: 1, tileProgress: 1,
+      }, index), true);
+    }
+  });
   game.advanceConveyorItems(0.1);
   assert.equal(blockedInput.item?.material, "copper");
   assert.equal(fullyBlocked.splitterNextOutputIndex, 0);
