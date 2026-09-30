@@ -454,6 +454,18 @@ function getConveyorItems(conveyor) {
   return items;
 }
 
+function moveBackCargoIntoFront(conveyor, lane) {
+  const frontSlot = lane + 2;
+  const backItem = getConveyorLaneItem(conveyor, lane);
+  if (getConveyorLaneItem(conveyor, frontSlot) || !backItem) {
+    return false;
+  }
+
+  setConveyorItemAtSlot(conveyor, lane, null);
+  setConveyorItemAtSlot(conveyor, frontSlot, backItem);
+  return true;
+}
+
 function getConveyorItem(conveyor) {
   return getConveyorItems(conveyor)[0]?.item ?? null;
 }
@@ -3009,6 +3021,14 @@ function advanceConveyorItems(deltaSeconds) {
   // Machine inputs are consumers rather than conveyor slots. Accept them one
   // at a time against their live state so batches cannot overfill an input.
   const receiverMovements = candidates.filter((movement) => movement.type === "receiver");
+  const emptiedFrontLanes = new Map();
+  const noteEmptiedFrontLane = (movement) => {
+    if (movement.slot < 2) {
+      return;
+    }
+    const key = `${getConveyorIdentity(movement.conveyor)}:${movement.slot % 2}`;
+    emptiedFrontLanes.set(key, { conveyor: movement.conveyor, lane: movement.slot % 2 });
+  };
   receiverMovements.forEach((movement) => {
     if (!canReceiveConveyorItem(
       movement.item,
@@ -3027,6 +3047,7 @@ function advanceConveyorItems(deltaSeconds) {
     }
     releaseDusterForItem(movement.item);
     removeConveyorItem(movement.conveyor, movement.item);
+    noteEmptiedFrontLane(movement);
   });
 
   let conveyorMovements = candidates.filter((movement) => (
@@ -3041,6 +3062,7 @@ function advanceConveyorItems(deltaSeconds) {
   conveyorMovements.forEach((movement) => {
     releaseDusterForItem(movement.item);
     removeConveyorItem(movement.conveyor, movement.item);
+    noteEmptiedFrontLane(movement);
   });
 
   conveyorMovements.forEach((movement) => {
@@ -3062,6 +3084,13 @@ function advanceConveyorItems(deltaSeconds) {
         splitter.splitterNextOutputIndex = (movement.splitterOutputIndex + 1) % 3;
       }
     }
+  });
+
+  // A back position only advances when its occupied front position has just
+  // cleared. New cargo entering a back slot (for example, around a turn) stays
+  // on its mapped path until a front cargo actually leaves.
+  emptiedFrontLanes.forEach(({ conveyor, lane }) => {
+    moveBackCargoIntoFront(conveyor, lane);
   });
 }
 

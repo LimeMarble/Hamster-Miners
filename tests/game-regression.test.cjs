@@ -4478,6 +4478,39 @@ test("standard cargo uses two across-belt lanes and two positions along a tile",
   );
 });
 
+test("back cargo advances into an emptied front slot without crossing lanes", () => {
+  const source = { column: 10, row: 10, direction: "right", item: null };
+  const next = { column: 11, row: 10, direction: "right", item: null };
+  const backLane0 = { kind: "material", material: "copper", quantity: 1 };
+  const frontLane0 = { kind: "material", material: "clay", quantity: 1 };
+  const backLane1 = { kind: "material", material: "lead", quantity: 1 };
+  const frontLane1 = { kind: "material", material: "graphite", quantity: 1 };
+  freshState({ placedConveyors: [source, next] });
+
+  assert.equal(game.placeItemOnConveyor(source, backLane0, 0), true);
+  assert.equal(game.placeItemOnConveyor(source, frontLane0, 2), true);
+  assert.equal(game.placeItemOnConveyor(source, backLane1, 1), true);
+  assert.equal(game.placeItemOnConveyor(source, frontLane1, 3), true);
+  backLane0.tileProgress = 0.2;
+  frontLane0.tileProgress = 1;
+  backLane1.tileProgress = 0.3;
+  frontLane1.tileProgress = 0.4;
+
+  game.advanceConveyorItems(0);
+
+  assert.equal(
+    game.getConveyorItems(source).find(({ item }) => item === backLane0)?.slot,
+    2,
+  );
+  assert.equal(
+    game.getConveyorItems(source).find(({ item }) => item === backLane1)?.slot,
+    1,
+    "the other lane does not compact while its front position is occupied",
+  );
+  assert.equal(game.getConveyorItems(next)[0]?.item, frontLane0);
+  assert.equal(backLane0.tileProgress, 0.2);
+});
+
 test("cargo curves through a belt turn and enters the matching outgoing slot", () => {
   const cargo = {
     kind: "material",
