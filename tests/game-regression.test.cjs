@@ -17,6 +17,38 @@ global.document = {
 
 const game = require("../game.js");
 
+const GAME_SOURCE_FILES = [
+  "game-data.js",
+  "game-state.js",
+  "factory-logistics.js",
+  "factory-building.js",
+  "mining.js",
+  "game-ui.js",
+  "game.js",
+];
+
+function readGameSource() {
+  return GAME_SOURCE_FILES.map((filename) => (
+    fs.readFileSync(path.join(__dirname, "..", filename), "utf8")
+  )).join("\n");
+}
+
+test("browser loads the split game scripts in dependency order", () => {
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const scriptOrder = [
+    "game-data.js",
+    "game-state.js",
+    "factory-logistics.js",
+    "factory-building.js",
+    "mining.js",
+    "game-ui.js",
+    "game.js",
+  ].map((filename) => markup.indexOf(`<script src="${filename}"></script>`));
+
+  assert.ok(scriptOrder.every((index) => index >= 0));
+  assert.deepEqual(scriptOrder, scriptOrder.slice().sort((a, b) => a - b));
+});
+
 function machine(id, instanceId, column, row, orientation = "right") {
   return {
     ...game.MACHINE_LAYOUT[id],
@@ -134,7 +166,7 @@ test("hidden shop cards stay hidden despite the construction card display rule",
 
 test("the browser title is simply Hamster Miners on every screen", () => {
   const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   assert.match(markup, /<title>Hamster Miners<\/title>/);
   assert.match(markup, /name="description"\s+content="version idkbutsomethingprealpha"/);
   assert.match(source, /document\.title = "Hamster Miners";/);
@@ -143,7 +175,7 @@ test("the browser title is simply Hamster Miners on every screen", () => {
 
 test("player-facing machine copy omits roadmap and redundant threshold notes", () => {
   const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   const playerFacingCopy = `${markup}\n${source}`;
   const removedSnippets = [
     "Wire and coil modes will be configured later.",
@@ -168,7 +200,7 @@ test("player-facing machine copy omits roadmap and redundant threshold notes", (
 });
 
 test("inventory detail placement keeps the conveyor tutorial selection flow", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   assert.match(
     source,
     /function selectInventoryMachineForPlacement\(machineId\)\s*\{\s*if \(machineId === "conveyor"\)\s*\{\s*selectConveyorForPlacement\(\);/s,
@@ -274,7 +306,7 @@ test("factory conveyor topology is reused until the layout changes", () => {
 });
 
 test("stacker and splitter ghost ports sit below real belts and cargo", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   const floorBody = source.match(/function drawMachineFloor\(scene\) \{([\s\S]*?)\r?\n\}\r?\n\r?\nfunction/);
   const liquidPortBody = source.match(/function drawMachineLiquidPorts\(graphics\) \{([\s\S]*?)\r?\n\}\r?\n\r?\nfunction/);
   assert.ok(floorBody, "machine floor renderer should exist");
@@ -306,7 +338,7 @@ test("factory machine-control signatures ignore process countdown ticks", () => 
   state.arcFurnaceJobs = [];
   assert.notEqual(game.getFactoryMachineProgressState(furnace), initialSignature);
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   assert.match(
     source,
     /if \(signature === lastFactoryControlsSignature\) \{\s*updateMachineActionProgressNote\(machine\);\s*return;/,
@@ -435,7 +467,7 @@ test("factory marquee requires an intentional drag and ignores control-panel rel
     true,
   );
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   assert.match(source, /moveMachineButton\.addEventListener\("pointerdown"/);
   assert.match(source, /bindImmediateAction\(elements\.moveMachineButton, moveSelectedFactoryEntities\)/);
 });
@@ -547,7 +579,7 @@ test("deposits receive their material-specific segment health", () => {
 });
 
 test("Clay has one consistent player-facing name in the mine and Shop", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
   assert.match(source, /label: "Clay"/);
@@ -1484,7 +1516,7 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
   assert.strictEqual(state.arcFurnaceOutputBuffers[furnace.instanceId], ceramicOutput);
   assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), false);
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const source = readGameSource();
   const controls = source.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  if \(machine\.id === "metalPress"\)/);
   assert.ok(controls, "arc furnace controls should exist");
   assert.match(controls[1], /document\.createElement\("select"\)/);
