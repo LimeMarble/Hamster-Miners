@@ -41,6 +41,37 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     LOW_MELTING_METAL_ORES,
     MACHINE_LAYOUT,
     MACHINE_PURCHASES,
+    GEAR_DEFINITIONS,
+    GEAR_PRESS_MODES,
+    CARGO_WEIGHTS,
+    CONVEYOR_WEIGHT_LIMITS,
+    getCargoUnitWeight,
+    getCargoWeight,
+    getConveyorWeightCapacity,
+    canConveyorCarryItem,
+    AGGREGATE_RECIPE,
+    canAggregateMixerAcceptItem,
+    receiveAggregateMixerItem,
+    updateAggregateMixers,
+    HOT_FLUID_PIPE_MODES,
+    HOT_FLUID_PIPE_THROUGHPUT,
+    getHotFluidPipeMode,
+    getHotFluidPipeOutputDirections,
+    getHotFluidPipeNetwork,
+    switchHotFluidPipeMode,
+    updateHotFluidPipes,
+    getAvailableLiquidQuantity,
+    getCasingMachineAvailableLiquid,
+    flushArcFurnaceOutputs,
+    startBulletCoreCasting,
+    startMolderJob,
+    getMachinePort,
+    getMachinePorts,
+    getGearPressMode,
+    switchGearPressMode,
+    canGearPressAcceptInput,
+    receiveGearPressInput,
+    flushGearPressOutputs,
     MACHINE_CATEGORY_ORDER,
     MACHINE_CATEGORY_LABELS,
     MACHINE_CATEGORY_BY_ID,
@@ -104,15 +135,9 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getSaleValue,
     getItemSaleValue,
     getFactoryMaterialVisualKind,
-    CONVEYOR_CARGO_CAPACITY,
     getFactoryConveyors,
     getConveyorAt,
-    getConveyorTurnDestinationSlot,
-    getConveyorItems,
-    getConveyorItemCount,
-    getConveyorUsedSlotCount,
-    getConveyorCargoVisualOffset,
-    getConveyorCargoVisualPosition,
+    getConveyorItem,
     placeItemOnConveyor,
     getConveyorSpeed,
     getConveyorSecondsPerTile,
@@ -267,6 +292,19 @@ elements.selectLeekFiberExtractorButton.addEventListener("click", () => selectMa
 elements.selectContactMakerButton.addEventListener("click", () => selectMachineForPlacement("contactMaker"));
   elements.selectMiniElectricArcFurnaceButton.addEventListener("click", () => selectMachineForPlacement("miniElectricArcFurnace"));
 elements.selectMetalPressButton.addEventListener("click", () => selectMachineForPlacement("metalPress"));
+elements.selectGearPressButton.addEventListener("click", () => selectMachineForPlacement("gearPress"));
+elements.pipePlacementMode?.addEventListener("change", () => {
+  selectedPipePlacementMode = elements.pipePlacementMode.value;
+  const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
+  if (stored) stored.mode = selectedPipePlacementMode;
+  saveGame();
+});
+elements.pipePlacementTurnSide?.addEventListener("change", () => {
+  selectedPipeTurnSide = elements.pipePlacementTurnSide.value;
+  const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
+  if (stored) stored.turnSide = selectedPipeTurnSide;
+  saveGame();
+});
 elements.selectStackerButton.addEventListener("click", () => selectMachineForPlacement("stacker"));
 elements.selectSplitterButton.addEventListener("click", () => selectMachineForPlacement("splitter"));
 elements.selectQuartzWheelCutterButton.addEventListener("click", () => selectMachineForPlacement("quartzWheelCutter"));
@@ -306,6 +344,7 @@ elements.buyJacketFormerButton.addEventListener("click", () => purchaseMachine("
 elements.buyCasingMachineButton.addEventListener("click", () => purchaseMachine("casingMachine"));
   elements.buyMiniElectricArcFurnaceButton.addEventListener("click", () => purchaseMachine("miniElectricArcFurnace"));
   elements.buyMetalPressButton.addEventListener("click", () => purchaseMachine("metalPress"));
+elements.buyGearPressButton.addEventListener("click", () => purchaseMachine("gearPress"));
   elements.buyStackerButton.addEventListener("click", () => purchaseMachine("stacker"));
 elements.buySplitterButton.addEventListener("click", () => purchaseMachine("splitter"));
 elements.buyGraphiteLacedSellTubeButton.addEventListener("click", () => purchaseMachine("graphiteLacedSellTube"));

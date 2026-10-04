@@ -41,9 +41,6 @@ const CONFIG = Object.freeze({
   startingAmmo: 0,
   startingCrew: 10,
   clayKilnProcessSeconds: 5,
-  clayKilnBatchSize: 4,
-  arcFurnaceBatchSize: 4,
-  storageOutputItemsPerSecond: 2,
   ingotMolderProcessSeconds: 1,
   simulationFramesPerSecond: 10,
   factoryRenderFramesPerSecond: 10,
@@ -119,9 +116,6 @@ const AUTO_DRILL_MODE_LABELS = Object.freeze({
   ignoreOres: "Ignore Ores",
 });
 
-// Current one-tile belts pack two lanes by two positions per segment. A cargo
-// spanning tile boundaries will need an explicit multi-segment footprint.
-const CONVEYOR_CARGO_CAPACITY = 4;
 const MALACHITE_AMMO_DAMAGE = 3;
 const LEAD_AMMO_DAMAGE = 5;
 
@@ -336,6 +330,27 @@ const RESOURCE_DEFINITIONS = Object.freeze({
   },
 });
 
+const GEAR_PRESS_MODES = Object.freeze(["heavy", "fine"]);
+const GEAR_DEFINITIONS = Object.freeze(Object.fromEntries([
+  ["copper", "Copper", 0xc98752],
+  ["brittleCopper", "Brittle copper", 0xca8651],
+  ["silver", "Silver", 0xd7dce5],
+  ["tin", "Tin", 0xc8b49a],
+  ["bronze", "Bronze", 0xb87945],
+  ["iron", "Iron", 0x85858a],
+].flatMap(([metal, label, color]) => GEAR_PRESS_MODES.map((mode) => [
+  `${metal}${mode === "heavy" ? "Heavy" : "Fine"}Gear`,
+  Object.freeze({
+    plateMaterial: `${metal}Plate`,
+    mode,
+    label: `${label} ${mode === "heavy" ? "Heavy" : "Fine"} Gear`,
+    color,
+    platesPerGear: mode === "heavy" ? 2 : 0.5,
+    weight: mode === "heavy" ? 2 : 0.5,
+  }),
+]))));
+const GEAR_MATERIALS = Object.freeze(Object.keys(GEAR_DEFINITIONS));
+
 const STOCKPILE_LABELS = Object.freeze({
   leek: "Leek",
   copper: "Malachite ore",
@@ -372,12 +387,14 @@ const STOCKPILE_LABELS = Object.freeze({
   iron: "Iron",
   ironIngot: "Iron ingot",
   ceramic: "Ceramic",
+  aggregate: "Aggregate",
   copperPlate: "Copper plate",
   brittleCopperPlate: "Brittle copper plate",
   silverPlate: "Silver plate",
   tinPlate: "Tin plate",
   bronzePlate: "Bronze plate",
   ironPlate: "Iron plate",
+  ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [material, definition.label])),
 });
 
 const MATERIAL_LABELS = Object.freeze({
@@ -419,12 +436,14 @@ const MATERIAL_LABELS = Object.freeze({
   iron: "Iron",
   ironIngot: "Iron ingot",
   ceramic: "Ceramic",
+  aggregate: "Aggregate",
   copperPlate: "Copper plate",
   brittleCopperPlate: "Brittle copper plate",
   silverPlate: "Silver plate",
   tinPlate: "Tin plate",
   bronzePlate: "Bronze plate",
   ironPlate: "Iron plate",
+  ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [material, definition.label])),
 });
 
 const MATERIAL_COLORS = Object.freeze({
@@ -466,12 +485,14 @@ const MATERIAL_COLORS = Object.freeze({
   iron: 0x85858a,
   ironIngot: 0x85858a,
   ceramic: 0xd8c9ac,
+  aggregate: 0x96917e,
   copperPlate: 0xc98752,
   brittleCopperPlate: 0xca8651,
   silverPlate: 0xd7dce5,
   tinPlate: 0xc8b49a,
   bronzePlate: 0xb87945,
   ironPlate: 0x85858a,
+  ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [material, definition.color])),
 });
 
 const ORE_CHUNK_MATERIALS = Object.freeze([
@@ -512,6 +533,9 @@ const PLATE_MATERIALS = Object.freeze([
 ]);
 
 function getFactoryMaterialVisualKind(material) {
+  if (Object.hasOwn(GEAR_DEFINITIONS, material)) {
+    return "gear";
+  }
   if (ORE_CHUNK_MATERIALS.includes(material)) {
     return "ore";
   }
@@ -592,6 +616,11 @@ const MINIMUM_SALE_VALUES = Object.freeze({
   silverTinContact: 8.8,
   wire: 1,
   cutMalachite: 125,
+  ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [
+    material,
+    ({ copperPlate: 2, brittleCopperPlate: 2, silverPlate: SELL_VALUES.silver * 4 }[definition.plateMaterial] ?? 0)
+      * definition.platesPerGear,
+  ])),
 });
 
 const CONTACT_MAKER_METAL_INPUTS = Object.freeze([
@@ -791,7 +820,8 @@ function normalizeAmmoStacks(stacks) {
 }
 
 function isSellableMaterial(material, item = null) {
-  return (MINIMUM_SALE_VALUES[material] ?? 0) > 0
+  return Object.hasOwn(GEAR_DEFINITIONS, material)
+    || (MINIMUM_SALE_VALUES[material] ?? 0) > 0
     || Number.isFinite(item?.saleValueBase) && item.saleValueBase > 0;
 }
 
@@ -803,7 +833,7 @@ const MACHINE_PURCHASES = Object.freeze({
   clayKiln: { cash: 10, materials: { clay: 25 } },
   ingotMolder: { cash: 5, materials: { clay: 5 } },
   refractoryCaster: {
-    cash: 5e5,
+    cash: 1.5e6,
     materials: { ironIngot: 50, ironPlate: 25, ceramic: 25 },
   },
   graphiteCopperAnnealer: { cash: 700, materials: { granite: 150, copperIngot: 20, wire: 50 } },
@@ -821,6 +851,18 @@ const MACHINE_PURCHASES = Object.freeze({
   metalPress: {
     cash: 5e4,
     materials: { bronzeIngot: 20, graphite: 50, limestone: 100, wire: 50 },
+  },
+  gearPress: {
+    cash: 4e5,
+    materials: { ironIngot: 100, ironPlate: 50, wire: 100 },
+  },
+  aggregateMixer: {
+    cash: 8e5,
+    materials: { ironHeavyGear: 50, ironPlate: 100, ceramic: 50, wire: 150 },
+  },
+  hotFluidPipe: {
+    cash: 2.5e4,
+    materials: { ceramic: 2, ironIngot: 2, tinIngot: 1, aggregate: 5 },
   },
   stacker: {
     cash: 2e3,
@@ -873,6 +915,8 @@ const MACHINE_CATEGORY_BY_ID = Object.freeze({
   contactMaker: ["material", "cash"],
   miniElectricArcFurnace: "material",
   metalPress: "material",
+  gearPress: "material",
+  aggregateMixer: "material",
   ammoShaper: "ammo",
   jacketFormer: "ammo",
   casingMachine: "ammo",
@@ -883,6 +927,7 @@ const MACHINE_CATEGORY_BY_ID = Object.freeze({
   materialStorage: "logistics",
   stacker: "logistics",
   splitter: "logistics",
+  hotFluidPipe: "logistics",
 });
 
 function getMachineCategory(machineId) {
@@ -1172,11 +1217,39 @@ const MACHINE_LAYOUT = Object.freeze({
     processLaneIndex: 1,
     movable: true,
   },
+  gearPress: {
+    width: 2,
+    height: 3,
+    orientation: "right",
+    mode: "heavy",
+    internalConveyors: [
+      { column: 0, row: 1, direction: "right", speed: 5 },
+      { column: 1, row: 1, direction: "right", speed: 5 },
+    ],
+    processLaneIndex: 1,
+    movable: true,
+  },
   stacker: {
     width: 1,
     height: 1,
     orientation: "right",
     stackSize: 1,
+    movable: true,
+  },
+  aggregateMixer: {
+    width: 4,
+    height: 3,
+    orientation: "right",
+    materialInputs: [{ column: 0, row: 0 }, { column: 0, row: 2 }],
+    internalConveyors: [{ column: 3, row: 1, direction: "right" }],
+    movable: true,
+  },
+  hotFluidPipe: {
+    width: 1,
+    height: 1,
+    orientation: "right",
+    mode: "straight",
+    turnSide: "left",
     movable: true,
   },
   splitter: {

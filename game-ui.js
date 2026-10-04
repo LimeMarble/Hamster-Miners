@@ -276,6 +276,9 @@ function renderMachineInventory() {
   elements.contactMakerInventoryCount.textContent = `Stored: ${formatNumber(inventory.contactMaker)}`;
   elements.miniElectricArcFurnaceInventoryCount.textContent = `Stored: ${formatNumber(inventory.miniElectricArcFurnace)}`;
   elements.metalPressInventoryCount.textContent = `Stored: ${formatNumber(inventory.metalPress)}`;
+  elements.gearPressInventoryCount.textContent = `Stored: ${formatNumber(inventory.gearPress)}`;
+  if (elements.aggregateMixerInventoryCount) elements.aggregateMixerInventoryCount.textContent = `Stored: ${formatNumber(inventory.aggregateMixer)}`;
+  if (elements.hotFluidPipeInventoryCount) elements.hotFluidPipeInventoryCount.textContent = `Stored: ${formatNumber(inventory.hotFluidPipe)}`;
   elements.stackerInventoryCount.textContent = `Stored: ${formatNumber(inventory.stacker)}`;
   elements.splitterInventoryCount.textContent = `Stored: ${formatNumber(inventory.splitter)}`;
   elements.quartzWheelCutterInventoryCount.textContent = `Stored: ${formatNumber(inventory.quartzWheelCutter)}`;
@@ -303,6 +306,7 @@ function renderMachineInventory() {
   elements.selectContactMakerButton.disabled = inventory.contactMaker <= 0;
   elements.selectMiniElectricArcFurnaceButton.disabled = inventory.miniElectricArcFurnace <= 0;
   elements.selectMetalPressButton.disabled = inventory.metalPress <= 0;
+  elements.selectGearPressButton.disabled = inventory.gearPress <= 0;
   elements.selectStackerButton.disabled = inventory.stacker <= 0;
   elements.selectSplitterButton.disabled = inventory.splitter <= 0;
   elements.selectQuartzWheelCutterButton.disabled = inventory.quartzWheelCutter <= 0;
@@ -318,6 +322,10 @@ function renderMachineInventory() {
 
     const visual = document.createElement("span");
     visual.className = `inventory-item-visual is-${material}`;
+    if (Object.hasOwn(GEAR_DEFINITIONS, material)) {
+      visual.classList.add("is-gear", `is-${GEAR_DEFINITIONS[material].mode}-gear`);
+      visual.style.setProperty("--gear-color", `#${GEAR_DEFINITIONS[material].color.toString(16).padStart(6, "0")}`);
+    }
     visual.setAttribute("aria-hidden", "true");
 
     const itemLabel = document.createElement("div");
@@ -335,6 +343,12 @@ function renderMachineInventory() {
 }
 
 function renderInventoryDetail(machineId) {
+  if (elements.pipePlacementControls) {
+    elements.pipePlacementControls.hidden = machineId !== "hotFluidPipe";
+    const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
+    elements.pipePlacementMode.value = stored ? getHotFluidPipeMode(stored) : selectedPipePlacementMode;
+    elements.pipePlacementTurnSide.value = stored?.turnSide ?? selectedPipeTurnSide;
+  }
   const card = [...elements.inventoryMachineCards].find((candidate) => (
     candidate.dataset.inventoryMachine === machineId
   ));
@@ -416,7 +430,8 @@ function getFactoryMachineProgressState(machine) {
   const casingLiquidState = machine.id === "casingMachine"
     ? (() => {
       const available = getCasingMachineAvailableLiquid(machine);
-      return `${available.material ?? ""}:${available.quantity}`;
+      // Quantities update the existing status node, not the mode buttons.
+      return available.material ?? "";
     })()
     : "";
 
@@ -430,15 +445,46 @@ function getFactoryMachineProgressState(machine) {
     state.arcFurnaceJobs.map((job) => job.furnaceInstanceId).join(","),
     JSON.stringify(state.arcFurnaceOutputBuffers[machine.instanceId] ?? {}),
     machine.mode ?? "",
+    machine.turnSide ?? "",
+    machine.id === "aggregateMixer" ? JSON.stringify(state.aggregateMixerInputs[machine.instanceId] ?? {}) : "",
+    machine.id === "aggregateMixer" ? Boolean(state.aggregateMixerJobs[machine.instanceId]) : "",
     machine.stackSize ?? "",
     JSON.stringify(state.arcFurnaceInputs[machine.instanceId] ?? {}),
     JSON.stringify(state.stackerBuffers[machine.instanceId] ?? {}),
+    JSON.stringify(state.gearPressInputs[machine.instanceId] ?? {}),
+    machine.id === "gearPress"
+      ? getInternalConveyorTiles(machine).map((conveyor) => {
+        const item = getConveyorItem(conveyor);
+        return item ? `${item.material}:${item.quantity}` : "empty";
+      }).join(",")
+      : "",
     casingCargoState,
     casingLiquidState,
   ].join("|");
 }
 
 function getMachineActionProgressNote(machine) {
+  if (machine?.id === "aggregateMixer") {
+    const job = state.aggregateMixerJobs[machine.instanceId];
+    const buffer = state.aggregateMixerInputs[machine.instanceId] ?? {};
+    return job ? `Mixing: ${formatQuantity(job.secondsRemaining)}s.`
+      : `Limestone ${formatQuantity(buffer.limestone ?? 0)} / 40 · Chert ${formatQuantity(buffer.chert ?? 0)} / 20.`;
+  }
+  if (machine?.id === "hotFluidPipe") {
+    return getHotFluidPipeNetwork().nodes.get(machine.instanceId)?.sealed
+      ? "Network sealed · 30 fluid weight/s. Blocked exits are skipped."
+      : "Network stopped: an output is open. Connect a destination or add a cap.";
+  }
+  if (machine?.id === "gearPress") {
+    const pending = state.gearPressInputs[machine.instanceId];
+    const output = getConveyorItem(getInternalConveyor(machine, getMachineProcessLaneIndex(machine)));
+    if (output) {
+      return `${formatNumber(output.quantity)} ${MATERIAL_LABELS[output.material]} on the output conveyor.`;
+    }
+    return pending
+      ? `Holding ${formatNumber(pending.quantity)} ${MATERIAL_LABELS[pending.material]}${getGearPressMode(machine) === "heavy" ? "; waiting for another matching plate" : ""}.`
+      : "Waiting for metal plates.";
+  }
   if (machine?.id === "clayKiln") {
     const kilnJob = state.kilnJobs.find((job) => job.kilnInstanceId === machine.instanceId);
     const hasInput = state.kilnInputs.some((input) => input.kilnInstanceId === machine.instanceId);
@@ -464,7 +510,7 @@ function getMachineActionProgressNote(machine) {
     const link = getMolderKilnLink(machine);
     const molderJob = state.molderJobs.find((job) => job.molderInstanceId === machine.instanceId);
     const outputConveyor = getInternalConveyor(machine, 0);
-    const outputBlocked = Boolean(outputConveyor && isConveyorFull(outputConveyor));
+    const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
     const outputBuffer = state.molderOutputBuffers[machine.instanceId];
     const linkedLiquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
     const linkedLiquid = linkedLiquidIndex >= 0 ? state.moltenCopper[linkedLiquidIndex] : null;
@@ -493,7 +539,7 @@ function getMachineActionProgressNote(machine) {
     const link = getMolderKilnLink(machine, "liquidInput");
     const job = state.molderJobs.find((candidate) => candidate.molderInstanceId === machine.instanceId);
     const outputConveyor = getInternalConveyor(machine, 0);
-    const outputBlocked = Boolean(outputConveyor && isConveyorFull(outputConveyor));
+    const outputBlocked = Boolean(outputConveyor && getConveyorItem(outputConveyor));
     const outputBuffer = state.molderOutputBuffers[machine.instanceId];
     const liquidIndex = link ? findMoltenCopperIndex(link.kiln.instanceId) : -1;
     const liquid = liquidIndex >= 0 ? state.moltenCopper[liquidIndex] : null;
@@ -580,6 +626,8 @@ function updateMachineActionProgressNote(machine) {
     refractoryCaster: "refractory-caster-progress",
     miniElectricArcFurnace: "arc-furnace-progress",
     casingMachine: "casing-machine-progress",
+    aggregateMixer: "aggregate-mixer-progress",
+    hotFluidPipe: "hot-fluid-pipe-progress",
   }[machine?.id];
   if (!noteKey || !elements.machineActions) {
     return;
@@ -967,6 +1015,44 @@ function renderMachineActions(machine) {
     addMachineActionNote("Its two horizontal conveyor cells run at speed 5; the second cell is the pressing transformer lane.");
   }
 
+  if (machine.id === "gearPress") {
+    const mode = getGearPressMode(machine);
+    GEAR_PRESS_MODES.forEach((value) => {
+      const label = value === "heavy" ? "Heavy Gear" : "Fine Gear";
+      addMachineAction(
+        `${label}${mode === value ? " (selected)" : ""}`,
+        () => {
+          if (switchGearPressMode(machine, value)) {
+            saveGame();
+            render();
+          }
+        },
+        mode === value,
+      );
+    });
+    addMachineActionNote(mode === "heavy"
+      ? "Two matching metal plates make one Heavy Gear."
+      : "One metal plate makes two Fine Gears.");
+    addMachineActionNote("No crew required. Total input value is preserved.");
+    addMachineActionNote(getMachineActionProgressNote(machine), "gear-press-progress");
+  }
+
+  if (machine.id === "aggregateMixer") {
+    addMachineActionNote("Either input accepts Limestone or Chert. Each batch uses 40 Limestone and 20 Chert to make 10 Aggregate in 10 seconds. No crew required.");
+    addMachineActionNote(getMachineActionProgressNote(machine), "aggregate-mixer-progress");
+  }
+  if (machine.id === "hotFluidPipe") {
+    Object.entries(HOT_FLUID_PIPE_MODES).forEach(([mode, label]) => addMachineAction(
+      `${label}${getHotFluidPipeMode(machine) === mode ? " (selected)" : ""}`,
+      () => { if (switchHotFluidPipeMode(machine, mode)) { saveGame(); render(); } }, getHotFluidPipeMode(machine) === mode,
+    ));
+    if (getHotFluidPipeMode(machine) === "turn") {
+      ["left", "right"].forEach((side) => addMachineAction(`Turn ${side}${machine.turnSide === side ? " (selected)" : ""}`,
+        () => { switchHotFluidPipeMode(machine, "turn", side); saveGame(); render(); }, machine.turnSide === side));
+    }
+    addMachineActionNote(getMachineActionProgressNote(machine), "hot-fluid-pipe-progress");
+  }
+
   if (machine.id === "stacker") {
     const stackSize = Math.max(1, Math.min(3, machine.stackSize ?? 1));
     const buffer = getStackerBuffer(machine);
@@ -1193,7 +1279,7 @@ function renderStatus() {
     CONFIG.planterCycleSeconds - planterAccumulator,
   ) / getProcessingSpeedMultiplier();
   setTextContentIfChanged(elements.planterRate, `${getGunDisplayName()} · ${getSelectedGun() === "buckshot" ? `${BUCKSHOT_FIRE_PER_SECOND} shot/s · ${BUCKSHOT_SEGMENTS_PER_SHOT} random hits` : `${CONFIG.autoFirePerSecond} shots/s`}`);
-  setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && hasOpenConveyorSlot(planterInputConveyor)
+  setTextContentIfChanged(elements.leekInputValue, planterInputConveyor && !getConveyorItem(planterInputConveyor)
     ? `${formatNumber(secondsUntilPlanter)}s`
     : `${state.planterQueue} / ${CONFIG.maxPlanterQueue} leeks queued`);
   setTextContentIfChanged(elements.crewValue, `${getAvailableCrew()} / ${state.crew.total} available`);
@@ -1573,6 +1659,7 @@ function drawMachineFloor(scene) {
   const contactMaker = getMachine("contactMaker");
   const miniElectricArcFurnace = getMachine("miniElectricArcFurnace");
   const metalPress = getMachine("metalPress");
+  const gearPress = getMachine("gearPress");
   const stacker = getMachine("stacker");
   const splitter = getMachine("splitter");
   const casingMachine = getMachine("casingMachine");
@@ -1603,6 +1690,7 @@ function drawMachineFloor(scene) {
     { machine: contactMaker, fill: 0x4d5b4a, border: 0xc8e0a1, opacity: 0.9 },
     { machine: miniElectricArcFurnace, fill: 0x4c4b58, border: 0xe0c3ff, opacity: 0.9 },
     { machine: metalPress, fill: 0x5b4d3d, border: 0xe1c38f, opacity: 0.9 },
+    { machine: gearPress, fill: 0x484e55, border: 0xc3cbd3, opacity: 0.9 },
     { machine: stacker, fill: 0x5d4b3e, border: 0xe6c18f, opacity: 0.9 },
     { machine: splitter, fill: 0x405b58, border: 0x9ac9c2, opacity: 0.9 },
     { machine: casingMachine, fill: 0x594d3f, border: 0xe5bd83, opacity: 0.9 },
@@ -1664,6 +1752,9 @@ function drawMachineFloor(scene) {
     })),
     ...getMachines("metalPress").slice(1).map((machine) => ({
       machine, fill: 0x5b4d3d, border: 0xe1c38f, opacity: 0.9,
+    })),
+    ...getMachines("gearPress").slice(1).map((machine) => ({
+      machine, fill: 0x484e55, border: 0xc3cbd3, opacity: 0.9,
     })),
     ...getMachines("stacker").slice(1).map((machine) => ({
       machine, fill: 0x5d4b3e, border: 0xe6c18f, opacity: 0.9,
@@ -1820,6 +1911,30 @@ function drawMachineFloor(scene) {
       });
     });
   });
+  getMachines("gearPress").forEach((press) => {
+    getInternalConveyorTiles(press).forEach((conveyor) => {
+      drawConveyorTile(floor, conveyor.column, conveyor.row, conveyor.direction, {
+        fillColor: 0x89939d,
+        arrowColor: 0x252d34,
+      });
+    });
+  });
+
+  getMachines("aggregateMixer").forEach((mixer) => {
+    const size = getMachineFootprintSize(mixer);
+    floor.fillStyle(0x626257, 0.95);
+    floor.fillRect(mixer.column * FACTORY_TILE_SIZE + 2, mixer.row * FACTORY_TILE_SIZE + 2,
+      size.width * FACTORY_TILE_SIZE - 4, size.height * FACTORY_TILE_SIZE - 4);
+    floor.lineStyle(2, 0xd7d2b7, 0.9);
+    floor.strokeRect(mixer.column * FACTORY_TILE_SIZE + 2, mixer.row * FACTORY_TILE_SIZE + 2,
+      size.width * FACTORY_TILE_SIZE - 4, size.height * FACTORY_TILE_SIZE - 4);
+    drawAggregateMixerPorts(floor, mixer, true);
+    const center = getMachineLabelCenter(mixer);
+    addMachineFloorLabel(scene, center.x, center.y, "AGGREGATE\nMIXER", {
+      color: "#e8e4cb", fontFamily: "system-ui, sans-serif", fontSize: "10px", fontStyle: "bold", align: "center",
+    });
+  });
+  getMachines("hotFluidPipe").forEach((pipe) => drawHotFluidPipeTile(floor, pipe, true));
   getMachines("casingMachine").forEach((machine) => {
     getInternalConveyorTiles(machine).forEach((conveyor) => {
       drawConveyorTile(floor, conveyor.column, conveyor.row, conveyor.direction, {
@@ -2176,6 +2291,18 @@ FORMER ${getOrientationSymbol(jacketFormer.orientation)}`, {
     });
   });
 
+  getMachines("gearPress").forEach((press) => {
+    const center = getMachineLabelCenter(press);
+    addMachineFloorLabel(scene, center.x, center.y, `GEAR\nPRESS ${getOrientationSymbol(press.orientation)}`, {
+      color: "#e0e7ef",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "9px",
+      fontStyle: "bold",
+      align: "center",
+      lineSpacing: 1,
+    });
+  });
+
   if (gunDeposit) {
     const gunDepositLabel = getMachineLabelCenter(gunDeposit);
     addMachineFloorLabel(scene, gunDepositLabel.x, gunDepositLabel.y, "GUN DEPOSIT", {
@@ -2464,8 +2591,8 @@ function createFactoryInteractions(scene) {
 }
 
 function getFactoryOverlaySignature() {
-  const conveyorState = getActiveFactoryConveyorItems().map(({ conveyor, item, slot }) => (
-    `${getConveyorIdentity(conveyor)}:${slot}:${conveyor.direction}:${item.kind}:${item.material}:${item.quantity}:${item.beltEntryDirection ?? ""}:${Number(item.tileProgress ?? 0).toFixed(2)}`
+  const conveyorState = getActiveFactoryConveyorItems().map(({ conveyor, item }) => (
+    `${getConveyorIdentity(conveyor)}:${conveyor.direction}:${item.kind}:${item.material}:${item.quantity}:${Number(item.tileProgress ?? 0).toFixed(2)}`
   )).join("|");
   const machineState = state.machines.map((machine) => (
     `${machine.instanceId}:${machine.column}:${machine.row}:${machine.orientation ?? "right"}`
@@ -2711,6 +2838,12 @@ function renderMachineOverlay() {
 }
 
 function drawMachinePreviewConveyors(graphics, machine, isValid) {
+  if (machine.id === "aggregateMixer") drawAggregateMixerPorts(graphics, machine, isValid);
+  if (machine.id === "hotFluidPipe") {
+    const stored = state.machineInventoryInstances.find((candidate) => candidate.id === "hotFluidPipe");
+    drawHotFluidPipeTile(graphics, { ...machine, mode: stored?.mode ?? selectedPipePlacementMode,
+      turnSide: stored?.turnSide ?? selectedPipeTurnSide }, isValid);
+  }
   const fillColor = isValid ? 0x4e7180 : 0x713f3a;
   const arrowColor = isValid ? 0xd6f5ff : 0xf1b0a4;
   getInternalConveyorTiles(machine).forEach((conveyor) => {
@@ -2867,122 +3000,120 @@ function clearConveyorItemLabels() {
   conveyorItemLabels.clear();
 }
 
-function getConveyorCargoVisualOffset(conveyor, slot) {
-  const offset = getConveyorCargoSlotOffset(conveyor?.direction, slot);
-  return {
-    x: offset.column,
-    y: offset.row,
-  };
+function drawAggregateMixerPorts(graphics, mixer, valid) {
+  const direction = mixer.orientation ?? "right";
+  getMachinePorts(mixer, "materialInputs").forEach((port) => drawConveyorTile(graphics, port.column, port.row, direction, {
+    fillColor: valid ? 0x5e706b : 0x713f3a, arrowColor: valid ? 0xdbebe5 : 0xf1b0a4, opacity: 0.9,
+  }));
+  getInternalConveyorTiles(mixer).forEach((port) => drawConveyorTile(graphics, port.column, port.row, port.direction, {
+    fillColor: valid ? 0x4e7180 : 0x713f3a, arrowColor: valid ? 0xd6f5ff : 0xf1b0a4, opacity: 0.9,
+  }));
 }
 
-function getConveyorCargoVisualPosition(conveyor, slot, progress, item = null) {
-  const origin = getMachineTileCenter(conveyor.column, conveyor.row);
-  const direction = DIRECTION_VECTORS[conveyor.direction] ?? DIRECTION_VECTORS.right;
-  const offset = getConveyorCargoVisualOffset(conveyor, slot);
-  const start = { x: origin.x + offset.x, y: origin.y + offset.y };
-  const t = Math.max(0, Math.min(1, Number(progress) || 0));
-  const entryDirection = DIRECTION_VECTORS[item?.beltEntryDirection];
-  const directionsArePerpendicular = entryDirection
-    && entryDirection.column * direction.column + entryDirection.row * direction.row === 0;
-
-  if (!directionsArePerpendicular) {
-    return {
-      x: start.x + direction.column * FACTORY_TILE_SIZE * t,
-      y: start.y + direction.row * FACTORY_TILE_SIZE * t,
-    };
-  }
-
-  // Cargo enters a corner on the lane-preserving slot selected by the
-  // simulation, then rounds the bend from its incoming heading to this belt's
-  // heading. The endpoint is the next tile's matching lane position, so the
-  // drawing stays continuous when the item transfers.
-  const end = {
-    x: start.x + direction.column * FACTORY_TILE_SIZE,
-    y: start.y + direction.row * FACTORY_TILE_SIZE,
-  };
-  const handle = FACTORY_TILE_SIZE * 0.42;
-  const control1 = {
-    x: start.x + entryDirection.column * handle,
-    y: start.y + entryDirection.row * handle,
-  };
-  const control2 = {
-    x: end.x - direction.column * handle,
-    y: end.y - direction.row * handle,
-  };
-  const inverse = 1 - t;
-  return {
-    x: inverse ** 3 * start.x
-      + 3 * inverse ** 2 * t * control1.x
-      + 3 * inverse * t ** 2 * control2.x
-      + t ** 3 * end.x,
-    y: inverse ** 3 * start.y
-      + 3 * inverse ** 2 * t * control1.y
-      + 3 * inverse * t ** 2 * control2.y
-      + t ** 3 * end.y,
-  };
+function drawHotFluidPipeTile(graphics, pipe, valid) {
+  const center = getMachineTileCenter(pipe.column, pipe.row);
+  const half = FACTORY_TILE_SIZE / 2;
+  const directions = [getOppositeDirection(pipe.orientation ?? "right"), ...getHotFluidPipeOutputDirections(pipe)];
+  graphics.lineStyle(9, valid ? 0x555d68 : 0x713f3a, 1);
+  directions.forEach((direction) => {
+    const vector = DIRECTION_VECTORS[direction];
+    graphics.lineBetween(center.x, center.y, center.x + vector.column * half, center.y + vector.row * half);
+  });
+  graphics.lineStyle(3, valid ? 0xe3a56e : 0xf1b0a4, 1);
+  directions.forEach((direction) => {
+    const vector = DIRECTION_VECTORS[direction];
+    graphics.lineBetween(center.x, center.y, center.x + vector.column * half, center.y + vector.row * half);
+  });
+  graphics.fillStyle(valid ? 0xe3a56e : 0xf1b0a4, 1);
+  graphics.fillCircle(center.x, center.y, getHotFluidPipeMode(pipe) === "cap" ? 6 : 4);
+  getHotFluidPipeOutputDirections(pipe).forEach((direction) => {
+    const vector = DIRECTION_VECTORS[direction];
+    const x = center.x + vector.column * half * 0.65;
+    const y = center.y + vector.row * half * 0.65;
+    graphics.fillTriangle(x + vector.column * 4, y + vector.row * 4,
+      x - vector.row * 3, y + vector.column * 3, x + vector.row * 3, y - vector.column * 3);
+  });
 }
 
 function drawConveyorItemBuffers() {
   const activeLabelKeys = new Set();
-  getActiveFactoryConveyorItems().forEach(({ conveyor, item, slot }) => {
+  getActiveFactoryConveyorItems().forEach(({ conveyor, item }) => {
+
+    const origin = getMachineTileCenter(conveyor.column, conveyor.row);
     const vector = DIRECTION_VECTORS[conveyor.direction];
     const progress = Math.min(item.tileProgress ?? 0, 0.92);
-    const point = getConveyorCargoVisualPosition(conveyor, slot, progress, item);
+    const point = {
+      x: origin.x + vector.column * FACTORY_TILE_SIZE * progress,
+      y: origin.y + vector.row * FACTORY_TILE_SIZE * progress,
+    };
     const color = MATERIAL_COLORS[item.material] ?? 0xf4f5da;
     const visualKind = getFactoryMaterialVisualKind(item.material);
-    const horizontal = vector.column !== 0;
-    const shape = visualKind === "ore"
-      ? { width: 8, height: 5, ellipse: true }
-      : visualKind === "ingot"
-        ? { width: 7, height: 4 }
-        : visualKind === "plate"
-          ? { width: 7, height: 7 }
-          : visualKind === "wire"
-            ? { width: horizontal ? 7 : 2, height: horizontal ? 2 : 7 }
-            : { width: 7, height: 7 };
-    const labelKey = `${getConveyorIdentity(conveyor)}:${slot}`;
     machineOverlay.fillStyle(color, 1);
-    if (shape.ellipse) {
-      machineOverlay.fillEllipse(point.x, point.y, shape.width, shape.height);
-    } else {
+    if (visualKind === "gear") {
+      const radius = GEAR_DEFINITIONS[item.material].mode === "fine" ? 5 : 6;
+      machineOverlay.fillCircle(point.x, point.y, radius);
+      machineOverlay.fillRect(point.x - radius - 1, point.y - 2, radius * 2 + 2, 4);
+      machineOverlay.fillRect(point.x - 2, point.y - radius - 1, 4, radius * 2 + 2);
+    } else if (visualKind === "ore") {
+      machineOverlay.fillEllipse(point.x, point.y, 16, 10);
+    } else if (visualKind === "ingot") {
+      machineOverlay.fillRoundedRect(point.x - 7, point.y - 4, 14, 8, 3);
+    } else if (visualKind === "plate") {
+      machineOverlay.fillRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
+    } else if (visualKind === "wire") {
+      const horizontal = vector.column !== 0;
       machineOverlay.fillRoundedRect(
-        point.x - shape.width / 2,
-        point.y - shape.height / 2,
-        shape.width,
-        shape.height,
+        point.x - (horizontal ? 7 : 2),
+        point.y - (horizontal ? 2 : 7),
+        horizontal ? 14 : 4,
+        horizontal ? 4 : 14,
         2,
       );
+    } else {
+      machineOverlay.fillRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
     }
     machineOverlay.lineStyle(1, 0xf4f5da, 0.9);
-    if (shape.ellipse) {
-      machineOverlay.strokeEllipse(point.x, point.y, shape.width, shape.height);
-    } else {
+    if (visualKind === "gear") {
+      machineOverlay.strokeCircle(point.x, point.y, GEAR_DEFINITIONS[item.material].mode === "fine" ? 5 : 6);
+      machineOverlay.fillStyle(0x20291f, 1);
+      machineOverlay.fillCircle(point.x, point.y, 2);
+    } else if (visualKind === "ore") {
+      machineOverlay.strokeEllipse(point.x, point.y, 16, 10);
+    } else if (visualKind === "ingot") {
+      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 4, 14, 8, 3);
+    } else if (visualKind === "plate") {
+      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
+    } else if (visualKind === "wire") {
+      const horizontal = vector.column !== 0;
       machineOverlay.strokeRoundedRect(
-        point.x - shape.width / 2,
-        point.y - shape.height / 2,
-        shape.width,
-        shape.height,
+        point.x - (horizontal ? 7 : 2),
+        point.y - (horizontal ? 2 : 7),
+        horizontal ? 14 : 4,
+        horizontal ? 4 : 14,
         2,
       );
+    } else {
+      machineOverlay.strokeRoundedRect(point.x - 7, point.y - 7, 14, 14, 3);
     }
 
     const displayedQuantity = Number(Number(item.quantity).toPrecision(12));
     if (displayedQuantity > 1 && machineScene) {
+      const labelKey = getConveyorIdentity(conveyor);
       activeLabelKeys.add(labelKey);
       let label = conveyorItemLabels.get(labelKey);
       const quantityText = formatQuantity(displayedQuantity);
       if (!label) {
-        label = machineScene.add.text(point.x, point.y, quantityText, {
+        label = machineScene.add.text(point.x + 7, point.y - 7, quantityText, {
           color: "#fffde1",
           fontFamily: "system-ui, sans-serif",
-          fontSize: "6px",
+          fontSize: "9px",
           fontStyle: "bold",
           stroke: "#172010",
-          strokeThickness: 1,
+          strokeThickness: 2,
         }).setResolution(factoryTextResolution).setOrigin(0.5).setDepth(3);
         conveyorItemLabels.set(labelKey, label);
       }
-      label.setPosition(point.x, point.y).setText(quantityText);
+      label.setPosition(point.x + 7, point.y - 7).setText(quantityText);
     }
   });
   conveyorItemLabels.forEach((label, labelKey) => {
@@ -2995,7 +3126,9 @@ function drawConveyorItemBuffers() {
 
 function createAnimatedMaterialCargo(material, x, y, width, height) {
   const visualKind = getFactoryMaterialVisualKind(material);
-  const cargo = visualKind === "ore"
+  const cargo = visualKind === "gear"
+    ? machineScene.add.circle(x, y, Math.min(width, height) / 2, MATERIAL_COLORS[material], 1)
+    : visualKind === "ore"
     ? machineScene.add.ellipse(x, y, width, Math.round(height * 0.62), MATERIAL_COLORS[material], 1)
     : machineScene.add.rectangle(
       x,
@@ -3578,8 +3711,8 @@ function renderAmmoMaker() {
   const shaperInputConveyor = shaper ? getInternalConveyor(shaper, 0) : null;
   const planter = getMachine("planter");
   const planterInputConveyor = planter ? getInternalConveyor(planter, 0) : null;
-  const shaperInputOpen = Boolean(shaperInputConveyor && hasOpenConveyorSlot(shaperInputConveyor));
-  const planterInputOpen = Boolean(planterInputConveyor && hasOpenConveyorSlot(planterInputConveyor));
+  const shaperInputOpen = Boolean(shaperInputConveyor && !getConveyorItem(shaperInputConveyor));
+  const planterInputOpen = Boolean(planterInputConveyor && !getConveyorItem(planterInputConveyor));
   if (elements.feedAmmoButton) {
     elements.feedAmmoButton.disabled = selectedMaterial === "leek"
       || isLiquidMetalOnly

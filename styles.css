@@ -1310,6 +1310,27 @@ body.reality-shield-active .excavation-actions #fireButton {
 .inventory-item-visual.is-brittleCopperIngot { background: #ca8651; }
 .inventory-item-visual.is-wire { background: #d8a45e; }
 
+.inventory-item-visual.is-gear {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background: var(--gear-color);
+  clip-path: polygon(38% 0, 62% 0, 65% 17%, 78% 22%, 92% 12%, 100% 38%, 83% 42%, 83% 58%, 100% 62%, 92% 88%, 78% 78%, 65% 83%, 62% 100%, 38% 100%, 35% 83%, 22% 78%, 8% 88%, 0 62%, 17% 58%, 17% 42%, 0 38%, 8% 12%, 22% 22%, 35% 17%);
+}
+
+.inventory-item-visual.is-gear::after {
+  content: "";
+  position: absolute;
+  inset: 35%;
+  border-radius: 50%;
+  background: #20291f;
+}
+
+.inventory-item-visual.is-fine-gear {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
 .inventory-item-label {
   color: #d7e2ce;
   font-size: 0.78rem;

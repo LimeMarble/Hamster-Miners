@@ -678,7 +678,7 @@ function feedAmmoShaper() {
     || state.drill.completed
     || !shaper
     || !inputConveyor
-    || !hasOpenConveyorSlot(inputConveyor)
+    || getConveyorItem(inputConveyor)
   ) {
     return;
   }
@@ -1451,12 +1451,15 @@ function updateCrewOperatedMachines(deltaSeconds) {
 }
 
 function updateFactory(deltaSeconds) {
+  updateHotFluidPipes(deltaSeconds);
+  updateAggregateMixers(deltaSeconds);
+  flushGearPressOutputs();
   advanceConveyorItems(deltaSeconds);
   flushMolderOutputs();
   flushArcFurnaceOutputs();
   startMolderJob();
   emitStackerOutputs();
-  emitStorageOutputs(deltaSeconds);
+  emitStorageOutputs();
 
   planterAccumulator += deltaSeconds * getProcessingSpeedMultiplier();
   while (

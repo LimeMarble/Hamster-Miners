@@ -21,6 +21,8 @@ const GAME_SOURCE_FILES = [
   "game-data.js",
   "game-state.js",
   "factory-logistics.js",
+  "factory-materials.js",
+  "factory-fluids.js",
   "factory-building.js",
   "mining.js",
   "game-ui.js",
@@ -39,6 +41,8 @@ test("browser loads the split game scripts in dependency order", () => {
     "game-data.js",
     "game-state.js",
     "factory-logistics.js",
+    "factory-materials.js",
+    "factory-fluids.js",
     "factory-building.js",
     "mining.js",
     "game-ui.js",
@@ -369,9 +373,6 @@ test("bulk movement rotates machines and conveyors clockwise and counterclockwis
     const kiln = machine("clayKiln", "rotation-kiln", 14, 5, "right");
     const conveyor = { column: 13, row: 6, direction: "right", item: null };
     const state = freshState({ machines: [planter, kiln], placedConveyors: [conveyor] });
-    assert.equal(game.placeItemOnConveyor(conveyor, {
-      kind: "material", material: "copper", quantity: 1,
-    }, 1), true);
     game.__setActiveViewForTests("factory");
     game.selectFactoryEntitiesInRectangle({ column: 10, row: 5 }, { column: 14, row: 7 });
     assert.equal(game.__getFactorySelection().length, 3);
@@ -393,7 +394,6 @@ test("bulk movement rotates machines and conveyors clockwise and counterclockwis
     clockwise.state.placedConveyors.map(({ column, row, direction }) => ({ column, row, direction })),
     [{ column: 21, row: 13, direction: "down" }],
   );
-  assert.equal(game.getConveyorItemCount(clockwise.state.placedConveyors[0]), 1);
 
   const counterclockwise = createMovingGroup();
   game.rotateSelectedBuild("counterclockwise");
@@ -486,13 +486,6 @@ test("factory multi-pickup returns selected conveyors and recovers their cargo",
     item: { kind: "material", material: "clay", quantity: 1 },
   };
   const state = freshState({ placedConveyors: [first, second] });
-  for (let slot = 1; slot < game.CONVEYOR_CARGO_CAPACITY; slot += 1) {
-    assert.equal(game.placeItemOnConveyor(first, {
-      kind: "material",
-      material: "copper",
-      quantity: 1,
-    }, slot), true);
-  }
   const copperBefore = state.stockpile.copper;
   const clayBefore = state.stockpile.clay;
 
@@ -504,7 +497,7 @@ test("factory multi-pickup returns selected conveyors and recovers their cargo",
 
   assert.equal(state.placedConveyors.length, 0);
   assert.equal(state.machineInventory.conveyor, 22);
-  assert.equal(state.stockpile.copper, copperBefore + 5);
+  assert.equal(state.stockpile.copper, copperBefore + 2);
   assert.equal(state.stockpile.clay, clayBefore + 1);
 });
 
@@ -905,32 +898,6 @@ test("Clay Kilns accept Lead ore as a low-melting metal", () => {
   assert.equal(game.canReceiveConveyorItem({ kind: "material", material: "lead", quantity: 1 }, 2, 3), true);
 });
 
-test("Clay Kiln smelts up to four inputs in the existing five-second cycle", () => {
-  const kiln = machine("clayKiln", "kiln-four-batch", 2, 2);
-  const state = freshState({
-    machines: [kiln],
-    crew: { total: 2 },
-    kilnInputs: [{
-      kilnInstanceId: kiln.instanceId,
-      material: "silver",
-      quantity: 5,
-      sourceValue: 8.5,
-      sourceValueIsEffective: true,
-    }],
-    kilnJobs: [],
-    moltenCopper: [],
-  });
-
-  assert.equal(game.startKilnJobs(), 1);
-  assert.equal(state.kilnJobs[0].quantity, 4);
-  assert.equal(state.kilnJobs[0].secondsRemaining, 5);
-  assert.equal(state.kilnInputs[0].quantity, 1);
-  game.updateCrewOperatedMachines(5);
-  assert.equal(state.moltenCopper[0].material, "silver");
-  assert.equal(state.moltenCopper[0].quantity, 4);
-  assert.equal(state.kilnInputs[0].quantity, 1, "the partial tail waits for the kiln output to clear");
-});
-
 test("Mini Electric Arc Furnace has the specified cost, footprint, and crew requirement", () => {
   const furnace = game.MACHINE_LAYOUT.miniElectricArcFurnace;
   assert.deepEqual(furnace.internalConveyors, [
@@ -990,36 +957,6 @@ test("Mini Electric Arc Furnace makes six liquid Bronze from five copper and one
   assert.equal(output.saleValueBase, 65 / 3);
 });
 
-test("Mini Electric Arc Furnace smelts four Bronze recipes per existing cycle", () => {
-  const furnace = machine("miniElectricArcFurnace", "eaf-bronze-four-batch", 2, 2);
-  furnace.mode = "alloy2";
-  const state = freshState({
-    machines: [furnace],
-    crew: { total: 1 },
-    arcFurnaceInputs: {
-      [furnace.instanceId]: {
-        primary: [{ kind: "material", material: "copperIngot", quantity: 20, saleValueBase: 20 }],
-        secondary: [{ kind: "material", material: "tinIngot", quantity: 4, saleValueBase: 30 }],
-        tertiary: [],
-      },
-    },
-    arcFurnaceJobs: [],
-    moltenCopper: [],
-  });
-
-  const recipe = game.getArcFurnaceRecipe(furnace);
-  assert.equal(recipe.batchCount, 4);
-  assert.equal(recipe.inputCount, 24);
-  assert.equal(recipe.outputQuantity, 24);
-  assert.equal(recipe.processingSeconds, 12);
-  game.updateCrewOperatedMachines(0);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 24);
-  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 12);
-  game.updateCrewOperatedMachines(12);
-  assert.equal(state.moltenCopper[0].material, "bronze");
-  assert.equal(state.moltenCopper[0].quantity, 24);
-});
-
 test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausing", () => {
   const bronzeFurnace = machine("miniElectricArcFurnace", "eaf-bronze-cap", 2, 2);
   bronzeFurnace.mode = "alloy2";
@@ -1028,8 +965,8 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
     crew: { total: 1 },
     arcFurnaceInputs: {
       [bronzeFurnace.instanceId]: {
-        primary: [{ kind: "material", material: "copperIngot", quantity: 40 }],
-        secondary: [{ kind: "material", material: "tinIngot", quantity: 8 }],
+        primary: [{ kind: "material", material: "copperIngot", quantity: 10 }],
+        secondary: [{ kind: "material", material: "tinIngot", quantity: 2 }],
         tertiary: [],
       },
     },
@@ -1037,7 +974,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
       kilnInstanceId: bronzeFurnace.instanceId,
       smelterInstanceId: bronzeFurnace.instanceId,
       material: "bronze",
-      quantity: 24,
+      quantity: 6,
       sourceValue: 1,
       sourceValueIsEffective: true,
     }],
@@ -1046,11 +983,9 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
   game.updateCrewOperatedMachines(0);
   assert.equal(bronzeState.arcFurnaceJobs[0].secondsRemaining, 12);
   game.updateCrewOperatedMachines(12);
-  assert.equal(bronzeState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 48);
+  assert.equal(bronzeState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 12);
   assert.equal(bronzeState.arcFurnaceJobs.length, 0);
-  assert.equal(bronzeState.arcFurnaceInputs[bronzeFurnace.instanceId].primary[0].quantity, 20);
-  game.updateCrewOperatedMachines(0);
-  assert.equal(bronzeState.arcFurnaceJobs.length, 0, "the two-batch liquid buffer is full");
+  assert.equal(bronzeState.arcFurnaceInputs[bronzeFurnace.instanceId].primary[0].quantity, 5);
 
   const ironFurnace = machine("miniElectricArcFurnace", "eaf-iron-cap", 2, 2);
   const ironState = freshState({
@@ -1058,7 +993,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
     crew: { total: 1 },
     arcFurnaceInputs: {
       [ironFurnace.instanceId]: {
-        primary: [{ kind: "material", material: "hematite", quantity: 8 }],
+        primary: [{ kind: "material", material: "hematite", quantity: 4 }],
         secondary: [],
         tertiary: [],
       },
@@ -1067,7 +1002,7 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
       kilnInstanceId: ironFurnace.instanceId,
       smelterInstanceId: ironFurnace.instanceId,
       material: "iron",
-      quantity: 4,
+      quantity: 1,
       sourceValue: 1,
       sourceValueIsEffective: true,
     }],
@@ -1076,9 +1011,9 @@ test("Mini Electric Arc Furnace buffers two cycles of liquid output before pausi
   game.updateCrewOperatedMachines(0);
   assert.equal(ironState.arcFurnaceJobs[0].secondsRemaining, 4);
   game.updateCrewOperatedMachines(4);
-  assert.equal(ironState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 8);
+  assert.equal(ironState.moltenCopper.reduce((sum, item) => sum + item.quantity, 0), 2);
   assert.equal(ironState.arcFurnaceJobs.length, 0);
-  assert.equal(ironState.arcFurnaceInputs[ironFurnace.instanceId].primary.length, 0);
+  assert.equal(ironState.arcFurnaceInputs[ironFurnace.instanceId].primary[0].quantity, 2);
 });
 
 test("Ingot Molder uses its internal lane as a buffer instead of waiting for the next belt", () => {
@@ -1144,19 +1079,6 @@ test("Ingot Molder queues one ingot while blocked and pauses when that queue is 
       },
     },
   });
-  const molderOutput = {
-    ...game.getInternalConveyorTiles(molder)[0],
-    internalMachineId: molder.id,
-    internalMachineInstanceId: molder.instanceId,
-    internalIndex: 0,
-  };
-  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-    assert.equal(game.placeItemOnConveyor(molderOutput, {
-      kind: "material",
-      material: "silverIngot",
-      quantity: 1,
-    }, index), true);
-  }
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.molderJobs.length, 1);
@@ -1402,14 +1324,12 @@ test("Recipes catalogue includes every implemented production branch", () => {
     recipes.get("Silver-Tin Contacts").input,
     "5 Copper Wires + 0.5 Tin Contact Alloy Ingots",
   );
-  assert.match(recipes.get("Ceramic").input, /8 Clay/);
-  assert.match(recipes.get("Bronze").output, /24 liquid Bronze/);
-  assert.equal(recipes.get("Copper Contact Alloy").input, "Up to 16 Silver + 4 Copper");
-  assert.equal(recipes.get("Copper Contact Alloy").output, "Up to 20 liquid Copper Contact Alloy");
-  assert.equal(recipes.get("Tin Contact Alloy").input, "Up to 36 Silver + 4 Tin");
-  assert.equal(recipes.get("Tin Contact Alloy").output, "Up to 40 liquid Tin Contact Alloy");
-  assert.equal(recipes.get("Bronze").input, "Up to 20 Copper + 4 Tin");
-  assert.equal(recipes.get("Bronze").output, "Up to 24 liquid Bronze");
+  assert.match(recipes.get("Ceramic").input, /2 Clay/);
+  assert.match(recipes.get("Bronze").output, /6 liquid Bronze/);
+  assert.equal(recipes.get("Copper Contact Alloy").input, "4 Silver + 1 Copper");
+  assert.equal(recipes.get("Copper Contact Alloy").output, "5 liquid Copper Contact Alloy");
+  assert.equal(recipes.get("Tin Contact Alloy").input, "9 Silver + 1 Tin");
+  assert.equal(recipes.get("Tin Contact Alloy").output, "10 liquid Tin Contact Alloy");
 });
 
 test("Mini Electric Arc Furnace preserves its selected mode when saves are hydrated", () => {
@@ -1525,7 +1445,7 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
   assert.doesNotMatch(controls[1], /\boccupied\b/);
 });
 
-test("Mini Electric Arc Furnace single smelting accepts a stack and processes up to four units", () => {
+test("Mini Electric Arc Furnace single smelting accepts a stack and processes one unit", () => {
   const furnace = machine("miniElectricArcFurnace", "arc-single", 2, 2);
   furnace.mode = "smelting";
   const state = freshState({ machines: [furnace], crew: { total: 1 } });
@@ -1540,13 +1460,7 @@ test("Mini Electric Arc Furnace single smelting accepts a stack and processes up
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs.length, 1);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
-  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 2);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 1);
-  game.updateCrewOperatedMachines(2);
-  assert.equal(state.moltenCopper[0].material, "silver");
-  assert.equal(state.moltenCopper[0].quantity, 4);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 1, "the leftover input starts the next same-duration cycle");
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 4);
 });
 
 test("Mini Electric Arc Furnace remelts Bronze Ingots as liquid Bronze and labels its output", () => {
@@ -1595,7 +1509,6 @@ test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four second
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs.length, 1);
   assert.equal(state.arcFurnaceJobs[0].inputCount, 2);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 1);
   assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
   assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary.length, 0);
 
@@ -1616,31 +1529,6 @@ test("Mini Electric Arc Furnace smelts two Hematite into one Iron in four second
   assert.equal(state.internalConveyorItems[`${molder.instanceId}:0`].material, "ironIngot");
   assert.equal(state.molderJobs.length, 0);
   assert.equal(state.molderClayBuffers[molder.instanceId], 1, "only one Clay is used for the one Iron ingot produced");
-});
-
-test("Mini Electric Arc Furnace batches eight Hematite into four Iron in four seconds", () => {
-  const furnace = machine("miniElectricArcFurnace", "eaf-iron-four-batch", 2, 2);
-  const state = freshState({
-    machines: [furnace],
-    crew: { total: 1 },
-    arcFurnaceInputs: {
-      [furnace.instanceId]: {
-        primary: [{ kind: "material", material: "hematite", quantity: 8 }],
-        secondary: [],
-        tertiary: [],
-      },
-    },
-    arcFurnaceJobs: [],
-    moltenCopper: [],
-  });
-
-  game.updateCrewOperatedMachines(0);
-  assert.equal(state.arcFurnaceJobs[0].inputCount, 8);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
-  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
-  game.updateCrewOperatedMachines(4);
-  assert.equal(state.moltenCopper[0].material, "iron");
-  assert.equal(state.moltenCopper[0].quantity, 4);
 });
 
 test("Ingot Molder consumes one separate Clay mold for every Iron ingot", () => {
@@ -1701,7 +1589,7 @@ test("Ingot Molder Clay input buffers remain per-instance and survive save hydra
 test("Refractory Caster has its specified cost, footprint, and high-throughput batch", () => {
   const casterLayout = game.MACHINE_LAYOUT.refractoryCaster;
   assert.deepEqual(game.MACHINE_PURCHASES.refractoryCaster, {
-    cash: 5e5,
+    cash: 1.5e6,
     materials: { ironIngot: 50, ironPlate: 25, ceramic: 25 },
   });
   assert.equal(casterLayout.width, 2);
@@ -1712,6 +1600,11 @@ test("Refractory Caster has its specified cost, footprint, and high-throughput b
   ]);
   assert.equal(game.MACHINE_CATEGORY_BY_ID.refractoryCaster, "material");
   assert.match(fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8"), /data-shop-machine="refractoryCaster"/);
+  const state = freshState({ cash: 1.5e6 - 1 });
+  Object.assign(state.stockpile, { ironIngot: 50, ironPlate: 25, ceramic: 25 });
+  assert.equal(game.canAffordMachinePurchase("refractoryCaster"), false);
+  state.cash = 1.5e6;
+  assert.equal(game.canAffordMachinePurchase("refractoryCaster"), true);
 });
 
 test("Refractory Caster casts available supported metals, up to four every two seconds without crew", () => {
@@ -1758,7 +1651,7 @@ test("Refractory Caster casts available supported metals, up to four every two s
   });
 });
 
-test("Mini Electric Arc Furnace fires up to eight Clay into four standalone Ceramic", () => {
+test("Mini Electric Arc Furnace fires two Clay into one standalone Ceramic output", () => {
   const furnace = machine("miniElectricArcFurnace", "eaf-ceramic", 2, 2);
   const outputConveyor = { column: 5, row: 3, direction: "right", item: null };
   const state = freshState({
@@ -1767,7 +1660,7 @@ test("Mini Electric Arc Furnace fires up to eight Clay into four standalone Cera
     placedConveyors: [outputConveyor],
     arcFurnaceInputs: {
       [furnace.instanceId]: {
-        primary: [{ kind: "material", material: "clay", quantity: 8 }],
+        primary: [{ kind: "material", material: "clay", quantity: 2 }],
         secondary: [],
         tertiary: [],
       },
@@ -1778,56 +1671,11 @@ test("Mini Electric Arc Furnace fires up to eight Clay into four standalone Cera
 
   game.updateCrewOperatedMachines(0);
   assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
   game.updateCrewOperatedMachines(4);
   assert.equal(state.arcFurnaceJobs.length, 0);
   assert.equal(state.moltenCopper.length, 0);
   assert.equal(outputConveyor.item.material, "ceramic");
-  assert.equal(outputConveyor.item.quantity, 4);
-});
-
-test("Mini Electric Arc Furnace takes only one recipe batch from an oversized Clay stack", () => {
-  const furnace = machine("miniElectricArcFurnace", "eaf-clay-intake-cap", 2, 2);
-  const clayStack = {
-    kind: "material",
-    material: "clay",
-    quantity: 20,
-    tileProgress: 1,
-  };
-  const inputConveyor = { column: 1, row: 3, direction: "right", item: clayStack };
-  const state = freshState({
-    machines: [furnace],
-    crew: { total: 1 },
-    placedConveyors: [inputConveyor],
-    arcFurnaceInputs: {
-      [furnace.instanceId]: { primary: [], secondary: [], tertiary: [] },
-    },
-    arcFurnaceJobs: [],
-    arcFurnaceOutputBuffers: {},
-    moltenCopper: [],
-  });
-
-  game.advanceConveyorItems(0);
-  assert.equal(clayStack.quantity, 12);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
-
-  game.updateCrewOperatedMachines(0);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary.length, 0);
-  assert.equal(state.arcFurnaceJobs.length, 1);
-  assert.equal(state.arcFurnaceJobs[0].inputCount, 8);
-  assert.equal(state.arcFurnaceJobs[0].quantity, 4);
-  assert.equal(clayStack.quantity, 12);
-
-  // One further batch may queue during processing, but a blocked solid
-  // outlet must stop the furnace from pulling the rest of the stack forever.
-  game.advanceConveyorItems(0);
-  assert.equal(clayStack.quantity, 4);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
-  game.updateCrewOperatedMachines(4);
-  assert.equal(state.arcFurnaceOutputBuffers[furnace.instanceId].quantity, 4);
-  game.advanceConveyorItems(0);
-  assert.equal(clayStack.quantity, 4);
-  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 8);
+  assert.equal(outputConveyor.item.quantity, 1);
 });
 
 test("Clay Kilns can re-smelt Bronze Ingots without applying the ore multiplier", () => {
@@ -2255,7 +2103,7 @@ test("Casing Machine is a shop machine with the agreed buckshot cost and Jacket 
   assert.deepEqual(game.CASING_MATERIALS, ["bronzeIngot", "brassIngot", "steelIngot"]);
 });
 
-test("Bullet Core Caster consumes only the required liquid from a kiln batch", () => {
+test("Bullet Core Caster consumes only the required buffered liquid", () => {
   const caster = machine("ammoShaper", "core-caster-batch", 5, 5, "up");
   const kiln = machine("clayKiln", "core-caster-batch-kiln", 4, 5);
   const state = freshState({ machines: [caster, kiln] });
@@ -2273,7 +2121,7 @@ test("Bullet Core Caster consumes only the required liquid from a kiln batch", (
 
   assert.equal(leek.metalMaterial, "lead");
   assert.equal(state.moltenCopper.length, 1);
-  assert.equal(state.moltenCopper[0].quantity, 3);
+  assert.equal(state.moltenCopper[0].quantity, 3.5);
 
   const processTile = {
     ...game.getInternalConveyorTiles(caster)[1],
@@ -3291,7 +3139,8 @@ test("Jacket Former holds mineral cores for liquid Native copper and applies jac
   assert.equal(game.getJacketFormerKilnLink(jacketFormer)?.kiln.instanceId, kiln.instanceId);
   assert.equal(game.startJacketFormerCoating(), true);
   assert.equal(core.jacketMaterial, "nativeCopper");
-  assert.equal(state.moltenCopper.length, 0);
+  assert.equal(state.moltenCopper.length, 1);
+  assert.equal(state.moltenCopper[0].quantity, 0.5);
 
   const processConveyor = {
     ...game.getInternalConveyorTiles(jacketFormer)[1],
@@ -4477,217 +4326,6 @@ test("factory cargo distinguishes all ingots from the older plate box shape", ()
   assert.equal(game.getFactoryMaterialVisualKind("bronzePlate"), "plate");
 });
 
-test("each one-tile conveyor segment holds four cargo items in two lanes and two positions", () => {
-  const first = { column: 10, row: 10, direction: "right", item: null };
-  const second = { column: 11, row: 10, direction: "right", item: null };
-  const third = { column: 12, row: 10, direction: "right", item: null };
-  const state = freshState({ placedConveyors: [first, second, third] });
-  const makeCargo = (index) => ({
-    kind: "material",
-    material: "copper",
-    quantity: index + 1,
-  });
-
-  for (let index = 0; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-    assert.equal(game.placeItemOnConveyor(first, makeCargo(index)), true);
-  }
-  assert.equal(game.getConveyorItemCount(first), 4);
-  assert.equal(game.getConveyorUsedSlotCount(first), 4);
-  assert.equal(game.placeItemOnConveyor(first, makeCargo(4)), false);
-
-  for (let index = 0; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-    assert.equal(game.placeItemOnConveyor(second, makeCargo(index)), true);
-  }
-  game.advanceConveyorItems(1);
-  assert.equal(game.getConveyorItemCount(first), 0);
-  assert.equal(game.getConveyorItemCount(second), 4);
-  assert.equal(game.getConveyorItemCount(third), 4);
-
-  const saved = JSON.parse(JSON.stringify(state));
-  const hydrated = game.hydrateSavedState(saved);
-  game.__setState(hydrated);
-  assert.equal(game.getConveyorItemCount(hydrated.placedConveyors[1]), 4);
-  assert.equal(game.getConveyorItemCount(hydrated.placedConveyors[2]), 4);
-});
-
-test("standard cargo uses two across-belt lanes and two positions along a tile", () => {
-  const conveyor = { direction: "right" };
-  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 0), { x: -5, y: -5 });
-  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 1), { x: -5, y: 5 });
-  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 2), { x: 5, y: -5 });
-  assert.deepEqual(game.getConveyorCargoVisualOffset(conveyor, 3), { x: 5, y: 5 });
-  assert.deepEqual(
-    game.getConveyorCargoVisualOffset({ direction: "down" }, 0),
-    { x: 5, y: -5 },
-  );
-});
-
-test("back cargo advances into an emptied front slot without crossing lanes", () => {
-  const source = { column: 10, row: 10, direction: "right", item: null };
-  const next = { column: 11, row: 10, direction: "right", item: null };
-  const backLane0 = { kind: "material", material: "copper", quantity: 1 };
-  const frontLane0 = { kind: "material", material: "clay", quantity: 1 };
-  const backLane1 = { kind: "material", material: "lead", quantity: 1 };
-  const frontLane1 = { kind: "material", material: "graphite", quantity: 1 };
-  freshState({ placedConveyors: [source, next] });
-
-  assert.equal(game.placeItemOnConveyor(source, backLane0, 0), true);
-  assert.equal(game.placeItemOnConveyor(source, frontLane0, 2), true);
-  assert.equal(game.placeItemOnConveyor(source, backLane1, 1), true);
-  assert.equal(game.placeItemOnConveyor(source, frontLane1, 3), true);
-  backLane0.tileProgress = 0.2;
-  frontLane0.tileProgress = 1;
-  backLane1.tileProgress = 0.3;
-  frontLane1.tileProgress = 0.4;
-
-  game.advanceConveyorItems(0);
-
-  assert.equal(
-    game.getConveyorItems(source).find(({ item }) => item === backLane0)?.slot,
-    2,
-  );
-  assert.equal(
-    game.getConveyorItems(source).find(({ item }) => item === backLane1)?.slot,
-    1,
-    "the other lane does not compact while its front position is occupied",
-  );
-  assert.equal(game.getConveyorItems(next)[0]?.item, frontLane0);
-  assert.equal(backLane0.tileProgress, 0.2);
-});
-
-test("cargo curves through a belt turn and enters the matching outgoing slot", () => {
-  const cargo = {
-    kind: "material",
-    material: "copper",
-    quantity: 1,
-    tileProgress: 0.9,
-  };
-  const source = { column: 10, row: 10, direction: "right", item: null };
-  const turned = { column: 11, row: 10, direction: "up", item: null };
-  const next = { column: 11, row: 9, direction: "up", item: null };
-  freshState({ placedConveyors: [source, turned, next] });
-  assert.equal(game.placeItemOnConveyor(source, cargo, 1), true);
-  cargo.tileProgress = 0.9;
-
-  game.advanceConveyorItems(0.1);
-  assert.equal(source.item, null);
-  assert.equal(turned.item, cargo);
-  assert.equal(cargo.beltEntryDirection, "right");
-  assert.equal(game.getConveyorTurnDestinationSlot(source, turned, 1), 0);
-
-  const sourceEnd = game.getConveyorCargoVisualPosition(source, 1, 1, cargo);
-  const turnStart = game.getConveyorCargoVisualPosition(turned, 0, 0, cargo);
-  const turnMidpoint = game.getConveyorCargoVisualPosition(turned, 0, 0.5, cargo);
-  const turnEnd = game.getConveyorCargoVisualPosition(turned, 0, 1, cargo);
-  const nextStart = game.getConveyorCargoVisualPosition(next, 0, 0, cargo);
-
-  assert.deepEqual(sourceEnd, turnStart, "the curve begins exactly where the incoming lane arrives");
-  assert.deepEqual(turnEnd, nextStart, "the curve ends exactly on the outgoing lane");
-  assert.notEqual(turnMidpoint.x, turnStart.x, "the item visibly sweeps around the corner");
-});
-
-test("all quarter-turns route each cargo slot to the same physical corner lane", () => {
-  const directionVectors = {
-    up: { column: 0, row: -1 },
-    right: { column: 1, row: 0 },
-    down: { column: 0, row: 1 },
-    left: { column: -1, row: 0 },
-  };
-  const leftTurns = { up: "left", left: "down", down: "right", right: "up" };
-  const rightTurns = { up: "right", right: "down", down: "left", left: "up" };
-
-  Object.keys(directionVectors).forEach((direction) => {
-    [leftTurns[direction], rightTurns[direction]].forEach((turnedDirection) => {
-      const vector = directionVectors[direction];
-      const source = {
-        column: 10,
-        row: 10,
-        direction,
-      };
-      const destination = {
-        column: source.column + vector.column,
-        row: source.row + vector.row,
-        direction: turnedDirection,
-      };
-      const routedSlots = new Set();
-
-      for (let sourceSlot = 0; sourceSlot < game.CONVEYOR_CARGO_CAPACITY; sourceSlot += 1) {
-        const destinationSlot = game.getConveyorTurnDestinationSlot(
-          source,
-          destination,
-          sourceSlot,
-        );
-        routedSlots.add(destinationSlot);
-        assert.deepEqual(
-          game.getConveyorCargoVisualOffset(source, sourceSlot),
-          game.getConveyorCargoVisualOffset(destination, destinationSlot),
-        );
-      }
-
-      assert.equal(routedSlots.size, game.CONVEYOR_CARGO_CAPACITY);
-    });
-  });
-});
-
-test("storage emits at 2 items per second and alternates its left and right lanes", () => {
-  const storage = machine("materialStorage", "storage-four-flow", 10, 10);
-  const output = { column: 10, row: 9, direction: "up", item: null };
-  const state = freshState({
-    machines: [storage],
-    placedConveyors: [output],
-    stockpile: { ...game.createInitialState().stockpile, copper: 8 },
-    storageOutputFilters: { "10,10:1": ["copper"] },
-  });
-  const interval = 0.5;
-
-  game.emitStorageOutputs(0);
-  assert.equal(game.getConveyorItemCount(output), 1);
-  assert.equal(output.item.material, "copper");
-  assert.equal(state.stockpile.copper, 7);
-  assert.equal(state.storageOutputNextLanes["storage-four-flow:1"], 1);
-  game.emitStorageOutputs(interval / 2);
-  assert.equal(game.getConveyorItemCount(output), 1);
-  game.emitStorageOutputs(interval / 2);
-  assert.equal(state.extraConveyorItems["placed:10,9"][1].material, "copper");
-  game.emitStorageOutputs(interval);
-  game.emitStorageOutputs(interval);
-  assert.equal(game.getConveyorItemCount(output), game.CONVEYOR_CARGO_CAPACITY);
-  assert.equal(state.stockpile.copper, 4);
-  assert.equal(state.extraConveyorItems["placed:10,9"][2].material, "copper");
-  assert.equal(state.extraConveyorItems["placed:10,9"][3].material, "copper");
-  game.emitStorageOutputs(interval / 2);
-  assert.equal(game.getConveyorItemCount(output), game.CONVEYOR_CARGO_CAPACITY);
-  assert.equal(state.stockpile.copper, 4);
-
-  const saved = JSON.parse(JSON.stringify(state));
-  assert.equal(game.hydrateSavedState(saved).storageOutputNextLanes["storage-four-flow:1"], 0);
-});
-
-test("storage waits if its next lane is full instead of breaking alternation", () => {
-  const storage = machine("materialStorage", "storage-lane-block", 10, 10);
-  const output = { column: 10, row: 9, direction: "up", item: null };
-  const state = freshState({
-    machines: [storage],
-    placedConveyors: [output],
-    stockpile: { ...game.createInitialState().stockpile, copper: 2 },
-    storageOutputFilters: { "10,10:1": ["copper"] },
-  });
-  const leftFront = { kind: "material", material: "lead", quantity: 1 };
-  const leftBack = { kind: "material", material: "lead", quantity: 1 };
-  assert.equal(game.placeItemOnConveyor(output, leftFront, 0), true);
-  assert.equal(game.placeItemOnConveyor(output, leftBack, 2), true);
-
-  game.emitStorageOutputs(0);
-  assert.equal(game.getConveyorItemCount(output), 2);
-  assert.equal(state.stockpile.copper, 2, "a free right lane does not steal the left lane's turn");
-
-  output.item = null;
-  game.emitStorageOutputs(0);
-  assert.equal(output.item.material, "copper");
-  assert.equal(state.stockpile.copper, 1);
-  assert.equal(state.storageOutputNextLanes["storage-lane-block:1"], 1);
-});
-
 test("Stacker accepts three input directions and releases its configured batch size", () => {
   const stacker = machine("stacker", "stacker-1", 2, 5);
   stacker.stackSize = 3;
@@ -4726,17 +4364,9 @@ test("Stacker accepts three input directions and releases its configured batch s
   assert.equal(game.canStackerReceiveFromConveyor(stacker, { direction: "left" }), false);
   assert.equal(game.receiveConveyorItem(topInput, 2, 5), true);
   assert.equal(state.stackerBuffers[stacker.instanceId].quantity, 3);
-  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-    assert.equal(game.placeItemOnConveyor(outputConveyor, {
-      kind: "material",
-      material: "bronzePlate",
-      quantity: 1,
-    }, index), true);
-  }
   assert.equal(game.canReceiveConveyorItem(topInput, 2, 5), false);
   assert.equal(game.receiveConveyorItem(topInput, 2, 5), false);
   outputConveyor.item = null;
-  delete state.extraConveyorItems["placed:3,5"];
   assert.equal(game.canReceiveConveyorItem(topInput, 2, 5), true);
 });
 
@@ -4782,9 +4412,9 @@ test("Splitter cycles whole stacks round-robin over its three free exits", () =>
   const expected = [exits[0], exits[1], exits[2], exits[0]];
 
   expected.forEach((exit, index) => {
-    input.item = { kind: "material", material: "copper", quantity: 25, tileProgress: 1 };
+    input.item = { kind: "material", material: "copper", quantity: 5, tileProgress: 1 };
     game.advanceConveyorItems(0.1);
-    assert.equal(exit.item?.quantity, 25);
+    assert.equal(exit.item?.quantity, 5);
     assert.equal(exit.item?.material, "copper");
     assert.equal(splitter.splitterNextOutputIndex, (index + 1) % 3);
     exit.item = null;
@@ -4808,11 +4438,6 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
     { column: 10, row: 11, direction: "down", item: null },
   ];
   freshState({ machines: [splitter], placedConveyors: [input, ...exits] });
-  for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-    assert.equal(game.placeItemOnConveyor(exits[0], {
-      kind: "material", material: "clay", quantity: 1, tileProgress: 1,
-    }, index), true);
-  }
   game.advanceConveyorItems(0.1);
   assert.equal(exits[1].item?.material, "copper");
   assert.equal(splitter.splitterNextOutputIndex, 2);
@@ -4830,13 +4455,6 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
     { column: 10, row: 11, direction: "down", item: { kind: "material", material: "clay", quantity: 1, tileProgress: 1 } },
   ];
   freshState({ machines: [fullyBlocked], placedConveyors: [blockedInput, ...blockedExits] });
-  blockedExits.forEach((exit) => {
-    for (let index = 1; index < game.CONVEYOR_CARGO_CAPACITY; index += 1) {
-      assert.equal(game.placeItemOnConveyor(exit, {
-        kind: "material", material: "clay", quantity: 1, tileProgress: 1,
-      }, index), true);
-    }
-  });
   game.advanceConveyorItems(0.1);
   assert.equal(blockedInput.item?.material, "copper");
   assert.equal(fullyBlocked.splitterNextOutputIndex, 0);
@@ -4860,6 +4478,205 @@ test("Splitter skips blocked and incompatible exits, and waits without consuming
   game.advanceConveyorItems(0.1);
   assert.equal(otherExits[0].item?.material, "copper");
   assert.equal(incompatible.splitterNextOutputIndex, 2);
+});
+
+test("placed, tutorial, and internal conveyors each accept exactly one stack", () => {
+  const processor = machine("graniteProcessor", "single-cargo-processor", 10, 10);
+  const belt = { column: 5, row: 10, direction: "right", item: null };
+  const state = freshState({ machines: [processor], placedConveyors: [belt] });
+  const conveyors = game.getFactoryConveyors().map(({ conveyor }) => conveyor);
+  const fixed = conveyors.find((conveyor) => !conveyor.internalMachineId && conveyor !== belt);
+  const internal = conveyors.find((conveyor) => conveyor.internalMachineInstanceId === processor.instanceId);
+  assert.ok(fixed);
+  assert.ok(internal);
+  [belt, fixed, internal].forEach((conveyor) => {
+    const stack = { kind: "material", material: "copper", quantity: 5 };
+    assert.equal(game.placeItemOnConveyor(conveyor, stack), true);
+    assert.equal(game.placeItemOnConveyor(conveyor, { ...stack }), false);
+    assert.strictEqual(game.getConveyorItem(conveyor), stack);
+  });
+  assert.equal(Object.hasOwn(state, "extraConveyorItems"), false);
+});
+
+test("single-stack belts shift a full line together without losing or duplicating cargo", () => {
+  const first = { kind: "material", material: "copper", quantity: 3, tileProgress: 1 };
+  const second = { kind: "material", material: "clay", quantity: 2, tileProgress: 1 };
+  const belts = [
+    { column: 5, row: 10, direction: "right", item: first },
+    { column: 6, row: 10, direction: "right", item: second },
+    { column: 7, row: 10, direction: "right", item: null },
+  ];
+  freshState({ machines: [], placedConveyors: belts });
+  game.advanceConveyorItems(0);
+  assert.equal(belts[0].item, null);
+  assert.strictEqual(belts[1].item, first);
+  assert.strictEqual(belts[2].item, second);
+  assert.equal(first.quantity + second.quantity, 5);
+});
+
+test("a blocked single-stack destination stops upstream cargo until a vacancy opens", () => {
+  const first = { kind: "material", material: "copper", quantity: 3, tileProgress: 1 };
+  const blocker = { kind: "material", material: "clay", quantity: 2, tileProgress: 1 };
+  const source = { column: 5, row: 10, direction: "right", item: first };
+  const destination = { column: 6, row: 10, direction: "right", item: blocker };
+  freshState({ machines: [], placedConveyors: [source, destination] });
+  game.advanceConveyorItems(10);
+  assert.strictEqual(source.item, first);
+  assert.strictEqual(destination.item, blocker);
+  assert.equal(first.tileProgress, 0);
+  destination.item = null;
+  game.advanceConveyorItems(game.getConveyorSecondsPerTile(source));
+  assert.equal(source.item, null);
+  assert.strictEqual(destination.item, first);
+});
+
+test("conveyor turns move one centered stack without retaining lane-routing metadata", () => {
+  const item = { kind: "material", material: "clay", quantity: 3, tileProgress: 1 };
+  const source = { column: 5, row: 10, direction: "right", item };
+  const turn = { column: 6, row: 10, direction: "up", item: null };
+  freshState({ machines: [], placedConveyors: [source, turn] });
+  game.advanceConveyorItems(0);
+  assert.equal(source.item, null);
+  assert.strictEqual(turn.item, item);
+  assert.equal(Object.hasOwn(item, "beltEntryDirection"), false);
+  assert.equal(game.placeItemOnConveyor(turn, { ...item }), false);
+});
+
+test("storage output is vacancy-driven with no timer or lane alternation", () => {
+  const storage = machine("materialStorage", "single-storage-output", 10, 10);
+  const output = { column: 10, row: 9, direction: "up", item: null };
+  const state = freshState({ machines: [storage], placedConveyors: [output] });
+  state.stockpile.copper = 5;
+  state.storageOutputFilters["10,10:1"] = ["copper"];
+  game.emitStorageOutputs();
+  assert.equal(output.item.quantity, 1);
+  assert.equal(state.stockpile.copper, 4);
+  const first = output.item;
+  game.emitStorageOutputs();
+  assert.strictEqual(output.item, first);
+  assert.equal(state.stockpile.copper, 4);
+  output.item = null;
+  game.emitStorageOutputs();
+  assert.equal(output.item.quantity, 1);
+  assert.equal(state.stockpile.copper, 3, "a free output emits immediately, without waiting half a second");
+  assert.equal(Object.hasOwn(state, "storageOutputTimers"), false);
+  assert.equal(Object.hasOwn(state, "storageOutputNextLanes"), false);
+});
+
+test("Clay Kiln restores its five-second cycle and pre-experiment stacked-input behavior", () => {
+  [1, 6].forEach((quantity) => {
+    const kiln = machine("clayKiln", "restored-kiln", 5, 10);
+    const state = freshState({
+      machines: [kiln], crew: { total: 2 },
+      kilnInputs: [{ kilnInstanceId: kiln.instanceId, material: "lead", quantity }],
+      kilnJobs: [], moltenCopper: [],
+    });
+    game.updateCrewOperatedMachines(0);
+    assert.equal(state.kilnJobs[0].quantity, quantity);
+    assert.equal(state.kilnInputs.length, 0);
+    game.updateCrewOperatedMachines(4.9);
+    assert.equal(state.moltenCopper.length, 0);
+    game.updateCrewOperatedMachines(0.2);
+    assert.equal(state.kilnJobs.length, 0);
+    assert.equal(state.moltenCopper[0].quantity, quantity);
+    assert.equal(state.moltenCopper[0].material, "lead");
+  });
+});
+
+test("blocked Ceramic output prevents repeated Clay intake and processing", () => {
+  const furnace = machine("miniElectricArcFurnace", "restored-ceramic", 2, 2);
+  const output = {
+    column: 5, row: 3, direction: "right",
+    item: { kind: "material", material: "ceramic", quantity: 1 },
+  };
+  const state = freshState({
+    machines: [furnace], crew: { total: 1 }, placedConveyors: [output],
+    arcFurnaceInputs: { [furnace.instanceId]: { primary: [], secondary: [], tertiary: [] } },
+    arcFurnaceJobs: [], arcFurnaceOutputBuffers: {}, moltenCopper: [],
+  });
+  assert.equal(game.receiveConveyorItem({ kind: "material", material: "clay", quantity: 20 }, 2, 3), true);
+  game.updateCrewOperatedMachines(0);
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 18);
+  assert.equal(state.arcFurnaceJobs[0].inputCount, 2);
+  assert.equal(state.arcFurnaceJobs[0].quantity, 1);
+  assert.equal(state.arcFurnaceJobs[0].secondsRemaining, 4);
+  game.updateCrewOperatedMachines(4);
+  assert.equal(state.arcFurnaceOutputBuffers[furnace.instanceId].quantity, 1);
+  assert.equal(state.arcFurnaceJobs.length, 0);
+  for (let tick = 0; tick < 10; tick += 1) {
+    game.updateFactory(0.1);
+    game.updateCrewOperatedMachines(1);
+    assert.equal(game.receiveConveyorItem({ kind: "material", material: "clay", quantity: 2 }, 2, 3), false);
+  }
+  assert.equal(state.arcFurnaceInputs[furnace.instanceId].primary[0].quantity, 18);
+  assert.equal(state.arcFurnaceOutputBuffers[furnace.instanceId].quantity, 1);
+});
+
+test("four-stack saves recover extra material and ammo once while retaining primary cargo", () => {
+  const saved = game.createInitialState();
+  saved.cashScaleVersion = 2;
+  saved.stockpile.copper = 10;
+  const primary = { kind: "material", material: "silver", quantity: 3, saleValueBase: 100, beltEntryDirection: "up" };
+  saved.placedConveyors = [{ column: 10, row: 10, direction: "right", item: primary }];
+  const molder = machine("ingotMolder", "saved-single-molder", 15, 10);
+  saved.machines = [molder];
+  saved.internalConveyorItems[`${molder.instanceId}:0`] = { kind: "material", material: "silverIngot", quantity: 1 };
+  saved.extraConveyorItems = {
+    "placed:10,10": [null,
+      { kind: "material", material: "copper", quantity: 2 },
+      { kind: "ammo", type: "rapidfire", material: "copper", coreMaterial: "copper", quantity: 25, damage: 3 },
+      { kind: "ammo", type: "rapidfire", material: "copper", coreMaterial: "copper", quantity: 25, damage: 5.1, annealed: true },
+    ],
+    [`internal:${molder.instanceId}:0`]: [null, { kind: "material", material: "cutMalachite", quantity: 1.2 }],
+    "fixed:24,4": [null, { kind: "material", material: "clay", quantity: 3, dusterAssigned: true }],
+  };
+  saved.storageOutputTimers = { "old-outlet:1": 0.5 };
+  saved.storageOutputNextLanes = { "old-outlet:1": 1 };
+  saved.dusterJob = { source: "conveyor", material: "clay" };
+  const hydrated = game.hydrateSavedState(saved);
+  assert.strictEqual(hydrated.placedConveyors[0].item, primary);
+  assert.equal(primary.saleValueBase, 100);
+  assert.equal(Object.hasOwn(primary, "beltEntryDirection"), false);
+  assert.equal(hydrated.internalConveyorItems[`${molder.instanceId}:0`].quantity, 1);
+  assert.equal(hydrated.stockpile.copper, 12);
+  assert.equal(hydrated.stockpile.cutMalachite, 1.2);
+  assert.equal(hydrated.stockpile.clay, 3);
+  assert.equal(hydrated.ammoStacks.find(({ damage }) => damage === 3).count, 25);
+  assert.equal(hydrated.ammoStacks.find(({ damage }) => damage === 5.1).count, 25);
+  assert.equal(hydrated.dusterJob, null);
+  ["extraConveyorItems", "storageOutputTimers", "storageOutputNextLanes"].forEach((key) => {
+    assert.equal(Object.hasOwn(hydrated, key), false);
+  });
+  const reloaded = game.hydrateSavedState(JSON.parse(JSON.stringify(hydrated)));
+  assert.deepEqual(reloaded.stockpile, hydrated.stockpile);
+  assert.deepEqual(reloaded.ammoStacks, hydrated.ammoStacks);
+});
+
+test("in-flight four-cycle furnace saves keep their output but restore sequential timing once", () => {
+  const furnace = machine("miniElectricArcFurnace", "retired-furnace-batch", 2, 2);
+  furnace.mode = "bronze";
+  const saved = game.createInitialState();
+  saved.machines = [furnace];
+  saved.arcFurnaceJobs = [{
+    furnaceInstanceId: furnace.instanceId, material: "bronze",
+    quantity: 24, inputCount: 24, batchCount: 4, secondsRemaining: 11,
+  }];
+  const hydrated = game.hydrateSavedState(saved);
+  assert.equal(hydrated.arcFurnaceJobs[0].secondsRemaining, 47);
+  assert.equal(hydrated.arcFurnaceJobs[0].quantity, 24);
+  assert.equal(Object.hasOwn(hydrated.arcFurnaceJobs[0], "batchCount"), false);
+  const reloaded = game.hydrateSavedState(JSON.parse(JSON.stringify(hydrated)));
+  assert.equal(reloaded.arcFurnaceJobs[0].secondsRemaining, 47);
+});
+
+test("factory cargo rendering restores full-size shapes and readable stack counts", () => {
+  const source = readGameSource();
+  const drawing = source.match(/function drawConveyorItemBuffers\(\) \{([\s\S]*?)\n\}/)[1];
+  assert.match(drawing, /fillEllipse\(point\.x, point\.y, 16, 10\)/);
+  assert.match(drawing, /fillRoundedRect\(point\.x - 7, point\.y - 4, 14, 8, 3\)/);
+  assert.match(drawing, /fontSize: "9px"/);
+  assert.doesNotMatch(drawing, /slot|laneOffset|beltEntryDirection/);
+  assert.doesNotMatch(source, /CONVEYOR_CARGO_CAPACITY|clayKilnBatchSize|arcFurnaceBatchSize|storageOutputItemsPerSecond/);
 });
 
 test("playtest code unlocks a save-persistent cheat panel and toggle state", () => {

@@ -121,6 +121,9 @@ function getMachineDisplayName(machineId) {
     contactMaker: "Contact Maker",
     miniElectricArcFurnace: "Mini Electric Arc Furnace",
     metalPress: "Metal Press",
+    gearPress: "Gear Press",
+    aggregateMixer: "Aggregate Mixer",
+    hotFluidPipe: "Hot Fluid Pipe",
     stacker: "Stacker",
     splitter: "Splitter",
     casingMachine: "Casing Machine",
@@ -172,6 +175,9 @@ function placeMachine(machineId, column, row) {
       row,
       orientation: selectedBuildOrientation,
     });
+  if (machineId === "hotFluidPipe" && !storedInstance) {
+    Object.assign(state.machines.at(-1), { mode: selectedPipePlacementMode, turnSide: selectedPipeTurnSide });
+  }
   invalidateFactoryConveyorCache();
   selectedBuildTool = state.machineInventory[machineId] > 0 ? machineId : null;
   hoveredFactoryTile = null;
@@ -428,8 +434,7 @@ function startKilnJobs() {
   let started = 0;
   while (getAvailableCrew() >= 2) {
     const pendingInput = state.kilnInputs.find((kilnInput) => (
-      Math.floor(Number(kilnInput.quantity ?? 1)) >= 1
-        && !state.kilnJobs.some((job) => job.kilnInstanceId === kilnInput.kilnInstanceId)
+      !state.kilnJobs.some((job) => job.kilnInstanceId === kilnInput.kilnInstanceId)
         && !state.moltenCopper.some((liquidMetal) => (
           getMoltenMetalOwnerInstanceId(liquidMetal) === kilnInput.kilnInstanceId
         ))
@@ -442,14 +447,7 @@ function startKilnJobs() {
       break;
     }
 
-    const inputQuantity = Math.max(0, Number(pendingInput.quantity ?? 1) || 0);
-    const quantity = Math.min(CONFIG.clayKilnBatchSize, Math.floor(inputQuantity));
-    const remainingQuantity = inputQuantity - quantity;
-    if (remainingQuantity <= 1e-9) {
-      state.kilnInputs = state.kilnInputs.filter((kilnInput) => kilnInput !== pendingInput);
-    } else {
-      pendingInput.quantity = remainingQuantity;
-    }
+    state.kilnInputs = state.kilnInputs.filter((kilnInput) => kilnInput !== pendingInput);
     state.kilnJobs.push({
       kilnInstanceId: kiln.instanceId,
       material,
@@ -457,10 +455,10 @@ function startKilnJobs() {
       cashUpgraderEligibility: pendingInput.cashUpgraderEligibility ?? {},
       sourceValue: pendingInput.sourceValue ?? MINIMUM_SALE_VALUES[material] ?? 0,
       sourceValueIsEffective: pendingInput.sourceValueIsEffective === true,
-      quantity,
+      quantity: pendingInput.quantity ?? 1,
       secondsRemaining: CONFIG.clayKilnProcessSeconds,
     });
-    addLog(`Clay Kiln began smelting ${formatNumber(quantity)} ${MATERIAL_LABELS[material]} with 2 crew.`);
+    addLog(`Clay Kiln began smelting one ${MATERIAL_LABELS[material]} with 2 crew.`);
     started += 1;
   }
   return started;
@@ -481,7 +479,7 @@ function completeKilnJob(job) {
     sourceValueIsEffective: job.sourceValueIsEffective === true,
     quantity: job.quantity ?? 1,
   });
-  addLog(`Clay Kiln produced ${formatNumber(job.quantity ?? 1)} liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`);
+  addLog(`Clay Kiln produced liquid ${MATERIAL_LABELS[getSmeltedLiquidMaterial(job.material)] ?? job.material}. Connect it to an adjacent Ingot Molder, Refractory Caster, Bullet Core Caster, Jacket Former, or Casing Machine.`);
 }
 
 function startArcFurnaceJobs() {
@@ -499,7 +497,7 @@ function startArcFurnaceJobs() {
     }
 
     const cycleOutputQuantity = recipe.outputQuantity ?? 1;
-    const outputCapacity = (recipe.maxCycleOutputQuantity ?? cycleOutputQuantity) * 2;
+    const outputCapacity = cycleOutputQuantity * 2;
     const bufferedLiquidQuantity = state.moltenCopper.reduce((total, liquidMetal) => (
       getMoltenMetalOwnerInstanceId(liquidMetal) === furnace.instanceId
         ? total + Math.max(0, Number(liquidMetal.quantity ?? 1) || 0)
@@ -525,12 +523,13 @@ function startArcFurnaceJobs() {
       sourceValue: recipe.outputValue,
       sourceValueIsEffective: true,
       inputCount: recipe.inputCount,
-      batchCount: recipe.batchCount ?? 1,
-      secondsRemaining: recipe.processingSeconds ?? recipe.inputCount * 2,
+      secondsRemaining: recipe.inputCount * 2,
     });
     addLog(recipe.name
-      ? `Mini Electric Arc Furnace began ${formatNumber(recipe.batchCount)} ${recipe.name} recipe cycle${recipe.batchCount === 1 ? "" : "s"}.`
-      : `Mini Electric Arc Furnace began smelting ${formatNumber(recipe.inputCount)} ${MATERIAL_LABELS[recipe.inputMaterial]} into ${formatNumber(recipe.outputQuantity)} ${MATERIAL_LABELS[recipe.outputMaterial]}.`);
+      ? `Mini Electric Arc Furnace began the ${recipe.name} recipe: ${recipe.description}.`
+      : recipe.inputCount === 2
+        ? `Mini Electric Arc Furnace began firing 2 ${MATERIAL_LABELS[recipe.inputMaterial]} → 1 ${MATERIAL_LABELS[recipe.outputMaterial]}.`
+        : "Mini Electric Arc Furnace began smelting one metal input.");
     started = true;
   });
   return started;
@@ -551,7 +550,7 @@ function completeArcFurnaceJob(job) {
     };
     const furnace = getMachineByInstanceId(job.furnaceInstanceId);
     const outputConveyor = furnace ? getArcFurnaceSolidOutputConveyor(furnace) : null;
-    if (!outputConveyor || !placeItemOnConveyor(outputConveyor, outputItem)) {
+    if (!outputConveyor || getConveyorItem(outputConveyor) || !placeItemOnConveyor(outputConveyor, outputItem)) {
       state.arcFurnaceOutputBuffers[job.furnaceInstanceId] = outputItem;
       state.arcFurnaceJobs = state.arcFurnaceJobs.filter((candidate) => candidate !== job);
       addLog("Mini Electric Arc Furnace finished Ceramic; its solid output is waiting for a conveyor.");
@@ -611,17 +610,18 @@ function startBulletCoreCasting() {
       return;
     }
 
-    const requiredQuantity = Math.max(0, Number(processItem.quantity ?? 1) || 0);
-    const availableQuantity = Math.max(0, Number(liquidMetal.quantity ?? 1) || 0);
+    const requiredQuantity = Math.max(0, Number(processItem.quantity ?? 1) || 0) * AMMO_COATING_LIQUID_PER_BUNDLE;
+    const availableQuantity = getAvailableLiquidQuantity(liquidMetal, caster);
     if (requiredQuantity <= 0 || availableQuantity + 1e-9 < requiredQuantity) {
       return;
     }
 
     const remainingQuantity = availableQuantity - requiredQuantity;
+    spendLiquidFlowCredit(liquidMetal, requiredQuantity);
     if (remainingQuantity > 1e-9) {
-      liquidMetal.quantity = remainingQuantity;
+      liquidMetal.quantity = Number(liquidMetal.quantity ?? 1) - requiredQuantity;
     } else {
-      state.moltenCopper.splice(liquidMetalIndex, 1);
+      if (subtractQuantity(liquidMetal, requiredQuantity, 1) === 0) state.moltenCopper.splice(liquidMetalIndex, 1);
     }
 
     processItem.metalMaterial = liquidMetal.material;
@@ -653,7 +653,11 @@ function startJacketFormerCoating() {
       return;
     }
 
-    const liquidMetal = state.moltenCopper.splice(liquidMetalIndex, 1)[0];
+    const liquidMetal = state.moltenCopper[liquidMetalIndex];
+    const required = Number(processItem.quantity) / AMMO_ROUNDS_PER_MINERAL * AMMO_JACKET_LIQUID_PER_BUNDLE;
+    if (!Number.isFinite(required) || required <= 0 || !hasAtLeastQuantity(getAvailableLiquidQuantity(liquidMetal, jacketFormer), required)) return;
+    spendLiquidFlowCredit(liquidMetal, required);
+    if (subtractQuantity(liquidMetal, required, 1) === 0) state.moltenCopper.splice(liquidMetalIndex, 1);
     processItem.jacketMaterial = liquidMetal.material;
     processItem.jacketKilnInstanceId = liquidMetal.kilnInstanceId;
     addLog(`Jacket Former is holding ${formatNumber(processItem.quantity)} cores for a Native copper jacket.`);
@@ -701,7 +705,7 @@ function startMolderJob() {
       return;
     }
 
-    const availableQuantity = Math.max(0, Math.floor(Number(moltenCopper.quantity ?? 1) || 0));
+    const availableQuantity = Math.max(0, Math.floor(getAvailableLiquidQuantity(moltenCopper, molder) + 1e-9));
     const batchQuantity = Math.min(maximumBatchQuantity, availableQuantity);
     if (batchQuantity < 1 || !hasAtLeastQuantity(moltenCopper.quantity ?? 1, batchQuantity)) {
       return;
@@ -727,6 +731,7 @@ function startMolderJob() {
         ? 0
         : remainingClay;
     }
+    spendLiquidFlowCredit(moltenCopper, batchQuantity);
     if (subtractQuantity(moltenCopper, batchQuantity, 1) === 0) {
       state.moltenCopper.splice(moltenCopperIndex, 1);
     }
@@ -795,11 +800,11 @@ function flushMolderOutputs() {
   Object.entries(state.molderOutputBuffers).forEach(([molderInstanceId, item]) => {
     const molder = getMachineByInstanceId(molderInstanceId);
     const outputConveyor = molder ? getInternalConveyor(molder, 0) : null;
-    if (!outputConveyor || !placeItemOnConveyor(outputConveyor, item)) {
+    const emitted = emitCapacitySafeCargo(outputConveyor, item);
+    if (!emitted) {
       return;
     }
-
-    delete state.molderOutputBuffers[molderInstanceId];
+    if (subtractQuantity(item, emitted, 1) === 0) delete state.molderOutputBuffers[molderInstanceId];
     addLog(`${MATERIAL_LABELS[item.material]} left the ${getMachineDisplayName(molder.id)} output buffer.`);
   });
 }
@@ -1018,26 +1023,44 @@ function recoverMolderClayBuffer(molder) {
   return `${formatNumber(quantity)} Clay`;
 }
 
+function recoverGearPressInput(press) {
+  const pending = state.gearPressInputs[press.instanceId];
+  if (!pending) {
+    return null;
+  }
+  delete state.gearPressInputs[press.instanceId];
+  return recoverFactoryItem({ kind: "material", material: pending.material, quantity: pending.quantity });
+}
+
 function recoverFactoryEntityCargo(entity) {
   const entityTileKeys = new Set(getFactoryEntityTileKeys(entity));
   const recovered = [];
+  if (entity.type === "machine" && entity.id === "aggregateMixer") {
+    recoverAggregateMixerContents(getMachineByInstanceId(entity.instanceId));
+  }
   getFactoryConveyors().forEach(({ conveyor }) => {
     if (!entityTileKeys.has(getFactoryTileKey(conveyor.column, conveyor.row))) {
       return;
     }
 
-    const cargo = getConveyorItems(conveyor);
-    if (cargo.length === 0) {
+    const item = getConveyorItem(conveyor);
+    if (!item) {
       return;
     }
 
-    cargo.forEach(({ item }) => recovered.push(recoverFactoryItem(item)));
     setConveyorItem(conveyor, null);
+    recovered.push(recoverFactoryItem(item));
   });
   if (entity.type === "machine" && entity.id === "ingotMolder") {
     const recoveredClay = recoverMolderClayBuffer(getMachineByInstanceId(entity.instanceId));
     if (recoveredClay) {
       recovered.push(recoveredClay);
+    }
+  }
+  if (entity.type === "machine" && entity.id === "gearPress") {
+    const recoveredPlates = recoverGearPressInput(getMachineByInstanceId(entity.instanceId));
+    if (recoveredPlates) {
+      recovered.push(recoveredPlates);
     }
   }
   return recovered;
@@ -1231,7 +1254,6 @@ function completeGroupMove(anchorColumn, anchorRow) {
   }
 
   const plan = getFactoryGroupPlacementPlan(anchorColumn, anchorRow);
-  const extraCargoMoves = [];
   plan.forEach((entry) => {
     if (entry.descriptor.type === "machine") {
       entry.object.column = entry.column;
@@ -1241,23 +1263,15 @@ function completeGroupMove(anchorColumn, anchorRow) {
     }
 
     const conveyor = entry.object;
-    const oldIdentity = getConveyorIdentity(conveyor);
-    const extraCargo = state.extraConveyorItems?.[oldIdentity];
     if (isFixedConveyor(conveyor)) {
       const oldItem = state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)] ?? null;
       delete state.fixedConveyorItems[getFactoryTileKey(conveyor.column, conveyor.row)];
       state.tutorial.starterConveyorRemoved = true;
-      const movedConveyor = {
+      state.placedConveyors.push({
         column: entry.column,
         row: entry.row,
         direction: entry.direction,
         item: oldItem,
-      };
-      state.placedConveyors.push(movedConveyor);
-      extraCargoMoves.push({
-        oldIdentity,
-        newIdentity: getConveyorIdentity(movedConveyor),
-        extraCargo,
       });
       return;
     }
@@ -1265,19 +1279,6 @@ function completeGroupMove(anchorColumn, anchorRow) {
     conveyor.column = entry.column;
     conveyor.row = entry.row;
     conveyor.direction = entry.direction;
-    extraCargoMoves.push({
-      oldIdentity,
-      newIdentity: getConveyorIdentity(conveyor),
-      extraCargo,
-    });
-  });
-  extraCargoMoves.forEach(({ oldIdentity }) => {
-    delete state.extraConveyorItems[oldIdentity];
-  });
-  extraCargoMoves.forEach(({ newIdentity, extraCargo }) => {
-    if (extraCargo) {
-      state.extraConveyorItems[newIdentity] = extraCargo;
-    }
   });
 
   selectedFactoryEntities = plan.map(({ descriptor, column, row }) => (
@@ -1323,16 +1324,14 @@ function recoverFactoryEntitiesCargo(records) {
       return;
     }
 
-    const cargo = getConveyorItems(conveyor);
-    if (cargo.length === 0) {
+    const item = getConveyorItem(conveyor);
+    if (!item) {
       return;
     }
 
-    cargo.forEach(({ item }) => {
-      releaseDusterForItem(item);
-      recovered.push(recoverFactoryItem(item));
-    });
+    releaseDusterForItem(item);
     setConveyorItem(conveyor, null);
+    recovered.push(recoverFactoryItem(item));
   });
   records
     .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "ingotMolder")
@@ -1342,6 +1341,16 @@ function recoverFactoryEntitiesCargo(records) {
         recovered.push(recoveredClay);
       }
     });
+  records
+    .filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "gearPress")
+    .forEach(({ object }) => {
+      const recoveredPlates = recoverGearPressInput(object);
+      if (recoveredPlates) {
+        recovered.push(recoveredPlates);
+      }
+    });
+  records.filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "aggregateMixer")
+    .forEach(({ object }) => recoverAggregateMixerContents(object));
   return recovered;
 }
 

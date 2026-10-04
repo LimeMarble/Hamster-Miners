@@ -4,6 +4,8 @@ const SCRIPT_FILES = [
   "game-data.js",
   "game-state.js",
   "factory-logistics.js",
+  "factory-materials.js",
+  "factory-fluids.js",
   "factory-building.js",
   "mining.js",
   "game-ui.js",

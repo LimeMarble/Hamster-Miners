@@ -74,6 +74,7 @@ const elements = {
   selectContactMakerButton: document.querySelector("#selectContactMakerButton"),
   selectMiniElectricArcFurnaceButton: document.querySelector("#selectMiniElectricArcFurnaceButton"),
   selectMetalPressButton: document.querySelector("#selectMetalPressButton"),
+  selectGearPressButton: document.querySelector("#selectGearPressButton"),
   selectStackerButton: document.querySelector("#selectStackerButton"),
   selectSplitterButton: document.querySelector("#selectSplitterButton"),
   selectQuartzWheelCutterButton: document.querySelector("#selectQuartzWheelCutterButton"),
@@ -100,6 +101,12 @@ const elements = {
   contactMakerInventoryCount: document.querySelector("#contactMakerInventoryCount"),
   miniElectricArcFurnaceInventoryCount: document.querySelector("#miniElectricArcFurnaceInventoryCount"),
   metalPressInventoryCount: document.querySelector("#metalPressInventoryCount"),
+  gearPressInventoryCount: document.querySelector("#gearPressInventoryCount"),
+  aggregateMixerInventoryCount: document.querySelector("#aggregateMixerInventoryCount"),
+  hotFluidPipeInventoryCount: document.querySelector("#hotFluidPipeInventoryCount"),
+  pipePlacementControls: document.querySelector("#pipePlacementControls"),
+  pipePlacementMode: document.querySelector("#pipePlacementMode"),
+  pipePlacementTurnSide: document.querySelector("#pipePlacementTurnSide"),
   stackerInventoryCount: document.querySelector("#stackerInventoryCount"),
   splitterInventoryCount: document.querySelector("#splitterInventoryCount"),
   quartzWheelCutterInventoryCount: document.querySelector("#quartzWheelCutterInventoryCount"),
@@ -153,6 +160,7 @@ const elements = {
   buyCasingMachineButton: document.querySelector("#buyCasingMachineButton"),
   buyMiniElectricArcFurnaceButton: document.querySelector("#buyMiniElectricArcFurnaceButton"),
   buyMetalPressButton: document.querySelector("#buyMetalPressButton"),
+  buyGearPressButton: document.querySelector("#buyGearPressButton"),
   buyStackerButton: document.querySelector("#buyStackerButton"),
   buySplitterButton: document.querySelector("#buySplitterButton"),
   buyGraphiteLacedSellTubeButton: document.querySelector("#buyGraphiteLacedSellTubeButton"),
@@ -276,6 +284,9 @@ function createInitialState() {
       contactMaker: 0,
       miniElectricArcFurnace: 0,
       metalPress: 0,
+      gearPress: 0,
+      aggregateMixer: 0,
+      hotFluidPipe: 0,
       stacker: 0,
       splitter: 0,
       casingMachine: 0,
@@ -289,9 +300,6 @@ function createInitialState() {
       FIXED_CONVEYORS.map((conveyor) => [getFactoryTileKey(conveyor.column, conveyor.row), null]),
     ),
     internalConveyorItems: {},
-    // The legacy item fields above remain slot zero; these sparse lane arrays
-    // hold the other three simultaneous cargo slots on each conveyor tile.
-    extraConveyorItems: {},
     tutorial: {
       stage: "intro",
       visible: true,
@@ -304,8 +312,6 @@ function createInitialState() {
     ammoInTransit: 0,
     storageExportsInTransit: 0,
     storageOutputFilters: {},
-    storageOutputTimers: {},
-    storageOutputNextLanes: {},
     autoExtractorEnabled: true,
     selectedDepositId: null,
     shotsFired: 0,
@@ -347,6 +353,7 @@ function createInitialState() {
       ironPlate: 0,
       cutMalachite: 0,
       ceramic: 0,
+      aggregate: 0,
       limestone: 0,
       granite: 0,
       graphite: 0,
@@ -356,6 +363,7 @@ function createInitialState() {
       copperIngot: 0,
       brittleCopperIngot: 0,
       wire: 0,
+      ...Object.fromEntries(GEAR_MATERIALS.map((material) => [material, 0])),
     },
     crew: { total: CONFIG.startingCrew },
     dusterJob: null,
@@ -373,6 +381,10 @@ function createInitialState() {
     arcFurnaceJobs: [],
     arcFurnaceOutputBuffers: {},
     stackerBuffers: {},
+    gearPressInputs: {},
+    aggregateMixerInputs: {},
+    aggregateMixerJobs: {},
+    aggregateMixerOutputs: {},
     moltenCopper: [],
     mine: {
       currentTunnel: 1,
@@ -509,7 +521,7 @@ function normalizeMoltenMetalQueues(targetState) {
   const smelterMachines = [
     ...(targetState.machines ?? []),
     ...(targetState.machineInventoryInstances ?? []),
-  ].filter((machine) => MACHINE_LAYOUT[machine?.id]?.liquidOutput
+  ].filter((machine) => (MACHINE_LAYOUT[machine?.id]?.liquidOutput || machine?.id === "hotFluidPipe")
     && typeof machine.instanceId === "string"
     && machine.instanceId.length > 0);
   const validSmelterIds = new Set(smelterMachines.map(({ instanceId }) => instanceId));
@@ -554,6 +566,61 @@ function normalizeMoltenMetalQueues(targetState) {
   });
 }
 
+function recoverRetiredConveyorSlots(targetState) {
+  // Four-stack saves keep slot zero in the original cargo fields. Return only
+  // the retired extra slots to inventory, retaining ammo composition/damage.
+  const extraSlots = isSaveRecord(targetState.extraConveyorItems)
+    ? targetState.extraConveyorItems
+    : {};
+  Object.values(extraSlots).forEach((slots) => {
+    if (!Array.isArray(slots)) {
+      return;
+    }
+    slots.slice(1).forEach((item) => {
+      const quantity = Number(item?.quantity);
+      if (!item || !Number.isFinite(quantity) || quantity <= 0) {
+        return;
+      }
+      if (item.kind === "material" && typeof item.material === "string"
+        && isObtainableMaterial(item.material)) {
+        targetState.stockpile[item.material] = Number(
+          ((targetState.stockpile[item.material] ?? 0) + quantity).toPrecision(12),
+        );
+      } else if (item.kind === "ammo") {
+        targetState.ammoStacks.push({ ...item, count: quantity });
+      }
+    });
+  });
+  targetState.ammoStacks = normalizeAmmoStacks(targetState.ammoStacks);
+  delete targetState.extraConveyorItems;
+  delete targetState.storageOutputTimers;
+  delete targetState.storageOutputNextLanes;
+  const cargo = [
+    ...targetState.placedConveyors.map(({ item }) => item),
+    ...Object.values(targetState.fixedConveyorItems),
+    ...Object.values(targetState.internalConveyorItems),
+  ];
+  cargo.filter(Boolean).forEach((item) => {
+    delete item.beltEntryDirection;
+  });
+  if (targetState.dusterJob?.source === "conveyor"
+    && !cargo.some((item) => item?.dusterAssigned)) {
+    targetState.dusterJob = null;
+  }
+  // An already-started parallel furnace batch keeps its paid-for output, but
+  // the remaining cycles now take their original, sequential processing time.
+  targetState.arcFurnaceJobs.forEach((job) => {
+    const batchCount = Number(job.batchCount);
+    const inputCount = Number(job.inputCount);
+    if (Number.isFinite(batchCount) && batchCount > 1
+      && Number.isFinite(inputCount) && inputCount > 0) {
+      job.secondsRemaining = Math.max(0, Number(job.secondsRemaining) || 0)
+        + inputCount * 2 * (1 - 1 / batchCount);
+    }
+    delete job.batchCount;
+  });
+}
+
 function hydrateSavedState(savedState) {
   if (!isSaveRecord(savedState)) {
     return null;
@@ -582,7 +649,12 @@ function hydrateSavedState(savedState) {
         orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
         mode: type === "miniElectricArcFurnace"
           ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
-          : machine.mode ?? MACHINE_LAYOUT[type].mode,
+          : type === "gearPress"
+            ? getGearPressMode(machine)
+            : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
+        turnSide: machine.turnSide === "right" ? "right" : "left",
+        pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
+        pipeFlowCredit: 0,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,
         splitterNextOutputIndex: type === "splitter"
           ? ((Math.floor(Number(machine.splitterNextOutputIndex) || 0) % 3) + 3) % 3
@@ -614,7 +686,12 @@ function hydrateSavedState(savedState) {
         orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
         mode: type === "miniElectricArcFurnace"
           ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
-          : machine.mode ?? MACHINE_LAYOUT[type].mode,
+          : type === "gearPress"
+            ? getGearPressMode(machine)
+            : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
+        turnSide: machine.turnSide === "right" ? "right" : "left",
+        pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
+        pipeFlowCredit: 0,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,
         splitterNextOutputIndex: type === "splitter"
           ? ((Math.floor(Number(machine.splitterNextOutputIndex) || 0) % 3) + 3) % 3
@@ -645,17 +722,6 @@ function hydrateSavedState(savedState) {
     },
     internalConveyorItems: isSaveRecord(savedState.internalConveyorItems)
       ? savedState.internalConveyorItems
-      : {},
-    extraConveyorItems: isSaveRecord(savedState.extraConveyorItems)
-      ? savedState.extraConveyorItems
-      : {},
-    storageOutputTimers: isSaveRecord(savedState.storageOutputTimers)
-      ? savedState.storageOutputTimers
-      : {},
-    storageOutputNextLanes: isSaveRecord(savedState.storageOutputNextLanes)
-      ? Object.fromEntries(Object.entries(savedState.storageOutputNextLanes).map(([key, lane]) => (
-        [key, Number(lane) === 1 ? 1 : 0]
-      )))
       : {},
     tutorial: {
       ...initialState.tutorial,
@@ -704,6 +770,22 @@ function hydrateSavedState(savedState) {
     stackerBuffers: isSaveRecord(savedState.stackerBuffers)
       ? savedState.stackerBuffers
       : {},
+    gearPressInputs: isSaveRecord(savedState.gearPressInputs)
+      ? Object.fromEntries(Object.entries(savedState.gearPressInputs).filter(([, input]) => (
+        isSaveRecord(input)
+          && PLATE_MATERIALS.includes(input.material)
+          && Number.isFinite(input.quantity) && input.quantity > 0
+          && Number.isFinite(input.totalValue) && input.totalValue >= 0
+          && Number.isFinite(input.totalBaseValue) && input.totalBaseValue >= 0
+      )))
+      : {},
+    aggregateMixerInputs: normalizeAggregateMixerInputs(savedState.aggregateMixerInputs),
+    aggregateMixerJobs: isSaveRecord(savedState.aggregateMixerJobs)
+      ? Object.fromEntries(Object.entries(savedState.aggregateMixerJobs).filter(([, job]) =>
+        isSaveRecord(job) && Number.isFinite(job.secondsRemaining) && job.secondsRemaining >= 0)) : {},
+    aggregateMixerOutputs: isSaveRecord(savedState.aggregateMixerOutputs)
+      ? Object.fromEntries(Object.entries(savedState.aggregateMixerOutputs).filter(([, quantity]) =>
+        Number.isFinite(quantity) && quantity >= 0)) : {},
     mine: {
       ...initialState.mine,
       ...(isSaveRecord(savedState.mine) ? savedState.mine : {}),
@@ -863,21 +945,6 @@ function hydrateSavedState(savedState) {
         return [`${shiftedColumn}:${row}`, item];
       }),
     );
-    hydratedState.extraConveyorItems = Object.fromEntries(
-      Object.entries(hydratedState.extraConveyorItems).map(([identity, slots]) => {
-        const match = /^(placed|fixed):(\d+),(\d+)$/.exec(identity);
-        if (!match) {
-          return [identity, slots];
-        }
-        const [, kind, columnText, rowText] = match;
-        const column = Number(columnText);
-        const row = Number(rowText);
-        const shiftedColumn = column < FACTORY_STARTER_COLUMN_OFFSET
-          ? column + FACTORY_STARTER_COLUMN_OFFSET
-          : column;
-        return [`${kind}:${shiftedColumn},${row}`, slots];
-      }),
-    );
     hydratedState.factoryLayoutVersion = FACTORY_LAYOUT_VERSION;
   }
 
@@ -999,6 +1066,7 @@ function hydrateSavedState(savedState) {
     hydratedState.mine.tunnelThreeRightsPurchased = true;
   }
   migrateLegacyCasingMachineBuffers(hydratedState);
+  recoverRetiredConveyorSlots(hydratedState);
   normalizeMoltenMetalQueues(hydratedState);
   return hydratedState;
 }

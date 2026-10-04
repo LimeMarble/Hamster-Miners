@@ -5,7 +5,7 @@ rules below; the manual cases cover browser layout, interaction, and rendering.
 
 Only implemented mechanics are testable. Ideas intentionally deferred by design
 (post-reality content, later ores, later casing/jacketing, reset mechanics, and
-future pipe systems) are not treated as current acceptance requirements.
+future pipe tiers) are not treated as current acceptance requirements.
 
 ## Save, notation, and state migration
 
@@ -65,7 +65,9 @@ future pipe systems) are not treated as current acceptance requirements.
 
 - Basic Bullet Core Caster mode turns Leeks into basic rounds.
 - Coated mode pauses Leeks before the transformer until linked liquid metal is
-  available, then makes 25 mineral bullet cores per mineral input.
+  available, then makes 25 mineral bullet cores per Leek and half a liquid unit.
+- Jacketing consumes half a liquid Native Copper unit per 25 core rounds;
+  excess liquid remains owned by its source.
 - Malachite-coated rounds deal 3 damage before Annealer processing.
 - Both Malachite and Lead are valid liquid-metal coatings; Leek remains the
   mandatory core material.
@@ -129,13 +131,52 @@ future pipe systems) are not treated as current acceptance requirements.
 
 ## Machine concurrency and routing
 
-- Feed a Clay Kiln at least four items: it outputs up to four liquid units in
-  the existing five-second cycle; smaller final batches still take five seconds.
+- Aggregate Mixer costs $800k, 50 Iron Heavy Gears, 100 Iron Plates, 50 Ceramic,
+  and 150 Copper Wires. Its 4x3 footprint has inputs at both left corners and
+  its output at the right-center cell, with no crew requirement.
+- Either Mixer input accepts Limestone or Chert, buffering at most 40 and 20
+  respectively. A ten-second cycle produces ten Aggregate, released in
+  capacity-safe stacks. Overflow stays on the feeding belt; blocked output
+  preserves pending product. Instances and jobs survive moves/save/load.
+- Hot Fluid Pipe is one $25k Logistics item, costing 2 Ceramic, 2 Iron Ingots,
+  1 Tin Ingot, and 5 Aggregate. Its six forms and left/right turn choice persist
+  through pickup, placement, rotation, and save/load.
+- Pipes have 30 fluid weight/s throughput and no distance limit. Blocked/capped
+  exits are skipped, but one open outlet stops the entire connected network.
+  Separate networks keep running. Topology is cached until layout/form changes.
+- Pipes feed all existing liquid-metal consumers and preserve material, value,
+  tags and instance ownership. Two connected side inputs remain usable when
+  the first source is empty. Fluid credit is shared across records, and casing
+  consumes exactly the required quantity without deleting buffered remainder.
+- Hidden cargo weight is quantity times per-unit weight: default 1, wires 0.2,
+  contacts 0.3, cut gems 0.4, Heavy Gears 2, and Fine Gears 0.5. Ammo bundle
+  weights are 1/1.5/2/3 for basic/coated/jacketed/cased rounds.
+- Ordinary belts carry up to weight 5. Built-in Iron-tier belts only use weight
+  30 when their machine's construction cost also includes Aggregate. Transit
+  speed and the one-object-per-tile limit are unchanged.
+- Overweight cargo splits in whole units without losing value/tags, overwriting
+  a retained source stack, or rounding away fractional leftovers. Outputs which
+  gain weight split by whole recipes. Legacy output buffers and Stacker batches
+  drain safely, including the last chunk of a partly emitted configured batch.
+- Casing mode controls remain mounted while pipe fluid quantities change.
+- Gear Press costs $400k, 100 Iron Ingots, 50 Iron Plates, and 100 Copper Wires;
+  its 2x3 occupied footprint and two speed-5 conveyors match Metal Press.
+- Heavy Gear is the default mode: two consecutive matching plates make one
+  gear. Fine mode makes two gears per plate. All six existing plate metals
+  retain their identity, and total effective input value is conserved.
+- Odd plate stacks retain only their unmatched plate per instance. Blocked
+  output stops further intake; finished gears are never reprocessed on mode
+  changes. Gear Press modes and pending plates survive moves/save/load, while
+  single/bulk pickups return pending plates to storage.
+- Direct Metal Press -> Gear Press -> Sell Tube works in both modes, without
+  pre-transformation input rejection or an extra output tile. Gear controls
+  remain mounted during conveyor animation, and multiple instances render
+  independently. Both recipes appear in the Recipes screen.
 - Feed two Clay Kilns at once with at least four available crew: both smelt concurrently.
 - Block one kiln's liquid output while leaving another kiln's output clear: the clear kiln continues working.
 - Feed multiple Ingot Molders: each job, output lane, and crew assignment stays associated with its own instance.
 - The Ingot Molder accepts Clay on its other tile and buffers it per instance. Each Iron ingot consumes one Clay when molding starts; without Clay, Iron liquid remains buffered. Other metals and the Refractory Caster do not consume Clay.
-- Refractory Caster costs $500k, 50 Iron Ingots, 25 Iron Plates, and 25 Ceramic; it occupies a 2×2 footprint with its liquid input and ingot output on the lower row.
+- Refractory Caster costs $1.5M, 50 Iron Ingots, 25 Iron Plates, and 25 Ceramic; it occupies a 2×2 footprint with its liquid input and ingot output on the lower row.
 - Refractory Caster accepts all liquid-metal/alloy types supported by Ingot Molder and converts up to four available matching liquid units into the same number of ingots per two-second cycle, without crew.
 - Place a machine preview in every orientation: all internal conveyors and arrows match the eventual placed machine.
 - Ingot Molder previews and placed machines visibly mark the separate Clay input tile and the shared liquid/output tile.
@@ -152,16 +193,20 @@ future pipe systems) are not treated as current acceptance requirements.
   moving/saving that instance, and cannot be claimed by another line;
   orphaned/conflicting old output is cleaned on load for both Clay Kilns and
   Mini Electric Arc Furnaces.
+- Conveyors hold one full-sized stack per tile, including internal machine lanes.
+  Occupied outputs block arrivals; storage emits when its output tile becomes free.
+- Saves from the retired four-stack system return extra cargo to inventory once,
+  retaining ammunition damage and composition and keeping the original cargo.
+- In-flight furnace batches from those saves retain already-consumed resources,
+  but their remaining recipe cycles take the original sequential processing time.
 - Clay Kilns use 2 crew, Ingot Molders use 1, Refractory Casters use no crew, Leek Dusters use 1 while working,
   and Rock Shacks use 0. The factory crew display reports available / total.
-- Mini Electric Arc Furnace uses a manual recipe selector and can process up
-  to four recipe cycles per existing processing duration. Single smelting
-  outputs up to four metal units in 2 seconds or four Iron/Ceramic units from
-  eight inputs in 4 seconds. Bronze consumes up to 20 Copper and 4 Tin, making
-  up to 24 liquid Bronze in 12 seconds; Copper Contact Alloy consumes up to 16
-  Silver and 4 Copper, making up to 20 liquid alloy in 10 seconds; Tin Contact
-  Alloy consumes up to 36 Silver and 4 Tin, making up to 40 liquid alloy in 20
-  seconds. Both contact alloys can be cast by the Ingot Molder.
+- Mini Electric Arc Furnace uses a manual recipe selector. Bronze consumes five
+  Copper and one Tin through either side inlet, producing six liquid Bronze in
+  twelve seconds; Copper Contact Alloy consumes four Silver and one Copper,
+  producing five liquid alloy in ten seconds; Tin Contact Alloy consumes nine
+  Silver and one Tin, producing ten liquid alloy in twenty seconds. Both
+  contact alloys can be cast by the Ingot Molder.
 - Picking up, moving, saving, and re-placing machinery preserves per-instance
   modes, orientation, and identity.
 - Selected machine action buttons stay mounted while process countdowns tick;
@@ -180,20 +225,9 @@ future pipe systems) are not treated as current acceptance requirements.
 - Splitter is a 1×1 Logistics machine with the Stacker's $2k, 5 Bronze Plate,
   10 Copper Wire, and 10 Silver Contact cost.
 - Splitter accepts a single rear-fed line and round-robins whole stacks over
-  forward/left/right conveyors; it skips full or item-incompatible exits,
+  forward/left/right conveyors; it skips occupied or item-incompatible exits,
   does not consume its turn when all exits are blocked, and preserves its
   per-instance cursor across save/load.
-- A standard one-tile conveyor segment holds four independent cargo items in
-  two lanes by two positions; items advance concurrently, full chains can shift
-  simultaneously, and the extra cargo slots survive save/load and pickup.
-- Conveyor cargo positions rotate with belt direction. Left/right lanes are
-  relative to travel direction and preserve their lane through a turn when
-  available; the other position in that same lane is preferred if the exact
-  slot is occupied. Multi-tile belts and cargo footprints spanning segment
-  boundaries are not implied by the current one-tile capacity model.
-- Each active Material Storage outlet emits at 2 items per second and alternates
-  between the travel-relative left and right lanes. It waits if the next lane
-  is full instead of switching lanes or producing a catch-up burst.
 
 ## Storage, inventory, Shop, and tutorial
 
