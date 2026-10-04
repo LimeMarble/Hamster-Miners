@@ -231,6 +231,15 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Storage, inventory, Shop, and tutorial
 
+- Every Recipes entry supplies its real input, output, and processing note.
+  Aggregate displays 40 Limestone + 20 Chert -> 10 Aggregate in 10 seconds.
+- Recipes can filter by machine. Modes share one full machine-name option;
+  typed search is case-insensitive and matches any part of that name, so `arc`
+  includes both Mini Electric Arc Furnace and future Industrial Arc Furnace
+  entries when they are added. Exact/prefix matches appear first.
+- Search updates both machine options and recipe cards. A selection that no
+  longer matches resets to all matches; an empty result has an explicit status,
+  clearing search restores results, and unchanged ticks do not rebuild controls.
 - Inventory has separate Machines and Items sub-screens. Items lists material
   storage; Graphite-Copper Annealer is the final machine card.
 - Shop shows current cash. Every individual cash/material requirement turns red

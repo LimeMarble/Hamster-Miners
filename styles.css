@@ -1548,7 +1548,7 @@ body.reality-shield-active .excavation-actions #fireButton {
 
 .recipes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
   align-items: stretch;
   gap: 0.75rem;
 }
@@ -1612,6 +1612,45 @@ body.reality-shield-active .excavation-actions #fireButton {
 .options-card h3 {
   margin: 0;
   color: #edf4cf;
+}
+
+.recipe-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.recipe-filters label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: #c6ccba;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.recipe-filters input,
+.recipe-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.45rem;
+  border: 1px solid rgba(213, 224, 180, 0.28);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  background: #11160f;
+  color: #e7edda;
+  font: inherit;
+}
+
+.recipe-filters input:focus-visible,
+.recipe-filters select:focus-visible {
+  outline: 2px solid #dfe99d;
+  outline-offset: 2px;
+}
+
+.recipe-filter-status {
+  margin-bottom: 0;
 }
 
 .cheat-panel[hidden] {

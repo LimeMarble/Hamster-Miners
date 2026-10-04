@@ -699,8 +699,14 @@ const ARC_FURNACE_RECIPE_OPTIONS = Object.freeze([
 ]);
 
 const CRAFTING_RECIPES = Object.freeze([
-  { category: "Material processing", machine: "Aggregate Mixer", name: "Aggregate",
-    inputs: "40 Limestone + 20 Chert", output: "10 Aggregate", notes: "Takes 10 seconds. No crew required." },
+  Object.freeze({
+    category: "Material processing",
+    machine: "Aggregate Mixer",
+    name: "Aggregate",
+    input: "40 Limestone + 20 Chert",
+    output: "10 Aggregate",
+    note: "Takes 10 seconds. No crew required.",
+  }),
   Object.freeze({
     category: "Leek processing",
     name: "Leek Fiber",

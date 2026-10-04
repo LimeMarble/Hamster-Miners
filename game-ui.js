@@ -165,13 +165,67 @@ function renderOptions() {
     : "All tunnel rights unlocked";
 }
 
+function normalizeRecipeMachineSearch(query) {
+  return String(query ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getRecipeMachineName(recipe) {
+  // Modes belong to the same machine, not to separate filter entries.
+  return recipe.machine.split("·")[0].trim();
+}
+
+function getRecipeMachineOptions(query = "", recipes = CRAFTING_RECIPES) {
+  const search = normalizeRecipeMachineSearch(query);
+  const rank = (name) => {
+    const normalized = normalizeRecipeMachineSearch(name);
+    return normalized === search ? -2 : normalized.startsWith(search) ? -1 : normalized.indexOf(search);
+  };
+  return [...new Set(recipes.map(getRecipeMachineName))]
+    .filter((name) => normalizeRecipeMachineSearch(name).includes(search))
+    .sort((left, right) => rank(left) - rank(right) || left.localeCompare(right));
+}
+
+function getFilteredCraftingRecipes(query = "", machineName = "", recipes = CRAFTING_RECIPES) {
+  const options = getRecipeMachineOptions(query, recipes);
+  const order = new Map(options.map((name, index) => [name, index]));
+  const filtered = recipes.filter((recipe) => {
+    const name = getRecipeMachineName(recipe);
+    return order.has(name) && (!machineName || name === machineName);
+  });
+  // Keep the catalogue's normal order unless the user is searching for matches.
+  return normalizeRecipeMachineSearch(query)
+    ? filtered.sort((left, right) => order.get(getRecipeMachineName(left)) - order.get(getRecipeMachineName(right)))
+    : filtered;
+}
+
 function renderRecipes() {
-  if (!elements.recipesList || elements.recipesList.dataset.rendered === "true") {
-    return;
+  if (!elements.recipesList) return;
+  const query = elements.recipeMachineSearch?.value ?? "";
+  const options = getRecipeMachineOptions(query);
+  const requestedMachine = elements.recipeMachineFilter?.value ?? "";
+  const selectedMachine = options.includes(requestedMachine) ? requestedMachine : "";
+  const signature = JSON.stringify([normalizeRecipeMachineSearch(query), selectedMachine]);
+  if (elements.recipesList.dataset.filterSignature === signature) return;
+
+  if (elements.recipeMachineFilter) {
+    const optionsSignature = JSON.stringify(options);
+    if (elements.recipeMachineFilter.dataset.optionsSignature !== optionsSignature) {
+      const optionFragment = document.createDocumentFragment();
+      ["", ...options].forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name || "All matching machines";
+        optionFragment.append(option);
+      });
+      elements.recipeMachineFilter.replaceChildren(optionFragment);
+      elements.recipeMachineFilter.dataset.optionsSignature = optionsSignature;
+    }
+    elements.recipeMachineFilter.value = selectedMachine;
   }
 
   const fragment = document.createDocumentFragment();
-  CRAFTING_RECIPES.forEach((recipe) => {
+  const recipes = getFilteredCraftingRecipes(query, selectedMachine);
+  recipes.forEach((recipe) => {
     const card = document.createElement("article");
     card.className = "panel recipe-card";
 
@@ -194,7 +248,12 @@ function renderRecipes() {
     fragment.append(card);
   });
   elements.recipesList.replaceChildren(fragment);
-  elements.recipesList.dataset.rendered = "true";
+  elements.recipesList.dataset.filterSignature = signature;
+  if (elements.recipeFilterStatus) {
+    elements.recipeFilterStatus.textContent = recipes.length
+      ? `${recipes.length} recipe${recipes.length === 1 ? "" : "s"} · ${selectedMachine || `${options.length} machines`}`
+      : `No machines match “${query.trim()}”.`;
+  }
 }
 
 function renderMachineInventory() {

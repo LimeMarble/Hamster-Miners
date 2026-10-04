@@ -665,6 +665,17 @@
           <p class="eyebrow">RECIPES</p>
           <h2 id="recipesTitle">Factory recipes</h2>
           <p class="panel-copy">Implemented production recipes and processing rules. Machine construction costs remain in the Shop.</p>
+          <div class="recipe-filters">
+            <label for="recipeMachineSearch">Search machines
+              <input id="recipeMachineSearch" type="search" placeholder="Machine name, e.g. arc" autocomplete="off" aria-controls="recipeMachineFilter recipesList">
+            </label>
+            <label for="recipeMachineFilter">Machine
+              <select id="recipeMachineFilter" aria-controls="recipesList">
+                <option value="">All matching machines</option>
+              </select>
+            </label>
+          </div>
+          <p class="panel-copy recipe-filter-status" id="recipeFilterStatus" role="status"></p>
         </section>
         <div class="recipes-grid" id="recipesList" aria-label="Factory recipes"></div>
         <div class="screen-actions"><button class="button button-secondary" data-view-target="factory" type="button">Back to Factory</button><button class="button" data-view-target="construction" type="button">Open Shop</button></div>

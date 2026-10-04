@@ -79,6 +79,10 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getMachineCategories,
     machineBelongsToCategory,
     CRAFTING_RECIPES,
+    getRecipeMachineName,
+    getRecipeMachineOptions,
+    getFilteredCraftingRecipes,
+    renderRecipes,
     ARC_FURNACE_RECIPE_OPTIONS,
     ANNEALER_MULTIPLIER,
     PRIMITIVE_UPGRADER_VALUE_BONUS,
@@ -359,6 +363,14 @@ elements.shopDetailQuantity.addEventListener("input", () => {
   selectedShopPurchaseQuantity = elements.shopDetailQuantity.value;
   if (selectedShopMachineId) {
     renderShopDetail(selectedShopMachineId);
+  }
+});
+elements.recipeMachineSearch?.addEventListener("input", renderRecipes);
+elements.recipeMachineFilter?.addEventListener("change", renderRecipes);
+elements.recipeMachineSearch?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    elements.recipeMachineSearch.value = "";
+    renderRecipes();
   }
 });
 elements.mineDrillUpgradeButton?.addEventListener("click", () => {
