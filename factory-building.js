@@ -248,6 +248,8 @@ function selectConveyorForPlacement() {
   }
 
   selectedBuildTool = "conveyor";
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedFactoryEntity = null;
   selectedFactoryEntities = [];
   groupMoveState = null;
@@ -272,6 +274,8 @@ function selectMachineForPlacement(machineId) {
   }
 
   selectedBuildTool = machineId;
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedBuildOrientation = state.machineInventoryInstances.find((machine) => (
     machine.id === machineId
   ))?.orientation ?? MACHINE_LAYOUT[machineId].orientation ?? "right";
@@ -892,7 +896,40 @@ function getFactoryEntityOccupiedCoordinates(entity, object = resolveFactoryEnti
   return getMachineOccupiedTiles(object);
 }
 
+function beginFactoryTapSelection() {
+  if (activeView !== "factory" || selectedBuildTool || groupMoveState || factoryTapSelection) {
+    return false;
+  }
+
+  factorySelectionDrag = null;
+  factoryTapSelection = { startTile: null, currentTile: null, additive: false };
+  hoveredFactoryTile = null;
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    renderFactoryMachineControls();
+    renderMachineOverlay();
+  }
+  return true;
+}
+
+function cancelFactoryInteraction() {
+  if (selectedBuildTool) {
+    cancelFactoryPlacement();
+  } else if (factoryTapSelection || factorySelectionDrag) {
+    factoryTapSelection = null;
+    factorySelectionDrag = null;
+    hoveredFactoryTile = null;
+    if (!IS_NODE_TEST_ENVIRONMENT) {
+      renderFactoryMachineControls();
+      renderMachineOverlay();
+    }
+  } else {
+    clearFactorySelection();
+  }
+}
+
 function selectFactoryEntity(entity, additive = false) {
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedBuildTool = null;
   groupMoveState = null;
   if (entity?.type !== "machine" || entity.id !== "materialStorage") {
@@ -918,20 +955,27 @@ function selectFactoryEntity(entity, additive = false) {
     selectedFactoryEntities = [entity];
     selectedFactoryEntity = entity;
   }
-  render();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
 }
 
 function clearFactorySelection() {
-  if (!selectedFactoryEntity && selectedFactoryEntities.length === 0 && !groupMoveState) {
+  if (!selectedFactoryEntity && selectedFactoryEntities.length === 0 && !groupMoveState
+    && !factoryTapSelection && !factorySelectionDrag) {
     return;
   }
 
   selectedFactoryEntity = null;
   selectedFactoryEntities = [];
   groupMoveState = null;
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedStorageOutputKey = null;
   hoveredFactoryTile = null;
-  render();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
 }
 
 function cancelFactoryPlacement() {
@@ -940,9 +984,13 @@ function cancelFactoryPlacement() {
   }
 
   selectedBuildTool = null;
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   hoveredFactoryTile = null;
   addLog("Placement selection cancelled.");
-  render();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    render();
+  }
 }
 
 function rebuildMachineScene() {
@@ -1175,6 +1223,8 @@ function beginGroupMove() {
     return false;
   }
 
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   const origin = getFactoryGroupOrigin(records);
   groupMoveState = {
     originColumn: origin.column,
@@ -1355,6 +1405,8 @@ function recoverFactoryEntitiesCargo(records) {
 }
 
 function pickUpSelectedFactoryEntities() {
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   const records = getSelectedFactoryEntityRecords();
   if (records.length < 2) {
     pickUpSelectedFactoryEntity(selectedFactoryEntity);
@@ -1410,6 +1462,8 @@ function pickUpSelectedFactoryEntities() {
 }
 
 function moveSelectedFactoryEntities() {
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   if (groupMoveState) {
     if (hoveredFactoryTile) {
       completeGroupMove(hoveredFactoryTile.column, hoveredFactoryTile.row);
@@ -1424,6 +1478,8 @@ function moveSelectedFactoryEntities() {
 }
 
 function pickUpSelectedFactoryEntity(entity = selectedFactoryEntity, moveForPlacement = false) {
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   const selectedMachine = entity?.type === "machine"
     ? getMachineByInstanceId(entity.instanceId)
     : null;
@@ -1575,8 +1631,10 @@ function rotateSelectedBuild(direction) {
     return;
   }
   saveGame();
-  renderFactoryMachineControls();
-  renderMachineOverlay();
-  renderAmmoMaker();
+  if (!IS_NODE_TEST_ENVIRONMENT) {
+    renderFactoryMachineControls();
+    renderMachineOverlay();
+    renderAmmoMaker();
+  }
 }
 

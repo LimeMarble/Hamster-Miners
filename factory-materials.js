@@ -3,7 +3,7 @@
 // Cargo density changes, not belt object count or transit speed.
 const CARGO_WEIGHTS = Object.freeze({
   wire: 0.2, contact: 0.3, silverCopperContact: 0.3, silverTinContact: 0.3,
-  cutMalachite: 0.4,
+  cutMalachite: 1,
   ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [material, definition.weight])),
 });
 const CONVEYOR_WEIGHT_LIMITS = Object.freeze({ standard: 5, industrial: 30 });

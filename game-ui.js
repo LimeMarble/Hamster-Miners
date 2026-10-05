@@ -11,6 +11,10 @@ function setActiveView(view) {
   // A hidden Phaser canvas keeps rendering at display rate. Recreate it when the
   // player comes back instead of spending CPU on a factory that cannot be seen.
   const leavingFactory = activeView === "factory" && view !== "factory";
+  if (leavingFactory) {
+    factorySelectionDrag = null;
+    factoryTapSelection = null;
+  }
   if (leavingFactory && machineGame) {
     rebuildMachineScene();
   }
@@ -478,6 +482,11 @@ function getFactoryMachineProgressState(machine) {
     return "";
   }
 
+  if (machine.id === "miniElectricArcFurnace") {
+    // Production changes only its live status, not the recipe control structure.
+    return `${getArcFurnaceMode(machine)}|${machine.orientation ?? "right"}`;
+  }
+
   const casingCargoState = machine.id === "casingMachine"
     ? getInternalConveyorTiles(machine).map((_conveyor, index) => {
       const item = getConveyorItem(getInternalConveyor(machine, index));
@@ -641,16 +650,17 @@ function getMachineActionProgressNote(machine) {
     });
     const mode = getArcFurnaceMode(machine);
     const recipeOption = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode);
-    const alloyRecipe = ARC_FURNACE_RECIPES[mode];
     return job
       ? `Processing ${recipeOption?.label ?? "metal"}: ${formatNumber(job.secondsRemaining)}s · 1 crew assigned.`
       : bufferedByMaterial.size > 0
         ? `Liquid output at outlet: ${[...bufferedByMaterial.entries()]
           .map(([material, quantity]) => `${MATERIAL_LABELS[material] ?? material ?? "unknown metal"} ${formatNumber(quantity)}`)
           .join(", ")}.`
-      : alloyRecipe
-        ? `Selected recipe: ${alloyRecipe.description}. Uses 1 crew and takes ${alloyRecipe.inputCount * 2} seconds per batch.`
-        : "Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.";
+      : getAvailableCrew() < 1
+        ? "Waiting for 1 available crew hamster."
+        : mode === "smelting"
+          ? "Waiting for the next primary input."
+          : "Waiting for the selected recipe's inputs.";
   }
 
   if (machine?.id === "casingMachine") {
@@ -696,11 +706,74 @@ function updateMachineActionProgressNote(machine) {
   );
   const text = getMachineActionProgressNote(machine);
   if (note && text !== null) {
-    note.textContent = text;
+    setTextContentIfChanged(note, text);
+  }
+}
+
+function getFactoryInteractionControlState() {
+  const machine = selectedFactoryEntity?.type === "machine"
+    ? getMachineByInstanceId(selectedFactoryEntity.instanceId)
+    : null;
+  const canRotateSelection = selectedFactoryEntity?.type === "conveyor"
+    ? Boolean(getPlacedConveyor(selectedFactoryEntity.column, selectedFactoryEntity.row))
+      && !isFactoryEntityInTransit(selectedFactoryEntity)
+    : Boolean(machine?.movable) && !isMachineBusy(machine)
+      && !isFactoryEntityInTransit(selectedFactoryEntity);
+  const visible = activeView === "factory" && Boolean(
+    factoryTapSelection || selectedBuildTool || groupMoveState || selectedFactoryEntities.length,
+  );
+  const canRotate = !factoryTapSelection && Boolean(
+    selectedBuildTool || groupMoveState || canRotateSelection,
+  );
+  let cancelLabel = "Clear selection";
+  let help = "Q / E rotates. Press Shift, then tap two corners to box-select.";
+  if (factoryTapSelection) {
+    cancelLabel = "Cancel selection";
+    help = factoryTapSelection.startTile
+      ? "Tap the opposite corner to finish selecting."
+      : "Tap the first corner of your selection.";
+  } else if (groupMoveState) {
+    cancelLabel = "Cancel move";
+    help = "Tap a green position to place the group. Q / E or Rotate turns it.";
+  } else if (selectedBuildTool) {
+    cancelLabel = "Cancel placement";
+    help = `Tap to place ${getMachineDisplayName(selectedBuildTool)}. Q / E or Rotate turns it.`;
+  }
+  return { visible, canRotate, cancelLabel, help };
+}
+
+function renderFactoryInteractionControls() {
+  if (!elements.factoryInteractionControls) {
+    return;
+  }
+  const controls = getFactoryInteractionControlState();
+  const signature = JSON.stringify(controls);
+  if (signature === lastFactoryInteractionControlsSignature) {
+    return;
+  }
+  lastFactoryInteractionControlsSignature = signature;
+  elements.factoryInteractionControls.hidden = !controls.visible;
+  elements.rotateFactoryInteractionButton.disabled = !controls.canRotate;
+  setTextContentIfChanged(elements.cancelFactoryInteractionButton, controls.cancelLabel);
+  setTextContentIfChanged(elements.factoryInteractionHelp, controls.help);
+}
+
+function bindFactoryInteractionControls() {
+  [elements.cancelFactoryInteractionButton, elements.rotateFactoryInteractionButton].forEach((button) => {
+    if (button) {
+      button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    }
+  });
+  if (elements.cancelFactoryInteractionButton) {
+    bindImmediateAction(elements.cancelFactoryInteractionButton, cancelFactoryInteraction);
+  }
+  if (elements.rotateFactoryInteractionButton) {
+    bindImmediateAction(elements.rotateFactoryInteractionButton, () => rotateSelectedBuild("clockwise"));
   }
 }
 
 function renderFactoryMachineControls() {
+  renderFactoryInteractionControls();
   const entity = selectedFactoryEntity;
   const selectionCount = selectedFactoryEntities.length;
   const isGroupMoving = Boolean(groupMoveState);
@@ -713,7 +786,8 @@ function renderFactoryMachineControls() {
   const storageState = storageOutputs.map((port) => (
     `${getStorageOutputKey(machine, port)}:${getStorageOutputFilter(machine, port).join(",")}`
   )).join("|");
-  const entityHasCargo = machine?.id === "materialStorage" ? false : isFactoryEntityInTransit(entity);
+  const entityHasCargo = ["materialStorage", "miniElectricArcFurnace"].includes(machine?.id)
+    ? false : isFactoryEntityInTransit(entity);
   const machineProgressState = getFactoryMachineProgressState(machine);
   const signature = [
     activeView,
@@ -744,7 +818,7 @@ function renderFactoryMachineControls() {
 
   if (isGroupMoving) {
     elements.selectedMachineLabel.textContent = `Moving ${selectionCount} factory pieces`;
-    elements.machineSelectionHelp.textContent = "Click a green position to place the group. Right-click or × cancels.";
+    elements.machineSelectionHelp.textContent = "Tap a green position to place the group. Cancel move, Escape or × cancels.";
     elements.pickUpMachineButton.textContent = "Pick up selected";
     elements.pickUpMachineButton.disabled = true;
     elements.moveMachineButton.textContent = hoveredFactoryTile
@@ -760,7 +834,7 @@ function renderFactoryMachineControls() {
   if (selectionCount > 1) {
     const records = getSelectedFactoryEntityRecords();
     elements.selectedMachineLabel.textContent = `${selectionCount} factory pieces selected`;
-    elements.machineSelectionHelp.textContent = "Drag from an empty tile to select a group. Shift-click or Shift-drag adds pieces.";
+    elements.machineSelectionHelp.textContent = "Press Shift, then tap two corners to box-select. Hold Shift on a corner to add pieces, or drag from an empty tile.";
     elements.pickUpMachineButton.textContent = `Pick up ${selectionCount} pieces`;
     elements.pickUpMachineButton.disabled = !canPickUpSelectedFactoryEntities(records);
     elements.moveMachineButton.textContent = `Move ${selectionCount} pieces`;
@@ -770,7 +844,7 @@ function renderFactoryMachineControls() {
 
   if (entity.type === "conveyor") {
     elements.selectedMachineLabel.textContent = "Conveyor selected";
-    elements.machineSelectionHelp.textContent = "Drag from an empty tile to select multiple factory pieces.";
+    elements.machineSelectionHelp.textContent = "Press Shift, then tap two corners to box-select, or drag from an empty tile.";
     const canPickUp = Boolean(getFactorySelectableConveyor(entity.column, entity.row))
       && (getTutorialStage() === "complete" || Boolean(getPlacedConveyor(entity.column, entity.row)));
     elements.pickUpMachineButton.textContent = "Pick up";
@@ -783,7 +857,7 @@ function renderFactoryMachineControls() {
   elements.selectedMachineLabel.textContent = machine
     ? `${getMachineDisplayName(machine.id)} selected`
     : "No machine selected";
-  elements.machineSelectionHelp.textContent = "Q / E rotates the selected building. Drag from an empty tile to select multiple pieces.";
+  elements.machineSelectionHelp.textContent = "Q / E or Rotate turns the selected building. Press Shift, then tap two corners to box-select.";
   const canPickUp = canPickUpMachine(machine);
   elements.pickUpMachineButton.textContent = "Pick up";
   elements.moveMachineButton.textContent = "Move / place more";
@@ -1056,6 +1130,10 @@ function renderMachineActions(machine) {
 
     const selectedRecipeOption = ARC_FURNACE_RECIPE_OPTIONS.find((option) => option.value === mode);
     addMachineActionNote(`Selected: ${selectedRecipeOption?.description ?? "single-metal smelting"}.`);
+    const alloyRecipe = ARC_FURNACE_RECIPES[mode];
+    addMachineActionNote(alloyRecipe
+      ? `Uses 1 crew and takes ${alloyRecipe.inputCount * 2} seconds per batch.`
+      : "Uses 1 crew. Single smelting accepts one ore or ingot through the primary input and takes 2 seconds. Two Hematite make liquid Iron, while two Clay fire directly into Ceramic; both take 4 seconds. Both alloy inputs are unused.");
 
     addMachineActionNote(
       getMachineActionProgressNote(machine),
@@ -2440,8 +2518,19 @@ function isFactoryPointerAdditive(pointer) {
 
 function getFactoryPointerScreenPosition(pointer) {
   const event = pointer?.event;
-  const x = Number.isFinite(event?.clientX) ? event.clientX : pointer?.x;
-  const y = Number.isFinite(event?.clientY) ? event.clientY : pointer?.y;
+  const contact = event?.changedTouches?.[0] ?? event?.touches?.[0] ?? event;
+  if (Number.isFinite(contact?.clientX) && Number.isFinite(contact?.clientY)) {
+    return { x: contact.clientX, y: contact.clientY };
+  }
+  const x = pointer?.x;
+  const y = pointer?.y;
+  const canvas = machineScene?.game?.canvas ?? elements.machineGrid?.querySelector?.("canvas");
+  const bounds = canvas?.getBoundingClientRect?.();
+  if (bounds && Number.isFinite(x) && Number.isFinite(y)) {
+    const width = machineScene?.scale?.width ?? canvas.width ?? bounds.width;
+    const height = machineScene?.scale?.height ?? canvas.height ?? bounds.height;
+    return { x: bounds.left + x * bounds.width / width, y: bounds.top + y * bounds.height / height };
+  }
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
@@ -2455,22 +2544,104 @@ function hasFactoryMarqueeExceededDragThreshold(startPosition, currentPosition) 
 
 function shouldFinalizeFactoryMarquee(pointer, controls = elements.machineControls) {
   const event = pointer?.event;
-  const target = event?.target;
-  if (target && controls?.contains?.(target)) {
+  if (event && factoryOverlayBlockedEvents.has(event)) {
     return false;
   }
-
-  const bounds = controls?.getBoundingClientRect?.();
-  if (bounds && Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
-    const isOverControls = event.clientX >= bounds.left
-      && event.clientX <= bounds.right
-      && event.clientY >= bounds.top
-      && event.clientY <= bounds.bottom;
-    if (isOverControls) {
+  const target = event?.target;
+  const path = event?.composedPath?.() ?? [];
+  const position = getFactoryPointerScreenPosition(pointer);
+  for (const overlay of [controls, elements.factoryInteractionControls]) {
+    if (overlay && (path.includes(overlay) || (target && overlay.contains?.(target)))) {
+      return false;
+    }
+    if (overlay?.hidden) {
+      continue;
+    }
+    const bounds = overlay?.getBoundingClientRect?.();
+    if (bounds && position
+      && position.x >= bounds.left && position.x <= bounds.right
+      && position.y >= bounds.top && position.y <= bounds.bottom) {
       return false;
     }
   }
   return true;
+}
+
+function bindFactoryOverlayInputGuards() {
+  if (factoryOverlayInputGuardsBound || !document.addEventListener) {
+    return;
+  }
+  factoryOverlayInputGuardsBound = true;
+  const capture = (event) => {
+    const overControls = !shouldFinalizeFactoryMarquee({ event });
+    if (event.type === "pointerdown" || event.type === "touchstart") {
+      factoryOverlayGestureFromControls = overControls;
+      factoryOverlayPointerActive = true;
+    } else if (event.type === "mousedown") {
+      // A pointer-down action may already have hidden/rebuilt the overlay before
+      // its compatibility mouse event arrives on the canvas.
+      factoryOverlayGestureFromControls = overControls
+        || (factoryOverlayPointerActive && factoryOverlayGestureFromControls);
+    }
+    const fromControls = overControls || factoryOverlayGestureFromControls;
+    if (fromControls) {
+      // Phaser can process an event later, after DOM actions changed the panel.
+      factoryOverlayBlockedEvents.add(event);
+      if (factorySelectionDrag) {
+        const wasTapDrag = factorySelectionDrag.tapSelection && factorySelectionDrag.moved;
+        factorySelectionDrag = null;
+        if (wasTapDrag) factoryTapSelection = null;
+        if (!IS_NODE_TEST_ENVIRONMENT) renderFactoryMachineControls();
+        renderMachineOverlay();
+      }
+      if (elements.machineGrid?.contains?.(event.target)
+        && ["pointerdown", "mousedown", "touchstart", "click", "dblclick", "contextmenu"].includes(event.type)) {
+        event.stopPropagation();
+      }
+    }
+    if (["pointerup", "pointercancel", "touchend", "touchcancel"].includes(event.type)) {
+      factoryOverlayPointerActive = false;
+    }
+  };
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "pointercancel",
+    "touchstart", "touchend", "touchcancel", "click", "dblclick", "contextmenu"]
+    .forEach((type) => document.addEventListener(type, capture, true));
+  [elements.machineControls, elements.factoryInteractionControls].forEach((overlay) => {
+    if (!overlay) return;
+    // Release events still reach Phaser to reset its held-button state; the
+    // captured event marker prevents those releases from acting on the grid.
+    ["pointerdown", "pointermove", "mousedown", "mousemove", "touchstart", "touchmove", "wheel", "click",
+      "dblclick", "contextmenu"].forEach((type) => {
+      overlay.addEventListener(type, (event) => event.stopPropagation());
+    });
+  });
+}
+
+function handleFactoryKeyDown(event) {
+  const tagName = event.target?.tagName ?? "";
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(tagName) || event.target?.isContentEditable) {
+    return;
+  }
+  if (registerRealityShieldCheatKey(event.key)) {
+    event.preventDefault();
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  if (key === "shift") {
+    if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && beginFactoryTapSelection()) {
+      event.preventDefault();
+    }
+  } else if (key === "escape") {
+    event.preventDefault();
+    cancelFactoryInteraction();
+  } else if (key === "e") {
+    event.preventDefault();
+    rotateSelectedBuild("clockwise");
+  } else if (key === "q") {
+    event.preventDefault();
+    rotateSelectedBuild("counterclockwise");
+  }
 }
 
 function getFactorySelectionBounds(startTile, endTile) {
@@ -2511,6 +2682,8 @@ function selectFactoryEntitiesInRectangle(startTile, endTile, additive = false) 
     : null;
   selectedBuildTool = null;
   groupMoveState = null;
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedStorageOutputKey = null;
   if (!IS_NODE_TEST_ENVIRONMENT) {
     render();
@@ -2528,15 +2701,15 @@ function setHoveredFactoryTile(nextTile) {
 
 function handleFactoryGridPointerDown(pointer) {
   const tile = getFactoryTileFromPointer(pointer);
-  if (!tile) {
+  if (!tile || !shouldFinalizeFactoryMarquee(pointer)) {
     return;
   }
 
   factorySelectionDrag = null;
 
   if (pointer.rightButtonDown?.() || pointer.button === 2) {
-    if (groupMoveState) {
-      clearFactorySelection();
+    if (factoryTapSelection || groupMoveState) {
+      cancelFactoryInteraction();
       return;
     }
     if (selectedBuildTool) {
@@ -2548,6 +2721,35 @@ function handleFactoryGridPointerDown(pointer) {
     if (entity) {
       pickUpSelectedFactoryEntity(entity);
     }
+    return;
+  }
+
+  if (factoryTapSelection) {
+    if (factoryTapSelection.startTile) {
+      const selection = factoryTapSelection;
+      selectFactoryEntitiesInRectangle(
+        selection.startTile,
+        tile,
+        selection.additive || isFactoryPointerAdditive(pointer),
+      );
+    } else {
+      factoryTapSelection.startTile = tile;
+      factoryTapSelection.currentTile = tile;
+      factoryTapSelection.additive = isFactoryPointerAdditive(pointer);
+      // A held mouse drag can still finish the same selection on release.
+      factorySelectionDrag = {
+        startTile: tile,
+        currentTile: tile,
+        startPointer: getFactoryPointerScreenPosition(pointer),
+        additive: factoryTapSelection.additive,
+        tapSelection: true,
+        moved: false,
+      };
+      if (!IS_NODE_TEST_ENVIRONMENT) {
+        renderFactoryMachineControls();
+      }
+    }
+    renderMachineOverlay();
     return;
   }
 
@@ -2577,18 +2779,23 @@ function handleFactoryGridPointerDown(pointer) {
 }
 
 function handleFactoryGridPointerMove(pointer) {
-  const tile = getFactoryTileFromPointer(pointer);
-  setHoveredFactoryTile(tile);
-  if (!factorySelectionDrag || !tile) {
+  if (!shouldFinalizeFactoryMarquee(pointer)) {
+    setHoveredFactoryTile(null);
     return;
   }
-
-  factorySelectionDrag.currentTile = tile;
-  factorySelectionDrag.moved = factorySelectionDrag.moved
-    || hasFactoryMarqueeExceededDragThreshold(
-      factorySelectionDrag.startPointer,
-      getFactoryPointerScreenPosition(pointer),
-    );
+  const tile = getFactoryTileFromPointer(pointer);
+  hoveredFactoryTile = tile;
+  if (factoryTapSelection?.startTile && tile) {
+    factoryTapSelection.currentTile = tile;
+  }
+  if (factorySelectionDrag && tile) {
+    factorySelectionDrag.currentTile = tile;
+    factorySelectionDrag.moved = factorySelectionDrag.moved
+      || hasFactoryMarqueeExceededDragThreshold(
+        factorySelectionDrag.startPointer,
+        getFactoryPointerScreenPosition(pointer),
+      );
+  }
   renderMachineOverlay();
 }
 
@@ -2599,7 +2806,16 @@ function handleFactoryGridPointerUp(pointer) {
 
   const drag = factorySelectionDrag;
   factorySelectionDrag = null;
+  if (drag.tapSelection && !drag.moved) {
+    return;
+  }
   if (!shouldFinalizeFactoryMarquee(pointer)) {
+    if (drag.tapSelection) {
+      factoryTapSelection = null;
+      if (!IS_NODE_TEST_ENVIRONMENT) {
+        renderFactoryMachineControls();
+      }
+    }
     renderMachineOverlay();
     return;
   }
@@ -2640,6 +2856,7 @@ function createFactoryInteractions(scene) {
   );
   gunHitArea.setInteractive({ useHandCursor: true });
   gunHitArea.on("pointerdown", (pointer) => {
+    if (!shouldFinalizeFactoryMarquee(pointer)) return;
     if (pointer.rightButtonDown?.() || pointer.button === 2) {
       cancelFactoryPlacement();
       return;
@@ -2672,6 +2889,9 @@ function getFactoryOverlaySignature() {
       : "",
     factorySelectionDrag
       ? `${factorySelectionDrag.startTile.column}:${factorySelectionDrag.startTile.row}:${factorySelectionDrag.currentTile.column}:${factorySelectionDrag.currentTile.row}`
+      : "",
+    factoryTapSelection
+      ? `${factoryTapSelection.startTile?.column ?? "armed"}:${factoryTapSelection.startTile?.row ?? ""}:${factoryTapSelection.currentTile?.column ?? ""}:${factoryTapSelection.currentTile?.row ?? ""}`
       : "",
     selectedBuildTool ?? "",
     selectedBuildOrientation,
@@ -2772,10 +2992,13 @@ function renderMachineOverlay() {
   if (selectedFactoryEntities.length > 0) {
     selectedFactoryEntities.forEach((entity) => drawFactoryEntitySelection(entity));
   }
-  if (factorySelectionDrag?.moved) {
+  const marquee = factoryTapSelection?.startTile
+    ? factoryTapSelection
+    : factorySelectionDrag?.moved ? factorySelectionDrag : null;
+  if (marquee) {
     const bounds = getFactorySelectionBounds(
-      factorySelectionDrag.startTile,
-      factorySelectionDrag.currentTile,
+      marquee.startTile,
+      marquee.currentTile,
     );
     machineOverlay.fillStyle(0xc9dc75, 0.12);
     machineOverlay.lineStyle(2, 0xf5d976, 0.9);
@@ -4663,12 +4886,15 @@ function applyGameState(nextState, view = "mine") {
   lastLogSignature = null;
   lastAmmoStacksSignature = null;
   lastFactoryControlsSignature = null;
+  lastFactoryInteractionControlsSignature = null;
   lastFactoryOverlaySignature = null;
   selectedBuildTool = null;
   selectedBuildOrientation = "right";
   selectedFactoryEntity = null;
   selectedFactoryEntities = [];
   groupMoveState = null;
+  factorySelectionDrag = null;
+  factoryTapSelection = null;
   selectedStorageOutputKey = null;
   hoveredFactoryTile = null;
   rebuildMachineScene();

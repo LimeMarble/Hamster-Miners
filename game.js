@@ -149,6 +149,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getSelectableFactoryEntities,
     selectFactoryEntitiesInRectangle,
     beginGroupMove,
+    moveSelectedFactoryEntities,
     completeGroupMove,
     rotateSelectedBuild,
     loadLayer,
@@ -161,6 +162,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     getArcFurnaceMode,
     switchArcFurnaceMode,
     getFactoryMachineProgressState,
+    renderFactoryMachineControls,
     getMachineUpgradeTile,
     getInternalConveyorTiles,
     getMachineOccupiedTiles,
@@ -263,9 +265,24 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     },
     hasFactoryMarqueeExceededDragThreshold,
     shouldFinalizeFactoryMarquee,
+    beginFactoryTapSelection,
+    cancelFactoryInteraction,
+    getFactoryInteractionControlState,
+    renderFactoryInteractionControls,
+    bindFactoryInteractionControls,
+    bindFactoryOverlayInputGuards,
+    handleFactoryKeyDown,
+    handleFactoryGridPointerDown,
+    handleFactoryGridPointerMove,
+    handleFactoryGridPointerUp,
     __getState: () => state,
     __setState: (nextState) => {
       state = nextState;
+      factorySelectionDrag = null;
+      factoryTapSelection = null;
+      factoryOverlayGestureFromControls = false;
+      factoryOverlayPointerActive = false;
+      lastFactoryInteractionControlsSignature = null;
       invalidateFactoryConveyorCache();
     },
   };
@@ -326,9 +343,11 @@ elements.inventoryDetailPlaceButton.addEventListener("click", () => {
     selectInventoryMachineForPlacement(selectedInventoryMachineId);
   }
 });
+bindFactoryOverlayInputGuards();
 elements.pickUpMachineButton.addEventListener("click", pickUpSelectedFactoryEntities);
 elements.moveMachineButton.addEventListener("pointerdown", (event) => event.stopPropagation());
 bindImmediateAction(elements.moveMachineButton, moveSelectedFactoryEntities);
+bindFactoryInteractionControls();
 elements.closeMachineControlsButton.addEventListener("click", clearFactorySelection);
 elements.buyLeekDusterButton.addEventListener("click", () => purchaseMachine("leekDuster"));
 elements.buyPrimitiveUpgraderButton.addEventListener("click", () => purchaseMachine("primitiveUpgrader"));
@@ -408,33 +427,7 @@ document.querySelectorAll("[data-debug]").forEach((button) => {
 document.querySelectorAll("[data-view-target]").forEach((button) => {
   button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
 });
-document.addEventListener("keydown", (event) => {
-  const tagName = event.target instanceof HTMLElement ? event.target.tagName : "";
-  if (tagName === "INPUT" || tagName === "SELECT" || tagName === "TEXTAREA") {
-    return;
-  }
-
-  if (registerRealityShieldCheatKey(event.key)) {
-    event.preventDefault();
-    return;
-  }
-
-  const key = event.key.toLowerCase();
-  if (key === "escape") {
-    event.preventDefault();
-    if (selectedBuildTool) {
-      cancelFactoryPlacement();
-    } else {
-      clearFactorySelection();
-    }
-  } else if (key === "e") {
-    event.preventDefault();
-    rotateSelectedBuild("clockwise");
-  } else if (key === "q") {
-    event.preventDefault();
-    rotateSelectedBuild("counterclockwise");
-  }
-});
+document.addEventListener("keydown", handleFactoryKeyDown);
 
 window.addEventListener("beforeunload", () => {
   saveGame();

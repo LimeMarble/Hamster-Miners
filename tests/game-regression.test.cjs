@@ -329,7 +329,7 @@ test("stacker and splitter ghost ports sit below real belts and cargo", () => {
   assert.doesNotMatch(liquidPortBody[1], /draw(?:Stacker|Splitter)Ports/);
 });
 
-test("factory machine-control signatures ignore process countdown ticks", () => {
+test("furnace control signatures ignore countdowns and production state transitions", () => {
   const furnace = machine("miniElectricArcFurnace", "arc-controls", 5, 5);
   const state = freshState({
     machines: [furnace],
@@ -340,7 +340,7 @@ test("factory machine-control signatures ignore process countdown ticks", () => 
   state.arcFurnaceJobs[0].secondsRemaining = 11.9;
   assert.equal(game.getFactoryMachineProgressState(furnace), initialSignature);
   state.arcFurnaceJobs = [];
-  assert.notEqual(game.getFactoryMachineProgressState(furnace), initialSignature);
+  assert.equal(game.getFactoryMachineProgressState(furnace), initialSignature);
 
   const source = readGameSource();
   assert.match(
@@ -1437,7 +1437,8 @@ test("Mini Electric Arc Furnace mode switching is always enabled and discards on
   assert.equal(game.switchArcFurnaceMode(furnace, "copperContactAlloy"), false);
 
   const source = readGameSource();
-  const controls = source.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  if \(machine\.id === "metalPress"\)/);
+  const machineActionsSource = source.slice(source.indexOf("function renderMachineActions("));
+  const controls = machineActionsSource.match(/if \(machine\.id === "miniElectricArcFurnace"\) \{([\s\S]*?)\r?\n  \}\r?\n\r?\n  if \(machine\.id === "metalPress"\)/);
   assert.ok(controls, "arc furnace controls should exist");
   assert.match(controls[1], /document\.createElement\("select"\)/);
   assert.match(controls[1], /ARC_FURNACE_RECIPE_OPTIONS\.forEach/);

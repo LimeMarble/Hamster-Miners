@@ -149,7 +149,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   the first source is empty. Fluid credit is shared across records, and casing
   consumes exactly the required quantity without deleting buffered remainder.
 - Hidden cargo weight is quantity times per-unit weight: default 1, wires 0.2,
-  contacts 0.3, cut gems 0.4, Heavy Gears 2, and Fine Gears 0.5. Ammo bundle
+  contacts 0.3, cut gems 1, Heavy Gears 2, and Fine Gears 0.5. A cutter's 0.4-gem
+  output weighs 0.4 because of its quantity, not an additional weight discount. Ammo bundle
   weights are 1/1.5/2/3 for basic/coated/jacketed/cased rounds.
 - Ordinary belts carry up to weight 5. Built-in Iron-tier belts only use weight
   30 when their machine's construction cost also includes Aggregate. Transit
@@ -214,6 +215,22 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Factory marquee selection requires at least 8 pixels of pointer travel;
   releasing over the floating machine controls cancels the marquee, and Move
   activates on pointer-down before any underlying grid interaction.
+- Single/group selection panels and Cancel/Rotate overlays capture the entire
+  pointer/mouse/touch gesture. Their text, padding, buttons, dropdowns and
+  scrollbars cannot select, place, pick up, or box-select anything underneath,
+  even if an action hides the panel before Phaser handles queued events.
+  CSS-scaled canvas coordinates and touch coordinates use screen-space bounds.
+  The next genuine canvas click still works normally.
+- Pressing Shift starts two-tap box selection in Factory: tap either corner,
+  then the opposite corner, without holding Shift or a pointer button. Corners
+  can land on machinery, reversed/one-tile boxes work, and holding Shift on a
+  corner adds to the selection. Normal mouse dragging remains supported.
+- Visible Cancel and Rotate controls stay outside Phaser and mounted across
+  unchanged ticks. Cancel stops placement or group movement without consuming
+  inventory; cancelling an unfinished box preserves the previous selection.
+  Rotate turns a placement preview, movable selected piece, or moving group
+  clockwise. Escape/right-click still cancel; controls never activate tiles
+  underneath, and Shift ignores text fields, repeats, and other screens.
 - During bulk movement, Q/E rotate both the group's positions and each
   machine/conveyor facing clockwise or counterclockwise; the preview matches
   the committed layout, and opposite rotations cancel each other.
@@ -256,6 +273,13 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Factory and visual layout
 
+- Furnace recipe selectors stay mounted through their own input, job, liquid,
+  and Ceramic output updates, and through other machines' production cycles.
+  Focus and action-panel scrolling survive those updates. Status text updates
+  in place without rewriting identical text, while actual recipe, facing, and
+  selected-instance changes still refresh the controls.
+- Furnace dropdowns do not lift on hover; status space and scrollbar width stay
+  stable as production starts, finishes, or becomes blocked.
 - Edge panning can move the camera up to three tiles beyond each edge of the
   unchanged 50×30 placement grid, including after zoom and viewport resizing.
 - Panning stays within those bounds throughout the full 45%–200% zoom range;

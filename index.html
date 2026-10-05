@@ -220,6 +220,13 @@
           <p class="panel-copy">The starter layout matches the supplied plan in the upper-center of the expanded floor. Move the pointer near an edge to pan and scroll to zoom; pick up and rearrange owned machinery after the tutorial.</p>
           <div class="factory-workspace">
             <div id="machineGrid" class="machine-grid" aria-label="50 by 30 machine placement grid"></div>
+            <div class="factory-interaction-controls" id="factoryInteractionControls" hidden aria-label="Factory controls">
+              <div class="factory-interaction-buttons">
+                <button class="button button-secondary" id="rotateFactoryInteractionButton" type="button" title="Rotate clockwise (E)">Rotate ↻</button>
+                <button class="button button-secondary" id="cancelFactoryInteractionButton" type="button">Cancel</button>
+              </div>
+              <small id="factoryInteractionHelp" role="status">Press Shift, then tap two corners to box-select.</small>
+            </div>
             <div class="factory-machine-controls" id="machineControls" hidden>
               <div class="machine-controls-header">
                 <strong id="selectedMachineLabel">No machine selected</strong>
@@ -227,7 +234,7 @@
               </div>
               <button class="button button-secondary" id="pickUpMachineButton" type="button">Pick up</button>
               <button class="button button-secondary" id="moveMachineButton" type="button">Move / place more</button>
-              <small id="machineSelectionHelp">Q / E rotates the selected building. Drag from an empty tile to select multiple pieces.</small>
+              <small id="machineSelectionHelp">Q / E rotates the selected building. Press Shift, then tap two corners to box-select.</small>
               <div class="machine-actions" id="machineActions"></div>
             </div>
             <aside class="factory-sidebar">

@@ -66,10 +66,13 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   and the Industrial Conveyor purchase remain pending.
 - Weight is a hidden per-item value; stack weight is quantity times item weight.
 - Most items have weight 1 unless explicitly assigned another weight.
-- Switches weigh 2; Relays tentatively weigh 4, potentially depending on their
-  materials; Switchgear tentatively weighs 20-30.
-- Heavy Gears weigh 2, Fine Gears weigh 0.5, Cabochons weigh 0.4, Copper
+- Switch weight is undecided and will depend on the choice of switch faces.
+  Relays tentatively weigh 4, potentially depending on their materials;
+  Switchgear tentatively weighs 20-30.
+- Heavy Gears weigh 2, Fine Gears weigh 0.5, Cabochons weigh 1, Copper
   Wires weigh 0.2, and Contacts weigh 0.3 (not 0.2).
+- The cutter's 0.4 gem yield is a fractional quantity, not a per-gem weight:
+  0.4 Cabochons weigh 0.4, while one whole Cabochon weighs 1.
 - Tier 1 conveyors accept stacks weighing up to 5; Tier 2 conveyors accept
   stacks weighing up to 30, without faster transit than Tier 1.
 - The Tier 2 belt is named Industrial Conveyor.

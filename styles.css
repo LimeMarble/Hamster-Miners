@@ -2156,6 +2156,47 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   pointer-events: auto;
 }
 
+.factory-interaction-controls {
+  position: fixed;
+  z-index: 41;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.4rem;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: 0.65rem;
+  border: 1px solid rgba(184, 217, 121, 0.62);
+  border-radius: 0.65rem;
+  background: rgba(18, 25, 18, 0.94);
+  pointer-events: auto;
+}
+
+.factory-interaction-controls[hidden] {
+  display: none !important;
+}
+
+.factory-interaction-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.factory-interaction-buttons .button {
+  flex: 1;
+  padding: 0.45rem;
+}
+
+.factory-interaction-controls small {
+  color: #bec9b5;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 560px) {
+  .factory-interaction-controls {
+    bottom: auto;
+    top: 6rem;
+  }
+}
+
 .factory-machine-controls[hidden] {
   display: none !important;
 }
@@ -2201,9 +2242,11 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .machine-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   max-height: min(52svh, 28rem);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-top: 1px solid rgba(184, 217, 121, 0.2);
   padding-top: 0.45rem;
 }
@@ -2220,6 +2263,7 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .machine-action-recipe-label {
   display: grid;
+  min-width: 0;
   gap: 0.25rem;
   color: #bec9b5;
   font-size: 0.68rem;
@@ -2228,8 +2272,23 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .machine-action-recipe-select {
   appearance: auto;
+  min-width: 0;
+  max-width: 100%;
+  transition: none;
   cursor: pointer;
   text-align: left;
+}
+
+.machine-action-recipe-select:hover:not(:disabled),
+.machine-action-recipe-select:active:not(:disabled) {
+  transform: none;
+}
+
+.machine-action-note[data-machine-action-note="arc-furnace-progress"] {
+  block-size: 5.4em;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  font-variant-numeric: tabular-nums;
 }
 
 .machine-action-note {

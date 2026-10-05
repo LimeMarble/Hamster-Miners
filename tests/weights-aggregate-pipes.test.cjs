@@ -30,8 +30,10 @@ test("cargo weights use per-unit quantities, including fractional gems and the a
   fresh();
   for (const [name, weight] of Object.entries({ ironIngot: 1, limestone: 1, wire: 0.2,
     contact: 0.3, silverCopperContact: 0.3, silverTinContact: 0.3, ironHeavyGear: 2,
-    ironFineGear: 0.5, cutMalachite: 0.4 })) close(game.getCargoWeight(material(name, 10)), weight * 10);
-  close(game.getCargoWeight(material("cutMalachite", 1.2)), 0.48);
+    ironFineGear: 0.5, cutMalachite: 1 })) close(game.getCargoWeight(material(name, 10)), weight * 10);
+  close(game.getCargoWeight(material("cutMalachite", 1)), 1);
+  close(game.getCargoWeight(material("cutMalachite", 0.4)), 0.4);
+  close(game.getCargoWeight(material("cutMalachite", 1.2)), 1.2);
   const ammo = { kind: "ammo", material: "leek", quantity: 10 };
   close(game.getCargoWeight(ammo), 1);
   close(game.getCargoWeight({ ...ammo, material: "lead", quantity: 25 }), 1.5);
@@ -91,8 +93,20 @@ test("fractional cargo keeps its fractional remainder when whole-item splitting 
   const destination = { column: 6, row: 5, direction: "right", item: null };
   fresh([], { placedConveyors: [source, destination] });
   game.advanceConveyorItems(0);
-  assert.equal(destination.item.quantity, 12);
-  close(source.item.quantity, 1.2);
+  assert.equal(destination.item.quantity, 5);
+  close(source.item.quantity, 8.2);
+  close(game.getCargoWeight(destination.item), 5);
+  destination.item = null;
+  source.item.tileProgress = 1;
+  game.advanceConveyorItems(0);
+  assert.equal(destination.item.quantity, 5);
+  close(source.item.quantity, 3.2);
+  destination.item = null;
+  source.item.tileProgress = 1;
+  game.advanceConveyorItems(0);
+  close(destination.item.quantity, 3.2);
+  close(game.getCargoWeight(destination.item), 3.2);
+  assert.equal(source.item, null);
 });
 
 test("Contact Maker splits by whole recipes when its output gains weight", () => {

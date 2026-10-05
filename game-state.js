@@ -127,6 +127,10 @@ const elements = {
   closeMachineControlsButton: document.querySelector("#closeMachineControlsButton"),
   pickUpMachineButton: document.querySelector("#pickUpMachineButton"),
   moveMachineButton: document.querySelector("#moveMachineButton"),
+  factoryInteractionControls: document.querySelector("#factoryInteractionControls"),
+  factoryInteractionHelp: document.querySelector("#factoryInteractionHelp"),
+  cancelFactoryInteractionButton: document.querySelector("#cancelFactoryInteractionButton"),
+  rotateFactoryInteractionButton: document.querySelector("#rotateFactoryInteractionButton"),
   machineSelectionHelp: document.querySelector("#machineSelectionHelp"),
   machineActions: document.querySelector("#machineActions"),
   fireButton: document.querySelector("#fireButton"),
@@ -219,6 +223,11 @@ let selectedBuildOrientation = "right";
 let selectedFactoryEntity = null;
 let selectedFactoryEntities = [];
 let factorySelectionDrag = null;
+let factoryTapSelection = null;
+const factoryOverlayBlockedEvents = new WeakSet();
+let factoryOverlayGestureFromControls = false;
+let factoryOverlayPointerActive = false;
+let factoryOverlayInputGuardsBound = false;
 let groupMoveState = null;
 let hoveredFactoryTile = null;
 let activeView = "mine";
@@ -236,6 +245,7 @@ let lastStockpileSignature = null;
 let lastLogSignature = null;
 let lastAmmoStacksSignature = null;
 let lastFactoryControlsSignature = null;
+let lastFactoryInteractionControlsSignature = null;
 let lastFactoryOverlaySignature = null;
 let factoryConveyorCache = null;
 let factoryConveyorByIdentity = null;
