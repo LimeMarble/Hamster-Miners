@@ -650,7 +650,9 @@ test("Tunnel 3 uses alternating Hematite and Chert bands with a Kimberlite cap b
   assert.equal(game.getSpawnPoolForBand(3, 3).length, 0);
   assert.equal(game.getSpawnPoolForBand(20, 3).length, 0);
   assert.equal(game.getHostRockYield(3, 1), 20);
-  assert.equal(game.getHostRockYield(3, 2), 0);
+  assert.equal(game.getHostRockYield(3, 2), 20);
+  assert.equal(game.getHostRockYield(3, 4), 28);
+  assert.equal(game.getHostRockYield(3, 18), 84);
   assert.equal(game.getHostRockYield(3, 3), 24);
   assert.equal(game.getHostRockYield(3, 20), 0);
   state.mine.unlockedTunnels = [1, 2];
@@ -662,12 +664,36 @@ test("Tunnel 3 uses alternating Hematite and Chert bands with a Kimberlite cap b
 });
 
 test("host-rock digging yield increases additively by tunnel and band", () => {
-  assert.equal(game.getHostRockYield(1, 1), 30);
-  assert.equal(game.getHostRockYield(1, 5), 50);
   assert.equal(game.getHostRockYield(1, 30), 175);
-  assert.equal(game.getHostRockYield(2, 1), 40);
-  assert.equal(game.getHostRockYield(2, 5), 72);
   assert.equal(game.getHostRockYield(2, 30), 272);
+  const cases = [
+    [1, 1, "limestone", 30], [1, 5, "limestone", 50], [1, 29, "limestone", 170],
+    [2, 1, "granite", 40], [2, 5, "granite", 72], [2, 29, "granite", 264],
+    [3, 1, "hematite", 20], [3, 2, "chert", 20], [3, 3, "hematite", 24],
+    [3, 4, "chert", 28], [3, 18, "chert", 84], [3, 19, "hematite", 56],
+    [3, 20, "kimberlite", 0],
+  ];
+  for (const [tunnel, band, material, yieldAmount] of cases) {
+    assert.equal(game.getHostRockYield(tunnel, band), yieldAmount, `T${tunnel}B${band}`);
+    for (const isRemine of [false, true]) {
+      const state = freshState({ machines: [], deposits: [] });
+      state.tutorial = { stage: "complete", visible: false };
+      state.mine.unlockedTunnels = [1, 2, 3];
+      state.mine.currentTunnel = tunnel;
+      state.mine.currentLayer = (band - 1) * game.CONFIG.layersPerBand + 1;
+      state.mine.isRemine = isRemine;
+      Object.assign(state.drill, { active: true, completed: false,
+        hitPointsTotal: 100, hitPointsRemaining: 100 });
+      game.update(0.5);
+      assert.equal(state.stockpile[material] ?? 0, Math.floor(yieldAmount / 4), "host rock is collected progressively");
+      game.update(0.5);
+      game.update(0.5);
+      assert.equal(state.stockpile[material] ?? 0, Math.floor(yieldAmount * 0.75), "host rock must keep accumulating as drilling progresses");
+      for (const other of ["limestone", "granite", "hematite", "chert", "kimberlite"].filter((key) => key !== material)) {
+        assert.equal(state.stockpile[other] ?? 0, 0, "drilling must not award a different host rock");
+      }
+    }
+  }
 });
 
 test("spawn pools change only at the specified band threshold", () => {

@@ -46,6 +46,10 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Tunnel 1 starts at 100 HP, Limestone host rock, and Malachite/Clay deposits.
 - Tunnel 2 starts at 250 HP, Granite host rock, and five Native Copper plus
   five Clay deposits.
+- Tunnel 3's Chert bands yield 20 Chert per layer at Band 2, increasing by 4
+  per band (28 at Band 4 and 84 at Band 18). Normal mining and re-mining collect
+  it progressively; Hematite yields stay unchanged and the Kimberlite cap gives
+  no Tunnel 3 host-rock yield.
 - Native Copper has three 8-HP segments; Malachite has three 3-HP segments;
   Clay has two 2-HP segments; Lead has five 10-HP segments.
 - Clay deposit labels, the Mine legend, and Shop costs consistently call the

@@ -38,6 +38,8 @@ const CONFIG = Object.freeze({
   graniteYieldPerBand: 8,
   firstLayerHematiteYield: 20,
   hematiteYieldPerBand: 2,
+  firstLayerChertYield: 20,
+  chertYieldPerBand: 4,
   startingAmmo: 0,
   startingCrew: 10,
   clayKilnProcessSeconds: 5,
@@ -1554,9 +1556,12 @@ function getHostRockMaterial(
 function getHostRockYield(tunnel = getCurrentTunnel(), band = 1) {
   const normalizedBand = Math.max(1, Math.floor(band));
   if (tunnel === 3) {
-    if (normalizedBand >= (CONFIG.tunnelRealityCaps[tunnel] ?? 0)
-      || normalizedBand % 2 === 0) {
+    if (normalizedBand >= (CONFIG.tunnelRealityCaps[tunnel] ?? 0)) {
       return 0;
+    }
+    if (normalizedBand % 2 === 0) {
+      return CONFIG.firstLayerChertYield
+        + CONFIG.chertYieldPerBand * (normalizedBand - 2);
     }
     return CONFIG.firstLayerHematiteYield
       + CONFIG.hematiteYieldPerBand * (normalizedBand - 1);
