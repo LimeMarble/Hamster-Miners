@@ -37,6 +37,25 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     clampFactoryCameraScroll,
     drawMachineFloor,
     drawMachinePreviewConveyors,
+    refreshMachineStaticLayer,
+    renderMachineOverlay,
+    __setFactorySceneForTests: (scene, overlay) => {
+      clearStorageOutputLabels();
+      clearConveyorItemLabels();
+      machineStaticLayer?.destroy(true);
+      machineStaticLayer = null;
+      machineScene = scene;
+      machineOverlay = overlay;
+      gunNameText = null;
+      gunAmmoText = null;
+      lastFactoryOverlaySignature = null;
+    },
+    __setFactoryPreviewForTests: (id, orientation, tile) => {
+      selectedBuildTool = id;
+      selectedBuildOrientation = orientation;
+      hoveredFactoryTile = tile;
+      lastFactoryOverlaySignature = null;
+    },
     RESOURCE_DEFINITIONS,
     PLAYTEST_PANEL_CHEAT_CODE,
     isObtainableMaterial,

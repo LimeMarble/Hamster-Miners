@@ -3,7 +3,7 @@
 // Cargo density changes, not belt object count or transit speed.
 const CARGO_WEIGHTS = Object.freeze({
   wire: 0.2, contact: 0.3, silverCopperContact: 0.3, silverTinContact: 0.3,
-  cutMalachite: 1,
+  cutMalachite: 1, aggregate: 3,
   ...Object.fromEntries(Object.entries(GEAR_DEFINITIONS).map(([material, definition]) => [material, definition.weight])),
 });
 const CONVEYOR_WEIGHT_LIMITS = Object.freeze({ standard: 5, industrial: 30 });
@@ -143,10 +143,8 @@ function updateAggregateMixers(deltaSeconds) {
     const pendingOutput = state.aggregateMixerOutputs[instanceId] ?? 0;
     const conveyor = getInternalConveyor(mixer, 0);
     if (pendingOutput > 0 && conveyor && !getConveyorItem(conveyor)) {
-      const quantity = Math.min(pendingOutput, Math.floor(getConveyorWeightCapacity(conveyor)));
-      if (placeItemOnConveyor(conveyor, { kind: "material", material: "aggregate", quantity })) {
-        state.aggregateMixerOutputs[instanceId] = pendingOutput - quantity;
-      }
+      const emitted = emitCapacitySafeCargo(conveyor, { kind: "material", material: "aggregate", quantity: pendingOutput });
+      if (emitted > 0) state.aggregateMixerOutputs[instanceId] = pendingOutput - emitted;
     }
     const buffer = state.aggregateMixerInputs[instanceId] ?? {};
     if (!state.aggregateMixerJobs[instanceId] && !(state.aggregateMixerOutputs[instanceId] > 0)

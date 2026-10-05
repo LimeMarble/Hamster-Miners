@@ -8,44 +8,64 @@ const machine = (game, id, instanceId, column, row, orientation = "right") => ({
 
 // Run the real renderer against the Phaser surface it uses. Unsupported calls,
 // invalid coordinates, unfinished redraws and wrong layer order fail for any type.
-function drawingScene() {
-  const events = [], labels = [];
-  const graphics = { calls: [], destroyed: false };
+function drawingGraphics() {
+  const graphics = { calls: [], destroyed: false, clears: 0 };
   for (const name of ["fillStyle", "fillRect", "lineStyle", "strokeRect", "lineBetween",
-    "fillRoundedRect", "fillTriangle", "fillCircle"]) {
+    "fillRoundedRect", "fillTriangle", "fillCircle", "fillEllipse", "strokeEllipse",
+    "strokeCircle", "strokeRoundedRect"]) {
     graphics[name] = (...args) => {
+      assert.equal(graphics.destroyed, false, "cannot draw on a destroyed surface");
       assert.ok(args.every(Number.isFinite), `${name} must receive finite drawing coordinates`);
       graphics.calls.push({ name, args });
       return graphics;
     };
   }
+  graphics.setDepth = () => graphics;
+  graphics.clear = () => { graphics.calls = []; graphics.clears++; return graphics; };
   graphics.destroy = () => { graphics.destroyed = true; };
-  const layer = {
-    children: [], setDepth() { return this; },
-    add(child) { this.children.push(child); return this; },
-    addAt(child, index) { this.children.splice(index, 0, child); return this; },
-  };
-  const texture = {
-    setOrigin() { return this; },
-    draw(source) {
-      assert.equal(source, graphics);
-      events.push("bake floor");
-      this.baked = true;
-      return this;
-    },
-  };
+  return graphics;
+}
+
+function drawingScene() {
+  const events = [], labels = [], floors = [];
+  let graphics = drawingGraphics(), layer, texture, graphicsUsed = false;
   const scene = { add: {
-    container: () => layer, graphics: () => graphics, renderTexture: () => texture,
+    container: () => (layer = {
+      children: [], destroyed: false, setDepth() { return this; },
+      add(child) { this.children.push(child); return this; },
+      addAt(child, index) { this.children.splice(index, 0, child); return this; },
+      destroy() { this.destroyed = true; this.children.forEach((child) => child.destroy?.()); },
+    }),
+    graphics: () => {
+      if (graphicsUsed) graphics = drawingGraphics();
+      graphicsUsed = true;
+      return graphics;
+    },
+    renderTexture: () => (texture = {
+      setOrigin() { return this; }, destroy() { this.destroyed = true; },
+      draw(source) {
+        assert.equal(source, graphics);
+        assert.equal(source.destroyed, false, "cannot bake a destroyed drawing surface");
+        events.push("bake floor");
+        this.baked = true;
+        floors.push({ graphics, layer, texture: this });
+        return this;
+      },
+    }),
     text(x, y, text, style) {
       assert.ok(Number.isFinite(x) && Number.isFinite(y));
       events.push(`label: ${text}`);
       const label = { x, y, text, style,
-        setResolution() { return this; }, setOrigin() { return this; } };
+        setResolution() { return this; }, setOrigin() { return this; }, setDepth() { return this; },
+        setText(value) { this.text = value; return this; }, setColor() { return this; },
+        setPosition(x, y) { this.x = x; this.y = y; return this; },
+        destroy() { this.destroyed = true; } };
       labels.push(label);
       return label;
     },
   } };
-  return { scene, graphics, layer, texture, labels, events };
+  return { scene, get graphics() { return graphics; }, get layer() { return layer; },
+    get texture() { return texture; }, labels, events, floors };
 }
 
 function freshFactory(game, extraMachines = []) {
@@ -132,5 +152,5 @@ function assertBeltDrawn(graphics, tile) {
   `belt must be drawn at ${tile.column}, ${tile.row}`);
 }
 
-module.exports = { ORIENTATIONS, machine, drawingScene, freshFactory, renderFloor,
+module.exports = { ORIENTATIONS, machine, drawingGraphics, drawingScene, freshFactory, renderFloor,
   assertOldVisualsRemain, labelsForMachine, assertMachineVisible, assertBeltDrawn };

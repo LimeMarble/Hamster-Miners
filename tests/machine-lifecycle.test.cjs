@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { ORIENTATIONS, machine, freshFactory, renderFloor, assertOldVisualsRemain } =
+const { ORIENTATIONS, machine, drawingScene, drawingGraphics, freshFactory, renderFloor, assertOldVisualsRemain } =
   require("./helpers/factory-rendering.cjs");
 
 global.window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };
@@ -10,6 +10,77 @@ const selection = (owner) => ({ type: "machine", id: owner.id, instanceId: owner
 const snapshot = (state) => game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
 const transforms = (owners) => owners.map(({ id, instanceId, column, row, orientation }) =>
   ({ id, instanceId, column, row, orientation }));
+
+test("all movable buildings keep the live floor and cargo rendering after placement, Move and pickup", () => {
+  for (const [id] of Object.entries(game.MACHINE_LAYOUT).filter(([, entry]) => entry.movable)) {
+    const variants = id === "hotFluidPipe"
+      ? [...Object.keys(game.HOT_FLUID_PIPE_MODES).map((mode) => ({ mode, turnSide: "left" })),
+        { mode: "turn", turnSide: "right" }]
+      : [{}];
+    for (const variant of variants) for (const orientation of ORIENTATIONS) {
+      const context = `${id} ${variant.mode ?? "default"} ${variant.turnSide ?? ""} ${orientation}`;
+      const first = { ...machine(game, id, `live-${id}`, 25, 6, orientation), ...variant };
+      const state = freshFactory(game);
+      state.machineInventory[id] = 1;
+      state.machineInventoryInstances.push(first);
+      const rendering = drawingScene(), overlay = drawingGraphics();
+      const marker = state.placedConveyors[0];
+      state.placedConveyors.push({ column: marker.column + 1, row: marker.row, direction: "right", item: null });
+      marker.item = { kind: "material", material: "clay", quantity: 2, tileProgress: 0 };
+      game.__setFactorySceneForTests(rendering.scene, overlay);
+      const redraw = (action) => {
+        const previous = rendering.floors.length;
+        assert.doesNotThrow(action, context);
+        assert.equal(rendering.floors.length, previous + 1, `${context}: action must complete a floor redraw`);
+        const current = rendering.floors.at(-1);
+        assert.equal(current.texture.baked, true);
+        assert.equal(current.layer.children[0], current.texture);
+        assert.equal(current.layer.destroyed, false);
+        marker.item.tileProgress = 0;
+        for (let tick = 0; tick < 2; tick++) {
+          const previousProgress = marker.item.tileProgress;
+          assert.doesNotThrow(() => game.update(0.1), `${context}: the simulation must keep running`);
+          const progress = marker.item.tileProgress;
+          assert.ok(progress > previousProgress, `${context}: unrelated cargo must keep moving`);
+          const clears = overlay.clears;
+          assert.doesNotThrow(() => game.renderMachineOverlay(), `${context}: cargo rendering must keep running`);
+          assert.equal(overlay.clears, clears + 1);
+          assert.ok(overlay.calls.some(({ name, args }) => name === "fillEllipse"
+            && args[0] === (marker.column + 0.5 + progress) * 32
+            && args[1] === (marker.row + 0.5) * 32), `${context}: unrelated cargo must visibly advance`);
+          assert.equal(rendering.floors.length, previous + 1, "cargo redraws must not rebuild the static floor");
+        }
+      };
+      try {
+        redraw(() => game.refreshMachineStaticLayer());
+        for (const tile of [{ column: 25, row: 6 }, { column: 2, row: 6 }]) {
+          game.__setFactoryPreviewForTests(id, orientation, tile);
+          assert.doesNotThrow(() => game.renderMachineOverlay(), `${context}: valid and blocked previews must render`);
+        }
+        redraw(() => game.placeMachine(id, 25, 6));
+        assert.ok(state.machines.some(({ instanceId }) => instanceId === first.instanceId));
+        if (id === "hotFluidPipe") {
+          assert.ok(rendering.graphics.calls.some(({ name, args }) => name === "lineStyle" && args[0] === 18),
+            "pipe walls must remain legible at factory zoom levels");
+        }
+        redraw(() => game.pickUpSelectedFactoryEntity(selection(first), true));
+        redraw(() => game.placeMachine(id, 31, 6));
+        redraw(() => game.pickUpSelectedFactoryEntity(selection(first)));
+        assert.equal(state.machines.some(({ instanceId }) => instanceId === first.instanceId), false);
+        // Newly bought machines use a different placement path from stored ones.
+        state.machineInventoryInstances = [];
+        redraw(() => game.placeMachine(id, 25, 6));
+        const purchased = state.machines.find((owner) => owner.id === id && owner.column === 25 && owner.row === 6);
+        assert.ok(purchased, `${context}: a fresh purchase must actually be placed`);
+        assert.notEqual(purchased.instanceId, first.instanceId);
+        redraw(() => game.pickUpSelectedFactoryEntity(selection(purchased)));
+      } finally {
+        game.__setFactorySceneForTests(null, null);
+        game.__setFactoryPreviewForTests(null, "right", null);
+      }
+    }
+  }
+});
 
 for (const [id, definition] of Object.entries(game.MACHINE_LAYOUT)) {
   if (!definition.movable) continue;

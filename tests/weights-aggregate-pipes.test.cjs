@@ -30,7 +30,7 @@ test("cargo weights use per-unit quantities, including fractional gems and the a
   fresh();
   for (const [name, weight] of Object.entries({ ironIngot: 1, limestone: 1, wire: 0.2,
     contact: 0.3, silverCopperContact: 0.3, silverTinContact: 0.3, ironHeavyGear: 2,
-    ironFineGear: 0.5, cutMalachite: 1 })) close(game.getCargoWeight(material(name, 10)), weight * 10);
+    ironFineGear: 0.5, cutMalachite: 1, aggregate: 3 })) close(game.getCargoWeight(material(name, 10)), weight * 10);
   close(game.getCargoWeight(material("cutMalachite", 1)), 1);
   close(game.getCargoWeight(material("cutMalachite", 0.4)), 0.4);
   close(game.getCargoWeight(material("cutMalachite", 1.2)), 1.2);
@@ -43,38 +43,44 @@ test("cargo weights use per-unit quantities, including fractional gems and the a
   assert.equal(game.getCargoWeight(material("wire", Infinity)), Infinity);
 });
 
-test("ordinary conveyors accept one stack weighing five and reject heavier newly placed cargo", () => {
-  const conveyor = { column: 5, row: 5, direction: "right", item: null };
-  fresh([], { placedConveyors: [conveyor] });
-  assert.equal(game.getConveyorWeightCapacity(conveyor), 5);
-  assert.equal(game.placeItemOnConveyor(conveyor, material("wire", 26)), false);
-  assert.equal(game.placeItemOnConveyor(conveyor, material("wire", 25)), true);
-  assert.equal(game.placeItemOnConveyor(conveyor, material("wire", 1)), false);
-  assert.equal(game.getConveyorWeightCapacity({ ...conveyor, weightCapacity: 30 }), 30);
+test("conveyors accept one stack within their weight limit and reject heavier newly placed cargo", () => {
+  for (const [name, capacity, maximum] of [["wire", 5, 25], ["aggregate", 5, 1], ["aggregate", 30, 10]]) {
+    const conveyor = { column: 5, row: 5, direction: "right", weightCapacity: capacity, item: null };
+    fresh([], { placedConveyors: [conveyor] });
+    assert.equal(game.getConveyorWeightCapacity(conveyor), capacity);
+    assert.equal(game.placeItemOnConveyor(conveyor, material(name, maximum + 1)), false);
+    assert.equal(game.placeItemOnConveyor(conveyor, material(name, maximum)), true);
+    assert.equal(game.placeItemOnConveyor(conveyor, material(name, 1)), false);
+  }
 });
 
 test("overweight saved cargo splits into whole items without losing value, tags, or its remainder", () => {
-  const cargo = material("ironHeavyGear", 7, { tileProgress: 1, saleValueBase: 123,
-    bronzeStampUses: 4, bronzePillarsUses: 1, annealedValueMultiplier: 1.7 });
-  const source = { column: 5, row: 5, direction: "right", item: cargo };
-  const target = { column: 6, row: 5, direction: "right", item: null };
-  const state = fresh([], { placedConveyors: [source, target] });
-  game.advanceConveyorItems(0);
-  assert.equal(source.item.quantity, 5);
-  assert.equal(target.item.quantity, 2);
-  assert.equal(target.item.bronzeStampUses, 4);
-  close(game.getItemSaleValue(target.item), 123 * 1.7);
-  assert.equal(game.getCargoWeight(target.item), 4);
-  let moved = target.item.quantity;
-  for (let n = 0; n < 3; n++) {
-    target.item = null;
-    if (source.item) source.item.tileProgress = 1;
+  for (const [name, quantity, capacity, maximum, weight] of [
+    ["ironHeavyGear", 7, 5, 2, 4], ["aggregate", 10, 5, 1, 3], ["aggregate", 13, 30, 10, 30],
+  ]) {
+    const cargo = material(name, quantity, { tileProgress: 1, saleValueBase: 123,
+      bronzeStampUses: 4, bronzePillarsUses: 1, annealedValueMultiplier: 1.7 });
+    const source = { column: 5, row: 5, direction: "right", weightCapacity: capacity, item: cargo };
+    const target = { column: 6, row: 5, direction: "right", weightCapacity: capacity, item: null };
+    const state = fresh([], { placedConveyors: [source, target] });
     game.advanceConveyorItems(0);
-    moved += target.item?.quantity ?? 0;
+    assert.equal(source.item.quantity, quantity - maximum);
+    assert.equal(target.item.quantity, maximum);
+    assert.equal(target.item.bronzeStampUses, 4);
+    close(game.getItemSaleValue(target.item), 123 * 1.7);
+    assert.equal(game.getCargoWeight(target.item), weight);
+    let moved = target.item.quantity;
+    for (let n = 0; n < quantity; n++) {
+      target.item = null;
+      if (source.item) source.item.tileProgress = 1;
+      game.advanceConveyorItems(0);
+      if (target.item) assert.ok(game.getCargoWeight(target.item) <= capacity);
+      moved += target.item?.quantity ?? 0;
+    }
+    assert.equal(moved, quantity);
+    assert.equal(source.item, null);
+    assert.equal(Object.hasOwn(state, "extraConveyorItems"), false);
   }
-  assert.equal(moved, 7);
-  assert.equal(source.item, null);
-  assert.equal(Object.hasOwn(state, "extraConveyorItems"), false);
 });
 
 test("partial departures do not let an upstream object overwrite the retained stack", () => {
@@ -182,15 +188,23 @@ test("Mixer takes ten seconds, emits all ten Aggregate in capacity-safe stacks a
   game.updateAggregateMixers(9.9);
   assert.equal(game.getConveyorItem(belt(mixer)), null);
   game.updateAggregateMixers(0.1);
-  assert.equal(game.getConveyorItem(belt(mixer)).quantity, 5);
-  assert.equal(state.aggregateMixerOutputs[mixer.instanceId], 5);
+  assert.equal(game.getConveyorItem(belt(mixer)).quantity, 1);
+  assert.equal(game.getCargoWeight(game.getConveyorItem(belt(mixer))), 3);
+  assert.equal(state.aggregateMixerOutputs[mixer.instanceId], 9);
   state.aggregateMixerInputs[mixer.instanceId] = { limestone: 40, chert: 20 };
   game.updateAggregateMixers(50);
   assert.equal(state.aggregateMixerJobs[mixer.instanceId], undefined);
+  for (let released = 2; released <= 10; released++) {
+    state.internalConveyorItems[`${mixer.instanceId}:0`] = null;
+    game.updateAggregateMixers(0);
+    assert.equal(game.getConveyorItem(belt(mixer)).quantity, 1);
+    assert.equal(state.aggregateMixerOutputs[mixer.instanceId], 10 - released);
+    assert.equal(state.aggregateMixerJobs[mixer.instanceId], undefined);
+  }
+  assert.equal(state.aggregateMixerOutputs[mixer.instanceId], 0);
   state.internalConveyorItems[`${mixer.instanceId}:0`] = null;
   game.updateAggregateMixers(0);
-  assert.equal(game.getConveyorItem(belt(mixer)).quantity, 5);
-  assert.equal(state.aggregateMixerOutputs[mixer.instanceId], 0);
+  assert.equal(state.aggregateMixerJobs[mixer.instanceId].secondsRemaining, 10);
 });
 
 test("Mixer jobs and buffers are per-instance and survive save and movement", () => {

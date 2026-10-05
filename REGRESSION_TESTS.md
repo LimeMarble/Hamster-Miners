@@ -181,12 +181,14 @@ future pipe tiers) are not treated as current acceptance requirements.
   the first source is empty. Fluid credit is shared across records, and casing
   consumes exactly the required quantity without deleting buffered remainder.
 - Hidden cargo weight is quantity times per-unit weight: default 1, wires 0.2,
-  contacts 0.3, cut gems 1, Heavy Gears 2, and Fine Gears 0.5. A cutter's 0.4-gem
+  contacts 0.3, cut gems 1, Aggregate 3, Heavy Gears 2, and Fine Gears 0.5. A cutter's 0.4-gem
   output weighs 0.4 because of its quantity, not an additional weight discount. Ammo bundle
   weights are 1/1.5/2/3 for basic/coated/jacketed/cased rounds.
 - Ordinary belts carry up to weight 5. Built-in Iron-tier belts only use weight
   30 when their machine's construction cost also includes Aggregate. Transit
   speed and the one-object-per-tile limit are unchanged.
+- Aggregate fits one unit per ordinary belt stack, or ten units at weight
+  capacity 30. The Mixer retains the remainder until its output clears.
 - Overweight cargo splits in whole units without losing value/tags, overwriting
   a retained source stack, or rounding away fractional leftovers. Outputs which
   gain weight split by whole recipes. Legacy output buffers and Stacker batches
@@ -330,6 +332,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   orientation: existing machines, belts, and gun labels remain visible. Labels
   sit above the cached floor and do not linger on old footprints after movement
   or pickup. Repeat purchases include independent duplicate-instance visuals.
+- One shared lifecycle test keeps the live floor and cargo layer attached through
+  fresh/stored placement, Move, replacement and pickup for every movable machine.
+  Unrelated cargo must visibly advance afterwards without rebuilding the static
+  floor or drawing on a destroyed surface. Pipe forms cover every orientation,
+  both turn directions, and valid/blocked placement previews; pipe walls stay thick.
 - Furnace recipe selectors stay mounted through their own input, job, liquid,
   and Ceramic output updates, and through other machines' production cycles.
   Focus and action-panel scrolling survive those updates. Status text updates

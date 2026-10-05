@@ -3321,18 +3321,21 @@ function drawHotFluidPipeTile(graphics, pipe, valid) {
   const center = getMachineTileCenter(pipe.column, pipe.row);
   const half = FACTORY_TILE_SIZE / 2;
   const directions = [getOppositeDirection(pipe.orientation ?? "right"), ...getHotFluidPipeOutputDirections(pipe)];
-  graphics.lineStyle(9, valid ? 0x555d68 : 0x713f3a, 1);
+  graphics.lineStyle(18, valid ? 0x555d68 : 0x713f3a, 1);
   directions.forEach((direction) => {
     const vector = DIRECTION_VECTORS[direction];
     graphics.lineBetween(center.x, center.y, center.x + vector.column * half, center.y + vector.row * half);
   });
-  graphics.lineStyle(3, valid ? 0xe3a56e : 0xf1b0a4, 1);
+  graphics.fillStyle(valid ? 0x555d68 : 0x713f3a, 1);
+  graphics.fillCircle(center.x, center.y, 9);
+  graphics.lineStyle(10, valid ? 0xe3a56e : 0xf1b0a4, 1);
   directions.forEach((direction) => {
     const vector = DIRECTION_VECTORS[direction];
     graphics.lineBetween(center.x, center.y, center.x + vector.column * half, center.y + vector.row * half);
   });
   graphics.fillStyle(valid ? 0xe3a56e : 0xf1b0a4, 1);
-  graphics.fillCircle(center.x, center.y, getHotFluidPipeMode(pipe) === "cap" ? 6 : 4);
+  graphics.fillCircle(center.x, center.y, 5);
+  graphics.fillStyle(valid ? 0x302116 : 0x713f3a, 1);
   getHotFluidPipeOutputDirections(pipe).forEach((direction) => {
     const vector = DIRECTION_VECTORS[direction];
     const x = center.x + vector.column * half * 0.65;
