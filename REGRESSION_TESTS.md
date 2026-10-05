@@ -7,6 +7,23 @@ Only implemented mechanics are testable. Ideas intentionally deferred by design
 (post-reality content, later ores, later casing/jacketing, reset mechanics, and
 future pipe tiers) are not treated as current acceptance requirements.
 
+## Shared machine contracts
+
+- Shared checks iterate `MACHINE_LAYOUT`, so new machine definitions are covered
+  automatically without copying another machine's smoke tests. Exceptions come
+  from existing rules: fixed displays are not placeable; only repeat purchases
+  require duplicate visual instances; pipes use symbols rather than text labels.
+- Each movable type is checked in all four orientations for completed floor
+  redraws, unchanged unrelated visuals, valid/blocked conveyor previews, and
+  independent labels after movement and removal. Drawing cannot mutate saves.
+- Real rotation, Move, placement, pickup and save hydration preserve instance
+  identity, orientation, default mode and per-instance conveyor cargo. Pickup
+  clears the former lanes, recovers their material quantity, and leaves another
+  instance's cargo and placement unchanged.
+- Recipes, ingredient limits, processing times, material compatibility and
+  machine-specific recovery rules retain their dedicated tests. Do not assume
+  these are identical just because machines share placement or rendering code.
+
 ## Save, notation, and state migration
 
 - Values below 1,000, including fractional quantities and timers, display at
@@ -305,6 +322,10 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Factory and visual layout
 
+- Every placeable machine completes the full factory floor redraw in every
+  orientation: existing machines, belts, and gun labels remain visible. Labels
+  sit above the cached floor and do not linger on old footprints after movement
+  or pickup. Repeat purchases include independent duplicate-instance visuals.
 - Furnace recipe selectors stay mounted through their own input, job, liquid,
   and Ceramic output updates, and through other machines' production cycles.
   Focus and action-panel scrolling survive those updates. Status text updates

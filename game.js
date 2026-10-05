@@ -35,6 +35,8 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     FACTORY_STARTER_COLUMN_OFFSET,
     getFactoryCameraScrollLimits,
     clampFactoryCameraScroll,
+    drawMachineFloor,
+    drawMachinePreviewConveyors,
     RESOURCE_DEFINITIONS,
     PLAYTEST_PANEL_CHEAT_CODE,
     isObtainableMaterial,

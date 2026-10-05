@@ -2084,10 +2084,6 @@ function drawMachineFloor(scene) {
     floor.strokeRect(mixer.column * FACTORY_TILE_SIZE + 2, mixer.row * FACTORY_TILE_SIZE + 2,
       size.width * FACTORY_TILE_SIZE - 4, size.height * FACTORY_TILE_SIZE - 4);
     drawAggregateMixerPorts(floor, mixer, true);
-    const center = getMachineLabelCenter(mixer);
-    addMachineFloorLabel(scene, center.x, center.y, "AGGREGATE\nMIXER", {
-      color: "#e8e4cb", fontFamily: "system-ui, sans-serif", fontSize: "10px", fontStyle: "bold", align: "center",
-    });
   });
   getMachines("hotFluidPipe").forEach((pipe) => drawHotFluidPipeTile(floor, pipe, true));
   getMachines("casingMachine").forEach((machine) => {
@@ -2455,6 +2451,17 @@ FORMER ${getOrientationSymbol(jacketFormer.orientation)}`, {
       fontStyle: "bold",
       align: "center",
       lineSpacing: 1,
+    });
+  });
+
+  getMachines("aggregateMixer").forEach((mixer) => {
+    const center = getMachineLabelCenter(mixer);
+    addMachineFloorLabel(scene, center.x, center.y, "AGGREGATE\nMIXER", {
+      color: "#e8e4cb",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "10px",
+      fontStyle: "bold",
+      align: "center",
     });
   });
 
