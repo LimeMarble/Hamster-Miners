@@ -1619,11 +1619,7 @@ function canReceiveConveyorItem(item, column, row) {
 
   const molderClayInput = getIngotMolderClayInputAt(column, row);
   if (molderClayInput) {
-    const quantity = Number(item.quantity ?? 1);
-    return item.kind === "material"
-      && item.material === "clay"
-      && Number.isFinite(quantity)
-      && quantity > 0;
+    return canIngotMolderAcceptClay(molderClayInput.molder, item);
   }
 
   const arcFurnaceInput = getArcFurnaceInputAt(column, row);
@@ -2424,6 +2420,17 @@ function getIngotMolderClayInputAt(column, row) {
   })).find(({ input }) => (
     input?.column === column && input?.row === row
   )) ?? null;
+}
+
+function canIngotMolderAcceptClay(molder, item) {
+  if (!molder || item?.kind !== "material" || item.material !== "clay") return false;
+  const quantity = Number(item.quantity ?? 1);
+  const buffered = state.molderClayBuffers[molder.instanceId] ?? 0;
+  const total = buffered + quantity;
+  const tolerance = Number.EPSILON * Math.max(1, total, CONFIG.ingotMolderClayCapacity) * 16;
+  return Number.isFinite(quantity) && quantity > 0
+    && Number.isFinite(buffered) && buffered >= 0
+    && total <= CONFIG.ingotMolderClayCapacity + tolerance;
 }
 
 function canContactMakerReceiveMetal(maker, item) {

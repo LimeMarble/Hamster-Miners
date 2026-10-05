@@ -981,6 +981,11 @@ function hydrateSavedState(savedState) {
     ))) {
       hydratedState.stockpile.clay += quantity;
       delete hydratedState.molderClayBuffers[instanceId];
+    } else if (quantity > CONFIG.ingotMolderClayCapacity) {
+      // Preserve Clay accumulated by the former unlimited input without
+      // letting it bypass the new capacity or refunding it more than once.
+      hydratedState.stockpile.clay += quantity - CONFIG.ingotMolderClayCapacity;
+      hydratedState.molderClayBuffers[instanceId] = CONFIG.ingotMolderClayCapacity;
     }
   });
 

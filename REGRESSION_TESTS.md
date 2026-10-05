@@ -136,6 +136,12 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Machine concurrency and routing
 
+- Every new buffered input needs an explicit capacity and tests for filling
+  that capacity, rejecting further intake, retaining oversized-stack overflow,
+  and reopening space after consumption. Cover blocked production/output,
+  separate instances, and save/load; accepting the right material alone is
+  not a sufficient input contract.
+
 - Aggregate Mixer costs $800k, 50 Iron Heavy Gears, 100 Iron Plates, 50 Ceramic,
   and 150 Copper Wires. Its 4x3 footprint has inputs at both left corners and
   its output at the right-center cell, with no crew requirement.
@@ -189,6 +195,10 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Block one kiln's liquid output while leaving another kiln's output clear: the clear kiln continues working.
 - Feed multiple Ingot Molders: each job, output lane, and crew assignment stays associated with its own instance.
 - The Ingot Molder accepts Clay on its other tile and buffers it per instance. Each Iron ingot consumes one Clay when molding starts; without Clay, Iron liquid remains buffered. Other metals and the Refractory Caster do not consume Clay.
+- The Clay buffer holds at most two Clay, including while production or output
+  is blocked. Incoming stacks transfer only the available whole units and
+  keep overflow on the belt. Consuming one mold reopens one slot. Legacy saves
+  return excess buffered Clay to storage exactly once instead of deleting it.
 - Refractory Caster costs $1.5M, 50 Iron Ingots, 25 Iron Plates, and 25 Ceramic; it occupies a 2×2 footprint with its liquid input and ingot output on the lower row.
 - Refractory Caster accepts all liquid-metal/alloy types supported by Ingot Molder and converts up to four available matching liquid units into the same number of ingots per two-second cycle, without crew.
 - Place a machine preview in every orientation: all internal conveyors and arrows match the eventual placed machine.

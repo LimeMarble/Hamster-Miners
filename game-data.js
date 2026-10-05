@@ -42,6 +42,7 @@ const CONFIG = Object.freeze({
   startingCrew: 10,
   clayKilnProcessSeconds: 5,
   ingotMolderProcessSeconds: 1,
+  ingotMolderClayCapacity: 2,
   simulationFramesPerSecond: 10,
   factoryRenderFramesPerSecond: 10,
   saveKey: "hamster-miners-save",

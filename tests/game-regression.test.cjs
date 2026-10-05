@@ -185,6 +185,7 @@ test("player-facing machine copy omits roadmap and redundant threshold notes", (
   const source = readGameSource();
   const playerFacingCopy = `${markup}\n${source}`;
   const removedSnippets = [
+    "Owned machinery is never purchased again.",
     "Wire and coil modes will be configured later.",
     "The fiber recipe will be configured later.",
     "the processing recipe will be configured later.",
@@ -1571,7 +1572,7 @@ test("Ingot Molder Clay input buffers remain per-instance and survive save hydra
   const clayInput = game.MACHINE_LAYOUT.ingotMolder.clayInput;
 
   assert.equal(game.receiveConveyorItem(
-    { kind: "material", material: "clay", quantity: 3 },
+    { kind: "material", material: "clay", quantity: 2 },
     firstMolder.column + clayInput.column,
     firstMolder.row + clayInput.row,
   ), true);
@@ -1581,12 +1582,12 @@ test("Ingot Molder Clay input buffers remain per-instance and survive save hydra
     secondMolder.row + clayInput.row,
   ), true);
   assert.deepEqual(state.molderClayBuffers, {
-    [firstMolder.instanceId]: 3,
+    [firstMolder.instanceId]: 2,
     [secondMolder.instanceId]: 1,
   });
 
   const hydrated = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
-  assert.equal(hydrated.molderClayBuffers[firstMolder.instanceId], 3);
+  assert.equal(hydrated.molderClayBuffers[firstMolder.instanceId], 2);
   assert.equal(hydrated.molderClayBuffers[secondMolder.instanceId], 1);
 });
 
