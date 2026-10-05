@@ -66,6 +66,7 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     startBulletCoreCasting,
     startMolderJob,
     getMachinePort,
+    flipContactMakerInput,
     getMachinePorts,
     getGearPressMode,
     switchGearPressMode,

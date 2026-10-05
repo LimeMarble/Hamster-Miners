@@ -504,9 +504,15 @@ function getMachineOccupiedTiles(machine) {
 }
 
 function getMachinePort(machine, propertyName) {
-  const port = machine?.[propertyName];
+  let port = machine?.[propertyName];
   if (!port) {
     return null;
+  }
+
+  if (machine.id === "contactMaker" && propertyName === "silverInput"
+    && machine.metalInputFlipped === true) {
+    port = { ...port, row: machine.height - 1 - port.row,
+      direction: getOppositeDirection(port.direction) };
   }
 
   return {

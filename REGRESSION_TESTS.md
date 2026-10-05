@@ -92,6 +92,11 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Send a fresh `$10` Copper Wire through the Annealer and Sell Tube: it sells for `$17` (`$10 × 1.7`).
 - Fresh Wires, pressed metal Plates, and all Contact types each receive one ×1.7 value pass; raw ores and ingots are not accepted.
 - Contact Maker keeps its 100 Leek Fiber purchase requirement. Five Copper Wires plus 0.5 Silver or Contact Alloy Ingots produce five matching Contacts; Silver Contacts use ×2 and alloy Contacts use ×3. It preserves an annealed wire's value once without carrying its multiplier onto the new Contact. Legacy buffered Leek Fiber is discarded on load; buffered metal inputs remain instance-specific.
+- Each Contact Maker can flip its ingot input across the wire lane. Only the
+  selected side accepts ingots, in all four orientations; recipes, buffers,
+  cargo value and wire routing are unchanged. The per-instance setting survives
+  movement, pickup/replacement and save/load. The flip button stays mounted as
+  production changes and supports both tapping and keyboard activation.
 - Mineral ammo still receives ×1.7 damage from the Annealer; Leek ammo is not accepted.
 - Put an ingot into Material Storage, then output it to a Sell Tube: it resets to the `$20` minimum before later upgrades.
 - Route annealed Wire through Duster and verify the ×1.25 and ×1.7 effects are each applied once, not twice.

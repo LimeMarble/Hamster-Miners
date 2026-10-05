@@ -489,6 +489,9 @@ function getFactoryMachineProgressState(machine) {
   if (machine.id === "stacker") {
     return `${machine.stackSize ?? 1}|${machine.orientation ?? "right"}`;
   }
+  if (machine.id === "contactMaker") {
+    return `${machine.metalInputFlipped === true}|${machine.orientation ?? "right"}`;
+  }
 
   const casingCargoState = machine.id === "casingMachine"
     ? getInternalConveyorTiles(machine).map((_conveyor, index) => {
@@ -1180,6 +1183,14 @@ function renderMachineActions(machine) {
       : "One metal plate makes two Fine Gears.");
     addMachineActionNote("No crew required. Total input value is preserved.");
     addMachineActionNote(getMachineActionProgressNote(machine), "gear-press-progress");
+  }
+
+  if (machine.id === "contactMaker") {
+    const input = getMachinePort(machine, "silverInput");
+    const side = { up: "below", down: "above", right: "left of", left: "right of" }[input.direction];
+    addMachineAction("Flip ingot input", () => flipContactMakerInput(machine));
+    addMachineActionNote(`Ingots enter from ${side} the wire lane.`);
+    addMachineActionNote("Accepts Silver or Contact Alloy Ingots. Copper Wires use the main conveyor lane.");
   }
 
   if (machine.id === "aggregateMixer") {

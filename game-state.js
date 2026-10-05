@@ -666,6 +666,7 @@ function hydrateSavedState(savedState) {
             ? getGearPressMode(machine)
             : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
         turnSide: machine.turnSide === "right" ? "right" : "left",
+        metalInputFlipped: type === "contactMaker" && machine.metalInputFlipped === true,
         pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
         pipeFlowCredit: 0,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,
@@ -703,6 +704,7 @@ function hydrateSavedState(savedState) {
             ? getGearPressMode(machine)
             : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
         turnSide: machine.turnSide === "right" ? "right" : "left",
+        metalInputFlipped: type === "contactMaker" && machine.metalInputFlipped === true,
         pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
         pipeFlowCredit: 0,
         stackSize: machine.stackSize ?? MACHINE_LAYOUT[type].stackSize,

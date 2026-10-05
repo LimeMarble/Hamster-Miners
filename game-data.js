@@ -1183,6 +1183,7 @@ const MACHINE_LAYOUT = Object.freeze({
     width: 4,
     height: 3,
     orientation: "right",
+    metalInputFlipped: false,
     internalConveyors: [
       { column: 0, row: 1, direction: "right", speed: 5 },
       { column: 1, row: 1, direction: "right", speed: 5 },

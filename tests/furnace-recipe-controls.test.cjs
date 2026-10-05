@@ -157,3 +157,32 @@ test("furnace selector styles prevent hover movement, overflow and live-status h
   assert.match(css, /\.machine-actions\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*scrollbar-gutter: stable;/);
   assert.match(css, /\[data-machine-action-note="arc-furnace-progress"\]\s*\{[^}]*block-size: 5\.4em;[^}]*overflow-y: auto;/);
 });
+
+test("Contact Maker flip control switches the actual port and remains mounted during production", () => {
+  const { game, state, select, actions, document } = fixture();
+  const maker = { ...game.MACHINE_LAYOUT.contactMaker, id: "contactMaker", instanceId: "selected-contact",
+    column: 30, row: 10, orientation: "right" };
+  state.machines.push(maker);
+  select(maker);
+  const button = actions.querySelector("button");
+  assert.equal(button.textContent, "Flip ingot input");
+  assert.match(actions.textContent, /from below the wire lane/);
+  button.focus();
+  const replacements = actions.replacements;
+  state.contactMakerInputs[maker.instanceId] = { silver: 1, silverValue: 313 };
+  state.arcFurnaceJobs = [{ furnaceInstanceId: "unrelated", secondsRemaining: 1 }];
+  game.renderFactoryMachineControls();
+  assert.equal(actions.querySelector("button"), button);
+  assert.equal(document.activeElement, button);
+  assert.equal(actions.replacements, replacements);
+  button.listeners.pointerdown({ preventDefault() {} });
+  game.renderFactoryMachineControls();
+  assert.equal(maker.metalInputFlipped, true);
+  assert.deepEqual(game.getMachinePort(maker, "silverInput"), { column: 31, row: 10, direction: "down" });
+  assert.match(actions.textContent, /from above the wire lane/);
+  actions.querySelector("button").listeners.keydown({ key: "Enter", preventDefault() {} });
+  game.renderFactoryMachineControls();
+  assert.equal(maker.metalInputFlipped, false);
+  assert.match(actions.textContent, /from below the wire lane/);
+  assert.deepEqual(state.contactMakerInputs[maker.instanceId], { silver: 1, silverValue: 313 });
+});

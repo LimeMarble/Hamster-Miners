@@ -430,6 +430,15 @@ function purchaseMachine(machineId, quantity = 1) {
   return true;
 }
 
+function flipContactMakerInput(maker) {
+  if (maker?.id !== "contactMaker") return false;
+  maker.metalInputFlipped = maker.metalInputFlipped !== true;
+  refreshMachineStaticLayer();
+  saveGame();
+  if (!IS_NODE_TEST_ENVIRONMENT) render();
+  return true;
+}
+
 function getKilnInputMaterial() {
   return state.kilnInputs[0]?.material ?? null;
 }
