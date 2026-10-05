@@ -59,9 +59,23 @@ function fixture() {
   }
   select(furnace);
   return { game, furnace, other, state, select, document, actions: dom["#machineActions"],
+    selectionHelp: dom["#machineSelectionHelp"],
     recipe: () => dom["#machineActions"].querySelector("select"),
     progress: () => dom["#machineActions"].querySelector('[data-machine-action-note="arc-furnace-progress"]') };
 }
+
+test("Splitter machine panel does not mix box-selection instructions into its description", () => {
+  const { game, state, select, selectionHelp, actions } = fixture();
+  const splitter = { ...game.MACHINE_LAYOUT.splitter, id: "splitter", instanceId: "selected-splitter",
+    column: 5, row: 5, orientation: "right" };
+  state.machines.push(splitter);
+  select(splitter);
+  assert.doesNotMatch(selectionHelp.textContent + actions.textContent, /box.select|two corners|Press Shift/i);
+  assert.match(actions.textContent, /forward, left, and right exits/);
+  const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.doesNotMatch(markup.match(/<small id="machineSelectionHelp">(.*?)<\/small>/)[1], /box.select|Press Shift/i);
+  assert.match(markup, /id="factoryInteractionHelp"[^>]*>Press Shift, then tap two corners to box-select/);
+});
 
 test("furnace recipe stays mounted and focused through input, job, liquid and solid output changes", () => {
   const { game, state, furnace, actions, document, recipe, progress } = fixture();

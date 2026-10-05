@@ -1186,16 +1186,38 @@ function getArcFurnaceSolidOutputConveyor(furnace) {
   return canConveyorFeedInto(outlet, conveyor) ? conveyor : null;
 }
 
+function emitArcFurnaceSolidOutput(furnace, item) {
+  if (!furnace) return 0;
+  const outlet = getMachinePort(furnace, "liquidOutput");
+  if (!outlet?.direction) return 0;
+  const vector = DIRECTION_VECTORS[outlet.direction];
+  const column = outlet.column + vector.column;
+  const row = outlet.row + vector.row;
+  const stacker = getStackerAt(column, row);
+  if (!stacker) return emitCapacitySafeCargo(getArcFurnaceSolidOutputConveyor(furnace), item);
+  if (!canStackerReceiveFromConveyor(stacker, outlet)) return 0;
+
+  const buffer = getStackerBuffer(stacker);
+  const occupiedWeight = buffer ? getCargoWeight({ ...buffer.item, quantity: buffer.quantity }) : 0;
+  const maximum = (getConveyorWeightCapacity(getStackerConveyor(stacker)) - occupiedWeight)
+    / getCargoUnitWeight(item);
+  const quantity = item.quantity <= maximum + 1e-9 ? item.quantity : Math.floor(maximum + 1e-9);
+  if (!(quantity > 0)) return 0;
+  const packet = { ...item, quantity, tileProgress: 0 };
+  // Use the real buffer, not a phantom belt on the Stacker's tile. Its own
+  // output still pays normal transit time and obeys downstream blockage.
+  return receiveConveyorItem(packet, column, row) ? quantity : 0;
+}
+
 function flushArcFurnaceOutputs() {
   Object.entries(state.arcFurnaceOutputBuffers).forEach(([furnaceInstanceId, item]) => {
     const furnace = getMachineByInstanceId(furnaceInstanceId);
-    const outputConveyor = furnace ? getArcFurnaceSolidOutputConveyor(furnace) : null;
-    const emitted = emitCapacitySafeCargo(outputConveyor, item);
+    const emitted = emitArcFurnaceSolidOutput(furnace, item);
     if (!emitted) {
       return;
     }
     if (subtractQuantity(item, emitted, 1) === 0) delete state.arcFurnaceOutputBuffers[furnaceInstanceId];
-    addLog(`Mini Electric Arc Furnace output ${MATERIAL_LABELS[item.material] ?? item.material} entered its conveyor.`);
+    addLog(`Mini Electric Arc Furnace released ${MATERIAL_LABELS[item.material] ?? item.material}.`);
   });
 }
 

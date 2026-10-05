@@ -868,7 +868,7 @@ function renderFactoryMachineControls() {
   elements.selectedMachineLabel.textContent = machine
     ? `${getMachineDisplayName(machine.id)} selected`
     : "No machine selected";
-  elements.machineSelectionHelp.textContent = "Q / E or Rotate turns the selected building. Press Shift, then tap two corners to box-select.";
+  elements.machineSelectionHelp.textContent = "Q / E or Rotate turns the selected building.";
   const canPickUp = canPickUpMachine(machine);
   elements.pickUpMachineButton.textContent = "Pick up";
   elements.moveMachineButton.textContent = "Move / place more";

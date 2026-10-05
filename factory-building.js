@@ -562,8 +562,8 @@ function completeArcFurnaceJob(job) {
       tileProgress: 0,
     };
     const furnace = getMachineByInstanceId(job.furnaceInstanceId);
-    const outputConveyor = furnace ? getArcFurnaceSolidOutputConveyor(furnace) : null;
-    if (!outputConveyor || getConveyorItem(outputConveyor) || !placeItemOnConveyor(outputConveyor, outputItem)) {
+    const emitted = emitArcFurnaceSolidOutput(furnace, outputItem);
+    if (subtractQuantity(outputItem, emitted, 1) > 0) {
       state.arcFurnaceOutputBuffers[job.furnaceInstanceId] = outputItem;
       state.arcFurnaceJobs = state.arcFurnaceJobs.filter((candidate) => candidate !== job);
       addLog("Mini Electric Arc Furnace finished Ceramic; its solid output is waiting for a conveyor.");
@@ -1089,6 +1089,19 @@ function recoverGearPressInput(press) {
   return recoverFactoryItem({ kind: "material", material: pending.material, quantity: pending.quantity });
 }
 
+function recoverArcFurnaceBuffers(furnace) {
+  if (!furnace) return [];
+  const instanceId = furnace.instanceId;
+  const inputs = Object.values(state.arcFurnaceInputs[instanceId] ?? {}).flat();
+  const output = state.arcFurnaceOutputBuffers[instanceId];
+  delete state.arcFurnaceInputs[instanceId];
+  delete state.arcFurnaceOutputBuffers[instanceId];
+  // Pickup returns cargo to storage; Move deliberately keeps it with the
+  // same instance. Never leave hidden inputs to reappear on replacement.
+  return [...inputs, output].filter(item => item?.kind === "material"
+    && Number.isFinite(item.quantity) && item.quantity > 0).map(recoverFactoryItem);
+}
+
 function recoverFactoryEntityCargo(entity) {
   const entityTileKeys = new Set(getFactoryEntityTileKeys(entity));
   const recovered = [];
@@ -1119,6 +1132,9 @@ function recoverFactoryEntityCargo(entity) {
     if (recoveredPlates) {
       recovered.push(recoveredPlates);
     }
+  }
+  if (entity.type === "machine" && entity.id === "miniElectricArcFurnace") {
+    recovered.push(...recoverArcFurnaceBuffers(getMachineByInstanceId(entity.instanceId)));
   }
   return recovered;
 }
@@ -1410,6 +1426,8 @@ function recoverFactoryEntitiesCargo(records) {
     });
   records.filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "aggregateMixer")
     .forEach(({ object }) => recoverAggregateMixerContents(object));
+  records.filter(({ descriptor }) => descriptor.type === "machine" && descriptor.id === "miniElectricArcFurnace")
+    .forEach(({ object }) => recovered.push(...recoverArcFurnaceBuffers(object)));
   return recovered;
 }
 

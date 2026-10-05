@@ -257,6 +257,16 @@ future pipe tiers) are not treated as current acceptance requirements.
   forward/left/right conveyors; it skips occupied or item-incompatible exits,
   does not consume its turn when all exits are blocked, and preserves its
   per-instance cursor across save/load.
+- Splitters feed rotated Mini Electric Arc Furnace inputs without changing
+  the input material, skip full inputs, and preserve the four-second Clay
+  and Hematite cycles. The bottom-row side-feed layout is covered directly.
+- Furnace Ceramic outputs feed adjacent Stackers through their real buffers,
+  respecting facing, weight capacity, blockage, and normal Stacker transit.
+  Oversized queued outputs retain their untransferred remainder.
+- Single and bulk furnace pickups return unprocessed input cargo and completed
+  Ceramic to storage, clearing those hidden buffers before replacement.
+  Move keeps those contents with their original instance instead; neither
+  moving nor replacing another furnace inherits contents from its old tile.
 
 ## Storage, inventory, Shop, and tutorial
 
