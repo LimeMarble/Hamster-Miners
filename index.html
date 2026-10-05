@@ -304,7 +304,7 @@
           <article class="machine-card" data-inventory-machine="gearPress"><h3>Gear Press</h3><p>2×3. Heavy mode combines two matching metal plates into one Heavy Gear. Fine mode makes two Fine Gears per plate. Preserves total input value.</p><strong id="gearPressInventoryCount">Stored: 0</strong><button class="button" id="selectGearPressButton" type="button">Place Gear Press</button></article>
           <article class="machine-card" data-inventory-machine="aggregateMixer"><h3>Aggregate Mixer</h3><p>4×3. Mixes 40 Limestone and 20 Chert into 10 Aggregate in 10 seconds. No crew required.</p><strong id="aggregateMixerInventoryCount">Stored: 0</strong><button class="button" type="button">Place Aggregate Mixer</button></article>
           <article class="machine-card" data-inventory-machine="hotFluidPipe"><h3>Hot Fluid Pipe</h3><p>1×1. Carries hot fluid at 30 weight/s. Choose straight, junction, turn, or cap forms. Open exits stop the connected network.</p><strong id="hotFluidPipeInventoryCount">Stored: 0</strong><button class="button" type="button">Place Hot Fluid Pipe</button></article>
-          <article class="machine-card" data-inventory-machine="stacker"><span class="machine-label">Batch handling</span><h3>Stacker</h3><p>1×1. No crew required. Takes matching items from three sides and releases configured stacks of up to 3 in its facing direction.</p><strong id="stackerInventoryCount">Stored: 0</strong><button class="button" id="selectStackerButton" type="button">Place Stacker</button></article>
+          <article class="machine-card" data-inventory-machine="stacker"><span class="machine-label">Batch handling</span><h3>Stacker</h3><p>1×1. No crew required. Combines matching items from three sides into stacks of up to 3, using normal conveyor speed and capacity. Can feed another Stacker directly.</p><strong id="stackerInventoryCount">Stored: 0</strong><button class="button" id="selectStackerButton" type="button">Place Stacker</button></article>
           <article class="machine-card" data-inventory-machine="splitter"><span class="machine-label">Batch routing</span><h3>Splitter</h3><p>1×1. No crew required. Takes one incoming line and cycles full stacks among three exits, skipping occupied or incompatible ones.</p><strong id="splitterInventoryCount">Stored: 0</strong><button class="button" id="selectSplitterButton" type="button">Place Splitter</button></article>
           <article class="machine-card" data-inventory-machine="quartzWheelCutter"><span class="machine-label">Gem processing · cash</span><h3>Quartz Wheel Cutter</h3><p>4×5. Two independent conveyor lines run at speed 1. Each Malachite Ore becomes 0.4 Cut Malachite at ×250 current value. Dust the ore first; Cut Malachite cannot be dusted.</p><strong id="quartzWheelCutterInventoryCount">Stored: 0</strong><button class="button" id="selectQuartzWheelCutterButton" type="button">Place Quartz Wheel Cutter</button></article>
           <article class="machine-card" data-inventory-machine="gun"><span class="machine-label">Fixed</span><h3>Rapidfire Gun Mk. 0</h3><p>4×3 display. Fires four rounds per second while enabled; Malachite bullet cores deal 3 damage.</p></article>
@@ -572,7 +572,7 @@
           <article class="panel construction-card" data-shop-machine="stacker">
             <span class="machine-label">Batch handling</span>
             <h3>Stacker</h3>
-            <p class="panel-copy">1×1. No crew required. Takes matching items from three input directions and releases its configured stack size, up to 3, in the direction it faces.</p>
+            <p class="panel-copy">1×1. No crew required. Combines matching items from three sides into stacks of up to 3, using normal conveyor speed and capacity. Can feed another Stacker directly.</p>
             <dl class="machine-build-cost" aria-label="Stacker build cost">
               <div data-shop-cost-cash><dt>Cash</dt><dd>$2k</dd></div>
               <div data-shop-cost-material="bronzePlate"><dt>Bronze Plates</dt><dd>5</dd></div>
@@ -740,14 +740,14 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-    <script src="game-data.js"></script>
-    <script src="game-state.js"></script>
-    <script src="factory-logistics.js"></script>
-    <script src="factory-materials.js"></script>
-    <script src="factory-fluids.js"></script>
-    <script src="factory-building.js"></script>
-    <script src="mining.js"></script>
-    <script src="game-ui.js"></script>
-    <script src="game.js"></script>
+    <script src="game-data.js?v=stacker-transit-20261005"></script>
+    <script src="game-state.js?v=stacker-transit-20261005"></script>
+    <script src="factory-logistics.js?v=stacker-transit-20261005"></script>
+    <script src="factory-materials.js?v=stacker-transit-20261005"></script>
+    <script src="factory-fluids.js?v=stacker-transit-20261005"></script>
+    <script src="factory-building.js?v=stacker-transit-20261005"></script>
+    <script src="mining.js?v=stacker-transit-20261005"></script>
+    <script src="game-ui.js?v=stacker-transit-20261005"></script>
+    <script src="game.js?v=stacker-transit-20261005"></script>
   </body>
 </html>

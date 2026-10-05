@@ -2251,59 +2251,105 @@ function getStackerItemKey(item) {
   ].join("|");
 }
 
-function canStackerAcceptItem(stacker, item) {
+function getStackerConveyor(stacker) {
+  // Routing-only belt metadata; cargo remains in the instance's single buffer.
+  return {
+    internalMachineId: stacker.id,
+    direction: stacker.orientation ?? "right",
+    speed: stacker.conveyorSpeed ?? CONFIG.defaultConveyorSpeed,
+    weightCapacity: stacker.weightCapacity,
+  };
+}
+
+function getStackerPendingQuantity(stacker, buffer) {
+  if (buffer.outputRemaining > 0) return Math.min(buffer.outputRemaining, buffer.quantity);
+  const configured = Math.max(1, Math.min(3, stacker.stackSize ?? 1));
+  if (buffer.quantity >= configured) return configured;
+  // A configured count must not deadlock when its items exceed belt capacity.
+  const maximum = Math.floor((getConveyorWeightCapacity(getStackerConveyor(stacker)) + 1e-9)
+    / getCargoUnitWeight(buffer.item));
+  return maximum > 0 && buffer.quantity >= Math.min(configured, maximum)
+    ? Math.min(configured, maximum) : 0;
+}
+
+function canStackerAcceptItem(stacker, item, visited = new Set()) {
   if (!stacker || !item || !Number.isFinite(item.quantity) || item.quantity < 1) {
     return false;
   }
   const buffer = getStackerBuffer(stacker);
+  if (!canConveyorCarryItem(getStackerConveyor(stacker), {
+    ...item, quantity: (buffer?.quantity ?? 0) + item.quantity,
+  })) return false;
   if (!buffer || buffer.itemKey !== getStackerItemKey(item)) {
     return !buffer;
   }
 
-  const stackSize = Math.max(1, Math.min(3, stacker.stackSize ?? 1));
-  if (buffer.quantity < stackSize) {
+  const pendingQuantity = getStackerPendingQuantity(stacker, buffer);
+  if (!pendingQuantity) {
     return true;
   }
 
-  const outputConveyor = getStackerOutputConveyor(stacker);
-  const outputDirection = stacker.orientation ?? "right";
-  return Boolean(
-    outputConveyor
-      && !getConveyorItem(outputConveyor)
-      && canConveyorFeedInto({ direction: outputDirection }, outputConveyor),
-  );
+  if (visited.has(stacker.instanceId)) return false;
+  const nextVisited = new Set(visited);
+  nextVisited.add(stacker.instanceId);
+  return Boolean(getStackerOutputTarget(stacker, { ...buffer.item, quantity: pendingQuantity }, nextVisited));
 }
 
-function getStackerOutputConveyor(stacker) {
+function getStackerOutputTarget(stacker, item, visited = new Set([stacker.instanceId])) {
   const direction = stacker.orientation ?? "right";
   const vector = DIRECTION_VECTORS[direction];
-  return getConveyorAt(stacker.column + vector.column, stacker.row + vector.row);
+  const column = stacker.column + vector.column;
+  const row = stacker.row + vector.row;
+  const targetStacker = getStackerAt(column, row);
+  const conveyor = targetStacker ? getStackerConveyor(targetStacker) : getConveyorAt(column, row);
+  if (!conveyor || !canConveyorFeedInto({ direction }, conveyor)
+    || (!targetStacker && getConveyorItem(conveyor))) return null;
+
+  const targetBuffer = targetStacker ? getStackerBuffer(targetStacker) : null;
+  const occupiedWeight = targetBuffer
+    ? getCargoWeight({ ...targetBuffer.item, quantity: targetBuffer.quantity }) : 0;
+  const maximum = Math.min(getConveyorWeightCapacity(getStackerConveyor(stacker)),
+    getConveyorWeightCapacity(conveyor) - occupiedWeight);
+  const quantity = item.quantity <= maximum / getCargoUnitWeight(item) + 1e-9
+    ? item.quantity : Math.floor(maximum / getCargoUnitWeight(item) + 1e-9);
+  if (!(quantity > 0)) return null;
+  if (targetStacker && (!canStackerReceiveFromConveyor(targetStacker, { direction })
+    || !canStackerAcceptItem(targetStacker, { ...item, quantity }, visited))) return null;
+  return { conveyor, targetStacker, column, row, quantity };
 }
 
-function emitStackerOutputs() {
+function emitStackerOutputs(deltaSeconds = 0) {
+  // Snapshot ready outputs before any handoff, so array order cannot move fresh
+  // cargo through several Stackers in one update. Each emitted object pays a
+  // full belt transit cycle; blocked time never banks multiple releases.
+  const ready = [];
   getMachines("stacker").forEach((stacker) => {
     const buffer = getStackerBuffer(stacker);
-    if (!buffer) {
+    if (!buffer) return;
+    const pendingQuantity = getStackerPendingQuantity(stacker, buffer);
+    if (!(pendingQuantity > 0)) {
+      buffer.outputProgress = 0;
       return;
     }
-
-    const outputConveyor = getStackerOutputConveyor(stacker);
-    const outputDirection = stacker.orientation ?? "right";
-    const configuredQuantity = Math.max(1, Math.min(3, stacker.stackSize ?? 1));
-    if (!outputConveyor
-      || getConveyorItem(outputConveyor)
-      || !canConveyorFeedInto({ direction: outputDirection }, outputConveyor)
-      || !(buffer.outputRemaining > 0) && buffer.quantity < configuredQuantity) {
-      return;
-    }
-    const pendingQuantity = buffer.outputRemaining > 0 ? buffer.outputRemaining : configuredQuantity;
+    const previous = Number.isFinite(buffer.outputProgress) ? buffer.outputProgress : 0;
+    buffer.outputProgress = Math.min(1, Math.max(0, previous)
+      + Math.max(0, Number(deltaSeconds) || 0) / getConveyorSecondsPerTile(getStackerConveyor(stacker)));
+    if (buffer.outputProgress >= 1 - 1e-9) ready.push({ stacker, buffer, pendingQuantity });
+  });
+  ready.forEach(({ stacker, buffer, pendingQuantity }) => {
     const outputItem = {
       ...buffer.item,
       quantity: Math.min(pendingQuantity, buffer.quantity),
       tileProgress: 0,
     };
-    const emitted = emitCapacitySafeCargo(outputConveyor, outputItem);
+    const target = getStackerOutputTarget(stacker, outputItem);
+    if (!target) return;
+    const packet = { ...outputItem, quantity: target.quantity };
+    const emitted = target.targetStacker
+      ? (receiveConveyorItem(packet, target.column, target.row) ? packet.quantity : 0)
+      : emitCapacitySafeCargo(target.conveyor, packet);
     if (!emitted) return;
+    buffer.outputProgress = 0;
     buffer.quantity = Number((buffer.quantity - emitted).toPrecision(12));
     buffer.outputRemaining = Number((pendingQuantity - emitted).toPrecision(12));
     if (buffer.quantity <= 1e-9) {

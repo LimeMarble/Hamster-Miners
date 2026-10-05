@@ -160,6 +160,13 @@ future pipe tiers) are not treated as current acceptance requirements.
   gain weight split by whole recipes. Legacy output buffers and Stacker batches
   drain safely, including the last chunk of a partly emitted configured batch.
 - Casing mode controls remain mounted while pipe fluid quantities change.
+- Adjacent Stackers hand cargo directly to each other, including perpendicular
+  and partly filled saved buffers. Ordinary Stackers use belt weight capacity 5
+  and one output per normal belt transit cycle; each hop has its own timer.
+  Full blocked loops, mixed materials/tags, oversized legacy batches, save/load,
+  speed cheats and blocked-time bursts are covered. Buffer/timer changes do not
+  rebuild the machine controls. Browser scripts share a cache version so old
+  callers cannot leave newly timed outputs permanently at zero progress.
 - Gear Press costs $400k, 100 Iron Ingots, 50 Iron Plates, and 100 Copper Wires;
   its 2x3 occupied footprint and two speed-5 conveyors match Metal Press.
 - Heavy Gear is the default mode: two consecutive matching plates make one

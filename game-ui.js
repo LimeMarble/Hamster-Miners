@@ -486,6 +486,9 @@ function getFactoryMachineProgressState(machine) {
     // Production changes only its live status, not the recipe control structure.
     return `${getArcFurnaceMode(machine)}|${machine.orientation ?? "right"}`;
   }
+  if (machine.id === "stacker") {
+    return `${machine.stackSize ?? 1}|${machine.orientation ?? "right"}`;
+  }
 
   const casingCargoState = machine.id === "casingMachine"
     ? getInternalConveyorTiles(machine).map((_conveyor, index) => {
@@ -532,6 +535,10 @@ function getFactoryMachineProgressState(machine) {
 }
 
 function getMachineActionProgressNote(machine) {
+  if (machine?.id === "stacker") {
+    const buffer = getStackerBuffer(machine);
+    return `Stored: ${buffer ? `${formatNumber(buffer.quantity)} matching items` : "empty"}.`;
+  }
   if (machine?.id === "aggregateMixer") {
     const job = state.aggregateMixerJobs[machine.instanceId];
     const buffer = state.aggregateMixerInputs[machine.instanceId] ?? {};
@@ -697,6 +704,7 @@ function updateMachineActionProgressNote(machine) {
     casingMachine: "casing-machine-progress",
     aggregateMixer: "aggregate-mixer-progress",
     hotFluidPipe: "hot-fluid-pipe-progress",
+    stacker: "stacker-progress",
   }[machine?.id];
   if (!noteKey || !elements.machineActions) {
     return;
@@ -1192,9 +1200,8 @@ function renderMachineActions(machine) {
 
   if (machine.id === "stacker") {
     const stackSize = Math.max(1, Math.min(3, machine.stackSize ?? 1));
-    const buffer = getStackerBuffer(machine);
-    addMachineActionNote("No crew required. Accepts matching items from its three input sides and releases them in configured batches through its facing side.");
-    addMachineActionNote(`Stored: ${buffer ? `${formatNumber(buffer.quantity)} matching items` : "empty"}.`);
+    addMachineActionNote("No crew required. Combines matching items from three sides. Outputs at normal conveyor speed and capacity, including directly into another Stacker.");
+    addMachineActionNote(getMachineActionProgressNote(machine), "stacker-progress");
     [1, 2, 3].forEach((size) => {
       addMachineAction(
         size === stackSize ? `Output stack: ${size} (selected)` : `Output stack: ${size}`,

@@ -37,7 +37,7 @@ function readGameSource() {
 
 test("browser loads the split game scripts in dependency order", () => {
   const markup = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  const scriptOrder = [
+  const expectedScripts = [
     "game-data.js",
     "game-state.js",
     "factory-logistics.js",
@@ -47,10 +47,13 @@ test("browser loads the split game scripts in dependency order", () => {
     "mining.js",
     "game-ui.js",
     "game.js",
-  ].map((filename) => markup.indexOf(`<script src="${filename}"></script>`));
-
-  assert.ok(scriptOrder.every((index) => index >= 0));
-  assert.deepEqual(scriptOrder, scriptOrder.slice().sort((a, b) => a - b));
+  ];
+  const scriptUrls = [...markup.matchAll(/<script src="([^"\n]+)"><\/script>/g)]
+    .map((match) => match[1]).filter((url) => !url.startsWith("https://"));
+  assert.deepEqual(scriptUrls.map((url) => url.split("?")[0]), expectedScripts);
+  const versions = scriptUrls.map((url) => new URL(url, "http://localhost/").searchParams.get("v"));
+  assert.ok(versions[0], "local scripts must have a cache version");
+  assert.ok(versions.every((version) => version === versions[0]), "all dependent scripts reload together");
 });
 
 function machine(id, instanceId, column, row, orientation = "right") {
@@ -4351,7 +4354,7 @@ test("Stacker accepts three input directions and releases its configured batch s
   assert.equal(game.receiveConveyorItem(item, 2, 5), true);
   assert.equal(state.stackerBuffers[stacker.instanceId].quantity, 5);
 
-  game.emitStackerOutputs();
+  game.emitStackerOutputs(1);
   const outputConveyor = state.placedConveyors.find(({ column, row }) => column === 3 && row === 5);
   const output = outputConveyor.item;
   assert.equal(output.material, "bronzePlate");

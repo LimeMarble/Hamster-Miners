@@ -64,6 +64,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 - Cargo weights and automatic capacity splitting are implemented; Heavy Stacker
   and the Industrial Conveyor purchase remain pending.
+- Ordinary Stackers can feed adjacent Stackers directly. They use ordinary
+  conveyor capacity (weight 5) and transit timing, with one buffered cargo object
+  per instance and no instantaneous chain transfers or banked output bursts.
 - Weight is a hidden per-item value; stack weight is quantity times item weight.
 - Most items have weight 1 unless explicitly assigned another weight.
 - Switch weight is undecided and will depend on the choice of switch faces.

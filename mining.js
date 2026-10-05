@@ -1454,11 +1454,11 @@ function updateFactory(deltaSeconds) {
   updateHotFluidPipes(deltaSeconds);
   updateAggregateMixers(deltaSeconds);
   flushGearPressOutputs();
+  emitStackerOutputs(deltaSeconds);
   advanceConveyorItems(deltaSeconds);
   flushMolderOutputs();
   flushArcFurnaceOutputs();
   startMolderJob();
-  emitStackerOutputs();
   emitStorageOutputs();
 
   planterAccumulator += deltaSeconds * getProcessingSpeedMultiplier();
