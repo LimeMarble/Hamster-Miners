@@ -106,7 +106,7 @@ const elements = {
   hotFluidPipeInventoryCount: document.querySelector("#hotFluidPipeInventoryCount"),
   pipePlacementControls: document.querySelector("#pipePlacementControls"),
   pipePlacementMode: document.querySelector("#pipePlacementMode"),
-  pipePlacementTurnSide: document.querySelector("#pipePlacementTurnSide"),
+  pipePlacementPorts: document.querySelector("#pipePlacementPorts"),
   stackerInventoryCount: document.querySelector("#stackerInventoryCount"),
   splitterInventoryCount: document.querySelector("#splitterInventoryCount"),
   quartzWheelCutterInventoryCount: document.querySelector("#quartzWheelCutterInventoryCount"),
@@ -659,13 +659,15 @@ function hydrateSavedState(savedState) {
         ...MACHINE_LAYOUT[type],
         column: Number.isInteger(machine.column) ? machine.column : MACHINE_LAYOUT[type].column,
         row: Number.isInteger(machine.row) ? machine.row : MACHINE_LAYOUT[type].row,
-        orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
+        orientation: type === "hotFluidPipe" ? getSavedHotFluidPipeOrientation(machine)
+          : machine.orientation ?? MACHINE_LAYOUT[type].orientation,
         mode: type === "miniElectricArcFurnace"
           ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
           : type === "gearPress"
             ? getGearPressMode(machine)
             : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
         turnSide: machine.turnSide === "right" ? "right" : "left",
+        ...(type === "hotFluidPipe" ? { pipePorts: getHotFluidPipeLocalPorts(machine) } : {}),
         metalInputFlipped: type === "contactMaker" && machine.metalInputFlipped === true,
         pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
         pipeFlowCredit: 0,
@@ -697,13 +699,15 @@ function hydrateSavedState(savedState) {
         ...MACHINE_LAYOUT[type],
         column: Number.isInteger(machine.column) ? machine.column : MACHINE_LAYOUT[type].column,
         row: Number.isInteger(machine.row) ? machine.row : MACHINE_LAYOUT[type].row,
-        orientation: machine.orientation ?? MACHINE_LAYOUT[type].orientation,
+        orientation: type === "hotFluidPipe" ? getSavedHotFluidPipeOrientation(machine)
+          : machine.orientation ?? MACHINE_LAYOUT[type].orientation,
         mode: type === "miniElectricArcFurnace"
           ? normalizeArcFurnaceMode(machine.mode ?? MACHINE_LAYOUT[type].mode)
           : type === "gearPress"
             ? getGearPressMode(machine)
             : type === "hotFluidPipe" ? getHotFluidPipeMode(machine) : machine.mode ?? MACHINE_LAYOUT[type].mode,
         turnSide: machine.turnSide === "right" ? "right" : "left",
+        ...(type === "hotFluidPipe" ? { pipePorts: getHotFluidPipeLocalPorts(machine) } : {}),
         metalInputFlipped: type === "contactMaker" && machine.metalInputFlipped === true,
         pipeNextOutputIndex: Math.max(0, Math.floor(Number(machine.pipeNextOutputIndex) || 0)),
         pipeFlowCredit: 0,

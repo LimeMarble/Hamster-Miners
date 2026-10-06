@@ -256,8 +256,8 @@ test("factory camera can pan three tiles beyond the unchanged placement grid", (
   assert.equal(limits.maxScrollY + 256, (game.FACTORY_ROWS + 3) * 32 + 96);
 
   const zoomedLimits = game.getFactoryCameraScrollLimits(320, 256, 2);
-  assert.equal(zoomedLimits.minScrollX, -96);
-  assert.equal(zoomedLimits.maxScrollX + 160, game.FACTORY_COLUMNS * 32 + 96);
+  assert.equal(zoomedLimits.minScrollX + (320 - 160) / 2, -96);
+  assert.equal(zoomedLimits.maxScrollX + (320 + 160) / 2, game.FACTORY_COLUMNS * 32 + 96);
 
   const zoomedOutLimits = game.getFactoryCameraScrollLimits(2e3, 1300, 1);
   assert.equal(zoomedOutLimits.minScrollX, zoomedOutLimits.maxScrollX);
@@ -265,10 +265,10 @@ test("factory camera can pan three tiles beyond the unchanged placement grid", (
 
   for (const zoom of [0.45, 0.7, 1, 1.5, 2]) {
     const limitsAtZoom = game.getFactoryCameraScrollLimits(320, 256, zoom);
-    assert.equal(limitsAtZoom.minScrollX, -96);
-    assert.equal(limitsAtZoom.minScrollY, -96);
-    assert.equal(limitsAtZoom.maxScrollX + 320 / zoom, game.FACTORY_COLUMNS * 32 + 96);
-    assert.equal(limitsAtZoom.maxScrollY + 256 / zoom, (game.FACTORY_ROWS + 3) * 32 + 96);
+    assert.ok(Math.abs(limitsAtZoom.minScrollX + (320 - 320 / zoom) / 2 + 96) < 1e-9);
+    assert.ok(Math.abs(limitsAtZoom.minScrollY + (256 - 256 / zoom) / 2 + 96) < 1e-9);
+    assert.ok(Math.abs(limitsAtZoom.maxScrollX + (320 + 320 / zoom) / 2 - (game.FACTORY_COLUMNS * 32 + 96)) < 1e-9);
+    assert.ok(Math.abs(limitsAtZoom.maxScrollY + (256 + 256 / zoom) / 2 - ((game.FACTORY_ROWS + 3) * 32 + 96)) < 1e-9);
   }
 });
 
@@ -295,8 +295,8 @@ test("factory panning clamps immediately and consistently across zoom changes", 
     const clampedHigh = game.clampFactoryCameraScroll(camera, limits.maxScrollX + 500, limits.maxScrollY + 500);
     assert.equal(clampedHigh.scrollX, limits.maxScrollX);
     assert.equal(clampedHigh.scrollY, limits.maxScrollY);
-    assert.ok(camera.scrollX + camera.width / zoom <= game.FACTORY_COLUMNS * 32 + 96 + 1e-9);
-    assert.ok(camera.scrollY + camera.height / zoom <= (game.FACTORY_ROWS + 3) * 32 + 96 + 1e-9);
+    assert.ok(camera.scrollX + (camera.width + camera.width / zoom) / 2 <= game.FACTORY_COLUMNS * 32 + 96 + 1e-9);
+    assert.ok(camera.scrollY + (camera.height + camera.height / zoom) / 2 <= (game.FACTORY_ROWS + 3) * 32 + 96 + 1e-9);
   }
 });
 

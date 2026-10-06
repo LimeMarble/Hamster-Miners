@@ -77,6 +77,42 @@ test("Splitter machine panel does not mix box-selection instructions into its de
   assert.match(markup, /id="factoryInteractionHelp"[^>]*>Press Shift, then tap two corners to box-select/);
 });
 
+test("pipe port controls stay mounted through fluid and unrelated production updates", () => {
+  const { game, state, select, document, actions, recipe } = fixture();
+  const pipe = { ...game.MACHINE_LAYOUT.hotFluidPipe, id: "hotFluidPipe", instanceId: "controlled-pipe",
+    column: 5, row: 10, orientation: "right" };
+  state.machines.push(pipe);
+  select(pipe);
+  const dropdown = recipe(), replacements = actions.replacements;
+  assert.equal(dropdown.attributes["aria-label"], "Pipe up port");
+  assert.equal(dropdown.value, "absent");
+  dropdown.focus();
+  state.kilnJobs = [{ kilnInstanceId: "other-kiln" }];
+  state.molderJobs = [{ molderInstanceId: "other-caster" }];
+  state.moltenCopper = [{ smelterInstanceId: pipe.instanceId, material: "silver", quantity: 2 }];
+  game.renderFactoryMachineControls();
+  state.moltenCopper[0].quantity = 1;
+  game.renderFactoryMachineControls();
+  assert.equal(recipe(), dropdown);
+  assert.equal(actions.replacements, replacements);
+  assert.equal(document.activeElement, dropdown);
+  assert.equal(game.setHotFluidPipePortRole(pipe, "up", "entrance"), true);
+  game.renderFactoryMachineControls();
+  assert.notEqual(recipe(), dropdown);
+  assert.equal(recipe().value, "entrance");
+  assert.equal(game.getHotFluidPipePreset(pipe), "custom");
+  const container = actions.children.find((child) => child.className === "pipe-port-controls");
+  const firstDropdown = container.querySelector("select");
+  const second = { ...pipe, instanceId: "next-stored-pipe", pipePorts: { ...pipe.pipePorts } };
+  game.renderHotFluidPipePortControls(second, container, () => {});
+  const secondDropdown = container.querySelector("select");
+  assert.notEqual(secondDropdown, firstDropdown);
+  secondDropdown.value = "exit";
+  secondDropdown.listeners.change();
+  assert.equal(second.pipePorts.up, "exit");
+  assert.equal(pipe.pipePorts.up, "entrance", "cached inventory controls cannot edit a previous instance");
+});
+
 test("furnace recipe stays mounted and focused through input, job, liquid and solid output changes", () => {
   const { game, state, furnace, actions, document, recipe, progress } = fixture();
   const dropdown = recipe();

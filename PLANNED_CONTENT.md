@@ -5,14 +5,19 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 ## Hot Fluid Pipe
 
 - Implemented Early-Iron logistics item, occupying one tile.
-- One purchasable inventory item, with pipe forms chosen through placement modes.
+- One purchasable inventory item, using one universal four-side configuration.
 - Picking up a placed form returns the same pipe item.
 - Cost per item: $25,000, 2 Ceramic, 2 Iron Ingots, 1 Tin Ingot, and 5 Aggregate.
-- Forms: straight, left junction, right junction, 4-way junction, turn, and cap.
-  Turns can bend left or right. Rotate the inlet direction with Q/E.
+- Presets: Straight, Left Turn, Right Turn, Junction, and Cap. Each side can be
+  an entrance, exit, or absent port. Two-, three-, and four-port shapes use the
+  same rules; a single entrance with no exits is a cap and accepts no fluid.
+- Q/E rotates the whole configuration, with the facing identifying a main
+  exit whenever one exists. Port controls are available before and after placement.
+- Multi-input junctions merge matching liquid materials without changing their
+  total quantity/value or eligibility tags. Different metals wait separately.
 - Throughput: 30 fluid weight per second, using the cargo weight definitions.
 - Blocked outlets are skipped; any open outlet stops the entire connected pipe
-  network. Caps close unused outlets. Separate networks remain independent.
+  network. Absent ports do not leak. Caps close unused outlets. Separate networks remain independent.
 - Pipes carry the source liquid's material, value and eligibility tags. Contents
   belong to their pipe instance through moves, pickups, and save/load.
 - No distance limit or additional temperature restriction at this tier.

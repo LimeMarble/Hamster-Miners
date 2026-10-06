@@ -5,21 +5,126 @@ const HOT_FLUID_PIPE_MODES = Object.freeze({
   fourWayJunction: "4-way junction", turn: "Turn", cap: "Cap",
 });
 const HOT_FLUID_PIPE_THROUGHPUT = 30;
+const HOT_FLUID_PIPE_PRESETS = Object.freeze({
+  straight: { label: "Straight", ports: { right: "exit", down: "absent", left: "entrance", up: "absent" } },
+  leftTurn: { label: "Left turn", ports: { right: "exit", down: "absent", left: "absent", up: "entrance" } },
+  rightTurn: { label: "Right turn", ports: { right: "exit", down: "entrance", left: "absent", up: "absent" } },
+  junction: { label: "Junction", ports: { right: "exit", down: "exit", left: "entrance", up: "exit" } },
+  cap: { label: "Cap", ports: { right: "absent", down: "absent", left: "entrance", up: "absent" } },
+});
+const HOT_FLUID_PIPE_PORT_ROLES = Object.freeze({ entrance: "Entrance", exit: "Exit", absent: "No port" });
 let fluidPipeNetworkCache = null;
-let selectedPipePlacementMode = "straight";
-let selectedPipeTurnSide = "left";
+const selectedPipePlacementConfiguration = {
+  id: "hotFluidPipe", orientation: "right", pipeDirectionVersion: 1,
+  pipePorts: { ...HOT_FLUID_PIPE_PRESETS.straight.ports }, mode: "straight",
+};
 
 function getHotFluidPipeMode(pipe) {
-  return Object.hasOwn(HOT_FLUID_PIPE_MODES, pipe?.mode) ? pipe.mode : "straight";
+  return pipe?.mode === "custom" || Object.hasOwn(HOT_FLUID_PIPE_MODES, pipe?.mode) ? pipe.mode : "straight";
+}
+
+function isValidHotFluidPipePorts(ports) {
+  if (!ports || !CONVEYOR_ORIENTATIONS.every((side) => Object.hasOwn(HOT_FLUID_PIPE_PORT_ROLES, ports[side]))) return false;
+  const inputs = CONVEYOR_ORIENTATIONS.filter((side) => ports[side] === "entrance").length;
+  const outputs = CONVEYOR_ORIENTATIONS.filter((side) => ports[side] === "exit").length;
+  return inputs > 0 && outputs > 0 || inputs === 1 && outputs === 0;
+}
+
+function getHotFluidPipeLocalPorts(pipe) {
+  if (isValidHotFluidPipePorts(pipe?.pipePorts)) {
+    return Object.fromEntries(CONVEYOR_ORIENTATIONS.map((side) => [side, pipe.pipePorts[side]]));
+  }
+  // Legacy shape names are converted to port roles, never separate routing rules.
+  const mode = getHotFluidPipeMode(pipe);
+  const preset = mode === "turn" ? (pipe.turnSide === "right" ? "rightTurn" : "leftTurn")
+    : mode === "fourWayJunction" ? "junction" : mode === "cap" ? "cap" : "straight";
+  const ports = { ...HOT_FLUID_PIPE_PRESETS[preset].ports };
+  if (mode === "leftJunction") ports.up = "exit";
+  if (mode === "rightJunction") ports.down = "exit";
+  return ports;
+}
+
+function getHotFluidPipePreset(pipe) {
+  const ports = getHotFluidPipeLocalPorts(pipe);
+  return Object.keys(HOT_FLUID_PIPE_PRESETS).find((preset) => CONVEYOR_ORIENTATIONS.every((side) =>
+    ports[side] === HOT_FLUID_PIPE_PRESETS[preset].ports[side])) ?? "custom";
+}
+
+function getHotFluidPipePortSides(pipe) {
+  const ports = getHotFluidPipeLocalPorts(pipe);
+  return CONVEYOR_ORIENTATIONS.map((localSide) => ({ localSide, role: ports[localSide],
+    side: rotateMachineDirection(localSide, pipe.orientation ?? "right") }));
+}
+
+function getHotFluidPipeInputDirections(pipe) {
+  return getHotFluidPipePortSides(pipe).filter(({ role }) => role === "entrance")
+    .map(({ side }) => getOppositeDirection(side));
+}
+
+// Compatibility helper for older single-inlet callers; routing uses all inlets.
+function getHotFluidPipeInputDirection(pipe) {
+  return getHotFluidPipeInputDirections(pipe)[0];
+}
+
+function getSavedHotFluidPipeOrientation(pipe) {
+  const orientation = pipe.orientation ?? "right";
+  // Older turns stored incoming flow as their facing. Preserve their physical
+  // connections while converting that facing to the main exit exactly once.
+  return getHotFluidPipeMode(pipe) === "turn" && pipe.pipeDirectionVersion !== 1 && !isValidHotFluidPipePorts(pipe.pipePorts)
+    ? rotateMachineDirection(pipe.turnSide === "right" ? "down" : "up", orientation)
+    : orientation;
 }
 
 function getHotFluidPipeOutputDirections(pipe) {
-  const local = {
-    straight: ["right"], leftJunction: ["right", "up"], rightJunction: ["right", "down"],
-    fourWayJunction: ["right", "up", "down"],
-    turn: [pipe.turnSide === "right" ? "down" : "up"], cap: [],
-  }[getHotFluidPipeMode(pipe)];
-  return local.map((direction) => rotateMachineDirection(direction, pipe.orientation ?? "right"));
+  const ports = getHotFluidPipeLocalPorts(pipe);
+  return ["right", "up", "down", "left"].filter((side) => ports[side] === "exit")
+    .map((side) => rotateMachineDirection(side, pipe.orientation ?? "right"));
+}
+
+function isHotFluidPipeCap(pipe) {
+  return getHotFluidPipeOutputDirections(pipe).length === 0;
+}
+
+function getHotFluidPipePlacementTemplate() {
+  return state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe")
+    ?? selectedPipePlacementConfiguration;
+}
+
+function configureHotFluidPipe(pipe, ports) {
+  if (pipe?.id !== "hotFluidPipe" || !isValidHotFluidPipePorts(ports)) return false;
+  const worldPorts = Object.fromEntries(CONVEYOR_ORIENTATIONS.map((side) => [
+    rotateMachineDirection(side, pipe.orientation ?? "right"), ports[side],
+  ]));
+  // Keep the facing on an exit. Reassigning that port changes the facing, not
+  // the physical sides the player just configured. A cap faces into its end.
+  const outputs = CONVEYOR_ORIENTATIONS.filter((side) => worldPorts[side] === "exit");
+  const orientation = outputs.includes(pipe.orientation) ? pipe.orientation : outputs[0]
+    ?? getOppositeDirection(CONVEYOR_ORIENTATIONS.find((side) => worldPorts[side] === "entrance"));
+  pipe.orientation = orientation;
+  pipe.pipePorts = Object.fromEntries(CONVEYOR_ORIENTATIONS.map((side) => [side,
+    worldPorts[rotateMachineDirection(side, orientation)]]));
+  pipe.pipeDirectionVersion = 1;
+  const preset = getHotFluidPipePreset(pipe);
+  pipe.mode = ["leftTurn", "rightTurn"].includes(preset) ? "turn"
+    : preset === "junction" ? "fourWayJunction" : preset;
+  pipe.turnSide = preset === "rightTurn" ? "right" : "left";
+  pipe.pipeNextOutputIndex = 0;
+  pipe.pipeFlowCredit = 0;
+  if (state.machines.includes(pipe)) {
+    invalidateFactoryConveyorCache();
+    refreshMachineStaticLayer();
+  }
+  lastFactoryOverlaySignature = null;
+  return true;
+}
+
+function setHotFluidPipePortRole(pipe, localSide, role) {
+  if (!CONVEYOR_ORIENTATIONS.includes(localSide) || !Object.hasOwn(HOT_FLUID_PIPE_PORT_ROLES, role)) return false;
+  return configureHotFluidPipe(pipe, { ...getHotFluidPipeLocalPorts(pipe), [localSide]: role });
+}
+
+function switchHotFluidPipePreset(pipe, preset) {
+  return Object.hasOwn(HOT_FLUID_PIPE_PRESETS, preset) && configureHotFluidPipe(pipe, HOT_FLUID_PIPE_PRESETS[preset].ports);
 }
 
 function getHotFluidPipeOutputPorts(pipe) {
@@ -44,7 +149,7 @@ function getHotFluidPipeNetwork() {
       const column = node.pipe.column + vector.column;
       const row = node.pipe.row + vector.row;
       const nextPipe = byTile.get(getFactoryTileKey(column, row));
-      if (nextPipe && direction === (nextPipe.orientation ?? "right")) {
+      if (nextPipe && getHotFluidPipeInputDirections(nextPipe).includes(direction)) {
         node.neighbours.add(nextPipe.instanceId);
         nodes.get(nextPipe.instanceId).neighbours.add(node.pipe.instanceId);
         return { direction, pipe: nextPipe };
@@ -106,7 +211,7 @@ function getFluidConsumerDemand(consumer, liquid, requestedItem = null) {
 }
 
 function canPipeReceiveFluid(pipe, liquid) {
-  if (getHotFluidPipeMode(pipe) === "cap" || !getHotFluidPipeNetwork().nodes.get(pipe.instanceId)?.sealed) return false;
+  if (isHotFluidPipeCap(pipe) || !getHotFluidPipeNetwork().nodes.get(pipe.instanceId)?.sealed) return false;
   const current = state.moltenCopper.find((entry) => getMoltenMetalOwnerInstanceId(entry) === pipe.instanceId);
   return (!current || current.material === liquid.material) && getPipeStoredWeight(pipe) < HOT_FLUID_PIPE_THROUGHPUT - 1e-9;
 }
@@ -197,7 +302,7 @@ function updateHotFluidPipes(deltaSeconds) {
       const port = getMachinePort(source, "liquidOutput");
       const vector = port?.direction && DIRECTION_VECTORS[port.direction];
       target = vector && network.byTile.get(getFactoryTileKey(port.column + vector.column, port.row + vector.row));
-      if (target?.orientation !== port?.direction) target = null;
+      if (target && !getHotFluidPipeInputDirections(target).includes(port?.direction)) target = null;
     }
     if (!target || !canPipeReceiveFluid(target, liquid)) return;
     const quantity = Math.min(getAvailableLiquidQuantity(liquid),
@@ -234,11 +339,9 @@ function getReadyFluidSourceLink(links, consumer) {
 
 function switchHotFluidPipeMode(pipe, mode, turnSide = pipe.turnSide ?? "left") {
   if (pipe?.id !== "hotFluidPipe" || !Object.hasOwn(HOT_FLUID_PIPE_MODES, mode)) return false;
+  const ports = getHotFluidPipeLocalPorts({ mode, turnSide });
+  if (!configureHotFluidPipe(pipe, ports)) return false;
   pipe.mode = mode;
   pipe.turnSide = turnSide === "right" ? "right" : "left";
-  pipe.pipeNextOutputIndex = 0;
-  pipe.pipeFlowCredit = 0;
-  invalidateFactoryConveyorCache();
-  refreshMachineStaticLayer();
   return true;
 }

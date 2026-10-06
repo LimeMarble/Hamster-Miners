@@ -150,20 +150,35 @@ function getFactoryCameraScrollLimits(viewportWidth, viewportHeight, zoom) {
   const worldTop = -FACTORY_PAN_MARGIN;
   const worldRight = FACTORY_CANVAS_WIDTH + FACTORY_PAN_MARGIN;
   const worldBottom = FACTORY_CANVAS_HEIGHT + FACTORY_PAN_MARGIN;
-  const visibleWidth = Math.max(0, Number(viewportWidth) || 0) / safeZoom;
-  const visibleHeight = Math.max(0, Number(viewportHeight) || 0) / safeZoom;
+  const width = Math.max(0, Number(viewportWidth) || 0);
+  const height = Math.max(0, Number(viewportHeight) || 0);
+  const visibleWidth = width / safeZoom;
+  const visibleHeight = height / safeZoom;
+  // Phaser scroll is measured from the unzoomed viewport. Zoom expands or
+  // contracts the visible world around its centre, not around its top-left.
+  const offsetX = (visibleWidth - width) / 2;
+  const offsetY = (visibleHeight - height) / 2;
   const minScrollX = visibleWidth >= worldRight - worldLeft
-    ? (worldLeft + worldRight - visibleWidth) / 2
-    : worldLeft;
+    ? (worldLeft + worldRight - width) / 2
+    : worldLeft + offsetX;
   const minScrollY = visibleHeight >= worldBottom - worldTop
-    ? (worldTop + worldBottom - visibleHeight) / 2
-    : worldTop;
+    ? (worldTop + worldBottom - height) / 2
+    : worldTop + offsetY;
 
   return {
     minScrollX,
-    maxScrollX: Math.max(minScrollX, worldRight - visibleWidth),
+    maxScrollX: Math.max(minScrollX, worldRight - visibleWidth + offsetX),
     minScrollY,
-    maxScrollY: Math.max(minScrollY, worldBottom - visibleHeight),
+    maxScrollY: Math.max(minScrollY, worldBottom - visibleHeight + offsetY),
+  };
+}
+
+function getFactoryCameraStartScroll(viewportWidth, viewportHeight, zoom) {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return {
+    scrollX: (FACTORY_STARTER_COLUMN_OFFSET + LEGACY_FACTORY_COLUMNS / 2) * FACTORY_TILE_SIZE
+      - viewportWidth / 2,
+    scrollY: (viewportHeight / safeZoom - viewportHeight) / 2,
   };
 }
 
@@ -1252,6 +1267,7 @@ const MACHINE_LAYOUT = Object.freeze({
     width: 1,
     height: 1,
     orientation: "right",
+    pipeDirectionVersion: 1,
     mode: "straight",
     turnSide: "left",
     movable: true,

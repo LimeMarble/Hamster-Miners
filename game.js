@@ -34,7 +34,9 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     FACTORY_PAN_MARGIN_TILES,
     FACTORY_STARTER_COLUMN_OFFSET,
     getFactoryCameraScrollLimits,
+    getFactoryCameraStartScroll,
     clampFactoryCameraScroll,
+    panFactoryCameraAtEdges,
     drawMachineFloor,
     drawMachinePreviewConveyors,
     refreshMachineStaticLayer,
@@ -75,8 +77,22 @@ if (IS_NODE_TEST_ENVIRONMENT) {
     receiveAggregateMixerItem,
     updateAggregateMixers,
     HOT_FLUID_PIPE_MODES,
+    HOT_FLUID_PIPE_PRESETS,
+    HOT_FLUID_PIPE_PORT_ROLES,
     HOT_FLUID_PIPE_THROUGHPUT,
     getHotFluidPipeMode,
+    getHotFluidPipeInputDirection,
+    getHotFluidPipeInputDirections,
+    getHotFluidPipeLocalPorts,
+    getHotFluidPipePortSides,
+    getHotFluidPipePreset,
+    isValidHotFluidPipePorts,
+    isHotFluidPipeCap,
+    configureHotFluidPipe,
+    setHotFluidPipePortRole,
+    switchHotFluidPipePreset,
+    getHotFluidPipePlacementTemplate,
+    renderHotFluidPipePortControls,
     getHotFluidPipeOutputDirections,
     getHotFluidPipeNetwork,
     switchHotFluidPipeMode,
@@ -337,16 +353,10 @@ elements.selectContactMakerButton.addEventListener("click", () => selectMachineF
 elements.selectMetalPressButton.addEventListener("click", () => selectMachineForPlacement("metalPress"));
 elements.selectGearPressButton.addEventListener("click", () => selectMachineForPlacement("gearPress"));
 elements.pipePlacementMode?.addEventListener("change", () => {
-  selectedPipePlacementMode = elements.pipePlacementMode.value;
-  const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
-  if (stored) stored.mode = selectedPipePlacementMode;
-  saveGame();
-});
-elements.pipePlacementTurnSide?.addEventListener("change", () => {
-  selectedPipeTurnSide = elements.pipePlacementTurnSide.value;
-  const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
-  if (stored) stored.turnSide = selectedPipeTurnSide;
-  saveGame();
+  if (switchHotFluidPipePreset(getHotFluidPipePlacementTemplate(), elements.pipePlacementMode.value)) {
+    saveGame();
+    renderInventoryDetail("hotFluidPipe");
+  }
 });
 elements.selectStackerButton.addEventListener("click", () => selectMachineForPlacement("stacker"));
 elements.selectSplitterButton.addEventListener("click", () => selectMachineForPlacement("splitter"));

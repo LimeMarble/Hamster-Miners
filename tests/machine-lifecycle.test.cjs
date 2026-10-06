@@ -15,7 +15,9 @@ test("all movable buildings keep the live floor and cargo rendering after placem
   for (const [id] of Object.entries(game.MACHINE_LAYOUT).filter(([, entry]) => entry.movable)) {
     const variants = id === "hotFluidPipe"
       ? [...Object.keys(game.HOT_FLUID_PIPE_MODES).map((mode) => ({ mode, turnSide: "left" })),
-        { mode: "turn", turnSide: "right" }]
+        { mode: "turn", turnSide: "right" },
+        { mode: "custom", pipePorts: { right: "exit", down: "exit", left: "entrance", up: "entrance" } },
+        { mode: "custom", pipePorts: { right: "exit", down: "entrance", left: "entrance", up: "entrance" } }]
       : [{}];
     for (const variant of variants) for (const orientation of ORIENTATIONS) {
       const context = `${id} ${variant.mode ?? "default"} ${variant.turnSide ?? ""} ${orientation}`;

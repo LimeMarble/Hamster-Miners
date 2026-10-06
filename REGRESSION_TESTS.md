@@ -328,6 +328,17 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Factory and visual layout
 
+- Universal pipe routing covers all 54 valid port-role configurations (50 with
+  entrances/exits and four one-port caps) in every rotation. Presets and custom
+  shapes use the same port map; preview arrows agree with actual routing.
+- Multi-input junctions conserve liquid quantity, effective value, and tags;
+  incompatible metals wait, blocked outputs are skipped, outgoing throughput
+  stays shared at 30 weight/s, and an open output stops the connected network.
+  Absent ports do not leak, caps accept no fluid, and closed loops conserve liquid.
+- Old turns keep their physical connections on migration. Custom maps remain
+  independent through movement, pickup, replacement and repeated save loads.
+  Port selectors remain mounted during fluid and unrelated machine updates.
+
 - Every placeable machine completes the full factory floor redraw in every
   orientation: existing machines, belts, and gun labels remain visible. Labels
   sit above the cached floor and do not linger on old footprints after movement
@@ -348,6 +359,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   unchanged 50×30 placement grid, including after zoom and viewport resizing.
 - Panning stays within those bounds throughout the full 45%–200% zoom range;
   changing zoom immediately reclamps the current view.
+- Bounds use Phaser's centre-based zoom transform rather than treating scroll
+  as the visible top-left. Tests check the actual visible edges across window
+  sizes, scroll limits, zoom changes, and edge-panning ticks. Returning to Factory
+  at a saved zoom centres the starter area and starts at the top; panning stops
+  outside the canvas. An axis centres when its entire factory extent fits.
 - Factory crew text appears in the reserved inert rows beside the gun.
 - The Clay Kiln, Bullet Core Caster, Ingot Molder, and Annealer liquid ports use
   the temporary blue conveyor styling until pipes exist.

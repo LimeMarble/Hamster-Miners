@@ -2270,6 +2270,22 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   font-weight: 750;
 }
 
+.pipe-port-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+#pipePlacementControls {
+  display: grid;
+  gap: 0.6rem;
+}
+
+#pipePlacementControls[hidden] {
+  display: none;
+}
+
 .machine-action-recipe-select {
   appearance: auto;
   min-width: 0;

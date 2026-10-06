@@ -408,9 +408,14 @@ function renderMachineInventory() {
 function renderInventoryDetail(machineId) {
   if (elements.pipePlacementControls) {
     elements.pipePlacementControls.hidden = machineId !== "hotFluidPipe";
-    const stored = state.machineInventoryInstances.find((machine) => machine.id === "hotFluidPipe");
-    elements.pipePlacementMode.value = stored ? getHotFluidPipeMode(stored) : selectedPipePlacementMode;
-    elements.pipePlacementTurnSide.value = stored?.turnSide ?? selectedPipeTurnSide;
+    if (machineId === "hotFluidPipe") {
+      const template = getHotFluidPipePlacementTemplate();
+      elements.pipePlacementMode.value = getHotFluidPipePreset(template);
+      renderHotFluidPipePortControls(template, elements.pipePlacementPorts, () => {
+        saveGame();
+        renderInventoryDetail("hotFluidPipe");
+      });
+    }
   }
   const card = [...elements.inventoryMachineCards].find((candidate) => (
     candidate.dataset.inventoryMachine === machineId
@@ -478,6 +483,9 @@ function setShopCategory(category) {
 }
 
 function getFactoryMachineProgressState(machine) {
+  if (machine?.id === "hotFluidPipe") {
+    return JSON.stringify([machine.orientation, getHotFluidPipeLocalPorts(machine)]);
+  }
   if (!machine || machine.id === "materialStorage") {
     return "";
   }
@@ -916,6 +924,37 @@ function addMachineActionNote(text, key = null) {
   elements.machineActions.append(note);
 }
 
+function renderHotFluidPipePortControls(pipe, container, onChange) {
+  if (!container) return;
+  const signature = JSON.stringify([pipe.instanceId ?? "placement", pipe.orientation, getHotFluidPipeLocalPorts(pipe)]);
+  if (container.dataset.pipeControlSignature === signature) return;
+  container.dataset.pipeControlSignature = signature;
+  container.replaceChildren();
+  const sides = getHotFluidPipePortSides(pipe).sort((a, b) =>
+    ["up", "right", "down", "left"].indexOf(a.side) - ["up", "right", "down", "left"].indexOf(b.side));
+  sides.forEach(({ localSide, side, role }) => {
+    const label = document.createElement("label");
+    label.className = "machine-action-recipe-label";
+    label.textContent = `${getOrientationSymbol(side)} ${side[0].toUpperCase()}${side.slice(1)}`;
+    const select = document.createElement("select");
+    select.className = "machine-action-recipe-select";
+    select.setAttribute("aria-label", `Pipe ${side} port`);
+    Object.entries(HOT_FLUID_PIPE_PORT_ROLES).forEach(([value, text]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = text;
+      option.disabled = !isValidHotFluidPipePorts({ ...getHotFluidPipeLocalPorts(pipe), [localSide]: value });
+      select.append(option);
+    });
+    select.value = role;
+    select.addEventListener("change", () => {
+      if (setHotFluidPipePortRole(pipe, localSide, select.value)) onChange();
+    });
+    label.append(select);
+    container.append(label);
+  });
+}
+
 function toggleAmmoShaperMode() {
   state.mine.ammoShaperMode = state.mine.ammoShaperMode === "coated" ? "basic" : "coated";
   addLog(
@@ -1198,14 +1237,14 @@ function renderMachineActions(machine) {
     addMachineActionNote(getMachineActionProgressNote(machine), "aggregate-mixer-progress");
   }
   if (machine.id === "hotFluidPipe") {
-    Object.entries(HOT_FLUID_PIPE_MODES).forEach(([mode, label]) => addMachineAction(
-      `${label}${getHotFluidPipeMode(machine) === mode ? " (selected)" : ""}`,
-      () => { if (switchHotFluidPipeMode(machine, mode)) { saveGame(); render(); } }, getHotFluidPipeMode(machine) === mode,
+    Object.entries(HOT_FLUID_PIPE_PRESETS).forEach(([preset, { label }]) => addMachineAction(
+      `${label}${getHotFluidPipePreset(machine) === preset ? " (selected)" : ""}`,
+      () => { if (switchHotFluidPipePreset(machine, preset)) { saveGame(); render(); } }, getHotFluidPipePreset(machine) === preset,
     ));
-    if (getHotFluidPipeMode(machine) === "turn") {
-      ["left", "right"].forEach((side) => addMachineAction(`Turn ${side}${machine.turnSide === side ? " (selected)" : ""}`,
-        () => { switchHotFluidPipeMode(machine, "turn", side); saveGame(); render(); }, machine.turnSide === side));
-    }
+    const ports = document.createElement("div");
+    ports.className = "pipe-port-controls";
+    renderHotFluidPipePortControls(machine, ports, () => { saveGame(); render(); });
+    elements.machineActions.append(ports);
     addMachineActionNote(getMachineActionProgressNote(machine), "hot-fluid-pipe-progress");
   }
 
@@ -1663,13 +1702,8 @@ function renderMachineGrid() {
         const camera = machineScene.cameras.main;
         camera.roundPixels = true;
         camera.setZoom(factoryCameraZoom);
-        camera.scrollX = Math.max(
-          0,
-          (FACTORY_STARTER_COLUMN_OFFSET + LEGACY_FACTORY_COLUMNS / 2) * FACTORY_TILE_SIZE
-            - camera.width / (2 * camera.zoom),
-        );
-        camera.scrollY = 0;
-        clampFactoryCameraScroll(camera);
+        const start = getFactoryCameraStartScroll(camera.width, camera.height, camera.zoom);
+        clampFactoryCameraScroll(camera, start.scrollX, start.scrollY);
         drawMachineFloor(machineScene);
         machineOverlay = machineScene.add.graphics();
         machineOverlay.setDepth(2);
@@ -1695,35 +1729,34 @@ function renderMachineGrid() {
           clampFactoryCameraScroll(camera);
         });
         machineScene.events.on("update", (time, delta) => {
-          const pointer = machineScene.input.activePointer;
-          if (!factoryPointerInside || !pointer || pointer.withinGame === false) {
-            return;
-          }
-          const edgeDistance = 72;
-          const horizontalStrength = pointer.x < edgeDistance
-            ? -(edgeDistance - pointer.x) / edgeDistance
-            : pointer.x > machineScene.scale.width - edgeDistance
-              ? (pointer.x - (machineScene.scale.width - edgeDistance)) / edgeDistance
-              : 0;
-          const verticalStrength = pointer.y < edgeDistance
-            ? -(edgeDistance - pointer.y) / edgeDistance
-              : pointer.y > machineScene.scale.height - edgeDistance
-                ? (pointer.y - (machineScene.scale.height - edgeDistance)) / edgeDistance
-                : 0;
-          const panSpeed = 650 * (delta / 1000) / camera.zoom;
-          const nextScrollX = Number.isFinite(camera.scrollX)
-            ? camera.scrollX + horizontalStrength * panSpeed
-            : 0;
-          const nextScrollY = Number.isFinite(camera.scrollY)
-            ? camera.scrollY + verticalStrength * panSpeed
-            : 0;
-          clampFactoryCameraScroll(camera, nextScrollX, nextScrollY);
+          panFactoryCameraAtEdges(camera, machineScene.input.activePointer, delta, factoryPointerInside);
         });
         renderMachineOverlay();
         window.requestAnimationFrame?.(() => resizeFactoryScene());
       },
     },
   });
+}
+
+function panFactoryCameraAtEdges(camera, pointer, delta, insideCanvas) {
+  if (!insideCanvas || !pointer || pointer.withinGame === false || !Number.isFinite(delta) || delta <= 0) return false;
+  const x = pointer.x - (camera.x ?? 0), y = pointer.y - (camera.y ?? 0);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > camera.width || y > camera.height) return false;
+  const strength = (position, size) => {
+    const edge = Math.min(72, size / 2);
+    if (edge <= 0) return 0;
+    if (position < edge) return -(edge - position) / edge;
+    if (position > size - edge) return (position - (size - edge)) / edge;
+    return 0;
+  };
+  const horizontal = strength(x, camera.width), vertical = strength(y, camera.height);
+  if (!horizontal && !vertical) return false;
+  const speed = 650 * (delta / 1000) / camera.zoom;
+  const oldX = camera.scrollX, oldY = camera.scrollY;
+  clampFactoryCameraScroll(camera,
+    (Number.isFinite(oldX) ? oldX : 0) + horizontal * speed,
+    (Number.isFinite(oldY) ? oldY : 0) + vertical * speed);
+  return camera.scrollX !== oldX || camera.scrollY !== oldY;
 }
 
 function resizeFactoryScene() {
@@ -2896,7 +2929,7 @@ function getFactoryOverlaySignature() {
     `${getConveyorIdentity(conveyor)}:${conveyor.direction}:${item.kind}:${item.material}:${item.quantity}:${Number(item.tileProgress ?? 0).toFixed(2)}`
   )).join("|");
   const machineState = state.machines.map((machine) => (
-    `${machine.instanceId}:${machine.column}:${machine.row}:${machine.orientation ?? "right"}`
+    `${machine.instanceId}:${machine.column}:${machine.row}:${machine.orientation ?? "right"}:${machine.id === "hotFluidPipe" ? JSON.stringify(getHotFluidPipeLocalPorts(machine)) : ""}`
   )).join("|");
   const selectedStack = getSelectedAmmoStack();
   return [
@@ -2920,6 +2953,7 @@ function getFactoryOverlaySignature() {
       : "",
     selectedBuildTool ?? "",
     selectedBuildOrientation,
+    selectedBuildTool === "hotFluidPipe" ? JSON.stringify(getHotFluidPipeLocalPorts(getHotFluidPipePlacementTemplate())) : "",
     hoveredFactoryTile?.column ?? "",
     hoveredFactoryTile?.row ?? "",
     getTutorialStage(),
@@ -3099,6 +3133,9 @@ function renderMachineOverlay() {
     } else {
       const previewMachine = {
         ...selectedMachine,
+        id: selectedBuildTool,
+        ...(selectedBuildTool === "hotFluidPipe"
+          ? { pipePorts: getHotFluidPipeLocalPorts(getHotFluidPipePlacementTemplate()) } : {}),
         column: hoveredFactoryTile.column,
         row: hoveredFactoryTile.row,
         orientation: selectedBuildOrientation,
@@ -3147,9 +3184,8 @@ function renderMachineOverlay() {
 function drawMachinePreviewConveyors(graphics, machine, isValid) {
   if (machine.id === "aggregateMixer") drawAggregateMixerPorts(graphics, machine, isValid);
   if (machine.id === "hotFluidPipe") {
-    const stored = state.machineInventoryInstances.find((candidate) => candidate.id === "hotFluidPipe");
-    drawHotFluidPipeTile(graphics, { ...machine, mode: stored?.mode ?? selectedPipePlacementMode,
-      turnSide: stored?.turnSide ?? selectedPipeTurnSide }, isValid);
+    drawHotFluidPipeTile(graphics, machine.instanceId || isValidHotFluidPipePorts(machine.pipePorts) ? machine
+      : { ...machine, pipePorts: getHotFluidPipeLocalPorts(getHotFluidPipePlacementTemplate()) }, isValid);
   }
   const fillColor = isValid ? 0x4e7180 : 0x713f3a;
   const arrowColor = isValid ? 0xd6f5ff : 0xf1b0a4;
@@ -3213,6 +3249,7 @@ function drawMachineUpgradeTile(graphics, tile, isValid, opacity) {
 }
 
 function drawMachinePlacementDirectionIndicator(graphics, machine, isValid) {
+  if (machine.id === "hotFluidPipe" && isHotFluidPipeCap(machine)) return;
   if (!machine.orientation) {
     return;
   }
@@ -3320,7 +3357,8 @@ function drawAggregateMixerPorts(graphics, mixer, valid) {
 function drawHotFluidPipeTile(graphics, pipe, valid) {
   const center = getMachineTileCenter(pipe.column, pipe.row);
   const half = FACTORY_TILE_SIZE / 2;
-  const directions = [getOppositeDirection(pipe.orientation ?? "right"), ...getHotFluidPipeOutputDirections(pipe)];
+  const ports = getHotFluidPipePortSides(pipe).filter(({ role }) => role !== "absent");
+  const directions = ports.map(({ side }) => side);
   graphics.lineStyle(18, valid ? 0x555d68 : 0x713f3a, 1);
   directions.forEach((direction) => {
     const vector = DIRECTION_VECTORS[direction];
@@ -3336,13 +3374,21 @@ function drawHotFluidPipeTile(graphics, pipe, valid) {
   graphics.fillStyle(valid ? 0xe3a56e : 0xf1b0a4, 1);
   graphics.fillCircle(center.x, center.y, 5);
   graphics.fillStyle(valid ? 0x302116 : 0x713f3a, 1);
-  getHotFluidPipeOutputDirections(pipe).forEach((direction) => {
+  ports.forEach(({ side: direction, role }) => {
     const vector = DIRECTION_VECTORS[direction];
     const x = center.x + vector.column * half * 0.65;
     const y = center.y + vector.row * half * 0.65;
-    graphics.fillTriangle(x + vector.column * 4, y + vector.row * 4,
+    const sign = role === "exit" ? 1 : -1;
+    graphics.fillStyle(valid ? (role === "exit" ? 0x302116 : 0x1d4856) : 0x713f3a, 1);
+    graphics.fillTriangle(x + sign * vector.column * 4, y + sign * vector.row * 4,
       x - vector.row * 3, y + vector.column * 3, x + vector.row * 3, y - vector.column * 3);
   });
+  if (isHotFluidPipeCap(pipe)) {
+    const vector = DIRECTION_VECTORS[directions[0]];
+    graphics.lineStyle(3, valid ? 0x302116 : 0x713f3a, 1);
+    graphics.lineBetween(center.x - vector.row * 6, center.y + vector.column * 6,
+      center.x + vector.row * 6, center.y - vector.column * 6);
+  }
 }
 
 function drawConveyorItemBuffers() {

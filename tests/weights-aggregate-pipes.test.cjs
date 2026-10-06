@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
+const { ORIENTATIONS, drawingScene, drawingGraphics, freshFactory } = require("./helpers/factory-rendering.cjs");
 global.window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };
 global.document = { querySelector: () => null, querySelectorAll: () => [] };
 const game = require("../game.js");
@@ -233,10 +234,120 @@ test("Hot Fluid Pipe is one Logistics item with all six forms and the approved p
   assert.equal(game.getMachineCategory("hotFluidPipe"), "logistics");
   assert.deepEqual(Object.keys(game.HOT_FLUID_PIPE_MODES), ["straight", "leftJunction", "rightJunction", "fourWayJunction", "turn", "cap"]);
   const forms = { straight: ["right"], leftJunction: ["right", "up"], rightJunction: ["right", "down"],
-    fourWayJunction: ["right", "up", "down"], turn: ["up"], cap: [] };
+    fourWayJunction: ["right", "up", "down"], turn: ["right"], cap: [] };
   for (const [mode, expected] of Object.entries(forms)) assert.deepEqual(game.getHotFluidPipeOutputDirections(pipe("mode", 5, 5, "right", mode)), expected);
-  assert.deepEqual(game.getHotFluidPipeOutputDirections(pipe("turn", 5, 5, "right", "turn", { turnSide: "right" })), ["down"]);
+  assert.deepEqual(game.getHotFluidPipeOutputDirections(pipe("turn", 5, 5, "right", "turn", { turnSide: "right" })), ["right"]);
   assert.deepEqual(game.getHotFluidPipeOutputDirections(pipe("rotate", 5, 5, "up", "leftJunction")), ["up", "left"]);
+});
+
+test("Q/E and pipe previews match the main exit in every form, orientation and bend direction", () => {
+  const vectors = { right: [1, 0], down: [0, 1], left: [-1, 0], up: [0, -1] };
+  const bendInputs = { left: { right: "down", down: "left", left: "up", up: "right" },
+    right: { right: "up", down: "right", left: "down", up: "left" } };
+  for (const mode of Object.keys(game.HOT_FLUID_PIPE_MODES)) for (const turnSide of ["left", "right"]) {
+    const state = freshFactory(game);
+    const owner = pipe("preview-pipe", 20, 10, "right", mode, { turnSide });
+    state.machineInventoryInstances.push(owner);
+    state.machineInventory.hotFluidPipe = 1;
+    const rendering = drawingScene(), overlay = drawingGraphics();
+    game.__setFactorySceneForTests(rendering.scene, overlay);
+    game.__setFactoryPreviewForTests("hotFluidPipe", "right", { column: 20, row: 10 });
+    try {
+      for (const orientation of ORIENTATIONS) {
+        const candidate = { ...owner, orientation };
+        const inputDirection = mode === "turn" ? bendInputs[turnSide][orientation] : orientation;
+        assert.equal(game.getHotFluidPipeInputDirection(candidate), inputDirection);
+        game.renderMachineOverlay();
+        const [inputX, inputY] = vectors[inputDirection];
+        assert.ok(overlay.calls.some(({ name, args }) => name === "lineBetween"
+          && args[0] === 656 && args[1] === 336
+          && args[2] === 656 - inputX * 16 && args[3] === 336 - inputY * 16),
+        `${mode} ${turnSide} ${orientation}: preview must draw the real inlet`);
+        if (mode !== "cap") {
+          assert.equal(game.getHotFluidPipeOutputDirections(candidate)[0], orientation);
+          const [x, y] = vectors[orientation];
+          assert.ok(overlay.calls.some(({ name, args }) => name === "fillTriangle"
+            && args[0] === 656 + x * (16 * 0.65 + 4) && args[1] === 336 + y * (16 * 0.65 + 4)),
+          `${mode} ${turnSide} ${orientation}: exit arrow must match Q/E direction`);
+        } else {
+          assert.equal(overlay.calls.filter(({ name, args }) => name === "fillTriangle"
+            && args[0] >= 640 && args[0] < 672 && args[1] >= 320 && args[1] < 352).length, 1,
+          "cap previews must not invent an outgoing facing arrow");
+        }
+        game.rotateSelectedBuild("clockwise");
+      }
+      // Reverse rotation uses the same exit-based convention.
+      game.rotateSelectedBuild("counterclockwise");
+      game.placeMachine("hotFluidPipe", 20, 10);
+      const placed = state.machines.find(({ instanceId }) => instanceId === owner.instanceId);
+      assert.equal(placed.orientation, "up");
+      if (mode !== "cap") assert.equal(game.getHotFluidPipeOutputDirections(placed)[0], "up");
+      game.__setFactorySelection([{ type: "machine", id: placed.id, instanceId: placed.instanceId }]);
+      game.rotateSelectedBuild("clockwise");
+      assert.equal(placed.orientation, "right");
+      if (mode !== "cap") assert.equal(game.getHotFluidPipeOutputDirections(placed)[0], "right");
+    } finally {
+      game.__setFactorySceneForTests(null, null);
+      game.__setFactoryPreviewForTests(null, "right", null);
+      game.__setFactorySelection([]);
+    }
+  }
+});
+
+test("exit-facing turns accept pipe and smelter feeds at the real inlet and supply the caster", () => {
+  const vectors = { right: [1, 0], down: [0, 1], left: [-1, 0], up: [0, -1] };
+  const bendInputs = { left: { right: "down", down: "left", left: "up", up: "right" },
+    right: { right: "up", down: "right", left: "down", up: "left" } };
+  const alignPort = (owner, property, column, row) => {
+    const port = game.getMachinePort(owner, property);
+    owner.column += column - port.column;
+    owner.row += row - port.row;
+    return owner;
+  };
+  for (const orientation of ORIENTATIONS) for (const turnSide of ["left", "right"])
+    for (const sourceType of ["hotFluidPipe", "clayKiln", "miniElectricArcFurnace"]) {
+      const bend = pipe("exit-bend", 20, 14, orientation, "turn", { turnSide });
+      const inputDirection = bendInputs[turnSide][orientation];
+      const [inputX, inputY] = vectors[inputDirection], [outputX, outputY] = vectors[orientation];
+      const source = sourceType === "hotFluidPipe"
+        ? pipe("exit-source", bend.column - inputX, bend.row - inputY, inputDirection)
+        : alignPort(machine(sourceType, "exit-source", 0, 0, inputDirection), "liquidOutput",
+          bend.column - inputX, bend.row - inputY);
+      const caster = alignPort(machine("refractoryCaster", "exit-caster", 0, 0, orientation), "liquidInput",
+        bend.column + outputX, bend.row + outputY);
+      const state = fresh([source, bend, caster]);
+      state.moltenCopper.push(liquid(source, "silver", 4, { sourceValue: 313, sourceValueIsEffective: true }));
+      assert.equal(game.getHotFluidPipeNetwork().nodes.get(bend.instanceId).sealed, true);
+      game.updateHotFluidPipes(1);
+      assert.equal(game.startMolderJob(), true, `${sourceType} ${orientation} ${turnSide}: fluid must reach the exit`);
+      assert.equal(state.molderJobs[0].material, "silver");
+      assert.equal(state.molderJobs[0].quantity, 4);
+      assert.equal(state.molderJobs[0].sourceValue, 313);
+    }
+});
+
+test("old turn directions migrate once without changing pipe connections or liquid ownership", () => {
+  const incoming = pipe("legacy-incoming", 10, 11, "up");
+  const bend = pipe("legacy-bend", 10, 10, "up", "turn", { turnSide: "right" });
+  const caster = machine("refractoryCaster", "legacy-caster", 11, 9);
+  const stored = pipe("legacy-stored", 20, 10, "left", "turn", { turnSide: "left" });
+  const state = fresh([incoming, bend, caster], { machineInventoryInstances: [stored] });
+  state.moltenCopper.push(liquid(bend, "bronze", 2, { sourceValue: 99 }));
+  delete bend.pipeDirectionVersion;
+  delete stored.pipeDirectionVersion;
+  const restored = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
+  game.__setState(restored);
+  const migrated = restored.machines.find(({ instanceId }) => instanceId === bend.instanceId);
+  assert.equal(migrated.orientation, "right");
+  assert.equal(game.getHotFluidPipeInputDirection(migrated), "up");
+  assert.equal(migrated.pipeDirectionVersion, 1);
+  assert.equal(restored.machineInventoryInstances[0].orientation, "down");
+  assert.equal(game.getHotFluidPipeNetwork().nodes.get(incoming.instanceId).sealed, true);
+  assert.equal(restored.moltenCopper[0].smelterInstanceId, bend.instanceId);
+  assert.equal(restored.moltenCopper[0].sourceValue, 99);
+  const reloaded = game.hydrateSavedState(JSON.parse(JSON.stringify(restored)));
+  assert.equal(reloaded.machines.find(({ instanceId }) => instanceId === bend.instanceId).orientation, "right");
+  assert.equal(reloaded.machineInventoryInstances[0].orientation, "down");
 });
 
 test("one open outlet stops the whole connected network, caps seal it and separate networks keep running", () => {
@@ -295,7 +406,7 @@ test("pipe throughput caps total outgoing fluid weight at thirty per second", ()
 test("junctions skip blocked/capped exits and preserve fluid instead of leaking or changing metal", () => {
   const root = pipe("split-root", 5, 5, "right", "leftJunction");
   const cap = pipe("closed-forward", 6, 5, "right", "cap");
-  const turn = pipe("split-turn", 5, 4, "up", "turn", { turnSide: "right" });
+  const turn = pipe("split-turn", 5, 4, "right", "turn", { turnSide: "right" });
   const caster = machine("refractoryCaster", "split-caster", 6, 3);
   const state = fresh([root, cap, turn, caster]);
   assert.equal(game.getHotFluidPipeNetwork().nodes.get(root.instanceId).sealed, true);
@@ -451,7 +562,7 @@ test("a full pipe exit is skipped while an alternative sealed branch keeps flowi
   const full = pipe("full-exit", 6, 5);
   const firstCaster = machine("refractoryCaster", "blocked-end", 7, 4);
   const upper = pipe("upper-exit", 5, 4, "up");
-  const bend = pipe("upper-bend", 5, 3, "up", "turn", { turnSide: "right" });
+  const bend = pipe("upper-bend", 5, 3, "right", "turn", { turnSide: "right" });
   const secondCaster = machine("refractoryCaster", "working-end", 6, 2);
   const state = fresh([root, full, firstCaster, upper, bend, secondCaster]);
   state.moltenCopper.push(liquid(root, "iron", 5), liquid(full, "iron", 30));

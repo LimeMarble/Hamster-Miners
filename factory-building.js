@@ -176,7 +176,9 @@ function placeMachine(machineId, column, row) {
       orientation: selectedBuildOrientation,
     });
   if (machineId === "hotFluidPipe" && !storedInstance) {
-    Object.assign(state.machines.at(-1), { mode: selectedPipePlacementMode, turnSide: selectedPipeTurnSide });
+    const template = getHotFluidPipePlacementTemplate();
+    Object.assign(state.machines.at(-1), { pipePorts: getHotFluidPipeLocalPorts(template),
+      pipeDirectionVersion: 1, mode: template.mode, turnSide: template.turnSide });
   }
   invalidateFactoryConveyorCache();
   selectedBuildTool = state.machineInventory[machineId] > 0 ? machineId : null;
@@ -278,7 +280,8 @@ function selectMachineForPlacement(machineId) {
   factoryTapSelection = null;
   selectedBuildOrientation = state.machineInventoryInstances.find((machine) => (
     machine.id === machineId
-  ))?.orientation ?? MACHINE_LAYOUT[machineId].orientation ?? "right";
+  ))?.orientation ?? (machineId === "hotFluidPipe" ? getHotFluidPipePlacementTemplate().orientation
+    : MACHINE_LAYOUT[machineId].orientation) ?? "right";
   selectedFactoryEntity = null;
   selectedFactoryEntities = [];
   groupMoveState = null;
