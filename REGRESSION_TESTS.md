@@ -197,6 +197,15 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Adjacent Stackers hand cargo directly to each other, including perpendicular
   and partly filled saved buffers. Ordinary Stackers use belt weight capacity 5
   and one output per normal belt transit cycle; each hop has its own timer.
+- Sustained full-factory updates emit one stack per second after startup, with
+  direct or belt-fed inputs, one- or three-item batches, all orientations, and
+  either machine order in a chain. Ready downstream batches leave first instead
+  of forcing unnecessary partial handoffs. Incoming belts can stage at the
+  entrance, but transfers still respect capacity, compatibility and blockage.
+- A ready output is retried without added time after its outgoing belt vacates.
+  Conveyor completion tolerates fractional tick rounding, avoiding an extra
+  tick at nominal one-second transit. Freshly received cargo gains no old transit
+  time, blocked outputs cannot bank bursts, and quantities remain conserved.
   Full blocked loops, mixed materials/tags, oversized legacy batches, save/load,
   speed cheats and blocked-time bursts are covered. Buffer/timer changes do not
   rebuild the machine controls. Browser scripts share a cache version so old

@@ -1454,8 +1454,11 @@ function updateFactory(deltaSeconds) {
   updateHotFluidPipes(deltaSeconds);
   updateAggregateMixers(deltaSeconds);
   flushGearPressOutputs();
-  emitStackerOutputs(deltaSeconds);
+  const stackerOutputsWaiting = emitStackerOutputs(deltaSeconds);
   advanceConveyorItems(deltaSeconds);
+  // A departing belt object must not block a ready Stacker for an extra tick.
+  // This retry grants no time to newly arrived cargo or chained Stackers.
+  if (stackerOutputsWaiting) emitStackerOutputs();
   flushMolderOutputs();
   flushArcFurnaceOutputs();
   startMolderJob();

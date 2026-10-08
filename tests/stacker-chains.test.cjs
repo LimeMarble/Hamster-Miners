@@ -22,6 +22,62 @@ function feed(machine, item = cargo()) {
 }
 function buffered(state, machine) { return state.stackerBuffers[machine.instanceId]?.quantity ?? 0; }
 
+test("Stacker sustains one stack per second through an unblocked belt in real factory ticks", () => {
+  for (const [orientation, [dx, dy]] of Object.entries(vectors)) for (const stackSize of [1, 3])
+    for (const beltFed of [false, true]) {
+    const source = stacker("sustained", 10, 10, orientation, stackSize);
+    const outlet = { column: 10 + dx, row: 10 + dy, direction: orientation, item: null };
+    const input = { column: 10 - dx, row: 10 - dy, direction: orientation, item: null };
+    const storage = { ...game.MACHINE_LAYOUT.materialStorage, id: "materialStorage", instanceId: "sink",
+      column: 10 + 2 * dx - (dx < 0 ? 3 : 0), row: 10 + 2 * dy - (dy < 0 ? 3 : 0) };
+    const state = fresh([source, storage], beltFed ? [input, outlet] : [outlet]);
+    state.stockpile.bronzePlate = 0;
+    const emittedAt = [];
+    let previous = 0, supplied = 0;
+    for (let tick = 1; tick <= 60; tick++) {
+      if (beltFed) {
+        if (!input.item) {
+          assert.equal(game.placeItemOnConveyor(input, cargo(stackSize, { tileProgress: 0 })), true);
+          supplied += stackSize;
+        }
+      } else if (game.canReceiveConveyorItem(cargo(stackSize), source.column, source.row)) {
+        feed(source, cargo(stackSize));
+        supplied += stackSize;
+      }
+      game.updateFactory(0.1);
+      const departed = state.stockpile.bronzePlate + (outlet.item?.quantity ?? 0);
+      assert.equal(departed + buffered(state, source) + (input.item?.quantity ?? 0), supplied);
+      assert.ok(buffered(state, source) <= 5, "the timing fix cannot overfill the Stacker");
+      if (departed > previous) emittedAt.push(tick);
+      previous = departed;
+    }
+    assert.deepEqual(emittedAt, beltFed ? [20, 30, 40, 50, 60] : [10, 20, 30, 40, 50, 60],
+      `${orientation}, ${stackSize} items per stack, beltFed=${beltFed}`);
+    assert.equal(previous, (beltFed ? 5 : 6) * stackSize);
+  }
+});
+
+test("adjacent Stacker chains sustain belt cadence regardless of machine order", () => {
+  for (const reverse of [false, true]) {
+    const source = stacker("stream-source", 10, 10), target = stacker("stream-target", 11, 10);
+    const outlet = { column: 12, row: 10, direction: "right", item: null };
+    const storage = { ...game.MACHINE_LAYOUT.materialStorage, id: "materialStorage", instanceId: "chain-sink",
+      column: 13, row: 10 };
+    const state = fresh(reverse ? [target, source, storage] : [source, target, storage], [outlet]);
+    state.stockpile.bronzePlate = 0;
+    const emittedAt = [];
+    let previous = 0;
+    for (let tick = 1; tick <= 60; tick++) {
+      if (game.canReceiveConveyorItem(cargo(3), source.column, source.row)) feed(source);
+      game.updateFactory(0.1);
+      const departed = state.stockpile.bronzePlate + (outlet.item?.quantity ?? 0);
+      if (departed > previous) emittedAt.push(tick);
+      previous = departed;
+    }
+    assert.deepEqual(emittedAt, [20, 30, 40, 50, 60], `reverse=${reverse}`);
+  }
+});
+
 test("Stacker hands its batch directly to an adjacent Stacker after normal belt transit", () => {
   const source = stacker("source", 10, 10), target = stacker("target", 11, 10);
   const state = fresh([source, target]);
@@ -111,6 +167,26 @@ test("a full blocked downstream Stacker blocks upstream intake and preserves all
   assert.ok(game.getCargoWeight(state.stackerBuffers[target.instanceId].item) <= 5);
 });
 
+test("an incoming stack can wait at the entrance without overflowing a truly blocked Stacker", () => {
+  const machine = stacker("waiting-input", 10, 10);
+  const input = { column: 9, row: 10, direction: "right", item: cargo(3, { tileProgress: 0 }) };
+  const outlet = { column: 11, row: 10, direction: "right", item: cargo(1, { material: "clay" }) };
+  const state = fresh([machine], [input, outlet]);
+  feed(machine);
+  for (let tick = 0; tick < 15; tick++) game.updateFactory(0.1);
+  assert.equal(buffered(state, machine), 3);
+  assert.equal(input.item.quantity, 3);
+  assert.equal(input.item.tileProgress, 1);
+  assert.equal(outlet.item.material, "clay");
+  outlet.item = null;
+  game.updateFactory(0.1);
+  assert.equal(outlet.item.quantity, 3);
+  assert.equal(input.item, null);
+  assert.equal(buffered(state, machine), 3);
+  assert.equal(state.stackerBuffers[machine.instanceId].outputProgress ?? 0, 0,
+    "an arriving batch cannot inherit the elapsed time of the batch that just left");
+});
+
 test("direct handoffs do not merge incompatible materials, upgrade tags or ammo damage", () => {
   for (const different of [cargo(1, { material: "silverPlate" }), cargo(1, { bronzeStampUses: 3 }),
     { kind: "ammo", material: "lead", type: "rapidfire", damage: 5, quantity: 1 }]) {
@@ -187,7 +263,8 @@ test("legacy oversized heavy buffers drain through chained Stackers without losi
   assert.equal(buffered(state, target), 2);
   game.emitStackerOutputs(1);
   assert.equal(belt.item.quantity, 2);
-  assert.equal(buffered(state, source), 1);
+  assert.equal(buffered(state, source), 0);
+  assert.equal(buffered(state, target), 1, "the ready remainder can enter as the downstream batch leaves");
   state = game.hydrateSavedState(JSON.parse(JSON.stringify(state)));
   game.__setState(state);
   state.placedConveyors[0].item = null;

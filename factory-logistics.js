@@ -2360,7 +2360,19 @@ function emitStackerOutputs(deltaSeconds = 0) {
       + Math.max(0, Number(deltaSeconds) || 0) / getConveyorSecondsPerTile(getStackerConveyor(stacker)));
     if (buffer.outputProgress >= 1 - 1e-9) ready.push({ stacker, buffer, pendingQuantity });
   });
-  ready.forEach(({ stacker, buffer, pendingQuantity }) => {
+  const byInstance = new Map(ready.map((entry) => [entry.stacker.instanceId, entry]));
+  const visited = new Set();
+  const emitReady = (entry) => {
+    const { stacker, buffer, pendingQuantity } = entry;
+    if (visited.has(stacker.instanceId)) return;
+    visited.add(stacker.instanceId);
+    // A downstream batch that is already ready must depart before an upstream
+    // batch fills its remaining capacity. Otherwise whole batches get split
+    // solely because of machine array order, halving a chain's throughput.
+    const vector = DIRECTION_VECTORS[stacker.orientation ?? "right"];
+    const downstream = getStackerAt(stacker.column + vector.column, stacker.row + vector.row);
+    const downstreamReady = downstream && byInstance.get(downstream.instanceId);
+    if (downstreamReady) emitReady(downstreamReady);
     const outputItem = {
       ...buffer.item,
       quantity: Math.min(pendingQuantity, buffer.quantity),
@@ -2383,7 +2395,9 @@ function emitStackerOutputs(deltaSeconds = 0) {
       state.stackerBuffers[stacker.instanceId] = buffer;
     }
     addLog(`Stacker released ${formatNumber(emitted)} ${MATERIAL_LABELS[outputItem.material] ?? "items"}.`);
-  });
+  };
+  ready.forEach(emitReady);
+  return ready.some(({ buffer }) => buffer.outputProgress >= 1 - 1e-9);
 }
 
 function getContactMakerInputState(instanceId) {
@@ -2942,7 +2956,7 @@ function createConveyorMovementResolver(requiresCompletedTile) {
     }
 
     const item = getConveyorItem(conveyor);
-    if (!item || (requiresCompletedTile && (item.tileProgress ?? 0) < 1) || resolving.has(identity)) {
+    if (!item || (requiresCompletedTile && (item.tileProgress ?? 0) < 1 - 1e-9) || resolving.has(identity)) {
       return false;
     }
 
@@ -2974,8 +2988,16 @@ function advanceConveyorItems(deltaSeconds) {
     markItemForDuster(item, conveyor.column, conveyor.row);
 
     if (!canMakeProgress(conveyor)) {
-      item.tileProgress = 0;
-      return;
+      const destination = getConveyorOutputPosition(conveyor);
+      const stacker = getStackerAt(destination.column, destination.row);
+      // A Stacker's outgoing batch may still be crossing its belt. Incoming
+      // cargo can approach the entrance in parallel; the actual handoff below
+      // still requires free buffer capacity and a compatible item.
+      if (!stacker || !canStackerReceiveFromConveyor(stacker, conveyor)
+        || !canItemLeaveConveyor(conveyor, item)) {
+        item.tileProgress = 0;
+        return;
+      }
     }
 
     item.tileProgress = Math.min(
