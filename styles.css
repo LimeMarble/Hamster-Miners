@@ -1310,6 +1310,27 @@ body.reality-shield-active .excavation-actions #fireButton {
 .inventory-item-visual.is-brittleCopperIngot { background: #ca8651; }
 .inventory-item-visual.is-wire { background: #d8a45e; }
 
+.inventory-item-visual.is-gear {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background: var(--gear-color);
+  clip-path: polygon(38% 0, 62% 0, 65% 17%, 78% 22%, 92% 12%, 100% 38%, 83% 42%, 83% 58%, 100% 62%, 92% 88%, 78% 78%, 65% 83%, 62% 100%, 38% 100%, 35% 83%, 22% 78%, 8% 88%, 0 62%, 17% 58%, 17% 42%, 0 38%, 8% 12%, 22% 22%, 35% 17%);
+}
+
+.inventory-item-visual.is-gear::after {
+  content: "";
+  position: absolute;
+  inset: 35%;
+  border-radius: 50%;
+  background: #20291f;
+}
+
+.inventory-item-visual.is-fine-gear {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
 .inventory-item-label {
   color: #d7e2ce;
   font-size: 0.78rem;
@@ -1527,7 +1548,7 @@ body.reality-shield-active .excavation-actions #fireButton {
 
 .recipes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
   align-items: stretch;
   gap: 0.75rem;
 }
@@ -1591,6 +1612,68 @@ body.reality-shield-active .excavation-actions #fireButton {
 .options-card h3 {
   margin: 0;
   color: #edf4cf;
+}
+
+.recipe-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.recipe-filters label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: #c6ccba;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.recipe-filters input,
+.recipe-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.45rem;
+  border: 1px solid rgba(213, 224, 180, 0.28);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  background: #11160f;
+  color: #e7edda;
+  font: inherit;
+}
+
+.recipe-filters input:focus-visible,
+.recipe-filters select:focus-visible {
+  outline: 2px solid #dfe99d;
+  outline-offset: 2px;
+}
+
+.recipe-filter-status {
+  margin-bottom: 0;
+}
+
+.cheat-panel[hidden] {
+  display: none;
+}
+
+.cheat-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.55rem;
+}
+
+.cheat-toggle-grid .button,
+.cheat-actions .button {
+  min-height: 2.7rem;
+  white-space: normal;
+  text-align: left;
+}
+
+.cheat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 
 .options-actions {
@@ -2059,7 +2142,7 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .factory-machine-controls {
   position: fixed;
-  z-index: 21;
+  z-index: 40;
   bottom: 1rem;
   left: 1rem;
   display: grid;
@@ -2070,6 +2153,48 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   border-radius: 0.65rem;
   background: rgba(18, 25, 18, 0.94);
   box-shadow: 0 0.8rem 1.8rem rgba(0, 0, 0, 0.26);
+  pointer-events: auto;
+}
+
+.factory-interaction-controls {
+  position: fixed;
+  z-index: 41;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.4rem;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: 0.65rem;
+  border: 1px solid rgba(184, 217, 121, 0.62);
+  border-radius: 0.65rem;
+  background: rgba(18, 25, 18, 0.94);
+  pointer-events: auto;
+}
+
+.factory-interaction-controls[hidden] {
+  display: none !important;
+}
+
+.factory-interaction-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.factory-interaction-buttons .button {
+  flex: 1;
+  padding: 0.45rem;
+}
+
+.factory-interaction-controls small {
+  color: #bec9b5;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 560px) {
+  .factory-interaction-controls {
+    bottom: auto;
+    top: 6rem;
+  }
 }
 
 .factory-machine-controls[hidden] {
@@ -2117,9 +2242,11 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
 
 .machine-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   max-height: min(52svh, 28rem);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-top: 1px solid rgba(184, 217, 121, 0.2);
   padding-top: 0.45rem;
 }
@@ -2132,6 +2259,52 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   width: 100%;
   font-size: 0.7rem;
   line-height: 1.25;
+}
+
+.machine-action-recipe-label {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  color: #bec9b5;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.pipe-port-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+#pipePlacementControls {
+  display: grid;
+  gap: 0.6rem;
+}
+
+#pipePlacementControls[hidden] {
+  display: none;
+}
+
+.machine-action-recipe-select {
+  appearance: auto;
+  min-width: 0;
+  max-width: 100%;
+  transition: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.machine-action-recipe-select:hover:not(:disabled),
+.machine-action-recipe-select:active:not(:disabled) {
+  transform: none;
+}
+
+.machine-action-note[data-machine-action-note="arc-furnace-progress"] {
+  block-size: 5.4em;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  font-variant-numeric: tabular-nums;
 }
 
 .machine-action-note {
@@ -2410,6 +2583,13 @@ body.reality-shield-active .mine-cell.deposit-realityShieldCrosshair .deposit-co
   background: rgba(35, 46, 35, 0.45);
   color: #899181;
   cursor: default;
+}
+
+.mine-drill-upgrade-button.is-unaffordable {
+  border-color: rgba(196, 112, 104, 0.34);
+  background: rgba(62, 35, 35, 0.5);
+  color: #c79b96;
+  cursor: not-allowed;
 }
 
 .mine-information-combined-row {
