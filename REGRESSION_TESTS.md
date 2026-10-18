@@ -9,6 +9,26 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
+### Separate noammo opening
+
+- `tests/noammo-opening.test.cjs` runs the real opening from zero to the $22
+  powered setup using earned Leeks/Fiber/Wood, then verifies a powered sale line.
+- Shared contracts cover every opening machine in every rotation through
+  placement, move, pickup, replacement, save hydration and finite/read-only draws.
+- Every Wheel long-edge port accepts the correct Drive intake, while short
+  edges, gaps and wrong facing reject it. Losing the Wheel immediately stops power.
+- Tests cover global click limits, saved partial chops, RNG harvest bounds,
+  limited machine buffers, blocked outputs, independent instances, collector
+  capacity, real hauler timing, stale exports, and cash/material affordability.
+- `tests/noammo-ui.test.cjs` executes the actual four browser scripts against a
+  small DOM contract harness. It covers every tab, purchase handlers, quantity
+  limits, category filtering, owned feedback, tap placement/rotation, stable
+  hauling controls and preservation of corrupt saves. This is not a substitute
+  for live-browser visual verification.
+- Prototype saves have a different kind/key; importing a legacy mining save
+  fails without mutating live state. Borrowed test gear and Primitive tuning
+  remain explicitly labelled as unsettled, not canonical costs/effects.
+
 - Shared checks iterate `MACHINE_LAYOUT`, so new machine definitions are covered
   automatically without copying another machine's smoke tests. Exceptions come
   from existing rules: fixed displays are not placeable; only repeat purchases

@@ -2,6 +2,52 @@
 
 Implemented entries are marked below; the remaining decisions are not yet content.
 
+## noammo opening prototype (2026-10-18)
+
+- Entry: `noammo.html`, linked from the existing game. This is a separate playable
+  opening slice on the `noammo` branch, not a migration of the mining game.
+- Save identity/key are separate; legacy mine saves cannot be imported here or
+  overwritten. Prototype export/import and explicitly confirmed reset are available.
+- Plain labelled machine boxes and port markers; no cosmetic machine animation.
+- Factory: 250x250, with 30 inexhaustible 3x3 trees. One tree is guaranteed in
+  the opening viewport; the rest are seeded/scattered and saved.
+- Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
+  Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
+- One free Leek Planter and one free Basket are supplied. With clicking enabled,
+  no free Logger is needed. Resource Planters are free for this prototype.
+- Planter: 2x2, no internal conveyors, one Leek/2 seconds, direct facing-edge
+  output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
+- Basket: 1x1, capacity 100, costs 10 Leek Fiber instead of 10 raw Leeks.
+  No manual inventory deposits. Collection and movement empty it into inventory.
+- Fiber Extractor: 1x2 horizontal, costs $1 and 10 Leeks. One Leek yields two
+  Fiber, each retaining the full input unit value. It is hand-operated, without
+  a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
+- Logger: 1x1, $0, 50 Wood, 10 Leek Fiber, one crew; one Wood/12 seconds.
+  It must be inside a tree's middle edge tile, facing outward. Wood has 50 heat
+  units; fuel processing itself is outside this slice.
+- Basic Hamster Wheel: 3x2, $8, 100 Wood, 50 Fiber, kinetic outputs on both long
+  edges. Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 15 Fiber; its facing side
+  is the intake, the opposite side is the output. Direct intake-to-Wheel
+  connections work in all rotations. A powered Drive covers a 16x16 area.
+- Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $5,
+  50 Wood and 10 Fiber. Its belts require Drive coverage. The new effect was
+  not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
+  values, rather than changing the old game's established effect.
+- Baskets can assign hauling hamsters, each carrying one item. Loaded travel
+  takes 0.5 seconds/tile/weight and empty return 0.5 seconds/tile. The prototype
+  uses Manhattan centre distance; pathfinding is not implemented. Full
+  destinations retain the carried item. Collector withdrawals reset cash value
+  to base; in-process items retain their actual value. Crew is shared.
+- Belt and Sell Tube prices are unset. They are explicitly borrowable test
+  equipment, not invented free construction recipes. One object per belt tile,
+  weight capacity 5 and one-second transit; no multi-cargo belt redesign.
+- Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
+  and one operating hamster; the Wheel uses one hamster. These were not supplied
+  as exact stats. Grades, connectors, heating, Bricks/Pots, further resource
+  depots and all later chains remain outside this opening slice.
+- The existing mining game and its simulation files are unchanged. Parent-level
+  architecture/state documents predate both this slice and much of the mining game.
+
 ## Hot Fluid Pipe
 
 - Implemented Early-Iron logistics item, occupying one tile.

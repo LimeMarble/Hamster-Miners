@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="version idkbutsomethingprealpha">
+  <title>Hamster Miners</title>
+  <link rel="stylesheet" href="noammo.css?v=opening-20261018">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><strong>Hamster Miners</strong><small>noammo · opening prototype</small></div>
+    <nav aria-label="Game screens">
+      <button data-tab="factory" class="active">Factory</button>
+      <button data-tab="shop">Shop</button>
+      <button data-tab="items">Items</button>
+      <button data-tab="recipes">Recipes</button>
+      <button data-tab="options">Options</button>
+    </nav>
+    <div class="totals"><span><small>Cash</small><strong id="cash">$0</strong></span><span><small>Available crew</small><strong id="crew">10 / 10</strong></span></div>
+  </header>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <main>
+    <section id="factory" class="screen factory-layout">
+      <aside class="build-panel panel">
+        <h2>Owned machines</h2><div id="palette"></div>
+        <button id="openShop" class="secondary">Open Shop</button>
+        <details class="opening-help" open>
+          <summary>Getting started</summary>
+          <ol>
+            <li>Place your free Planter and Basket. Point the Planter’s edge output into the Basket.</li>
+            <li>Collect Leeks. Sell 10 for $1 and keep 10 to buy a Fiber Extractor.</li>
+            <li>Put the Extractor between the Planter and Basket, or assign a Basket hauler.</li>
+            <li>Click a tree: five chops harvest 1–5 Wood. At most five chops per second.</li>
+            <li>Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge.</li>
+          </ol>
+        </details>
+      </aside>
+      <section class="factory-center" aria-label="Factory floor">
+        <div class="factory-toolbar">
+          <span id="toolLabel">Select a machine or click a tree</span>
+          <div class="toolbar-buttons">
+            <button id="rotateLeft" title="Rotate counterclockwise (Q)">↶ Rotate</button>
+            <button id="rotateRight" title="Rotate clockwise (E)">Rotate ↷</button>
+            <button id="cancel" class="secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="viewport" tabindex="0" aria-label="250 by 250 factory. Click to place or select. Hover near edges to pan. Q and E rotate; Escape cancels.">
+          <canvas id="floor" aria-hidden="true"></canvas>
+          <canvas id="cargo" aria-label="Interactive factory"></canvas>
+          <div class="map-controls">
+            <button id="home" title="Return to the starting area">Home</button>
+            <button id="zoomOut" aria-label="Zoom out">−</button>
+            <output id="zoomLabel">100%</output>
+            <button id="zoomIn" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <div class="factory-footer"><span>250 × 250 · 30 inexhaustible trees</span><span>Hover at an edge to pan · wheel to zoom</span></div>
+      </section>
+      <aside id="inspector" class="panel inspector"><h2>Factory</h2><p>Select a building to move it, collect a Basket, or assign a hauling hamster.</p></aside>
+    </section>
+    <section id="shop" class="screen shop-layout" hidden>
+      <div class="panel"><h1>Shop</h1><p>Planters are free for this prototype. Prices marked “unset” are not invented game costs.</p>
+        <div class="categories" id="categories"><button data-category="All" class="active">All</button><button data-category="Cash">Cash</button><button data-category="Material">Material</button><button data-category="Logistics">Logistics</button></div>
+        <div id="shopCards" class="shop-cards"></div>
+      </div>
+      <aside class="panel shop-detail" id="shopDetail"><h2>Select a machine</h2></aside>
+    </section>
+    <section id="items" class="screen panel" hidden><h1>Items</h1><p>Collect Baskets to move materials into inventory. Withdrawn items use their base cash value.</p><div id="itemCards" class="item-cards"></div></section>
+    <section id="recipes" class="screen panel" hidden>
+      <h1>Recipes</h1>
+      <article class="recipe"><h2>Leek Fiber Extractor</h2><p>1 Leek → 2 Leek Fiber</p><p>Each Fiber retains the Leek’s incoming value. Hand-operated; no kinetic connection.</p></article>
+      <article class="recipe"><h2>Logger</h2><p>1 Wood every 12 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
+      <article class="recipe"><h2>Leek Planter</h2><p>1 Leek every 2 seconds</p><p>Direct edge output, without an internal conveyor.</p></article>
+      <article class="recipe"><h2>Wood fuel</h2><p>1 Wood = 50 units of heat.</p><p>Heat processing is outside this opening slice.</p></article>
+    </section>
+    <section id="options" class="screen panel options-panel" hidden>
+      <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
+      <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
+      <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
+      <details open><summary>Unsettled balance — test settings</summary>
+        <p>The Primitive Upgrader’s new effect has not been agreed. These editable test values are not a settled balance change.</p>
+        <div class="row"><label>Additive effect $<input id="primitiveBonus" type="number" min="0" step="0.05"></label><label>Incoming value ceiling $<input id="primitiveLimit" type="number" min="0" step="0.1"></label><button id="applyTuning">Apply test values</button></div>
+        <p>The hand-operated Extractor currently takes 2 seconds and one crew; the Wheel uses one crew. These are visible prototype assumptions to test, not new purchase requirements.</p>
+      </details>
+      <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
+    </section>
+  </main>
+  <script src="noammo-data.js?v=opening-20261018"></script>
+  <script src="noammo-simulation.js?v=opening-20261018"></script>
+  <script src="noammo-renderer.js?v=opening-20261018"></script>
+  <script src="noammo-ui.js?v=opening-20261018"></script>
+</body>
+</html>
