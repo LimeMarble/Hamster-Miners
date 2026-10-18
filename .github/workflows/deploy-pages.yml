@@ -1,10 +1,11 @@
-name: Deploy main and beta to GitHub Pages
+name: Deploy main, beta and noammo to GitHub Pages
 
 on:
   push:
     branches:
       - main
       - beta
+      - noammo
   workflow_dispatch:
 
 permissions:
@@ -35,12 +36,18 @@ jobs:
           ref: beta
           path: source/beta
 
+      - name: Checkout noammo
+        uses: actions/checkout@v6
+        with:
+          ref: noammo
+          path: source/noammo
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Assemble main and beta sites
+      - name: Assemble main, beta and noammo sites
         run: |
-          mkdir -p _site/beta
+          mkdir -p _site/beta _site/noammo
           rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -59,6 +66,20 @@ jobs:
             --exclude='README.md' \
             --exclude='REGRESSION_TESTS.md' \
             source/beta/ _site/beta/
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='tests/' \
+            --exclude='.gitattributes' \
+            --exclude='package*.json' \
+            --exclude='README.md' \
+            --exclude='REGRESSION_TESTS.md' \
+            --exclude='PLANNED_CONTENT.md' \
+            source/noammo/ _site/noammo/
+          # Serve the new opening at /noammo/, not the branch's legacy index.
+          # Its link back to the mining game should reach stable main at /.
+          sed -i 's|href="index.html"|href="../"|g' _site/noammo/noammo.html
+          cp _site/noammo/noammo.html _site/noammo/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
