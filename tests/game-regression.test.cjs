@@ -575,6 +575,12 @@ test("deposits receive their material-specific segment health", () => {
   assert.equal(clay.currentSegmentHitPoints, 2);
 });
 
+test("Clay has a $0.25 base sale value per item, independent of stack quantity", () => {
+  freshState();
+  assert.equal(game.getItemSaleValue({ kind: "material", material: "clay", quantity: 1 }), 0.25);
+  assert.equal(game.getItemSaleValue({ kind: "material", material: "clay", quantity: 5 }), 0.25);
+});
+
 test("Clay has one consistent player-facing name in the mine and Shop", () => {
   const source = readGameSource();
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");

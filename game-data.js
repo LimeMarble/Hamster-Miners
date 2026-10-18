@@ -619,7 +619,7 @@ const AMMO_CORE_LABELS = Object.freeze({
 const SELL_VALUES = Object.freeze({
   copper: 0.5,
   nativeCopper: 0.5,
-  clay: 0.1,
+  clay: 0.25,
   silver: 8.5,
 });
 
