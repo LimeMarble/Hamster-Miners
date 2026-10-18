@@ -43,7 +43,7 @@
     switch (machine.type) {
       case "planter": add(2, 1, "right", "output"); break;
       case "logger": add(0, 0, "right", "output"); break;
-      case "fiber": add(0, 0, "up", "input"); add(0, 1, "down", "output"); break;
+      case "fiber": add(0, 1, "left", "input"); add(0, 1, "right", "output"); break;
       case "belt": add(0, 0, "right", "output"); break;
       case "primitive":
         for (let y = 0; y < 2; y++) { add(0, y, "left", "input"); add(0, y, "right", "output"); }
@@ -73,7 +73,7 @@
   }
   function createState(seed = Date.now() >>> 0) {
     const state = {
-      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
+      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, random: seed >>> 0, seconds: 0, nextId: 1,
       cash: 0, earned: 0, inventory: { leek: 0, leekFiber: 0, wood: 0 },
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: [], harvestProgress: 0,
@@ -479,15 +479,21 @@
       state.tuning = { primitiveBonus: Math.max(0, finite(state.tuning?.primitiveBonus, base.tuning.primitiveBonus)),
         primitiveLimit: Math.max(0, finite(state.tuning?.primitiveLimit, base.tuning.primitiveLimit)) };
       const legacyFootprint = !state.planterFootprintVersion || state.planterFootprintVersion < 2;
-      const legacyFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 2;
+      const legacyHorizontalFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 2;
+      const legacyFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 3;
       let reorientedFiber = 0;
       if (legacyFiber) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
-          if (machine.type === "fiber" && machine.facing === "right") { machine.facing = "down"; reorientedFiber++; }
+          if (machine.type !== "fiber") continue;
+          // Version 2 used down as its unrotated facing. Preserve its occupied
+          // tiles while correcting the working ports to the Molder-style cell.
+          const previousFacing = legacyHorizontalFiber && machine.facing === "right" ? "down" : machine.facing;
+          machine.facing = turn(previousFacing, -1);
+          reorientedFiber++;
         }
       }
-      const migrateFootprints = legacyFootprint || legacyFiber;
-      const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 2, machines: [], routes: [] });
+      const migrateFootprints = legacyFootprint || legacyHorizontalFiber;
+      const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 3, machines: [], routes: [] });
       const recovered = new Set();
       // Keep corrected machine footprints first. Only old layout collisions are
       // recovered with the normal pickup rules; inventory/cargo are not erased.

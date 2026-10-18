@@ -277,7 +277,7 @@
       $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
       save(); refresh(); notify(factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
-        : factory.reorientedForFiberResize ? "Save imported. Old Fiber Extractors now point down; reconnect their lower outputs." : "Prototype save imported.");
+        : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Prototype save imported.");
     } catch (error) { notify(error.message); }
   });
   $("reset").addEventListener("click", () => {
@@ -323,7 +323,7 @@
   resize(); home(); refresh();
   if (storageFailed) notify("A saved prototype could not be loaded. It has not been overwritten; export or import a valid save before continuing.");
   else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
-  else if (factory.reorientedForFiberResize) notify("Old Fiber Extractors now point down. Reconnect their lower outputs; contents are preserved.");
+  else if (factory.reorientedForFiberResize) notify("Fiber Extractor layouts corrected; reconnect their working tile. Contents are preserved.");
   if (!storageFailed) save();
   requestAnimationFrame(frame);
 }());

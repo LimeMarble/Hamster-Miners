@@ -15,6 +15,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   powered setup using earned Leeks/Fiber/Wood, then verifies a powered sale line.
 - Shared contracts cover every opening machine in every rotation through
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
+- Fiber matches the actual Ingot Molder's 1-column/2-row, right-facing layout:
+  body above, input/output on the lower cell, without a conveyor. Real Planter
+  feeds work in all rotations; the body rejects cargo. Earlier Fiber saves
+  retain jobs, contents and (for version 2) occupied tiles through correction.
 - Every Wheel long-edge port accepts the correct Drive intake, while short
   edges, gaps and wrong facing reject it. Losing the Wheel immediately stops power.
 - Tests cover global click limits, saved partial chops, RNG harvest bounds,

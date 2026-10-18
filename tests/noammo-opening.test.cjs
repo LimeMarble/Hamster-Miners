@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const A = require("../noammo-simulation.js");
 const R = require("../noammo-renderer.js");
 const { DATA: D, Factory, createState, ports, cells, size, cargo } = A;
@@ -142,45 +143,100 @@ test("five globally capped chops yield one 1–5 Wood burst; idle time and reloa
   assert.equal(loaded.state.trees.length, 30);
 });
 
-test("Fiber defaults to a downward 1×2 footprint with top input and bottom output", () => {
-  assert.equal(D.machines.fiber.width, 1);
-  assert.equal(D.machines.fiber.height, 2);
+test("Fiber matches the actual Ingot Molder footprint and lower working tile, without a conveyor", () => {
+  const legacy = vm.createContext({});
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "game-data.js"), "utf8")
+    + "\nglobalThis.molderLayout = MACHINE_LAYOUT.ingotMolder;", legacy);
+  const molder = legacy.molderLayout;
+  assert.equal(D.machines.fiber.width, molder.width);
+  assert.equal(D.machines.fiber.height, molder.height);
   assert.equal(D.machines.fiber.internalConveyors, undefined);
   const factory = new Factory(createState(1));
   factory.state.stock.fiber = 1;
   const fiber = factory.place("fiber", 40, 40).machine;
-  assert.equal(fiber.facing, "down");
+  assert.equal(fiber.facing, molder.orientation);
   assert.deepEqual(size(fiber), { width: 1, height: 2 });
   assert.deepEqual(ports(fiber), [
-    { x: 40, y: 40, direction: "up", role: "input" },
-    { x: 40, y: 41, direction: "down", role: "output" },
+    { x: 40, y: 41, direction: "left", role: "input" },
+    { x: 40, y: 41, direction: "right", role: "output" },
   ]);
-  const basket = place(factory, "basket", 40, 42);
-  assert.equal(factory.receive(fiber, cargo("leek"), 40, 40, "up", true), 1);
-  advance(factory, 2.2);
-  assert.equal(factory.total(basket, "contents"), 2);
-  factory.move(fiber.id, 45, 40, "right");
-  assert.equal(Factory.importSave(factory.exportSave()).byId.get(fiber.id).facing, "right", "explicit and saved rotations stay intact");
+  const output = ports(fiber).find((point) => point.role === "output");
+  assert.equal(output.x - fiber.x, molder.liquidInputOutput.column);
+  assert.equal(output.y - fiber.y, molder.liquidInputOutput.row);
+  assert.equal(output.direction, molder.liquidInputOutput.direction);
 });
 
-test("old default horizontal Fiber Extractors become vertical once, preserving contents and later rotations", () => {
+test("Fiber routes through its lower working tile in every rotation, leaving the body inactive", () => {
+  const layouts = {
+    right: { width: 1, height: 2, work: [40, 41], body: [40, 40] },
+    down: { width: 2, height: 1, work: [40, 40], body: [41, 40] },
+    left: { width: 1, height: 2, work: [40, 40], body: [40, 41] },
+    up: { width: 2, height: 1, work: [41, 40], body: [40, 40] },
+  };
+  for (const [facing, layout] of Object.entries(layouts)) {
+    const factory = new Factory(createState(1));
+    const fiber = place(factory, "fiber", 40, 40, facing), v = D.vectors[facing];
+    assert.deepEqual(size(fiber), { width: layout.width, height: layout.height });
+    assert.deepEqual(ports(fiber).map((point) => [point.x, point.y]), [layout.work, layout.work]);
+    assert.equal(ports(fiber)[0].direction, A.opposite(facing));
+    assert.equal(ports(fiber)[1].direction, facing);
+    const input = ports(fiber)[0];
+    // An actual Planter supplies the working cell, rather than injecting cargo
+    // into a test-only input that the visible output cannot reach.
+    const source = { type: "planter", x: 0, y: 0, facing }, offset = ports(source)[0];
+    place(factory, "planter", input.x - v.x - offset.x, input.y - v.y - offset.y, facing);
+    const basket = place(factory, "basket", input.x + v.x, input.y + v.y);
+    for (const side of D.directions) assert.equal(factory.receive(fiber, cargo("leek"), ...layout.body, side, true), 0);
+    assert.equal(factory.receive(fiber, cargo("leek"), ...layout.work, facing, true), 0);
+    advance(factory, 11);
+    assert.equal(factory.total(basket, "contents"), 8);
+    assert.deepEqual(fiber.lanes, {}, "the Extractor does not turn into a belt");
+    assert.equal(Factory.importSave(factory.exportSave()).byId.get(fiber.id).facing, facing);
+  }
+});
+
+test("the two earlier Fiber layouts migrate once without losing active work or saved rotations", () => {
+  for (const version of [1, 2]) for (const oldFacing of D.directions) {
+    const factory = new Factory(createState(1));
+    const newFacing = A.turn(version === 1 && oldFacing === "right" ? "down" : oldFacing, -1);
+    const fiber = place(factory, "fiber", 40, 40, newFacing);
+    const input = ports(fiber)[0];
+    factory.receive(fiber, cargo("leek", 1, 0.4), input.x, input.y, input.direction, true);
+    advance(factory, 0.1);
+    const occupied = cells(fiber);
+    fiber.facing = oldFacing;
+    factory.state.fiberFootprintVersion = version;
+    const loaded = Factory.importSave(factory.exportSave()), restored = loaded.byId.get(fiber.id);
+    assert.equal(restored.facing, newFacing);
+    assert.deepEqual(cells(restored), occupied);
+    assert.equal(restored.job.input.value, 0.4);
+    assert.equal(loaded.state.fiberFootprintVersion, 3);
+    assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state, "migration is not repeated");
+  }
+});
+
+test("version-2 Fiber correction preserves occupied tiles, neighbours and stored instances", () => {
   const factory = new Factory(createState(1));
-  const fiber = place(factory, "fiber", 40, 40, "right");
-  factory.receive(fiber, cargo("leek", 1, 0.4), 40, 40, "left", true);
-  advance(factory, 0.1);
-  delete factory.state.fiberFootprintVersion;
+  const fiber = place(factory, "fiber", 40, 40), basket = place(factory, "basket", 41, 41);
+  const stored = place(factory, "fiber", 50, 50, "up");
+  factory.pickup(stored.id);
+  fiber.output.push(cargo("leekFiber", 2, 0.4));
+  factory.receive(basket, cargo("leek", 3), basket.x, basket.y, null, true);
+  fiber.facing = "down"; stored.facing = "right";
+  factory.state.fiberFootprintVersion = 2;
   const loaded = Factory.importSave(factory.exportSave());
-  assert.equal(loaded.byId.get(fiber.id).facing, "down");
+  assert.equal(loaded.byId.get(fiber.id).facing, "right");
   assert.deepEqual(size(loaded.byId.get(fiber.id)), { width: 1, height: 2 });
-  assert.equal(loaded.byId.get(fiber.id).job.input.value, 0.4);
-  assert.equal(loaded.state.fiberFootprintVersion, 2);
-  loaded.move(fiber.id, 40, 40, "right");
-  assert.equal(Factory.importSave(loaded.exportSave()).byId.get(fiber.id).facing, "right");
+  assert.equal(loaded.state.storedMachines[0].facing, "up");
+  assert.deepEqual(loaded.byId.get(basket.id), basket);
+  assert.equal(loaded.recoveredForPlanterResize, 0);
+  advance(loaded, 0.1);
+  assert.equal(loaded.total(loaded.byId.get(basket.id), "contents"), 5);
 });
 
 test("Fiber doubles quantity AND total value without a kinetic connection", () => {
-  const factory = new Factory(createState(1)), fiber = place(factory, "fiber", 40, 40), basket = place(factory, "basket", 42, 40);
-  assert.equal(factory.receive(fiber, cargo("leek", 1, 0.73), 40, 40, "left", true), 1);
+  const factory = new Factory(createState(1)), fiber = place(factory, "fiber", 40, 40), basket = place(factory, "basket", 41, 41);
+  assert.equal(factory.receive(fiber, cargo("leek", 1, 0.73), 40, 41, "left", true), 1);
   advance(factory, 2.2);
   assert.equal(factory.total(basket, "contents"), 2);
   assert.equal(basket.contents[0].value, 0.73);
@@ -189,18 +245,18 @@ test("Fiber doubles quantity AND total value without a kinetic connection", () =
 
 test("Fiber input capacity, output blockage, independent instances and overflow are bounded", () => {
   const factory = new Factory(createState(1)), fiber = place(factory, "fiber", 40, 40), other = place(factory, "fiber", 45, 40);
-  assert.equal(factory.receive(fiber, cargo("wood", 100), 40, 40, "left", true), 0);
-  assert.equal(factory.receive(fiber, cargo("leek", 100), 41, 40, "right", true), 0);
-  assert.equal(factory.receive(fiber, cargo("leek", 100), 40, 40, "left", true), 1);
-  assert.equal(factory.receive(fiber, cargo("leek", 1), 40, 40, "left", true), 0);
+  assert.equal(factory.receive(fiber, cargo("wood", 100), 40, 41, "left", true), 0);
+  assert.equal(factory.receive(fiber, cargo("leek", 100), 40, 41, "right", true), 0);
+  assert.equal(factory.receive(fiber, cargo("leek", 100), 40, 41, "left", true), 1);
+  assert.equal(factory.receive(fiber, cargo("leek", 1), 40, 41, "left", true), 0);
   advance(factory, 2.2);
   assert.equal(factory.total(fiber, "output"), 2);
-  factory.receive(fiber, cargo("leek", 100), 40, 40, "left", true);
+  factory.receive(fiber, cargo("leek", 100), 40, 41, "left", true);
   advance(factory, 60);
   assert.equal(factory.total(fiber, "input"), 1);
   assert.equal(factory.total(fiber, "output"), 2);
   assert.equal(factory.total(other, "output"), 0);
-  place(factory, "basket", 42, 40);
+  place(factory, "basket", 41, 41);
   advance(factory, 3);
   assert.equal(factory.total(fiber, "input"), 0);
 });
@@ -265,7 +321,7 @@ test("haulers carry one stale item, observe loaded/return timing, and keep block
   assert.equal(route.item.quantity, 1); assert.equal(route.item.value, 0.1);
   assert.equal(factory.total(basket, "contents"), 4);
   assert.equal(route.duration, factory.routeDistance(basket, fiber) * 0.5);
-  factory.receive(fiber, cargo("leek", 1), 44, 40, "left", true);
+  factory.receive(fiber, cargo("leek", 1), 44, 41, "left", true);
   fiber.output.push(cargo("leekFiber", 2));
   advance(factory, route.duration + 2);
   assert.equal(route.phase, "loaded"); assert.equal(route.item.quantity, 1);
@@ -300,15 +356,15 @@ test("Primitive test ceiling is incoming eligibility, not an output clamp, and b
 
 test("partially arrived Leeks cannot turn into a full two-Fiber recipe", () => {
   const factory = new Factory(createState(1)), fiber = place(factory, "fiber", 40, 40);
-  assert.equal(factory.receive(fiber, cargo("leek", 0.5), 40, 40, "left", true), 0);
+  assert.equal(factory.receive(fiber, cargo("leek", 0.5), 40, 41, "left", true), 0);
   advance(factory, 10);
   assert.equal(fiber.output.length, 0);
 });
 
 test("real pending output follows its instance on move, is recovered once on pickup, and never leaks into a replacement", () => {
   const factory = new Factory(createState(1)), first = place(factory, "fiber", 40, 40), second = place(factory, "fiber", 45, 40);
-  factory.receive(first, cargo("leek", 1, 0.5), 40, 40, "left", true);
-  factory.receive(second, cargo("leek", 1, 2), 45, 40, "left", true);
+  factory.receive(first, cargo("leek", 1, 0.5), 40, 41, "left", true);
+  factory.receive(second, cargo("leek", 1, 2), 45, 41, "left", true);
   advance(factory, 3);
   factory.move(first.id, 50, 40, "right");
   assert.equal(first.output[0].value, 0.5); assert.equal(second.output[0].value, 2);
@@ -331,8 +387,8 @@ test("actual opening reaches the $22 powered setup without cheats or a free Fibe
   assert.equal(factory.sellInventory("leek", 10), 1);
   assert.equal(factory.buy("fiber").amount, 1);
   factory.pickup(basket.id);
-  const fiber = factory.place("fiber", 124, 6, "right").machine;
-  basket = factory.place("basket", 126, 6).machine;
+  const fiber = factory.place("fiber", 124, 5).machine;
+  basket = factory.place("basket", 125, 6).machine;
   for (let i = 0; i < 6; i++) { advance(factory, 60); factory.collect(basket.id); }
   assert.ok(factory.state.inventory.leekFiber >= 305, "one Planter must support the agreed six dollars/minute Fiber opening");
   while (factory.state.inventory.wood < 275) {
@@ -344,9 +400,9 @@ test("actual opening reaches the $22 powered setup without cheats or a free Fibe
   const drive = factory.place("drive", 120, 12, "up").machine;
   assert.equal(factory.driveHasWheel(drive), true);
   factory.move(basket.id, 124, 8, "right");
-  const first = factory.place("primitive", 126, 6).machine;
-  const second = factory.place("primitive", 127, 6).machine;
-  factory.borrow("sellTube"); const sell = factory.place("sellTube", 128, 6).machine;
+  const first = factory.place("primitive", 125, 6).machine;
+  const second = factory.place("primitive", 126, 6).machine;
+  factory.borrow("sellTube"); const sell = factory.place("sellTube", 127, 6).machine;
   assert.ok(planter && fiber && wheel && first && second && sell);
   const before = factory.state.cash; advance(factory, 30);
   assert.ok(factory.state.cash > before, "a real, powered Fiber → two Primitives → sale line must earn cash");

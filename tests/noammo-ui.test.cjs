@@ -116,19 +116,28 @@ test("visible place/rotate/cancel controls create the correct footprint and pres
   assert.equal(ui.storage.size, 1);
 });
 
-test("Fiber placement starts downward, continues downward, and still accepts manual rotation", () => {
+test("Fiber placement uses the Molder-style vertical footprint, repeats it, and rotates normally", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.stock.fiber = 2;
+  factory.state.stock.fiber = 3;
   const ui = boot(factory.exportSave());
   ui.ids.get("palette").children[2].emit("click");
-  assert.match(ui.ids.get("toolLabel").textContent, /down/);
+  assert.match(ui.ids.get("toolLabel").textContent, /right/);
   ui.ids.get("cargo").emit("click", { clientX: (121 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
   const first = ui.state().machines[0];
-  assert.equal(first.type, "fiber"); assert.equal(first.facing, "down");
-  assert.match(ui.ids.get("toolLabel").textContent, /Placing.*down/);
-  ui.ids.get("rotateLeft").emit("click");
+  assert.equal(first.type, "fiber"); assert.equal(first.facing, "right");
+  assert.deepEqual(A.size(first), { width: 1, height: 2 });
+  assert.deepEqual(A.ports(first), [
+    { x: 121, y: 6, direction: "left", role: "input" },
+    { x: 121, y: 6, direction: "right", role: "output" },
+  ]);
+  assert.match(ui.ids.get("toolLabel").textContent, /Placing.*right/);
   ui.ids.get("cargo").emit("click", { clientX: (124 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
   assert.equal(ui.state().machines[1].facing, "right");
+  ui.ids.get("rotateRight").emit("click");
+  ui.ids.get("cargo").emit("click", { clientX: (126 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
+  const rotated = ui.state().machines[2];
+  assert.equal(rotated.facing, "down");
+  assert.deepEqual(A.size(rotated), { width: 2, height: 1 });
 });
 
 test("production does not remount the selected Basket's hauling controls", () => {

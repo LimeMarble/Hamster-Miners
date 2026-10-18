@@ -19,8 +19,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 10 Leek Fiber instead of 10 raw Leeks.
   No manual inventory deposits. Collection and movement empty it into inventory.
-- Fiber Extractor: 1 column x 2 rows, facing down by default (top input, bottom
-  output), freely rotatable. Costs $1 and 10 Leeks. One Leek yields two
+- Fiber Extractor: Ingot Molder-style footprint: 1 column x 2 rows facing right,
+  with body above and input/output on the lower tile; no conveyor. Freely
+  rotatable. Costs $1 and 10 Leeks. One Leek yields two
   Fiber, each retaining the full input unit value. It is hand-operated, without
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
 - Logger: 1x1, $0, 50 Wood, 10 Leek Fiber, one crew; one Wood/12 seconds.

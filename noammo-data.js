@@ -36,8 +36,6 @@
       },
       fiber: {
         name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
-        baseFacing: "down",
-        defaultFacing: "down",
         cost: { cash: 1, materials: { leek: 10 } }, crew: 1,
         description: "One Leek becomes two Leek Fiber. Each Fiber retains the incoming Leek’s value.",
       },
