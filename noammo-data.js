@@ -21,7 +21,8 @@
     materials: {
       leek: { name: "Leek", value: 0.1, weight: 1, color: "#9dbf65" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
-      wood: { name: "Wood", value: null, weight: 1, color: "#bb8054", heat: 50 },
+      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 50 },
+      brick: { name: "Bricks", value: null, weight: 1, color: "#b97955" },
     },
     machines: {
       planter: {
@@ -32,7 +33,7 @@
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
         cost: { cash: 0, materials: { leekFiber: 10 } },
-        description: "Holds up to 100 items. Collect them into inventory, sell eligible contents, or assign a hauling hamster. No manual deposits.",
+        description: "Holds up to 100 items. Collect them into inventory or assign a hauling hamster. No manual deposits.",
       },
       fiber: {
         name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
@@ -62,12 +63,12 @@
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
-        cost: null,
+        cost: { cash: 1, materials: { wood: 20 } },
         description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes one second per tile.",
       },
       sellTube: {
         name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",
-        cost: null,
+        cost: { cash: 250, materials: { brick: 200 } },
         description: "Sells eligible incoming cargo at its current value.",
       },
     },

@@ -73,8 +73,8 @@
   }
   function createState(seed = Date.now() >>> 0) {
     const state = {
-      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, random: seed >>> 0, seconds: 0, nextId: 1,
-      cash: 0, earned: 0, inventory: { leek: 0, leekFiber: 0, wood: 0 },
+      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
+      cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: [], harvestProgress: 0,
       clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0,
@@ -91,6 +91,7 @@
     }
     state.stock.planter = 1;
     state.stock.basket = 1;
+    state.stock.sellTube = 1;
     return state;
   }
 
@@ -296,13 +297,6 @@
       this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
       return money;
     }
-    sellBasket(id) {
-      const basket = this.byId.get(id);
-      if (basket?.type !== "basket") return 0;
-      const money = this.sell(basket.contents);
-      basket.contents = basket.contents.filter((item) => D.materials[item.material].value === null);
-      return money;
-    }
     sellInventory(material, quantity) {
       if (!D.materials[material] || D.materials[material].value === null || !Number.isFinite(quantity) || quantity <= 0) return 0;
       const count = Math.min(quantity, this.state.inventory[material]);
@@ -485,6 +479,8 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      const legacyEconomy = (state.openingEconomyVersion ?? 0) < 1;
+      if (legacyEconomy && state.inventory && !Object.hasOwn(state.inventory, "brick")) state.inventory.brick = 0;
       if (!Array.isArray(state.machines) || !Array.isArray(state.trees) || !Array.isArray(state.routes)
         || !Array.isArray(state.storedMachines) || state.trees.length !== D.config.treeCount) throw new Error("Incomplete prototype save.");
       for (const field of ["cash", "earned", "seconds", "harvestedWood", "producedFiber", "soldItems"]) {
@@ -585,6 +581,15 @@
         ids.add(route.id); factory.state.routes.push(route);
       }
       if ([...ids].some((id) => /^(machine|route)-\d+$/.test(id) && Number(id.split("-")[1]) >= state.nextId)) throw new Error("Invalid next identity.");
+      if (legacyEconomy) {
+        // Previously borrowed tubes already count as the free starter machine.
+        if (!factory.state.stock.sellTube && !factory.state.machines.some((machine) => machine.type === "sellTube")) factory.state.stock.sellTube = 1;
+        const existingCargo = [...factory.state.machines, ...factory.state.storedMachines].flatMap((machine) => [
+          ...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes), machine.job?.input,
+        ]).concat(factory.state.routes.map((route) => route.item));
+        for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
+        factory.state.openingEconomyVersion = 1;
+      }
       factory.recoveredForPlanterResize = recovered.size;
       factory.reorientedForFiberResize = reorientedFiber;
       return factory;

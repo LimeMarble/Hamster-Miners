@@ -267,8 +267,7 @@
         if (machine.type === "basket") {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collect = action("Collect all", () => { const count = factory.collect(machine.id); notify(`Collected ${number(count)} items.`); refresh(); }); collect.id = "collectBasket";
-          const sell = action("Sell eligible contents", () => { notify(`Sold for ${money(factory.sellBasket(machine.id))}.`); refresh(); }); sell.id = "sellBasket";
-          panel.append(contents, collect, sell, element("hr"), element("h3", "Hauling hamster"));
+          panel.append(contents, collect, element("hr"), element("h3", "Hauling hamster"));
           const destinations = element("select"); destinations.id = "haulDestination"; destinations.setAttribute("aria-label", "Hauling destination");
           for (const destination of factory.state.machines.filter((entry) => entry.id !== machine.id
             && (["basket", "sellTube", "belt"].includes(entry.type) || A.ports(entry).some((point) => point.role === "input")))) {
@@ -288,7 +287,7 @@
         }
         if (machine.type === "primitive") panel.append(element("p", `TEST effect: +${money(factory.state.tuning.primitiveBonus)} below ${money(factory.state.tuning.primitiveLimit)}. Adjustable in Options; not final balance.`));
       } else {
-        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter and Basket. Click trees to gather Wood."),
+        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift or Box select starts two-tap selection. You can also drag from empty space. Move, rotate, or pick up selected machines."),
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
@@ -309,7 +308,6 @@
           for (const [material, quantity] of totals) { const line = element("div"); line.append(element("span", D.materials[material].name), element("strong", number(quantity))); $("basketContents").append(line); }
         }
         $("collectBasket").disabled = machine.contents.length === 0;
-        $("sellBasket").disabled = !machine.contents.some((item) => D.materials[item.material].value !== null);
       }
       for (const route of factory.state.routes) text($(`status-${route.id}`), `#${route.id.split("-").pop()}: ${route.phase === "pickup" ? "Waiting for cargo" : route.phase === "return" ? "Returning" : `Carrying ${D.materials[route.item.material].name}`} `);
     }

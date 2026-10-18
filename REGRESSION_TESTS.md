@@ -45,8 +45,17 @@ future pipe tiers) are not treated as current acceptance requirements.
   recovery rules. Shared tests cover every opening machine in every orientation,
   including read-only group previews and selection outlines.
 - Prototype saves have a different kind/key; importing a legacy mining save
-  fails without mutating live state. Borrowed test gear and Primitive tuning
-  remain explicitly labelled as unsettled, not canonical costs/effects.
+  fails without mutating live state. Primitive tuning remains explicitly
+  labelled as unsettled, not a canonical effect.
+- Baskets have no selling action or sale API. Holding or collecting sellables
+  gives no cash, while collection and hauling controls keep working.
+- Primitive Conveyors cost $1 and 20 Wood each. Normal and bulk purchases require
+  sufficient cash and Wood, show scaled costs, and cannot borrow free belts.
+- Wood sells for $0.10 through inventory and Sell Tube, retaining fresh
+  upgraded cargo values and its 50 heat units. One starter Sell Tube is free;
+  extra tubes require $250 and 200 Bricks each, with normal bulk costs and no
+  borrowing bypass. Old saves receive a missing starter once, keep any tubes
+  already owned, and price previously unvalued Wood without losing cargo.
 
 - Shared checks iterate `MACHINE_LAYOUT`, so new machine definitions are covered
   automatically without copying another machine's smoke tests. Exceptions come

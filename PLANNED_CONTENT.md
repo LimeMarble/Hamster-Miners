@@ -20,20 +20,21 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   grid's centre; game tabs preserve the current camera position and zoom.
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
-- One free Leek Planter and one free Basket are supplied. With clicking enabled,
+- One free Leek Planter, Basket and Sell Tube are supplied. With clicking enabled,
   no free Logger is needed. Resource Planters are free for this prototype.
 - Planter: 3x3, no internal conveyors, one Leek/2 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 10 Leek Fiber instead of 10 raw Leeks.
-  No manual inventory deposits. Collection and movement empty it into inventory.
+  No direct selling or manual inventory deposits. Collection and movement empty
+  it into inventory; hauling remains available.
 - Fiber Extractor: Ingot Molder-style footprint: 1 column x 2 rows facing right,
   with body above and input/output on the lower tile; no conveyor. Freely
   rotatable. Costs $1 and 10 Leeks. One Leek yields two
   Fiber, each retaining the full input unit value. It is hand-operated, without
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
 - Logger: 1x1, $0, 50 Wood, 10 Leek Fiber, one crew; one Wood/12 seconds.
-  It must be inside a tree's middle edge tile, facing outward. Wood has 50 heat
-  units; fuel processing itself is outside this slice.
+  It must be inside a tree's middle edge tile, facing outward. Wood sells for
+  $0.10 and has 50 heat units; fuel processing itself is outside this slice.
 - Basic Hamster Wheel: 3x2, $8, 100 Wood, 50 Fiber, kinetic outputs on both long
   edges. Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 15 Fiber; its facing side
   is the intake, the opposite side is the output. Direct intake-to-Wheel
@@ -47,8 +48,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   uses Manhattan centre distance; pathfinding is not implemented. Full
   destinations retain the carried item. Collector withdrawals reset cash value
   to base; in-process items retain their actual value. Crew is shared.
-- Belt and Sell Tube prices are unset. They are explicitly borrowable test
-  equipment, not invented free construction recipes. One object per belt tile,
+- Sell Tube costs $250 and 200 Bricks after the free starter. Old saves with no
+  tube receive one once; existing owned tubes count as their starter. Bricks are
+  registered as a construction material; their production recipe remains pending.
+- Primitive Conveyor costs $1 and 20 Wood per tile. One object per belt tile,
   weight capacity 5 and one-second transit; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied

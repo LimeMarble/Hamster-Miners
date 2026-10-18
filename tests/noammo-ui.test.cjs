@@ -144,7 +144,7 @@ test("Inventory separates Machines and Items, with no default machine list on th
   assert.equal(ui.ids.get("machineInventory").hidden, false);
   assert.equal(ui.ids.get("itemInventory").hidden, true);
   const visible = ui.ids.get("machineCards").children.filter((card) => !card.hidden);
-  assert.deepEqual(visible.map((card) => card.dataset.machine), ["planter", "basket"]);
+  assert.deepEqual(visible.map((card) => card.dataset.machine), ["planter", "basket", "sellTube"]);
   ui.inventoryTabs[1].emit("click");
   assert.equal(ui.ids.get("machineInventory").hidden, true);
   assert.equal(ui.ids.get("itemInventory").hidden, false);
@@ -316,6 +316,36 @@ test("Shop buy handler, quantities, material affordability and owned feedback us
   for (const bad of ["0", "1.5", "10000", ""]) { amount.value = bad; amount.emit("input"); assert.equal(ui.ids.get("buyMachine").disabled, true); }
 });
 
+test("Shop material costs scale with quantity and enforce Sell Tube and Primitive Conveyor prices", () => {
+  for (const [type, material, required, cash] of [["sellTube", "brick", 200, 250], ["belt", "wood", 20, 1]]) for (const owned of [required - 1, required]) {
+    const factory = new A.Factory(A.createState(1)); factory.state.cash = cash; factory.state.inventory[material] = owned;
+    const initialStock = factory.state.stock[type];
+    const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+    ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf(type)].emit("click");
+    assert.equal(ui.ids.get("buyMachine").textContent, "Buy");
+    assert.equal(ui.ids.get("costs").children[1].children[0].textContent, A.DATA.materials[material].name);
+    assert.equal(ui.ids.get("costs").children[1].children[1].textContent, `${owned} / ${required}`);
+    assert.equal(ui.ids.get("buyMachine").disabled, owned < required);
+    const quantity = ui.ids.get("quantity"); quantity.value = "2"; quantity.emit("input");
+    assert.equal(ui.ids.get("costs").children[1].children[1].textContent, `${owned} / ${required * 2}`);
+    assert.equal(ui.ids.get("buyMachine").disabled, true);
+    if (owned === required) {
+      quantity.value = "1"; quantity.emit("input"); ui.ids.get("buyMachine").emit("click");
+      assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory[material], 0); assert.equal(ui.state().stock[type], initialStock + 1);
+    }
+  }
+});
+
+test("Items exposes Wood's $0.10 sale and hides it again when sold", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 10;
+  const ui = boot(factory.exportSave()); ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
+  const wood = ui.ids.get("itemCards").children[0];
+  assert.ok(wood.children.some((child) => child.textContent === "$0.1 each from inventory"));
+  wood.children.find((child) => child.textContent === "Sell all").emit("click");
+  assert.equal(ui.state().cash, 1); assert.equal(ui.state().inventory.wood, 0);
+  assert.match(ui.ids.get("itemCards").children[0].textContent, /Inventory is empty/);
+});
+
 test("Shop categories filter actual cards rather than merely changing the selected tab", () => {
   const ui = boot(); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   ui.categories.find((button) => button.dataset.category === "Cash").emit("click");
@@ -373,6 +403,13 @@ test("production does not remount the selected Basket's hauling controls", () =>
   for (let now = 100; now < 5000; now += 100) ui.frame(now);
   assert.equal(ui.ids.get("haulDestination"), destination); assert.equal(ui.ids.get("haulMaterial"), material);
   assert.ok(ui.state().machines.find((machine) => machine.id === basket.id).contents.length);
+  assert.equal(ui.ids.has("sellBasket"), false, "Baskets have no sale control");
+  assert.doesNotMatch(A.DATA.machines.basket.description, /sell/i);
+  const cash = ui.state().cash;
+  ui.ids.get("collectBasket").emit("click");
+  assert.equal(ui.state().cash, cash);
+  assert.ok(ui.state().inventory.leek > 0);
+  assert.equal(ui.ids.get("haulDestination"), destination);
 });
 
 test("unreadable saves survive startup, autosave, export and unload until an explicit reset", () => {

@@ -40,6 +40,7 @@ test("opening has its own save identity, 250×250 grid, 30 permanent trees and a
   assert.equal(D.config.columns, 250); assert.equal(D.config.rows, 250);
   assert.equal(state.trees.length, 30);
   assert.equal(state.stock.planter, 1); assert.equal(state.stock.basket, 1);
+  assert.equal(state.stock.sellTube, 1);
   assert.equal(state.stock.logger, 0); assert.equal(state.cash, 0);
   assert.notEqual(D.saveKey, "hamster-miners-save");
   assert.deepEqual(createState(123).trees, state.trees);
@@ -57,6 +58,77 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.primitive.cost, { cash: 5, materials: { wood: 50, leekFiber: 10 } });
   assert.equal(D.materials.wood.heat, 50);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
+});
+
+test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route", () => {
+  assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 50);
+  const factory = new Factory(createState(1));
+  factory.state.inventory.wood = 10;
+  assert.equal(factory.sellInventory("wood", 10), 1);
+  const basket = place(factory, "basket", 40, 40);
+  factory.receive(basket, cargo("wood", 5), 40, 40, null, true);
+  assert.equal(factory.collect(basket.id), 5);
+  assert.equal(factory.sellInventory("wood", 5), 0.5);
+  const tree = factory.state.trees[0];
+  place(factory, "logger", tree.x, tree.y + 1, "left");
+  const tube = factory.place("sellTube", tree.x - 2, tree.y).machine;
+  assert.ok(tube); advance(factory, 12);
+  assert.ok(Math.abs(factory.state.cash - 1.6) < 1e-8);
+  assert.equal(factory.receive(tube, cargo("wood", 2, 0.7), tube.x, tube.y, null, true), 2);
+  assert.ok(Math.abs(factory.state.cash - 3) < 1e-8, "fresh upgraded Wood retains its actual value");
+});
+
+test("one Sell Tube is free; additional tubes require $250 and 200 Bricks each and cannot be borrowed", () => {
+  const factory = new Factory(createState(1));
+  assert.equal(factory.state.stock.sellTube, 1);
+  assert.deepEqual(D.machines.sellTube.cost, { cash: 250, materials: { brick: 200 } });
+  assert.equal(factory.borrow("sellTube"), false);
+  factory.state.cash = 249; factory.state.inventory.brick = 200;
+  assert.ok(factory.buy("sellTube").error);
+  factory.state.cash = 250; factory.state.inventory.brick = 199;
+  assert.ok(factory.buy("sellTube").error);
+  factory.state.inventory.brick = 200;
+  assert.equal(factory.buy("sellTube").amount, 1);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
+  assert.equal(factory.state.stock.sellTube, 2);
+  factory.state.cash = 500; factory.state.inventory.brick = 400;
+  assert.equal(factory.buy("sellTube", 2).amount, 2);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
+  assert.equal(factory.state.stock.sellTube, 4);
+});
+
+test("old opening saves receive the missing starter tube and price unvalued Wood once, without losing cargo", () => {
+  const factory = new Factory(createState(1));
+  factory.state.stock.sellTube = 0;
+  const basket = place(factory, "basket", 40, 40), other = place(factory, "basket", 50, 40), belt = place(factory, "belt", 45, 40);
+  const tree = factory.state.trees[0], logger = place(factory, "logger", tree.x, tree.y + 1, "left");
+  basket.contents.push(cargo("wood", 5, 0), cargo("wood", 1, 0.7));
+  logger.output.push(cargo("wood", 1, 0)); belt.lanes[0] = cargo("wood", 2, 0);
+  factory.addRoute(basket.id, other.id, "wood"); factory.update(0.1);
+  factory.state.routes[0].item.value = 0;
+  delete factory.state.openingEconomyVersion; delete factory.state.inventory.brick;
+  const saved = factory.exportSave(), loaded = Factory.importSave(saved);
+  assert.equal(factory.exportSave(), saved, "migration does not mutate its source");
+  assert.equal(loaded.state.stock.sellTube, 1); assert.equal(loaded.state.inventory.brick, 0);
+  assert.deepEqual(loaded.byId.get(basket.id).contents.map((item) => [item.quantity, item.value]), [[4, 0.1], [1, 0.7]]);
+  assert.equal(loaded.byId.get(logger.id).output[0].value, 0.1);
+  assert.equal(loaded.byId.get(belt.id).lanes[0].value, 0.1);
+  assert.equal(loaded.state.routes[0].item.value, 0.1);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+});
+
+test("old saves with a stocked, placed or picked-up Sell Tube never receive a duplicate free one", () => {
+  for (const location of ["stock", "placed", "stored"]) {
+    const factory = new Factory(createState(1));
+    if (location !== "stock") {
+      const tube = factory.place("sellTube", 40, 40).machine;
+      if (location === "stored") factory.pickup(tube.id);
+    }
+    delete factory.state.openingEconomyVersion; delete factory.state.inventory.brick;
+    const loaded = Factory.importSave(factory.exportSave());
+    assert.equal(loaded.state.stock.sellTube + loaded.state.machines.filter((machine) => machine.type === "sellTube").length, 1);
+    assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+  }
 });
 
 for (const facing of D.directions) {
@@ -240,7 +312,7 @@ test("Fiber doubles quantity AND total value without a kinetic connection", () =
   advance(factory, 2.2);
   assert.equal(factory.total(basket, "contents"), 2);
   assert.equal(basket.contents[0].value, 0.73);
-  assert.ok(Math.abs(factory.sellBasket(basket.id) - 1.46) < 1e-8);
+  assert.ok(Math.abs(basket.contents.reduce((sum, item) => sum + item.quantity * item.value, 0) - 1.46) < 1e-8);
 });
 
 test("Fiber input capacity, output blockage, independent instances and overflow are bounded", () => {
@@ -265,7 +337,11 @@ test("Basket capacity stops intake; collecting and moving recover contents, and 
   const factory = new Factory(createState(1)), basket = place(factory, "basket", 40, 40);
   assert.equal(factory.receive(basket, cargo("leek", 120), 40, 40, "left", true), 100);
   assert.equal(factory.receive(basket, cargo("leek", 1), 40, 40, "left", true), 0);
+  advance(factory, 10);
+  assert.equal(factory.state.cash, 0, "holding sellables in a Basket does not sell them");
+  assert.equal(typeof factory.sellBasket, "undefined");
   assert.equal(factory.collect(basket.id), 100);
+  assert.equal(factory.state.cash, 0, "collection transfers items, not cash");
   assert.equal(factory.state.inventory.leek, 100);
   factory.receive(basket, cargo("leekFiber", 12, 2), 40, 40, null, true);
   assert.equal(factory.move(basket.id, 41, 41, "right").error, undefined);
@@ -330,7 +406,7 @@ test("haulers carry one stale item, observe loaded/return timing, and keep block
   assert.equal(factory.availableCrew(), 9);
 });
 
-test("purchasing checks cash AND materials and cannot buy an unsettled cost", () => {
+test("purchasing checks cash AND materials, including the $1 and 20 Wood per conveyor", () => {
   const factory = new Factory(createState(1));
   factory.state.inventory.leek = 10;
   assert.ok(factory.buy("fiber").error); assert.equal(factory.state.inventory.leek, 10);
@@ -338,7 +414,15 @@ test("purchasing checks cash AND materials and cannot buy an unsettled cost", ()
   assert.equal(factory.buy("fiber").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.leek, 0);
   assert.ok(factory.buy("belt").error);
-  assert.equal(factory.borrow("belt", 5), true); assert.equal(factory.state.stock.belt, 5);
+  assert.deepEqual(D.machines.belt.cost, { cash: 1, materials: { wood: 20 } });
+  assert.equal(factory.borrow("belt", 5), false); assert.equal(factory.state.stock.belt, 0);
+  factory.state.cash = 5; factory.state.inventory.wood = 99;
+  assert.ok(factory.buy("belt", 5).error);
+  factory.state.cash = 4; factory.state.inventory.wood = 100;
+  assert.ok(factory.buy("belt", 5).error);
+  factory.state.cash = 5;
+  assert.equal(factory.buy("belt", 5).amount, 5);
+  assert.equal(factory.state.stock.belt, 5); assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.wood, 0);
   assert.equal(factory.borrow("primitive", 1), false);
   assert.ok(factory.buy("planter", 1.5).error); assert.ok(factory.buy("planter", 10000).error);
 });
@@ -402,7 +486,7 @@ test("actual opening reaches the $22 powered setup without cheats or a free Fibe
   factory.move(basket.id, 124, 8, "right");
   const first = factory.place("primitive", 125, 6).machine;
   const second = factory.place("primitive", 126, 6).machine;
-  factory.borrow("sellTube"); const sell = factory.place("sellTube", 127, 6).machine;
+  const sell = factory.place("sellTube", 127, 6).machine;
   assert.ok(planter && fiber && wheel && first && second && sell);
   const before = factory.state.cash; advance(factory, 30);
   assert.ok(factory.state.cash > before, "a real, powered Fiber → two Primitives → sale line must earn cash");
