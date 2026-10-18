@@ -9,8 +9,15 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Save identity/key are separate; legacy mine saves cannot be imported here or
   overwritten. Prototype export/import and explicitly confirmed reset are available.
 - Plain labelled machine boxes and port markers; no cosmetic machine animation.
-- Factory: 250x250, with 30 inexhaustible 3x3 trees. One tree is guaranteed in
-  the opening viewport; the rest are seeded/scattered and saved.
+- Inventory retains separate Machines and Items sub-screens. Owned machines use
+  category-filtered compact cards with details and Place beside them; the Factory
+  has no permanent machine list. Items hide unowned materials.
+- Factory supports Shift/two-tap box selection and intentional dragging, including
+  additive selection. Groups can move, rotate both ways, and be picked up. Invalid
+  destinations change nothing; Cancel preserves the original layout and contents.
+- Factory: 250x250, with 30 inexhaustible 3x3 trees. One tree has a fixed
+  position; the rest are seeded/scattered and saved. Refresh starts at the
+  grid's centre; game tabs preserve the current camera position and zoom.
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - One free Leek Planter and one free Basket are supplied. With clicking enabled,

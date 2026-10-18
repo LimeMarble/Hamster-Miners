@@ -476,6 +476,10 @@ for (const [type] of Object.entries(D.machines)) {
         const camera = { x: x - 2, y: y - 2, zoom: 1 }, viewport = { width: 700, height: 500 };
         R.drawFloor(context, factory, camera, viewport);
         R.drawOverlay(context, factory, camera, viewport, { selected: machine.id, tool: { type, facing }, hover: { x: x + 2, y: y + 2 } });
+        R.drawOverlay(context, factory, camera, viewport, {
+          selectedIds: [machine.id, reference.id], group: { ids: [machine.id, reference.id], turns: 1 },
+          hover: { x: x + 2, y: y + 2 }, box: { start: { x: x - 2, y: y - 2 }, end: { x: x + 2, y: y + 2 } },
+        });
         assert.equal(factory.exportSave(), before, "drawing is read-only");
         assert.ok(calls.some(([name, label]) => name === "fillText" && label === "Basket"), "the unrelated visible Basket remains labelled after every lifecycle operation");
         assert.equal(JSON.stringify(reference), referenceBefore);

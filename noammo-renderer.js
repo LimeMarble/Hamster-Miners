@@ -101,17 +101,37 @@
           ctx.fillStyle = "#f0edcf"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(count), (machine.x + 0.5) * TILE, (machine.y + 0.5) * TILE); }
       }
     }
-    if (selected) { const bounds = size(selected); ctx.strokeStyle = "#eef7b2"; ctx.lineWidth = 2; ctx.strokeRect(selected.x * TILE + 1, selected.y * TILE + 1, bounds.width * TILE - 2, bounds.height * TILE - 2); }
+    for (const id of interaction.selectedIds ?? (selected ? [selected.id] : [])) {
+      const machine = factory.byId.get(id);
+      if (!machine) continue;
+      const bounds = size(machine); ctx.strokeStyle = "#eef7b2"; ctx.lineWidth = 2;
+      ctx.strokeRect(machine.x * TILE + 1, machine.y * TILE + 1, bounds.width * TILE - 2, bounds.height * TILE - 2);
+    }
     if (interaction.tree) { const tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
       if (tree) { ctx.strokeStyle = "#e8e9ab"; ctx.lineWidth = 2; ctx.strokeRect(tree.x * TILE, tree.y * TILE, 96, 96); } }
-    if (interaction.tool && interaction.hover) {
-      const preview = { ...interaction.tool, ...interaction.hover }, bounds = size(preview);
-      const error = factory.placement(preview.type, preview.x, preview.y, preview.facing, preview.id);
+    const previews = [];
+    if (interaction.group && interaction.hover) {
+      const plan = factory.groupPlan(interaction.group.ids, interaction.hover.x, interaction.hover.y, interaction.group.turns);
+      for (const machine of plan.machines) previews.push({ machine, error: plan.error });
+    } else if (interaction.tool && interaction.hover) {
+      const machine = { ...interaction.tool, ...interaction.hover };
+      previews.push({ machine, error: factory.placement(machine.type, machine.x, machine.y, machine.facing, machine.id) });
+    }
+    for (const { machine: preview, error } of previews) {
+      const bounds = size(preview);
       ctx.fillStyle = error ? "#df796433" : "#dceaa73a"; ctx.strokeStyle = error ? "#ee9b89" : "#e3efa9"; ctx.lineWidth = 2;
       ctx.fillRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
       ctx.strokeRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
+    }
+    const box = interaction.marquee ?? interaction.box;
+    if (box?.start && box.end) {
+      const x = Math.min(box.start.x, box.end.x), y = Math.min(box.start.y, box.end.y);
+      const width = Math.abs(box.start.x - box.end.x) + 1, height = Math.abs(box.start.y - box.end.y) + 1;
+      ctx.fillStyle = "#dceaa725"; ctx.strokeStyle = "#e3efa9"; ctx.lineWidth = 1.5;
+      ctx.fillRect(x * TILE, y * TILE, width * TILE, height * TILE);
+      ctx.strokeRect(x * TILE, y * TILE, width * TILE, height * TILE);
     }
     ctx.restore();
   }

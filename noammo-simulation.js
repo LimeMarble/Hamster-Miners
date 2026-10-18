@@ -138,7 +138,10 @@
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
       const machine = { type, x, y, facing }, occupied = cells(machine);
       if (occupied.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= D.config.columns || cell.y >= D.config.rows)) return "Outside the factory.";
-      if (occupied.some((cell) => this.at.has(key(cell.x, cell.y)) && this.at.get(key(cell.x, cell.y)).id !== ignoreId)) return "Another machine is in the way.";
+      if (occupied.some((cell) => {
+        const other = this.at.get(key(cell.x, cell.y));
+        return other && !(ignoreId instanceof Set ? ignoreId.has(other.id) : other.id === ignoreId);
+      })) return "Another machine is in the way.";
       if (type === "logger") {
         const tree = this.treeAt.get(key(x, y));
         if (!tree) return "Place the Logger inside a tree’s middle edge tile.";
@@ -171,6 +174,61 @@
       if (machine.type === "basket") this.collect(id);
       Object.assign(machine, { x, y, facing }); this.rebuild();
       return { machine };
+    }
+    selectBox(start, end) {
+      const left = Math.min(start.x, end.x), right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y), bottom = Math.max(start.y, end.y);
+      return this.state.machines.filter((machine) => {
+        const bounds = size(machine);
+        return machine.x <= right && machine.x + bounds.width > left
+          && machine.y <= bottom && machine.y + bounds.height > top;
+      }).map((machine) => machine.id);
+    }
+    groupPlan(ids, x, y, turns = 0) {
+      const selected = new Set(ids), machines = [...selected].map((id) => this.byId.get(id));
+      if (!machines.length || machines.some((machine) => !machine)
+        || ![x, y, turns].every(Number.isInteger)) return { error: "Invalid group selection.", machines: [] };
+      const left = Math.min(...machines.map((machine) => machine.x));
+      const top = Math.min(...machines.map((machine) => machine.y));
+      const width = Math.max(...machines.map((machine) => machine.x + size(machine).width)) - left;
+      const height = Math.max(...machines.map((machine) => machine.y + size(machine).height)) - top;
+      const rotation = ((turns % 4) + 4) % 4;
+      const planned = machines.map((machine) => {
+        const dx = machine.x - left, dy = machine.y - top, bounds = size(machine);
+        const offsets = [
+          [dx, dy], [height - dy - bounds.height, dx],
+          [width - dx - bounds.width, height - dy - bounds.height], [dy, width - dx - bounds.width],
+        ][rotation];
+        return { id: machine.id, type: machine.type, x: x + offsets[0], y: y + offsets[1], facing: turn(machine.facing, rotation) };
+      });
+      let error = null;
+      const occupied = new Set();
+      for (const machine of planned) {
+        error ||= this.placement(machine.type, machine.x, machine.y, machine.facing, selected);
+        for (const cell of cells(machine)) {
+          const position = key(cell.x, cell.y);
+          if (occupied.has(position)) error ||= "Selected machines overlap.";
+          occupied.add(position);
+        }
+      }
+      return { error, machines: planned, width: rotation % 2 ? height : width, height: rotation % 2 ? width : height };
+    }
+    moveGroup(ids, x, y, turns = 0) {
+      const plan = this.groupPlan(ids, x, y, turns);
+      if (plan.error) return { error: plan.error };
+      // Validate the entire destination before collecting or moving anything.
+      for (const entry of plan.machines) {
+        const machine = this.byId.get(entry.id);
+        if (machine.type === "basket") this.collect(machine.id);
+        Object.assign(machine, { x: entry.x, y: entry.y, facing: entry.facing });
+      }
+      this.rebuild(); return { machines: plan.machines.map((entry) => this.byId.get(entry.id)) };
+    }
+    pickupGroup(ids) {
+      const selected = [...new Set(ids)];
+      if (!selected.length || selected.some((id) => !this.byId.has(id))) return { error: "Invalid group selection." };
+      for (const id of selected) this.pickup(id);
+      return { amount: selected.length };
     }
     collect(id) {
       const basket = this.byId.get(id);

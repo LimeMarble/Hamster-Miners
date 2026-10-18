@@ -29,6 +29,21 @@ future pipe tiers) are not treated as current acceptance requirements.
   limits, category filtering, owned feedback, tap placement/rotation, stable
   hauling controls and preservation of corrupt saves. This is not a substitute
   for live-browser visual verification.
+- Refresh starts at the factory grid's centre on both axes, including when
+  layout dimensions arrive late. Tab switches preserve pan/zoom, clear edge
+  panning, and ignore hidden viewport sizes. A changed viewport preserves the
+  viewed world centre; Home recentres without resetting zoom.
+- Opening Inventory has separate Machines/Items sub-screens, owned-only machine
+  cards, category filtering, stable selected details and a Place action returning
+  to the current camera. Machinery is not listed on the default Factory screen.
+- Shift or Box select arms two-tap selection; reversed and additive boxes,
+  ordinary drags, the eight-pixel intent threshold, input/repeat guards and Cancel
+  are covered. Control-panel releases cannot select the background canvas.
+- Bulk movement rotates full footprints and facing in either direction, ignores
+  only the selected original footprints, and commits atomically. Invalid moves
+  retain contents/positions; successful moves and pickups use normal per-instance
+  recovery rules. Shared tests cover every opening machine in every orientation,
+  including read-only group previews and selection outlines.
 - Prototype saves have a different kind/key; importing a legacy mining save
   fails without mutating live state. Borrowed test gear and Primitive tuning
   remain explicitly labelled as unsettled, not canonical costs/effects.

@@ -5,13 +5,16 @@
   let factory, storageFailed = false;
   try { const save = localStorage.getItem(D.saveKey); factory = save ? A.Factory.importSave(save) : new A.Factory(); }
   catch (error) { factory = new A.Factory(); storageFailed = true; console.warn("Prototype save not loaded:", error); }
-  const camera = { x: 115, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
-  const interaction = { selected: null, tree: null, tool: null, hover: null };
+  const camera = { x: 0, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
+  let cameraReady = false;
+  const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
+  let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
+  let gesture = null, suppressClick = false;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
   let overlaySignature = "";
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
-  const palette = new Map(), cards = new Map();
+  const machineCards = new Map(), cards = new Map();
   const suffices = ["", "k", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No", "Dc"];
   function number(value) {
     if (!Number.isFinite(value)) return "0";
@@ -43,7 +46,8 @@
     activeTab = tab;
     for (const screen of document.querySelectorAll(".screen")) screen.hidden = screen.id !== tab;
     for (const button of document.querySelectorAll("[data-tab]")) button.classList.toggle("active", button.dataset.tab === tab);
-    pointer = null;
+    pointer = null; interaction.hover = null;
+    gesture = null; interaction.marquee = null; interaction.box = null; suppressClick = false;
     if (tab === "factory") { resize(); floorSignature = ""; }
     refresh();
   }
@@ -53,17 +57,28 @@
     camera.y = Math.max(-3, Math.min(D.config.rows + 3 - height, camera.y));
   }
   function resize() {
+    if (activeTab !== "factory") return;
     const rect = $("viewport").getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    viewport.width = rect.width; viewport.height = rect.height;
     const resolution = Math.min(2, window.devicePixelRatio || 1);
+    const pixelWidth = Math.round(rect.width * resolution), pixelHeight = Math.round(rect.height * resolution);
+    if (cameraReady && viewport.width === rect.width && viewport.height === rect.height
+      && $("floor").width === pixelWidth && $("floor").height === pixelHeight) return;
+    // Hidden tabs have no meaningful viewport. Keep the viewed world centre,
+    // and only establish the initial view once the floor has real dimensions.
+    const centerX = cameraReady ? camera.x + viewport.width / (R.TILE * camera.zoom * 2) : D.config.columns / 2;
+    const centerY = cameraReady ? camera.y + viewport.height / (R.TILE * camera.zoom * 2) : D.config.rows / 2;
+    viewport.width = rect.width; viewport.height = rect.height;
     for (const canvas of [$("floor"), $("cargo")]) {
-      canvas.width = Math.round(rect.width * resolution); canvas.height = Math.round(rect.height * resolution);
+      canvas.width = pixelWidth; canvas.height = pixelHeight;
       canvas.getContext("2d").setTransform(resolution, 0, 0, resolution, 0, 0);
     }
-    bounds(); floorSignature = "";
+    camera.x = centerX - viewport.width / (R.TILE * camera.zoom * 2);
+    camera.y = centerY - viewport.height / (R.TILE * camera.zoom * 2);
+    cameraReady = true;
+    bounds(); floorSignature = ""; overlaySignature = "";
   }
-  function home() { camera.x = 125 - viewport.width / (R.TILE * camera.zoom * 2); camera.y = 0; bounds(); floorSignature = ""; }
+  function home() { cameraReady = false; resize(); }
   function zoom(change, anchor) {
     const next = Math.max(0.5, Math.min(2, Math.round((camera.zoom + change) * 10) / 10));
     const p = anchor ?? { x: viewport.width / 2, y: viewport.height / 2 };
@@ -73,12 +88,39 @@
   }
   function build(type) {
     if (!(factory.state.stock[type] > 0)) { shopSelection = type; shopSignature = ""; setTab("shop"); return; }
-    interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right" }; interaction.selected = null; interaction.tree = null;
+    select([]); interaction.group = null; interaction.box = null;
+    interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right" };
     setTab("factory"); inspectorSignature = ""; refresh();
   }
-  function cancel() { interaction.tool = null; refresh(); }
+  function select(ids) {
+    interaction.selectedIds = [...new Set(ids)].filter((id) => factory.byId.has(id));
+    interaction.selected = interaction.selectedIds.length === 1 ? interaction.selectedIds[0] : null;
+    interaction.tree = null;
+  }
+  function cancel() {
+    if (interaction.box || gesture) { interaction.box = null; interaction.marquee = null; gesture = null; }
+    else if (interaction.group || interaction.tool) { interaction.group = null; interaction.tool = null; }
+    else { select([]); interaction.tree = null; }
+    refresh();
+  }
+  function beginBox() {
+    if (interaction.box) return;
+    interaction.tool = null; interaction.group = null;
+    interaction.box = { start: null, end: null, add: false }; refresh();
+  }
+  function finishBox(start, end, add) {
+    select([...(add ? interaction.selectedIds : []), ...factory.selectBox(start, end)]);
+    interaction.box = null; interaction.marquee = null; refresh();
+  }
+  function beginGroupMove() {
+    if (!interaction.selectedIds.length) return;
+    interaction.tool = null; interaction.box = null;
+    interaction.group = { ids: [...interaction.selectedIds], turns: 0 }; refresh();
+  }
   function rotate(count) {
-    if (interaction.tool) interaction.tool.facing = A.turn(interaction.tool.facing, count);
+    if (interaction.group) interaction.group.turns = (interaction.group.turns + count + 4) % 4;
+    else if (interaction.tool) interaction.tool.facing = A.turn(interaction.tool.facing, count);
+    else if (interaction.selectedIds.length > 1) { beginGroupMove(); interaction.group.turns = (count + 4) % 4; }
     else {
       const machine = factory.byId.get(interaction.selected);
       if (machine) result(factory.move(machine.id, machine.x, machine.y, A.turn(machine.facing, count)));
@@ -86,8 +128,10 @@
     refresh();
   }
   for (const [type, definition] of Object.entries(D.machines)) {
-    const count = element("b", "0"), button = action("", () => build(type), "build-card");
-    button.append(element("span", definition.name), count); $("palette").append(button); palette.set(type, { button, count });
+    const count = element("span", "0"), button = action("", () => { inventorySelection = type; renderInventory(); }, "shop-card");
+    const inventorySwatch = element("i", undefined, "machine-swatch"); inventorySwatch.style.backgroundColor = definition.color;
+    button.dataset.machine = type;
+    button.append(inventorySwatch, element("strong", definition.name), count); $("machineCards").append(button); machineCards.set(type, { button, count });
     const card = action("", () => { shopSelection = type; shopSignature = ""; refresh(); }, "shop-card");
     const swatch = element("i", undefined, "machine-swatch"); swatch.style.backgroundColor = definition.color;
     const owned = element("span", "Owned: 0"), bottom = element("small"); bottom.append(swatch, owned);
@@ -95,12 +139,19 @@
     $("shopCards").append(card); cards.set(type, { card, owned });
   }
   for (const button of document.querySelectorAll("[data-tab]")) button.addEventListener("click", () => setTab(button.dataset.tab));
+  for (const button of document.querySelectorAll("[data-inventory-tab]")) button.addEventListener("click", () => {
+    inventoryTab = button.dataset.inventoryTab; renderInventory();
+  });
+  for (const button of document.querySelectorAll("[data-inventory-category]")) button.addEventListener("click", () => {
+    inventoryCategory = button.dataset.inventoryCategory; renderInventory();
+  });
   for (const button of document.querySelectorAll("[data-category]")) button.addEventListener("click", () => {
     category = button.dataset.category;
     for (const other of document.querySelectorAll("[data-category]")) other.classList.toggle("active", other === button);
     refresh();
   });
-  $("openShop").addEventListener("click", () => setTab("shop"));
+  $("openInventory").addEventListener("click", () => { inventoryTab = "machines"; setTab("inventory"); });
+  $("boxSelect").addEventListener("click", beginBox);
   $("rotateLeft").addEventListener("click", () => rotate(-1)); $("rotateRight").addEventListener("click", () => rotate(1));
   $("cancel").addEventListener("click", cancel); $("home").addEventListener("click", home);
   $("zoomIn").addEventListener("click", () => zoom(0.1)); $("zoomOut").addEventListener("click", () => zoom(-0.1));
@@ -109,19 +160,57 @@
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
   function tile(point) { return { x: Math.floor(camera.x + point.x / (R.TILE * camera.zoom)), y: Math.floor(camera.y + point.y / (R.TILE * camera.zoom)) }; }
-  $("cargo").addEventListener("pointermove", (event) => { pointer = position(event); interaction.hover = tile(pointer); });
+  $("cargo").addEventListener("pointerdown", (event) => {
+    if (activeTab !== "factory" || (event.button ?? 0) !== 0) return;
+    suppressClick = false;
+    const pixel = position(event), point = tile(pixel);
+    if (!interaction.tool && !interaction.group && (interaction.box || event.shiftKey || !factory.at.has(A.key(point.x, point.y)))) {
+      gesture = { pixel, start: point, add: Boolean(event.shiftKey), active: false };
+    }
+  });
+  $("cargo").addEventListener("pointermove", (event) => {
+    pointer = position(event); interaction.hover = tile(pointer);
+    if (gesture) {
+      if (Math.hypot(pointer.x - gesture.pixel.x, pointer.y - gesture.pixel.y) >= 8) gesture.active = true;
+      if (gesture.active) interaction.marquee = { start: gesture.start, end: interaction.hover };
+    }
+    if (interaction.box?.start) interaction.box.end = interaction.hover;
+  });
+  $("cargo").addEventListener("pointerup", (event) => {
+    if (!gesture) return;
+    if (gesture.active) {
+      finishBox(gesture.start, tile(position(event)), gesture.add || Boolean(event.shiftKey) || Boolean(interaction.box?.add));
+      suppressClick = true;
+    }
+    gesture = null;
+  });
+  window.addEventListener("pointerup", (event) => {
+    if (event.target !== $("cargo")) { gesture = null; interaction.marquee = null; }
+  });
+  $("cargo").addEventListener("pointercancel", () => { gesture = null; interaction.marquee = null; });
   $("cargo").addEventListener("pointerleave", () => { pointer = null; interaction.hover = null; });
   $("cargo").addEventListener("contextmenu", (event) => { event.preventDefault(); cancel(); });
   $("cargo").addEventListener("click", (event) => {
+    if (activeTab !== "factory") return;
+    if (suppressClick) { suppressClick = false; return; }
     const point = tile(position(event)), tool = interaction.tool;
-    if (tool) {
+    if (interaction.box) {
+      if (!interaction.box.start) { interaction.box.start = point; interaction.box.end = point; interaction.box.add = Boolean(event.shiftKey); refresh(); }
+      else finishBox(interaction.box.start, point, interaction.box.add || Boolean(event.shiftKey));
+      return;
+    }
+    if (interaction.group) {
+      const { ids, turns } = interaction.group, response = factory.moveGroup(ids, point.x, point.y, turns);
+      if (response.error) return notify(response.error);
+      interaction.group = null; select(ids);
+    } else if (tool) {
       const response = tool.id ? factory.move(tool.id, point.x, point.y, tool.facing) : factory.place(tool.type, point.x, point.y, tool.facing);
       if (response.error) return notify(response.error);
       if (tool.id || !factory.state.stock[tool.type]) interaction.tool = null;
-      interaction.selected = response.machine.id; interaction.tree = null;
+      select([response.machine.id]);
     } else {
       const machine = factory.at.get(A.key(point.x, point.y)), tree = factory.treeAt.get(A.key(point.x, point.y));
-      interaction.selected = machine?.id ?? null; interaction.tree = machine ? null : tree?.id ?? null;
+      select(machine ? [machine.id] : []); interaction.tree = machine ? null : tree?.id ?? null;
       if (interaction.tree) chop(interaction.tree);
     }
     inspectorSignature = ""; refresh();
@@ -129,18 +218,33 @@
   $("cargo").addEventListener("wheel", (event) => { event.preventDefault(); zoom(event.deltaY < 0 ? 0.1 : -0.1, position(event)); }, { passive: false });
   function chop(id) { const response = factory.chop(id); if (response.wood) notify(`+${response.wood} Wood`); refresh(); }
   document.addEventListener("keydown", (event) => {
-    if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+    const target = event.target ?? document.activeElement;
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(target?.tagName) || target?.isContentEditable) return;
     if (event.key === "Escape") cancel();
     if (activeTab !== "factory") return;
+    if (event.key === "Shift" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !interaction.tool && !interaction.group) {
+      event.preventDefault(); beginBox();
+    }
     if (event.key.toLowerCase() === "q") rotate(-1);
     if (event.key.toLowerCase() === "e") rotate(1);
   });
   function renderInspector() {
     const machine = factory.byId.get(interaction.selected), tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
-    const signature = `${machine?.id ?? ""}:${tree?.id ?? ""}:${factory.layoutVersion}:${factory.state.routes.map((route) => route.id).join(",")}:${Boolean(interaction.tool)}`;
+    const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${factory.state.routes.map((route) => route.id).join(",")}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
     if (signature !== inspectorSignature) {
       inspectorSignature = signature; const panel = $("inspector"); panel.replaceChildren();
-      if (tree) {
+      if (interaction.selectedIds.length > 1) {
+        panel.append(element("h2", `${interaction.selectedIds.length} machines selected`));
+        const controls = element("div", undefined, "row");
+        const move = action("Move", beginGroupMove); move.id = "moveGroup";
+        const pickup = action("Pick up", () => {
+          const response = factory.pickupGroup(interaction.selectedIds);
+          if (response.error) return notify(response.error);
+          select([]); interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null; refresh();
+        }, "secondary"); pickup.id = "pickupGroup";
+        controls.append(move, pickup); panel.append(controls,
+          element("p", "Q/E or Rotate turns the group. Tap a valid position to place it; Cancel leaves the original machines unchanged."));
+      } else if (tree) {
         panel.append(element("h2", "Woodland tree"), element("p", "Inexhaustible. Five chops harvest 1–5 Wood. The five-clicks/second cap is shared across every tree."));
         const counter = element("div", undefined, "tree-chops"); counter.id = "chopCounter";
         for (let i = 0; i < 5; i++) counter.append(element("i"));
@@ -150,8 +254,14 @@
         const status = element("p", "", "status"); status.id = "machineStatus";
         panel.append(element("h2", definition.name), status, element("p", definition.description));
         const controls = element("div", undefined, "row");
-        controls.append(action("Move", () => { interaction.tool = { type: machine.type, id: machine.id, facing: machine.facing }; refresh(); }),
-          action("Pick up", () => { factory.pickup(machine.id); interaction.selected = null; interaction.tool = null; refresh(); }, "secondary"));
+        const move = action("Move", () => {
+          interaction.box = null; interaction.marquee = null; gesture = null;
+          interaction.tool = { type: machine.type, id: machine.id, facing: machine.facing }; refresh();
+        }); move.id = "moveMachine";
+        const pickup = action("Pick up", () => {
+          factory.pickup(machine.id); select([]); interaction.tool = null; interaction.box = null; interaction.marquee = null; gesture = null; refresh();
+        }, "secondary"); pickup.id = "pickupMachine";
+        controls.append(move, pickup);
         panel.append(controls);
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
         if (machine.type === "basket") {
@@ -177,7 +287,15 @@
           line.append(status, action("Unassign", () => { factory.removeRoute(route.id); refresh(); }, "secondary")); panel.append(line);
         }
         if (machine.type === "primitive") panel.append(element("p", `TEST effect: +${money(factory.state.tuning.primitiveBonus)} below ${money(factory.state.tuning.primitiveLimit)}. Adjustable in Options; not final balance.`));
-      } else panel.append(element("h2", "Opening factory"), element("p", "Place the free Leek Planter and Basket from the left panel. Click the nearby tree to gather Wood."), element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
+      } else {
+        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter and Basket. Click trees to gather Wood."),
+          element("p", "Shift or Box select starts two-tap selection. You can also drag from empty space. Move, rotate, or pick up selected machines."),
+          element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
+        const help = element("details", undefined, "opening-help"), list = element("ol");
+        help.append(element("summary", "Getting started"));
+        for (const line of ["Point the Planter’s edge output into the Basket.", "Collect Leeks: sell 10 for $1 and keep 10 to buy a Fiber Extractor.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
+        help.append(list); panel.append(help);
+      }
     }
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
@@ -258,22 +376,52 @@
     }
     if (!$("itemCards").children.length) $("itemCards").append(element("p", "Inventory is empty. Collect a Basket or chop a tree."));
   }
+  function renderInventory() {
+    $("machineInventory").hidden = inventoryTab !== "machines";
+    $("itemInventory").hidden = inventoryTab !== "items";
+    for (const button of document.querySelectorAll("[data-inventory-tab]")) button.classList.toggle("active", button.dataset.inventoryTab === inventoryTab);
+    for (const button of document.querySelectorAll("[data-inventory-category]")) button.classList.toggle("active", button.dataset.inventoryCategory === inventoryCategory);
+    if (inventoryTab === "items") { renderItems(); return; }
+    const visible = [];
+    for (const [type, entry] of machineCards) {
+      const available = factory.state.stock[type], total = available + factory.state.machines.filter((machine) => machine.type === type).length;
+      entry.button.hidden = total === 0 || (inventoryCategory !== "All" && D.machines[type].category !== inventoryCategory);
+      if (!entry.button.hidden) visible.push(type);
+      text(entry.count, `Owned: ${number(total)} · available: ${number(available)}`);
+    }
+    if (!visible.includes(inventorySelection)) inventorySelection = visible[0] ?? null;
+    for (const [type, entry] of machineCards) entry.button.classList.toggle("selected", type === inventorySelection);
+    $("machineEmpty").hidden = visible.length > 0;
+    const panel = $("machineDetail"); panel.hidden = !inventorySelection;
+    if (!inventorySelection) return;
+    if (machineSignature !== inventorySelection) {
+      machineSignature = inventorySelection;
+      const definition = D.machines[inventorySelection], bounds = A.size({ type: inventorySelection, facing: definition.defaultFacing ?? "right" });
+      panel.replaceChildren(element("h2", definition.name), element("p", definition.description), element("p", `${bounds.width}×${bounds.height} default footprint`, "muted"));
+      const owned = element("p"); owned.id = "inventoryOwned";
+      const place = action("Place", () => build(inventorySelection)); place.id = "placeMachine";
+      panel.append(owned, place, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"));
+    }
+    const available = factory.state.stock[inventorySelection], placed = factory.state.machines.filter((machine) => machine.type === inventorySelection).length;
+    text($("inventoryOwned"), `Owned: ${number(available + placed)} · available to place: ${number(available)}`);
+    $("placeMachine").disabled = available < 1;
+  }
   function refresh() {
     text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${D.config.startingCrew}`);
-    for (const [type, entry] of palette) {
-      text(entry.count, number(factory.state.stock[type]));
-      entry.button.classList.toggle("selected", interaction.tool?.type === type);
-    }
-    text($("toolLabel"), interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
-    $("cancel").disabled = !interaction.tool;
+    text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : "Tap the first corner"
+      : interaction.group ? `Moving ${interaction.group.ids.length} machines · Q/E rotates the group`
+      : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
+    $("cancel").disabled = !(interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);
+    text($("cancel"), interaction.box ? "Cancel selection" : interaction.group || interaction.tool ? "Cancel" : "Clear selection");
     if (activeTab === "factory") renderInspector();
     if (activeTab === "shop") renderShop();
-    if (activeTab === "items") renderItems();
+    if (activeTab === "inventory") renderInventory();
   }
   $("export").addEventListener("click", () => { $("saveText").value = factory.exportSave(); $("saveText").select(); save(); });
   $("import").addEventListener("click", () => {
     try { const replacement = A.Factory.importSave($("saveText").value); factory = replacement; storageFailed = false;
-      interaction.selected = null; interaction.tool = null; interaction.tree = null; inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = "";
+      select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
+      inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
       $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
       save(); refresh(); notify(factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
@@ -282,8 +430,8 @@
   });
   $("reset").addEventListener("click", () => {
     if (!window.confirm("Reset only this opening prototype? Existing mining saves will not be changed.")) return;
-    factory = new A.Factory(); storageFailed = false; interaction.selected = null; interaction.tool = null; interaction.tree = null;
-    inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = "";
+    factory = new A.Factory(); storageFailed = false; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
+    inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
     $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
     home(); save(); refresh();
   });
@@ -310,17 +458,19 @@
           if (pointer.y < edge) camera.y -= elapsed * speed;
           if (pointer.y > viewport.height - edge) camera.y += elapsed * speed;
           bounds(); interaction.hover = tile(pointer);
+          if (interaction.box?.start) interaction.box.end = interaction.hover;
+          if (gesture?.active) interaction.marquee = { start: gesture.start, end: interaction.hover };
         }
         const signature = `${factory.layoutVersion}:${camera.x}:${camera.y}:${camera.zoom}:${viewport.width}:${viewport.height}`;
         if (floorSignature !== signature) { floorSignature = signature; R.drawFloor(floor, factory, camera, viewport); }
-        const cargoSignature = `${signature}:${factory.state.seconds}:${interaction.selected}:${interaction.tree}:${JSON.stringify(interaction.tool)}:${JSON.stringify(interaction.hover)}`;
+        const cargoSignature = `${signature}:${factory.state.seconds}:${interaction.selectedIds.join(",")}:${interaction.tree}:${JSON.stringify(interaction.tool)}:${JSON.stringify(interaction.group)}:${JSON.stringify(interaction.box)}:${JSON.stringify(interaction.marquee)}:${JSON.stringify(interaction.hover)}`;
         if (overlaySignature !== cargoSignature) { overlaySignature = cargoSignature; R.drawOverlay(overlay, factory, camera, viewport, interaction); }
       }
     }
     if (toastTime && now >= toastTime) { $("notice").classList.remove("visible"); toastTime = 0; }
     requestAnimationFrame(frame);
   }
-  resize(); home(); refresh();
+  resize(); refresh();
   if (storageFailed) notify("A saved prototype could not be loaded. It has not been overwritten; export or import a valid save before continuing.");
   else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
   else if (factory.reorientedForFiberResize) notify("Fiber Extractor layouts corrected; reconnect their working tile. Contents are preserved.");
