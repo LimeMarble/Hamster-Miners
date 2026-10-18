@@ -25,7 +25,7 @@
     },
     machines: {
       planter: {
-        name: "Leek Planter", width: 2, height: 2, color: "#5f8148", category: "Material",
+        name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
         cost: { cash: 0, materials: {} }, source: "leek", cycle: 2,
         description: "Grows one Leek every 2 seconds. Outputs directly from its facing edge; no conveyor inside.",
       },
@@ -35,7 +35,9 @@
         description: "Holds up to 100 items. Collect them into inventory, sell eligible contents, or assign a hauling hamster. No manual deposits.",
       },
       fiber: {
-        name: "Leek Fiber Extractor", width: 2, height: 1, color: "#99a26d", category: "Material",
+        name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
+        baseFacing: "down",
+        defaultFacing: "down",
         cost: { cash: 1, materials: { leek: 10 } }, crew: 1,
         description: "One Leek becomes two Leek Fiber. Each Fiber retains the incoming Leek’s value.",
       },

@@ -73,7 +73,7 @@
   }
   function build(type) {
     if (!(factory.state.stock[type] > 0)) { shopSelection = type; shopSignature = ""; setTab("shop"); return; }
-    interaction.tool = { type, facing: "right" }; interaction.selected = null; interaction.tree = null;
+    interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right" }; interaction.selected = null; interaction.tree = null;
     setTab("factory"); inspectorSignature = ""; refresh();
   }
   function cancel() { interaction.tool = null; refresh(); }
@@ -207,7 +207,8 @@
     const definition = D.machines[shopSelection], panel = $("shopDetail");
     if (shopSignature !== shopSelection) {
       shopSignature = shopSelection; panel.replaceChildren(element("h2", definition.name), element("p", definition.description));
-      panel.append(element("p", `${definition.width}×${definition.height} unrotated${definition.crew ? ` · ${definition.crew} crew` : ""}`, "muted"));
+      const defaultSize = A.size({ type: shopSelection, facing: definition.defaultFacing ?? "right" });
+      panel.append(element("p", `${defaultSize.width}×${defaultSize.height} default footprint${definition.crew ? ` · ${definition.crew} crew` : ""}`, "muted"));
       const owned = element("p"); owned.id = "shopOwned"; panel.append(owned);
       const quantity = element("input"); quantity.id = "quantity"; quantity.type = "number"; quantity.min = "1"; quantity.max = "9999"; quantity.value = "1";
       const label = element("label", "Purchase amount "); label.append(quantity); panel.append(label);
@@ -274,7 +275,9 @@
     try { const replacement = A.Factory.importSave($("saveText").value); factory = replacement; storageFailed = false;
       interaction.selected = null; interaction.tool = null; interaction.tree = null; inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = "";
       $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
-      save(); refresh(); notify("Prototype save imported.");
+      save(); refresh(); notify(factory.recoveredForPlanterResize
+        ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
+        : factory.reorientedForFiberResize ? "Save imported. Old Fiber Extractors now point down; reconnect their lower outputs." : "Prototype save imported.");
     } catch (error) { notify(error.message); }
   });
   $("reset").addEventListener("click", () => {
@@ -319,6 +322,8 @@
   }
   resize(); home(); refresh();
   if (storageFailed) notify("A saved prototype could not be loaded. It has not been overwritten; export or import a valid save before continuing.");
+  else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
+  else if (factory.reorientedForFiberResize) notify("Old Fiber Extractors now point down. Reconnect their lower outputs; contents are preserved.");
   if (!storageFailed) save();
   requestAnimationFrame(frame);
 }());

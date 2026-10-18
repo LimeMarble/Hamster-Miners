@@ -116,13 +116,28 @@ test("visible place/rotate/cancel controls create the correct footprint and pres
   assert.equal(ui.storage.size, 1);
 });
 
+test("Fiber placement starts downward, continues downward, and still accepts manual rotation", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.stock.fiber = 2;
+  const ui = boot(factory.exportSave());
+  ui.ids.get("palette").children[2].emit("click");
+  assert.match(ui.ids.get("toolLabel").textContent, /down/);
+  ui.ids.get("cargo").emit("click", { clientX: (121 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
+  const first = ui.state().machines[0];
+  assert.equal(first.type, "fiber"); assert.equal(first.facing, "down");
+  assert.match(ui.ids.get("toolLabel").textContent, /Placing.*down/);
+  ui.ids.get("rotateLeft").emit("click");
+  ui.ids.get("cargo").emit("click", { clientX: (124 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
+  assert.equal(ui.state().machines[1].facing, "right");
+});
+
 test("production does not remount the selected Basket's hauling controls", () => {
   const factory = new A.Factory(A.createState(1));
-  const basket = factory.place("basket", 123, 5).machine;
+  const basket = factory.place("basket", 124, 6).machine;
   factory.place("planter", 121, 5);
   factory.state.stock.fiber = 1; factory.place("fiber", 128, 5);
   const ui = boot(factory.exportSave());
-  ui.ids.get("cargo").emit("click", { clientX: (123 - (125 - 900 / 64)) * 32 + 2, clientY: 162 });
+  ui.ids.get("cargo").emit("click", { clientX: (124 - (125 - 900 / 64)) * 32 + 2, clientY: 194 });
   const destination = ui.ids.get("haulDestination"), material = ui.ids.get("haulMaterial");
   assert.ok(destination); assert.ok(material);
   for (let now = 100; now < 5000; now += 100) ui.frame(now);

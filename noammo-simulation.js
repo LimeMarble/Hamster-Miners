@@ -14,9 +14,13 @@
     if (direction === "up") return { x: y, y: width - 1 - x };
     return { x, y };
   }
+  function rotation(machine) {
+    const definition = D.machines[machine.type];
+    return (D.directions.indexOf(machine.facing) - D.directions.indexOf(definition.baseFacing ?? "right") + 4) % 4;
+  }
   function size(machine) {
     const definition = D.machines[machine.type];
-    return machine.facing === "up" || machine.facing === "down"
+    return rotation(machine) % 2 === 1
       ? { width: definition.height, height: definition.width }
       : { width: definition.width, height: definition.height };
   }
@@ -29,16 +33,17 @@
   }
   function port(machine, x, y, direction, role) {
     const definition = D.machines[machine.type];
-    const rotated = rotatePoint(x, y, definition.width, definition.height, machine.facing);
+    const turns = rotation(machine);
+    const rotated = rotatePoint(x, y, definition.width, definition.height, D.directions[turns]);
     return { x: machine.x + rotated.x, y: machine.y + rotated.y,
-      direction: turn(direction, D.directions.indexOf(machine.facing)), role };
+      direction: turn(direction, turns), role };
   }
   function ports(machine) {
     const result = [], add = (x, y, direction, role) => result.push(port(machine, x, y, direction, role));
     switch (machine.type) {
-      case "planter": add(1, 0, "right", "output"); add(1, 1, "right", "output"); break;
+      case "planter": add(2, 1, "right", "output"); break;
       case "logger": add(0, 0, "right", "output"); break;
-      case "fiber": add(0, 0, "left", "input"); add(1, 0, "right", "output"); break;
+      case "fiber": add(0, 0, "up", "input"); add(0, 1, "down", "output"); break;
       case "belt": add(0, 0, "right", "output"); break;
       case "primitive":
         for (let y = 0; y < 2; y++) { add(0, y, "left", "input"); add(0, y, "right", "output"); }
@@ -68,7 +73,7 @@
   }
   function createState(seed = Date.now() >>> 0) {
     const state = {
-      kind: D.saveKind, version: D.saveVersion, random: seed >>> 0, seconds: 0, nextId: 1,
+      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       cash: 0, earned: 0, inventory: { leek: 0, leekFiber: 0, wood: 0 },
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: [], harvestProgress: 0,
@@ -129,7 +134,7 @@
       const used = this.state.machines.reduce((sum, machine) => sum + (D.machines[machine.type].crew ?? 0), 0);
       return D.config.startingCrew - used - this.state.routes.length;
     }
-    placement(type, x, y, facing = "right", ignoreId = null) {
+    placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null) {
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
       const machine = { type, x, y, facing }, occupied = cells(machine);
       if (occupied.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= D.config.columns || cell.y >= D.config.rows)) return "Outside the factory.";
@@ -146,7 +151,7 @@
       if (!ignoreId && this.availableCrew() < (D.machines[type].crew ?? 0)) return "Not enough available hamsters.";
       return null;
     }
-    place(type, x, y, facing = "right") {
+    place(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right") {
       const error = this.placement(type, x, y, facing);
       if (error) return { error };
       if (!(this.state.stock[type] > 0)) return { error: "No owned machine to place." };
@@ -473,13 +478,38 @@
       state.clickTokens = Math.max(0, Math.min(1, finite(state.clickTokens)));
       state.tuning = { primitiveBonus: Math.max(0, finite(state.tuning?.primitiveBonus, base.tuning.primitiveBonus)),
         primitiveLimit: Math.max(0, finite(state.tuning?.primitiveLimit, base.tuning.primitiveLimit)) };
-      const factory = new Factory({ ...state, machines: [], routes: [] });
-      for (const machine of state.machines) {
+      const legacyFootprint = !state.planterFootprintVersion || state.planterFootprintVersion < 2;
+      const legacyFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 2;
+      let reorientedFiber = 0;
+      if (legacyFiber) {
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          if (machine.type === "fiber" && machine.facing === "right") { machine.facing = "down"; reorientedFiber++; }
+        }
+      }
+      const migrateFootprints = legacyFootprint || legacyFiber;
+      const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 2, machines: [], routes: [] });
+      const recovered = new Set();
+      // Keep corrected machine footprints first. Only old layout collisions are
+      // recovered with the normal pickup rules; inventory/cargo are not erased.
+      const priority = (machine) => machine.type === "planter" ? 2 : machine.type === "fiber" ? 1 : 0;
+      const ordered = migrateFootprints ? [...state.machines].sort((a, b) => priority(b) - priority(a)) : state.machines;
+      for (const machine of ordered) {
         const error = factory.placement(machine.type, machine.x, machine.y, machine.facing);
+        if (error && migrateFootprints && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
+          factory.state.machines.push(machine); factory.rebuild(); factory.pickup(machine.id);
+          recovered.add(machine.id); continue;
+        }
         if (error) throw new Error(error);
         factory.state.machines.push(machine); factory.rebuild();
       }
       for (const route of state.routes) {
+        if (migrateFootprints && (recovered.has(route.source) || recovered.has(route.destination))) {
+          if (route.item) {
+            if (!validCargo(route.item) || route.item.quantity > 1) throw new Error("Invalid hauling cargo.");
+            factory.state.inventory[route.item.material] += route.item.quantity;
+          }
+          continue;
+        }
         if (ids.has(route.id) || typeof route.id !== "string" || factory.byId.get(route.source)?.type !== "basket"
           || !factory.byId.has(route.destination) || !["pickup", "loaded", "return"].includes(route.phase)
           || !Number.isFinite(route.remaining) || route.remaining < 0 || !Number.isFinite(route.duration)
@@ -491,6 +521,8 @@
         ids.add(route.id); factory.state.routes.push(route);
       }
       if ([...ids].some((id) => /^(machine|route)-\d+$/.test(id) && Number(id.split("-")[1]) >= state.nextId)) throw new Error("Invalid next identity.");
+      factory.recoveredForPlanterResize = recovered.size;
+      factory.reorientedForFiberResize = reorientedFiber;
       return factory;
     }
   }

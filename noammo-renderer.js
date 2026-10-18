@@ -110,7 +110,7 @@
       ctx.fillStyle = error ? "#df796433" : "#dceaa73a"; ctx.strokeStyle = error ? "#ee9b89" : "#e3efa9"; ctx.lineWidth = 2;
       ctx.fillRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
       ctx.strokeRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
-      for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.65,
+      for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
     }
     ctx.restore();

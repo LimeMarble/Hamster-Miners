@@ -15,11 +15,12 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - One free Leek Planter and one free Basket are supplied. With clicking enabled,
   no free Logger is needed. Resource Planters are free for this prototype.
-- Planter: 2x2, no internal conveyors, one Leek/2 seconds, direct facing-edge
+- Planter: 3x3, no internal conveyors, one Leek/2 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 10 Leek Fiber instead of 10 raw Leeks.
   No manual inventory deposits. Collection and movement empty it into inventory.
-- Fiber Extractor: 1x2 horizontal, costs $1 and 10 Leeks. One Leek yields two
+- Fiber Extractor: 1 column x 2 rows, facing down by default (top input, bottom
+  output), freely rotatable. Costs $1 and 10 Leeks. One Leek yields two
   Fiber, each retaining the full input unit value. It is hand-operated, without
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
 - Logger: 1x1, $0, 50 Wood, 10 Leek Fiber, one crew; one Wood/12 seconds.
