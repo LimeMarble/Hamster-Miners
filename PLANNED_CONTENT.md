@@ -34,28 +34,39 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - One free Leek Planter, Basket and Sell Tube are supplied. With clicking enabled,
-  no free Logger is needed. Resource Planters are free for this prototype.
-- Planter: 3x3, no internal conveyors, one Leek/2 seconds, one centered facing-edge
+  no free Logger is needed. Additional Planters cost $500, 50 Bricks and
+  100 Leek Fiber; the starter remains free and existing owned machines are kept.
+- Planter: 3x3, no internal conveyors, one Leek/8 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
-- Basket: 1x1, capacity 100, costs 10 Leek Fiber instead of 10 raw Leeks.
+- Basket: 1x1, capacity 100, costs 5 Leek Fiber instead of raw Leeks.
   No direct selling or manual inventory deposits. Collection and movement empty
   it into inventory; hauling remains available.
 - Fiber Extractor: Ingot Molder-style footprint: 1 column x 2 rows facing right,
   with body above and input/output on the lower tile; no conveyor. Freely
-  rotatable. Costs $1 and 10 Leeks. One Leek yields two
+  rotatable. Costs 30 Wood and 1 Leek, with no cash requirement. One Leek yields two
   Fiber, each retaining the full input unit value. It is hand-operated, without
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
-- Logger: 1x1, $0, 50 Wood, 10 Leek Fiber, one crew; one Wood/12 seconds.
+- Logger: 1x1, $0, 50 Wood, 5 Leek Fiber, one crew; one Wood/12 seconds.
   It must be inside a tree's middle edge tile, facing outward. Wood sells for
   $0.10 and has 50 heat units; fuel processing itself is outside this slice.
-- Basic Hamster Wheel: 3x2, $8, 100 Wood, 50 Fiber, kinetic outputs on both long
-  edges. Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 15 Fiber; its facing side
-  is the intake, the opposite side is the output. Direct intake-to-Wheel
+- Clay Pit: 2x2, $0 and 100 Wood, one crew. Manually produces one Clay every
+  12 seconds without kinetic power. Its centered two-wide facing-edge output
+  can feed either adjacent receiving tile. At most one Clay waits when blocked.
+  Clay has a $0.25 base value and weight 1. Four pits can sell directly into
+  the four sides of the starter Sell Tube for $5/minute without conveyors.
+- Limestone extraction remains deferred; no Quarry is implemented yet.
+- Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
+  edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
+  its reference footprint; existing saved orientations are unchanged.
+  Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 7.5 Fiber; its facing side
+  is the intake; it has no physical output port. Direct intake-to-Wheel
   connections work in all rotations. A powered Drive covers a 16x16 area.
 - Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $5,
-  50 Wood and 10 Fiber. Its belts require Drive coverage. The new effect was
+  50 Wood and 5 Fiber. Its belts require Drive coverage. The new effect was
   not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
   values, rather than changing the old game's established effect.
+- The older Fiber construction costs above were halved exactly; the new
+  Planter's explicitly supplied 100-Fiber cost is not halved again.
 - Baskets can assign hauling hamsters, each carrying one item. Loaded travel
   takes 0.5 seconds/tile/weight and empty return 0.5 seconds/tile. The prototype
   uses Manhattan centre distance; pathfinding is not implemented. Full

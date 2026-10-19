@@ -61,7 +61,7 @@ test("fixed trees fit inside the grid without overlap or obstructed Logger outpu
 test("old terrain picks up every machine and recovers all buffers, jobs, lanes and hauling cargo exactly once", () => {
   const factory = legacyFactory(), state = factory.state;
   state.cash = 88; state.earned = 120; state.seconds = 99; state.hiredCrew = 3;
-  state.inventory = { leek: 11, leekFiber: 12, wood: 13, brick: 14 };
+  state.inventory = { leek: 11, leekFiber: 12, wood: 13, clay: 0, brick: 14 };
   state.harvestProgress = 3; state.harvestedWood = 7;
   const planter = place(factory, "planter", 40, 40); planter.output.push(cargo("leek", 2));
   const fiber = place(factory, "fiber", 45, 40);
@@ -83,7 +83,7 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   const loaded = Factory.importSave(factory.exportSave());
   assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.pickedUpForTerrainReset, owned.length);
   assert.deepEqual(loaded.state.machines, []); assert.deepEqual(loaded.state.routes, []);
-  assert.deepEqual(loaded.state.inventory, { leek: 20, leekFiber: 17, wood: 24, brick: 14 });
+  assert.deepEqual(loaded.state.inventory, { leek: 20, leekFiber: 17, wood: 24, clay: 0, brick: 14 });
   assert.deepEqual(loaded.state.storedMachines.map(({ id, type, facing }) => ({ id, type, facing })), owned);
   for (const type of Object.keys(D.machines)) {
     assert.equal(loaded.state.stock[type], originalStock[type] + owned.filter((m) => m.type === type).length);

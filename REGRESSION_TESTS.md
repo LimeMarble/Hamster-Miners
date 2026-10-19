@@ -21,7 +21,20 @@ future pipe tiers) are not treated as current acceptance requirements.
   machinery. Invalid cargo/routes still fail validation before migration.
   UI startup/import checks cover the notice, autosave and non-overwritten backup.
 - `tests/noammo-opening.test.cjs` runs the real opening from zero to the $22
-  powered setup using earned Leeks/Fiber/Wood, then verifies a powered sale line.
+  powered setup using manual Wood, a cash-free Fiber Extractor, and four Clay
+  Pits funding the cash costs, then verifies a powered Fiber sale line.
+- Planters produce one Leek per eight seconds. One starter is free; repeat
+  purchases enforce $500, 50 Bricks and 100 Fiber per unit. Old free Planters
+  remain owned, without granting new free machines on reload.
+- Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
+  halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
+- Manual Clay Pits cost 100 Wood and use one crew each. Their twelve-second
+  cycle and $0.25 Clay work without power, through either half of the two-wide
+  output in every rotation. Four pits feed one Tube for $5/minute. Blocked
+  queues are bounded, independent, and conserved through moves/pickups/saves.
+  Old saves gain zero-valued new inventory keys, not free pits or resources.
+  Invalid/overfull source buffers are still rejected. Shop, Inventory, recipes,
+  shared lifecycle rendering, crew accounting and new prices are covered.
 - Shared contracts cover every opening machine in every rotation through
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
 - Fiber matches the actual Ingot Molder's 1-column/2-row, right-facing layout:
@@ -30,6 +43,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   retain jobs, contents and (for version 2) occupied tiles through correction.
 - Every Wheel long-edge port accepts the correct Drive intake, while short
   edges, gaps and wrong facing reject it. Losing the Wheel immediately stops power.
+  Drives have no physical output port in any rotation; their output is the
+  16×16 powered area, shared by previews and placed machinery.
 - Tests cover global click limits, saved partial chops, RNG harvest bounds,
   limited machine buffers, blocked outputs, independent instances, collector
   capacity, real hauler timing, stale exports, and cash/material affordability.

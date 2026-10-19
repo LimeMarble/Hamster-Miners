@@ -143,6 +143,20 @@ function chooseMachine(ui, type) {
   ui.ids.get("placeMachine").emit("click");
 }
 
+test("Wheel placement starts rotated ninety degrees and Q/E still rotate normally", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.stock.wheel = 1;
+  const ui = boot(factory.exportSave());
+  chooseMachine(ui, "wheel"); ui.frame(100);
+  assert.equal(ui.view().interaction.tool.facing, "down");
+  assert.deepEqual(A.size(ui.view().interaction.tool), { width: 2, height: 3 });
+  ui.key("q"); ui.frame(200);
+  assert.equal(ui.view().interaction.tool.facing, "right");
+  ui.key("e");
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  const wheel = ui.state().machines[0];
+  assert.equal(wheel.facing, "down"); assert.deepEqual(A.size(wheel), { width: 2, height: 3 });
+});
+
 function bulkFixture() {
   const factory = new A.Factory(A.createState(1));
   const planter = factory.place("planter", 121, 121).machine;
@@ -279,7 +293,7 @@ test("a different machine, Basket, tree or group suppresses quick actions and se
     if (selection === "group") box(ui, [120, 120], [125, 123]);
     shiftClick(ui, 124, 122); ui.frame(100);
     const state = ui.state();
-    assert.deepEqual(state.inventory, { leek: 0, leekFiber: 0, wood: 0, brick: 0 }, selection);
+    assert.deepEqual(state.inventory, { leek: 0, leekFiber: 0, wood: 0, clay: 0, brick: 0 }, selection);
     assert.equal(state.machines.find((m) => m.id === basket.id).contents.length, 2);
     assert.deepEqual(ui.view().interaction.selectedIds, [basket.id]);
     assert.equal(ui.view().interaction.box, null);
@@ -462,22 +476,41 @@ test("the Hire button enables when factory income reaches its cost without remou
   factory.place("planter", 121, 121); factory.place("sellTube", 124, 121);
   const ui = boot(factory.exportSave()), hire = ui.ids.get("hireCrew");
   assert.equal(hire.disabled, true);
-  for (let now = 100; now <= 2300; now += 100) ui.frame(now);
+  for (let now = 100; now <= 8500; now += 100) ui.frame(now);
   assert.equal(ui.ids.get("hireCrew"), hire); assert.equal(hire.disabled, false);
   hire.emit("click"); assert.equal(ui.state().hiredCrew, 1);
 });
 
 test("Shop buy handler, quantities, material affordability and owned feedback use the real simulation", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.cash = 1; factory.state.inventory.leek = 10;
+  const factory = new A.Factory(A.createState(1)); factory.state.cash = 0; factory.state.inventory.leek = 1; factory.state.inventory.wood = 30;
   const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   const amount = ui.ids.get("quantity"); amount.value = "2"; amount.emit("input");
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   amount.value = "1"; amount.emit("input"); assert.equal(ui.ids.get("buyMachine").disabled, false);
   ui.ids.get("buyMachine").emit("click");
-  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.leek, 0); assert.equal(ui.state().stock.fiber, 1);
+  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.leek, 0); assert.equal(ui.state().inventory.wood, 0); assert.equal(ui.state().stock.fiber, 1);
   assert.match(ui.ids.get("shopOwned").textContent, /Owned: 1/);
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   for (const bad of ["0", "1.5", "10000", ""]) { amount.value = bad; amount.emit("input"); assert.equal(ui.ids.get("buyMachine").disabled, true); }
+});
+
+test("Clay Pit purchases show material-only costs, update ownership, place, and expose collected Clay in Items", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 100;
+  const basket = factory.place("basket", 124, 122).machine;
+  basket.contents.push(A.cargo("clay", 3));
+  const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children.find((card) => card.children.some((node) => node.textContent === "Clay Pit")).emit("click");
+  assert.equal(ui.ids.get("buyMachine").disabled, false);
+  assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "100 / 100");
+  ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.clayPit, 1); assert.equal(ui.state().cash, 0);
+  chooseMachine(ui, "clayPit"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(ui.state().machines.find((machine) => machine.type === "clayPit").facing, "right");
+  ui.ids.get("cancel").emit("click"); shiftClick(ui, 124, 122); shiftClick(ui, 124, 122);
+  assert.equal(ui.state().inventory.clay, 3);
+  ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
+  const clay = ui.ids.get("itemCards").children.find((card) => card.children.some((node) => node.textContent === "Clay"));
+  assert.ok(clay); clay.children.find((node) => node.textContent === "Sell all").emit("click");
+  assert.equal(ui.state().cash, 0.75); assert.equal(ui.state().inventory.clay, 0);
 });
 
 test("Shop material costs scale with quantity and enforce Sell Tube and Primitive Conveyor prices", () => {
@@ -564,7 +597,7 @@ test("production does not remount the selected Basket's hauling controls", () =>
   ui.ids.get("cargo").emit("click", screenPoint(124, 122));
   const destination = ui.ids.get("haulDestination"), material = ui.ids.get("haulMaterial");
   assert.ok(destination); assert.ok(material);
-  for (let now = 100; now < 5000; now += 100) ui.frame(now);
+  for (let now = 100; now < 10000; now += 100) ui.frame(now);
   assert.equal(ui.ids.get("haulDestination"), destination); assert.equal(ui.ids.get("haulMaterial"), material);
   assert.ok(ui.state().machines.find((machine) => machine.id === basket.id).contents.length);
   assert.equal(ui.ids.has("sellBasket"), false, "Baskets have no sale control");

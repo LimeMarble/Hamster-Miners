@@ -43,12 +43,13 @@
     switch (machine.type) {
       case "planter": add(2, 1, "right", "output"); break;
       case "logger": add(0, 0, "right", "output"); break;
+      case "clayPit": add(1, 0, "right", "output"); add(1, 1, "right", "output"); break;
       case "fiber": add(0, 1, "left", "input"); add(0, 1, "right", "output"); break;
       case "belt": add(0, 0, "right", "output"); break;
       case "primitive":
         for (let y = 0; y < 2; y++) { add(0, y, "left", "input"); add(0, y, "right", "output"); }
         break;
-      case "drive": add(1, 0, "right", "kineticInput"); add(0, 0, "left", "kineticOutput"); break;
+      case "drive": add(1, 0, "right", "kineticInput"); break;
       case "wheel":
         for (let x = 0; x < 3; x++) { add(x, 0, "up", "kineticOutput"); add(x, 1, "down", "kineticOutput"); }
         break;
@@ -418,14 +419,14 @@
       // Arrivals cannot traverse a second belt during the same simulation step.
       const oldLanes = state.machines.flatMap((machine) => Object.entries(machine.lanes).map(([lane, item]) => ({ machine, lane, item })));
       for (const machine of state.machines) {
-        if (machine.type === "planter" || machine.type === "logger") {
-          const cycle = machine.type === "planter" ? D.config.planterSeconds : D.config.loggerSeconds;
-          const limit = machine.type === "planter" ? 2 : 1;
+        const definition = D.machines[machine.type];
+        if (definition.source) {
+          const cycle = definition.cycle, limit = definition.outputLimit ?? 1;
           if (this.total(machine, "output") < limit) {
             machine.timer += seconds;
             if (machine.timer + epsilon >= cycle) {
               machine.timer = Math.max(0, machine.timer - cycle);
-              machine.output.push(cargo(machine.type === "planter" ? "leek" : "wood"));
+              machine.output.push(cargo(definition.source));
             }
           }
         } else if (machine.type === "fiber") {
@@ -472,6 +473,7 @@
       for (const route of [...state.routes]) this.updateRoute(route, seconds);
     }
     status(machine) {
+      if (machine.type === "clayPit") return machine.output.length ? "Output blocked" : `Digging Clay · ${Math.max(0, D.machines.clayPit.cycle - machine.timer).toFixed(1)}s`;
       if (machine.type === "wheel") return "Kinetic source · connections on both long edges";
       if (machine.type === "drive") return this.driveHasWheel(machine) ? "Powered · 16×16 coverage" : "Connect its facing intake to a wheel’s long edge";
       if (machine.type === "basket") return `${this.total(machine, "contents")} / ${D.config.basketCapacity} items`;
@@ -488,6 +490,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      // New content must not make existing opening saves unreadable. Only new
+      // keys receive defaults; invalid/missing older fields still fail validation.
+      if (state.inventory && !Object.hasOwn(state.inventory, "clay")) state.inventory.clay = 0;
+      if (state.stock && !Object.hasOwn(state.stock, "clayPit")) state.stock.clayPit = 0;
       if (!Object.hasOwn(state, "hiredCrew")) state.hiredCrew = 0;
       if (!Number.isSafeInteger(state.hiredCrew) || state.hiredCrew < 0) throw new Error("Invalid hired crew count.");
       const legacyEconomy = (state.openingEconomyVersion ?? 0) < 1;
@@ -526,10 +532,10 @@
           || (machine.job && (machine.job.input.material !== "leek" || machine.job.input.quantity !== 1)))) throw new Error("Invalid Fiber buffer.");
         if (machine.type !== "basket" && machine.contents.length) throw new Error("Only Baskets hold collector contents.");
         if (machine.type !== "fiber" && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
-        const sourceMaterial = machine.type === "planter" ? "leek" : machine.type === "logger" ? "wood" : null;
+        const sourceMaterial = D.machines[machine.type].source;
         if (sourceMaterial && (machine.output.some((item) => item.material !== sourceMaterial)
-          || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (machine.type === "planter" ? 2 : 1) + epsilon)) throw new Error("Invalid source buffer.");
-        if (!["fiber", "planter", "logger"].includes(machine.type) && machine.output.length) throw new Error("Unexpected output buffer.");
+          || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) + epsilon)) throw new Error("Invalid source buffer.");
+        if (machine.type !== "fiber" && !sourceMaterial && machine.output.length) throw new Error("Unexpected output buffer.");
         const laneCount = machine.type === "primitive" ? 2 : machine.type === "belt" ? 1 : 0;
         for (const [lane, item] of Object.entries(machine.lanes)) {
           if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > D.config.beltWeight + epsilon) throw new Error("Invalid conveyor cargo.");

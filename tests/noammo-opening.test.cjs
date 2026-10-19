@@ -51,13 +51,98 @@ test("opening has its own save identity, 250×250 grid, fixed permanent trees an
 });
 
 test("opening prices and manually operated Fiber match the decisions", () => {
-  assert.deepEqual(D.machines.fiber.cost, { cash: 1, materials: { leek: 10 } });
-  assert.deepEqual(D.machines.logger.cost, { cash: 0, materials: { wood: 50, leekFiber: 10 } });
-  assert.deepEqual(D.machines.wheel.cost, { cash: 8, materials: { wood: 100, leekFiber: 50 } });
-  assert.deepEqual(D.machines.drive.cost, { cash: 4, materials: { wood: 75, leekFiber: 15 } });
-  assert.deepEqual(D.machines.primitive.cost, { cash: 5, materials: { wood: 50, leekFiber: 10 } });
+  assert.deepEqual(D.machines.fiber.cost, { cash: 0, materials: { wood: 30, leek: 1 } });
+  assert.deepEqual(D.machines.logger.cost, { cash: 0, materials: { wood: 50, leekFiber: 5 } });
+  assert.deepEqual(D.machines.wheel.cost, { cash: 8, materials: { wood: 100, leekFiber: 25 } });
+  assert.deepEqual(D.machines.drive.cost, { cash: 4, materials: { wood: 75, leekFiber: 7.5 } });
+  assert.deepEqual(D.machines.primitive.cost, { cash: 5, materials: { wood: 50, leekFiber: 5 } });
+  assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
+  assert.deepEqual(D.machines.planter.cost, { cash: 500, materials: { brick: 50, leekFiber: 100 } });
+  assert.equal(D.config.planterSeconds, 8); assert.equal(D.machines.planter.cycle, 8);
   assert.equal(D.materials.wood.heat, 50);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
+});
+
+test("slow starter Planter yields one Leek per eight seconds and additional Planters enforce the full new cost", () => {
+  const factory = new Factory(createState(1));
+  const planter = factory.place("planter", 40, 40).machine;
+  const basket = place(factory, "basket", 43, 41);
+  advance(factory, 7.9); assert.equal(factory.total(basket, "contents"), 0);
+  advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
+  advance(factory, 52); assert.equal(factory.total(basket, "contents"), 7);
+  assert.equal(planter.output.length, 0);
+  factory.state.cash = 1000; factory.state.inventory.brick = 100; factory.state.inventory.leekFiber = 199;
+  const before = factory.exportSave(); assert.ok(factory.buy("planter", 2).error); assert.equal(factory.exportSave(), before);
+  factory.state.inventory.leekFiber = 200;
+  assert.equal(factory.buy("planter", 2).amount, 2);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0); assert.equal(factory.state.inventory.leekFiber, 0);
+  assert.equal(factory.borrow("planter"), false);
+});
+
+test("manual Clay Pits cost 100 Wood, use one crew, and output to either half of their two-wide facing edge", () => {
+  assert.deepEqual(D.machines.clayPit.cost, { cash: 0, materials: { wood: 100 } });
+  assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 1);
+  for (const facing of D.directions) {
+    const factory = new Factory(createState(1)); factory.state.inventory.wood = 99;
+    assert.ok(factory.buy("clayPit").error); assert.equal(factory.state.inventory.wood, 99);
+    factory.state.inventory.wood = 100; assert.equal(factory.buy("clayPit").amount, 1);
+    const pit = factory.place("clayPit", 40, 40, facing).machine;
+    assert.equal(factory.availableCrew(), 9); assert.deepEqual(size(pit), { width: 2, height: 2 });
+    const outputs = ports(pit); assert.equal(outputs.length, 2);
+    const targets = outputs.map((point) => {
+      assert.equal(point.direction, facing);
+      const v = D.vectors[facing]; return place(factory, "basket", point.x + v.x, point.y + v.y);
+    });
+    targets[0].contents.push(cargo("wood", 100));
+    advance(factory, 11.9); assert.equal(factory.total(targets[1], "contents"), 0);
+    advance(factory, 0.1); assert.equal(factory.total(targets[1], "contents"), 1);
+    assert.equal(targets[1].contents[0].material, "clay");
+    assert.equal(factory.poweredDrives.length, 0, "manual extraction needs no Wheel or Drive");
+    assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.wood, 0);
+  }
+});
+
+test("blocked Clay output is bounded, instances retain their timers and cargo through moves/pickups/saves", () => {
+  const factory = new Factory(createState(1));
+  const first = place(factory, "clayPit", 40, 40), other = place(factory, "clayPit", 45, 40);
+  advance(factory, 120);
+  assert.equal(factory.total(first, "output"), 1); assert.equal(factory.total(other, "output"), 1);
+  assert.equal(first.timer, 0); assert.match(factory.status(first), /blocked/);
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.deepEqual(loaded.state, factory.state);
+  assert.equal(loaded.move(first.id, 50, 40, "down").error, undefined);
+  assert.equal(loaded.byId.get(first.id).output[0].material, "clay");
+  loaded.pickup(first.id); assert.equal(loaded.state.inventory.clay, 1);
+  const replacement = loaded.place("clayPit", 40, 40).machine;
+  assert.equal(replacement.id, first.id); assert.equal(replacement.output.length, 0);
+  assert.equal(loaded.total(loaded.byId.get(other.id), "output"), 1);
+  advance(loaded, 6); const halfway = Factory.importSave(loaded.exportSave());
+  assert.ok(Math.abs(halfway.byId.get(first.id).timer - 6) < 1e-8);
+  advance(halfway, 6); assert.equal(halfway.total(halfway.byId.get(first.id), "output"), 1);
+  const bad = JSON.parse(halfway.exportSave());
+  bad.state.machines.find((machine) => machine.id === first.id).output.push(cargo("clay"));
+  assert.throws(() => Factory.importSave(JSON.stringify(bad)), /source buffer/);
+  bad.state.machines.find((machine) => machine.id === first.id).output = [cargo("wood")];
+  assert.throws(() => Factory.importSave(JSON.stringify(bad)), /source buffer/);
+});
+
+test("four unpowered Clay Pits feed one free Sell Tube from four sides for exactly $5 per minute", () => {
+  const factory = new Factory(createState(1));
+  factory.place("sellTube", 40, 40);
+  for (const [x, y, facing] of [[38, 40, "right"], [42, 40, "left"], [40, 38, "down"], [40, 42, "up"]]) place(factory, "clayPit", x, y, facing);
+  advance(factory, 60);
+  assert.equal(factory.state.cash, 5); assert.equal(factory.state.soldItems, 20);
+  assert.equal(factory.availableCrew(), 6); assert.equal(factory.poweredDrives.length, 0);
+});
+
+test("older opening saves default the new Clay fields without changing progress or granting free pits", () => {
+  const factory = new Factory(createState(1));
+  factory.place("planter", 40, 40); factory.state.cash = 17;
+  delete factory.state.inventory.clay; delete factory.state.stock.clayPit;
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.equal(loaded.state.inventory.clay, 0); assert.equal(loaded.state.stock.clayPit, 0);
+  assert.equal(loaded.state.cash, 17); assert.equal(loaded.state.machines.length, 1);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test("crew hiring starts at $5, scales by 1.1 per paid hire, and rejects unaffordable hires without mutation", () => {
@@ -191,7 +276,8 @@ for (const facing of D.directions) {
     }
     const drive = { type: "drive", x: 30, y: 30, facing };
     assert.equal(ports(drive).find((port) => port.role === "kineticInput").direction, facing);
-    assert.equal(ports(drive).find((port) => port.role === "kineticOutput").direction, A.opposite(facing));
+    assert.equal(ports(drive).length, 1, "Drive has only a kinetic intake; power is supplied over an area");
+    assert.equal(ports(drive).some((port) => port.role === "kineticOutput"), false);
     const wheel = { type: "wheel", x: 20, y: 20, facing };
     const outputs = ports(wheel);
     assert.equal(outputs.length, 6);
@@ -202,6 +288,21 @@ for (const facing of D.directions) {
     assert.equal(cells({ type: "fiber", x: 0, y: 0, facing }).length, 2);
   });
 }
+
+test("Wheel defaults to a quarter-turn without changing saved orientations or its six-cell footprint", () => {
+  const factory = new Factory(createState(1));
+  factory.state.stock.wheel = 2;
+  const wheel = factory.place("wheel", 40, 40).machine;
+  assert.equal(wheel.facing, "down");
+  assert.deepEqual(size(wheel), { width: 2, height: 3 });
+  assert.equal(cells(wheel).length, 6);
+  assert.ok(ports(wheel).every((point) => ["left", "right"].includes(point.direction)));
+  const old = factory.place("wheel", 45, 40, "right").machine;
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.equal(loaded.byId.get(old.id).facing, "right");
+  assert.deepEqual(size(loaded.byId.get(old.id)), { width: 3, height: 2 });
+  assert.deepEqual(loaded.state, factory.state);
+});
 
 test("all six long-edge Wheel connections accept correctly facing Drives in every rotation", () => {
   for (const facing of D.directions) {
@@ -241,7 +342,7 @@ test("Planter has no internal conveyor and sends from its facing edge in every o
     const point = ports(planter)[0], v = D.vectors[point.direction];
     assert.deepEqual([point.x, point.y], expected, "the sole output is centered on the facing edge");
     const basket = place(factory, "basket", point.x + v.x, point.y + v.y);
-    advance(factory, 10);
+    advance(factory, D.config.planterSeconds * 5);
     assert.equal(factory.total(basket, "contents"), 5);
     assert.equal(factory.poweredDrives.length, 0);
     assert.equal(basket.contents[0].material, "leek");
@@ -311,7 +412,7 @@ test("Fiber routes through its lower working tile in every rotation, leaving the
     const basket = place(factory, "basket", input.x + v.x, input.y + v.y);
     for (const side of D.directions) assert.equal(factory.receive(fiber, cargo("leek"), ...layout.body, side, true), 0);
     assert.equal(factory.receive(fiber, cargo("leek"), ...layout.work, facing, true), 0);
-    advance(factory, 11);
+    advance(factory, D.config.planterSeconds * 4 + D.config.fiberSeconds + 1);
     assert.equal(factory.total(basket, "contents"), 8);
     assert.deepEqual(fiber.lanes, {}, "the Extractor does not turn into a belt");
     assert.equal(Factory.importSave(factory.exportSave()).byId.get(fiber.id).facing, facing);
@@ -459,11 +560,13 @@ test("haulers carry one stale item, observe loaded/return timing, and keep block
 
 test("purchasing checks cash AND materials, including the $1 and 20 Wood per conveyor", () => {
   const factory = new Factory(createState(1));
-  factory.state.inventory.leek = 10;
-  assert.ok(factory.buy("fiber").error); assert.equal(factory.state.inventory.leek, 10);
-  factory.state.cash = 1;
+  factory.state.inventory.leek = 1; factory.state.inventory.wood = 29;
+  assert.ok(factory.buy("fiber").error); assert.equal(factory.state.inventory.leek, 1);
+  factory.state.inventory.wood = 30; factory.state.inventory.leek = 0;
+  assert.ok(factory.buy("fiber").error); assert.equal(factory.state.inventory.wood, 30);
+  factory.state.inventory.leek = 1;
   assert.equal(factory.buy("fiber").amount, 1);
-  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.leek, 0);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.leek, 0); assert.equal(factory.state.inventory.wood, 0);
   assert.ok(factory.buy("belt").error);
   assert.deepEqual(D.machines.belt.cost, { cash: 1, materials: { wood: 20 } });
   assert.equal(factory.borrow("belt", 5), false); assert.equal(factory.state.stock.belt, 0);
@@ -513,31 +616,39 @@ test("real pending output follows its instance on move, is recovered once on pic
   assert.equal(loaded.state.inventory.leekFiber, 2);
 });
 
-test("actual opening reaches the $22 powered setup without cheats or a free Fiber Extractor", () => {
+test("actual opening bootstraps cash-free Fiber and reaches the $22 powered setup using four manual Clay Pits", () => {
   const factory = new Factory(createState(8));
   const planter = factory.place("planter", 121, 5).machine;
   let basket = factory.place("basket", 124, 6).machine;
-  advance(factory, 40); factory.collect(basket.id);
-  assert.equal(factory.state.inventory.leek, 20);
-  assert.equal(factory.sellInventory("leek", 10), 1);
+  while (factory.state.inventory.wood < 430) {
+    factory.chop(factory.state.trees[0].id); factory.update(0.2);
+  }
+  factory.collect(basket.id);
+  assert.ok(factory.state.inventory.leek >= 1); assert.equal(factory.state.cash, 0);
   assert.equal(factory.buy("fiber").amount, 1);
   factory.pickup(basket.id);
   const fiber = factory.place("fiber", 124, 5).machine;
   basket = factory.place("basket", 125, 6).machine;
-  for (let i = 0; i < 6; i++) { advance(factory, 60); factory.collect(basket.id); }
-  assert.ok(factory.state.inventory.leekFiber >= 305, "one Planter must support the agreed six dollars/minute Fiber opening");
+  assert.equal(factory.buy("clayPit", 4).amount, 4);
+  const incomeTube = factory.place("sellTube", 147, 10).machine;
+  for (const [x, y, facing] of [[145, 10, "right"], [149, 10, "left"], [147, 8, "down"], [147, 12, "up"]]) {
+    assert.ok(factory.place("clayPit", x, y, facing).machine);
+  }
+  for (let i = 0; i < 5; i++) { advance(factory, 60); factory.collect(basket.id); }
+  assert.ok(factory.state.cash >= 22, "Clay alone must fund the powered setup");
+  assert.ok(factory.state.inventory.leekFiber >= 42.5, "slow Leeks must cover the halved construction costs");
   while (factory.state.inventory.wood < 275) {
     factory.chop(factory.state.trees[0].id); factory.update(0.2);
   }
-  factory.sellInventory("leekFiber", 220);
   for (const [type, count] of [["wheel", 1], ["drive", 1], ["primitive", 2]]) assert.equal(factory.buy(type, count).amount, count);
-  const wheel = factory.place("wheel", 119, 10).machine;
+  const wheel = factory.place("wheel", 119, 10, "right").machine;
   const drive = factory.place("drive", 120, 12, "up").machine;
   assert.equal(factory.driveHasWheel(drive), true);
   factory.move(basket.id, 124, 8, "right");
   const first = factory.place("primitive", 125, 6).machine;
   const second = factory.place("primitive", 126, 6).machine;
-  const sell = factory.place("sellTube", 127, 6).machine;
+  assert.equal(factory.move(incomeTube.id, 127, 6, "right").error, undefined);
+  const sell = incomeTube;
   assert.ok(planter && fiber && wheel && first && second && sell);
   const before = factory.state.cash; advance(factory, 30);
   assert.ok(factory.state.cash > before, "a real, powered Fiber → two Primitives → sale line must earn cash");

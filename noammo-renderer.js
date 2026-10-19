@@ -57,7 +57,7 @@
         } else if (machine.type !== "belt" && machine.type !== "primitive") arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
       }
       if (machine.type !== "belt") {
-        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
+        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
         ctx.fillText(names[machine.type] ?? machine.type, x + bounds.width * 16, y + bounds.height * 16, bounds.width * TILE - 8);
       }
@@ -94,7 +94,12 @@
         if (!point) continue;
         drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
       }
-      if (machine.output.length && outputs.length) drawCargo(ctx, machine.output[0], (outputs[0].x + 0.5) * TILE, (outputs[0].y + 0.5) * TILE);
+      if (machine.output.length && outputs.length) {
+        const points = D.machines[machine.type].centeredOutput ? outputs : [outputs[0]];
+        const x = points.reduce((sum, point) => sum + point.x + 0.5, 0) / points.length;
+        const y = points.reduce((sum, point) => sum + point.y + 0.5, 0) / points.length;
+        drawCargo(ctx, machine.output[0], x * TILE, y * TILE);
+      }
       if (machine.type === "basket") {
         const count = factory.total(machine, "contents");
         if (count) { ctx.fillStyle = "#102014"; ctx.fillRect(machine.x * TILE + 4, machine.y * TILE + 9, 24, 14);

@@ -338,7 +338,7 @@
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket.", "Collect Leeks: sell 10 for $1 and keep 10 to buy a Fiber Extractor.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Build manual Clay Pits for 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -386,7 +386,7 @@
       }); buy.id = "buyMachine";
       panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"));
       if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a prototype test aid, not its actual recipe.", "muted"));
-      if (shopSelection === "planter") panel.append(element("p", "Resource droppers are free for this prototype.", "muted"));
+      if (shopSelection === "planter") panel.append(element("p", "Your first Planter is supplied free. Additional Planters require the listed cost.", "muted"));
     }
     const count = factory.state.stock[shopSelection], total = count + factory.state.machines.filter((machine) => machine.type === shopSelection).length;
     text($("shopOwned"), `Owned: ${number(total)} · available to place: ${number(count)}`);
