@@ -44,6 +44,7 @@
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
+        quickAction: "collect",
         cost: { cash: 0, materials: { leekFiber: 10 } },
         description: "Holds up to 100 items. Collect them into inventory or assign a hauling hamster. No manual deposits.",
       },

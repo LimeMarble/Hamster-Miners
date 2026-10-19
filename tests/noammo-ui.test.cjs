@@ -153,7 +153,8 @@ function bulkFixture() {
 }
 
 function box(ui, start = [121, 121], end = [125, 123]) {
-  ui.key("Shift");
+  // Explicit selection may start on occupied tiles; contextual Shift may not.
+  ui.ids.get("boxSelect").emit("click");
   ui.ids.get("cargo").emit("click", screenPoint(...start));
   ui.ids.get("cargo").emit("click", screenPoint(...end));
 }
@@ -199,7 +200,7 @@ test("machine cards filter, select stable details, and Place returns to the unch
   assert.equal(ui.ids.get("machineEmpty").hidden, false); assert.equal(ui.ids.get("machineDetail").hidden, true);
 });
 
-test("Shift two-tap selection moves and rotates a group, while Cancel preserves its original layout", () => {
+test("explicit two-tap selection moves and rotates a group, while Cancel preserves its original layout", () => {
   const { ui, ids } = bulkFixture();
   box(ui); ui.frame(100);
   assert.deepEqual(ui.view().interaction.selectedIds, ids);
@@ -236,6 +237,116 @@ test("box selection supports reversed corners, additive boxes, repeat/input guar
   assert.deepEqual(new Set(ui.view().interaction.selectedIds), new Set(ids));
   ui.key("Shift", { target: { tagName: "INPUT" } });
   assert.doesNotMatch(ui.ids.get("toolLabel").textContent, /first corner/);
+});
+
+function quickActionFixture() {
+  const factory = new A.Factory(A.createState(1));
+  const planter = factory.place("planter", 121, 121).machine;
+  const basket = factory.place("basket", 124, 122).machine;
+  factory.state.stock.basket++;
+  const other = factory.place("basket", 127, 122).machine;
+  basket.contents.push(A.cargo("wood", 3), A.cargo("leekFiber", 2));
+  other.contents.push(A.cargo("wood", 4));
+  return { ui: boot(factory.exportSave()), planter, basket, other };
+}
+function shiftClick(ui, x, y, tapOnly = false) {
+  ui.key("Shift");
+  ui.ids.get("cargo").emit("click", { ...screenPoint(x, y), shiftKey: !tapOnly });
+}
+
+test("Shift-click collects an unselected or currently selected Basket once, without selling or selecting it", () => {
+  for (const selected of [false, true]) for (const tapOnly of [false, true]) {
+    const { ui, basket } = quickActionFixture();
+    if (selected) ui.ids.get("cargo").emit("click", screenPoint(124, 122));
+    shiftClick(ui, 124, 122, tapOnly); ui.frame(100);
+    let state = ui.state();
+    assert.equal(state.inventory.wood, 3); assert.equal(state.inventory.leekFiber, 2);
+    assert.equal(state.machines.find((m) => m.id === basket.id).contents.length, 0);
+    assert.equal(state.cash, 0);
+    assert.equal(ui.view().interaction.box, null);
+    assert.deepEqual(ui.view().interaction.selectedIds, selected ? [basket.id] : []);
+    shiftClick(ui, 124, 122, tapOnly);
+    state = ui.state(); assert.equal(state.inventory.wood, 3); assert.equal(state.inventory.leekFiber, 2);
+  }
+});
+
+test("a different machine, Basket, tree or group suppresses quick actions and selects the target instead", () => {
+  for (const selection of ["machine", "basket", "tree", "group"]) {
+    const { ui, basket } = quickActionFixture(), canvas = ui.ids.get("cargo");
+    if (selection === "machine") canvas.emit("click", screenPoint(121, 121));
+    if (selection === "basket") canvas.emit("click", screenPoint(127, 122));
+    if (selection === "tree") shiftClick(ui, 128, 129);
+    if (selection === "group") box(ui, [120, 120], [125, 123]);
+    shiftClick(ui, 124, 122); ui.frame(100);
+    const state = ui.state();
+    assert.deepEqual(state.inventory, { leek: 0, leekFiber: 0, wood: 0, brick: 0 }, selection);
+    assert.equal(state.machines.find((m) => m.id === basket.id).contents.length, 2);
+    assert.deepEqual(ui.view().interaction.selectedIds, [basket.id]);
+    assert.equal(ui.view().interaction.box, null);
+    shiftClick(ui, 124, 122); assert.equal(ui.state().inventory.wood, 3, "same target now permits collect");
+  }
+});
+
+test("Shift on occupied tiles without a quick action selects rather than starting a box or chopping", () => {
+  const { ui, planter } = quickActionFixture();
+  shiftClick(ui, 121, 121); ui.frame(100);
+  assert.deepEqual(ui.view().interaction.selectedIds, [planter.id]);
+  assert.equal(ui.view().interaction.box, null);
+  shiftClick(ui, 128, 129); ui.frame(200);
+  assert.deepEqual(ui.view().interaction.selectedIds, []);
+  assert.ok(ui.view().interaction.tree);
+  assert.equal(ui.state().harvestProgress, 0, "tree has no defined Shift quick action");
+  assert.equal(ui.view().interaction.box, null);
+});
+
+test("Shift starts boxes only on empty tiles, finishes on occupied corners, and never collects during explicit selection", () => {
+  for (const held of [false, true]) {
+    const { ui, basket, planter } = quickActionFixture(), canvas = ui.ids.get("cargo");
+    if (!held) ui.key("Shift");
+    canvas.emit("click", { ...screenPoint(120, 120), shiftKey: held }); ui.frame(100);
+    assert.deepEqual(ui.view().interaction.box.start, { x: 120, y: 120 });
+    canvas.emit("click", { ...screenPoint(124, 122), shiftKey: held }); ui.frame(200);
+    assert.deepEqual(ui.view().interaction.selectedIds, [planter.id, basket.id]);
+    assert.equal(ui.state().inventory.wood, 0);
+    ui.ids.get("cancel").emit("click");
+    box(ui, [124, 122], [124, 122]); ui.frame(300);
+    assert.deepEqual(ui.view().interaction.selectedIds, [basket.id]);
+    assert.equal(ui.state().inventory.wood, 0, "explicit Box select wins over quick actions");
+    ui.ids.get("cancel").emit("click");
+    ui.key("Shift"); ui.ids.get("boxSelect").emit("click");
+    canvas.emit("click", { ...screenPoint(124, 122), shiftKey: true }); ui.frame(400);
+    assert.ok(ui.view().interaction.box.start, "explicit button overrides a pending contextual Shift");
+    assert.equal(ui.state().inventory.wood, 0);
+  }
+});
+
+test("occupied Shift-click gestures do not turn into background marquee selection", () => {
+  const { ui } = quickActionFixture(), canvas = ui.ids.get("cargo");
+  const point = { ...screenPoint(124, 122), shiftKey: true };
+  ui.key("Shift"); canvas.emit("pointerdown", point);
+  canvas.emit("pointermove", { ...point, clientX: point.clientX + 10 });
+  canvas.emit("pointerup", point); canvas.emit("click", point); ui.frame(100);
+  assert.equal(ui.view().interaction.marquee, null); assert.equal(ui.view().interaction.box, null);
+  assert.equal(ui.state().inventory.wood, 3);
+});
+
+test("placement and movement take priority over Shift quick actions, and shortcuts remain discoverable", () => {
+  const { ui, basket } = quickActionFixture(), canvas = ui.ids.get("cargo");
+  chooseMachine(ui, "sellTube");
+  shiftClick(ui, 124, 122); ui.frame(100);
+  assert.equal(ui.state().inventory.wood, 0); assert.ok(ui.view().interaction.tool);
+  ui.ids.get("cancel").emit("click");
+  canvas.emit("click", screenPoint(124, 122)); ui.ids.get("moveMachine").emit("click");
+  shiftClick(ui, 126, 124); ui.frame(200);
+  const moved = ui.state().machines.find((m) => m.id === basket.id);
+  assert.deepEqual([moved.x, moved.y], [126, 124]);
+  assert.equal(ui.view().interaction.tool, null);
+  // Moving Baskets already collects contents under the normal move rules.
+  assert.match(ui.ids.get("collectBasket").title, /Shift-click/);
+  assert.ok(ui.ids.get("shortcutGuide"));
+  const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
+  assert.match(html, /Shortcuts &amp; controls/);
+  assert.match(html, /Shift-click empty ground/); assert.match(html, /first Shift-click only selects/);
 });
 
 test("intentional dragging selects a group but pointer jitter does not, and generated clicks are suppressed", () => {

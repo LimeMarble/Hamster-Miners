@@ -45,7 +45,14 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Opening Inventory has separate Machines/Items sub-screens, owned-only machine
   cards, category filtering, stable selected details and a Place action returning
   to the current camera. Machinery is not listed on the default Factory screen.
-- Shift or Box select arms two-tap selection; reversed and additive boxes,
+- Shift-click (or tap Shift then click) on empty ground arms two-tap selection;
+  occupied tiles collect Baskets or select normally. Another selected machine,
+  Basket, tree or group suppresses the target's quick action, including when a
+  group contains that target. Repeated collection cannot duplicate cargo or sell
+  it. Trees select without chopping under Shift. Placement/movement and explicit
+  Box Select take precedence; pointer jitter cannot start an occupied-tile box.
+  Shortcut help remains available regardless of selection.
+- Box select can start on occupied tiles; reversed and additive boxes,
   ordinary drags, the eight-pixel intent threshold, input/repeat guards and Cancel
   are covered. Control-panel releases cannot select the background canvas.
 - Bulk movement rotates full footprints and facing in either direction, ignores
@@ -337,9 +344,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   even if an action hides the panel before Phaser handles queued events.
   CSS-scaled canvas coordinates and touch coordinates use screen-space bounds.
   The next genuine canvas click still works normally.
-- Pressing Shift starts two-tap box selection in Factory: tap either corner,
-  then the opposite corner, without holding Shift or a pointer button. Corners
-  can land on machinery, reversed/one-tile boxes work, and holding Shift on a
+- In the noammo opening, Shift starts contextual input: empty first corners
+  start a box, occupied first corners use quick actions/selection. Explicit Box
+  Select permits occupied first corners. The legacy mining Factory retains
+  its original Shift two-tap behavior. Reversed/one-tile boxes work, and holding Shift on a
   corner adds to the selection. Normal mouse dragging remains supported.
 - Visible Cancel and Rotate controls stay outside Phaser and mounted across
   unchanged ticks. Cancel stops placement or group movement without consuming

@@ -112,10 +112,21 @@
     else { select([]); interaction.tree = null; }
     refresh();
   }
-  function beginBox() {
-    if (interaction.box) return;
+  function beginBox(contextual = false) {
+    if (interaction.box) {
+      if (!contextual) interaction.box.contextual = false;
+      return;
+    }
     interaction.tool = null; interaction.group = null;
-    interaction.box = { start: null, end: null, add: false }; refresh();
+    interaction.box = { start: null, end: null, add: false, contextual }; refresh();
+  }
+  function emptyTile(point) {
+    const key = A.key(point.x, point.y);
+    return !factory.at.has(key) && !factory.treeAt.has(key);
+  }
+  function collect(id) {
+    const count = factory.collect(id);
+    notify(`Collected ${number(count)} items.`); refresh();
   }
   function finishBox(start, end, add) {
     select([...(add ? interaction.selectedIds : []), ...factory.selectBox(start, end)]);
@@ -160,7 +171,7 @@
     refresh();
   });
   $("openInventory").addEventListener("click", () => { inventoryTab = "machines"; setTab("inventory"); });
-  $("boxSelect").addEventListener("click", beginBox);
+  $("boxSelect").addEventListener("click", () => { beginBox(); refresh(); });
   $("hireCrew").addEventListener("click", () => {
     const response = factory.hireCrew();
     if (!response.error) save();
@@ -178,7 +189,8 @@
     if (activeTab !== "factory" || (event.button ?? 0) !== 0) return;
     suppressClick = false;
     const pixel = position(event), point = tile(pixel);
-    if (!interaction.tool && !interaction.group && (interaction.box || event.shiftKey || !factory.at.has(A.key(point.x, point.y)))) {
+    const explicitBox = interaction.box && (!interaction.box.contextual || interaction.box.start);
+    if (!interaction.tool && !interaction.group && (explicitBox || emptyTile(point))) {
       gesture = { pixel, start: point, add: Boolean(event.shiftKey), active: false };
     }
   });
@@ -208,6 +220,25 @@
     if (activeTab !== "factory") return;
     if (suppressClick) { suppressClick = false; return; }
     const point = tile(position(event)), tool = interaction.tool;
+    const contextual = (interaction.box?.contextual && !interaction.box.start)
+      || (!interaction.box && !tool && !interaction.group && event.shiftKey);
+    if (contextual) {
+      if (emptyTile(point)) {
+        if (!interaction.box) beginBox(true);
+      } else {
+        interaction.box = null; gesture = null; interaction.marquee = null;
+        const machine = factory.at.get(A.key(point.x, point.y));
+        const otherSelected = interaction.tree || interaction.selectedIds.some((id) => id !== machine?.id);
+        if (machine && !otherSelected && D.machines[machine.type].quickAction === "collect") {
+          collect(machine.id); return;
+        }
+        // Occupied tiles without an available quick action select normally.
+        // Do not accidentally chop a tree or collect a different selected Basket.
+        select(machine ? [machine.id] : []);
+        interaction.tree = machine ? null : factory.treeAt.get(A.key(point.x, point.y))?.id ?? null;
+        refresh(); return;
+      }
+    }
     if (interaction.box) {
       if (!interaction.box.start) { interaction.box.start = point; interaction.box.end = point; interaction.box.add = Boolean(event.shiftKey); refresh(); }
       else finishBox(interaction.box.start, point, interaction.box.add || Boolean(event.shiftKey));
@@ -237,7 +268,7 @@
     if (event.key === "Escape") cancel();
     if (activeTab !== "factory") return;
     if (event.key === "Shift" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !interaction.tool && !interaction.group) {
-      event.preventDefault(); beginBox();
+      event.preventDefault(); beginBox(true);
     }
     if (event.key.toLowerCase() === "q") rotate(-1);
     if (event.key.toLowerCase() === "e") rotate(1);
@@ -280,8 +311,9 @@
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
         if (machine.type === "basket") {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
-          const collect = action("Collect all", () => { const count = factory.collect(machine.id); notify(`Collected ${number(count)} items.`); refresh(); }); collect.id = "collectBasket";
-          panel.append(contents, collect, element("hr"), element("h3", "Hauling hamster"));
+          const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
+          collectButton.title = "Shift-click this Basket to collect all, unless another object is selected.";
+          panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another object is selected, the first Shift-click only selects this Basket.", "muted"), element("hr"), element("h3", "Hauling hamster"));
           const destinations = element("select"); destinations.id = "haulDestination"; destinations.setAttribute("aria-label", "Hauling destination");
           for (const destination of factory.state.machines.filter((entry) => entry.id !== machine.id
             && (["basket", "sellTube", "belt"].includes(entry.type) || A.ports(entry).some((point) => point.role === "input")))) {
@@ -302,7 +334,7 @@
         if (machine.type === "primitive") panel.append(element("p", `TEST effect: +${money(factory.state.tuning.primitiveBonus)} below ${money(factory.state.tuning.primitiveLimit)}. Adjustable in Options; not final balance.`));
       } else {
         panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter, Basket and Sell Tube. Click trees to gather Wood."),
-          element("p", "Shift or Box select starts two-tap selection. You can also drag from empty space. Move, rotate, or pick up selected machines."),
+          element("p", "Shift-click empty ground to start two-tap box selection. Shift-click a Basket to collect all; other occupied tiles select. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
@@ -423,7 +455,7 @@
     const hireCost = factory.crewHireCost();
     text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);
     $("hireCrew").disabled = !factory.canHireCrew();
-    text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : "Tap the first corner"
+    text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : interaction.box.contextual ? "Tap empty ground to box-select, or an object for its Shift action" : "Tap the first corner"
       : interaction.group ? `Moving ${interaction.group.ids.length} machines · Q/E rotates the group`
       : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
     $("cancel").disabled = !(interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);

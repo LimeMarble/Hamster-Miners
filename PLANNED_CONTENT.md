@@ -12,7 +12,13 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Inventory retains separate Machines and Items sub-screens. Owned machines use
   category-filtered compact cards with details and Place beside them; the Factory
   has no permanent machine list. Items hide unowned materials.
-- Factory supports Shift/two-tap box selection and intentional dragging, including
+- Shift-click empty ground starts two-tap box selection; Shift can also be tapped
+  before the first click for trackpad use. Occupied tiles use a defined quick
+  action (Basket: collect all), or select normally if no action exists. Selecting
+  a different target suppresses its quick action when another machine, group or
+  tree is selected. The explicit Box Select button can start on occupied tiles.
+  A persistent collapsible shortcut guide and Basket hint explain these rules.
+- Factory supports two-tap box selection and intentional dragging, including
   additive selection. Groups can move, rotate both ways, and be picked up. Invalid
   destinations change nothing; Cancel preserves the original layout and contents.
 - Factory: 250x250, with 36 inexhaustible 3x3 trees at the fixed green-center
