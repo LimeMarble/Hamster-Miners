@@ -111,6 +111,32 @@ function viewCenter(view) {
     y: view.camera.y + view.viewport.height / (64 * view.camera.zoom) };
 }
 
+test("startup and explicit imports enforce fixed terrain, back up the old save, and only pick machines up once", () => {
+  const old = new A.Factory(A.createState(1));
+  delete old.state.terrainVersion;
+  old.state.trees = [{ id: "tree-1", x: 20, y: 20 }];
+  old.place("planter", 121, 121);
+  old.state.cash = 12; old.state.hiredCrew = 2;
+  const raw = old.exportSave(), backupKey = `${A.DATA.saveKey}-before-fixed-terrain-${A.DATA.startingTerrain.version}`;
+  const ui = boot(raw);
+  assert.equal(ui.storage.get(backupKey), raw);
+  assert.match(ui.ids.get("notice").textContent, /Fixed tree map applied.*1 placed machine/);
+  assert.equal(ui.state().machines.length, 0); assert.equal(ui.state().cash, 12);
+  assert.equal(ui.state().hiredCrew, 2); assert.equal(ui.state().trees.length, 36);
+  chooseMachine(ui, "planter"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(ui.state().machines.length, 1);
+  const current = ui.storage.get(A.DATA.saveKey);
+  const refreshed = boot(current);
+  assert.equal(refreshed.state().machines.length, 1);
+  assert.equal(refreshed.storage.has(backupKey), false, "normal reload creates no new backup");
+  old.state.cash = 13;
+  ui.ids.get("saveText").value = old.exportSave(); ui.ids.get("import").emit("click");
+  assert.equal(ui.state().machines.length, 0); assert.equal(ui.storage.get(backupKey), raw);
+  assert.equal(ui.state().cash, 13, "later imports do not overwrite the first recovery backup");
+  assert.match(ui.ids.get("notice").textContent, /Fixed tree map applied/);
+  assert.equal(ui.storage.has("hamster-miners-save"), false);
+});
+
 function chooseMachine(ui, type) {
   ui.ids.get("openInventory").emit("click");
   ui.ids.get("machineCards").children.find((card) => card.dataset.machine === type).emit("click");
@@ -184,11 +210,11 @@ test("Shift two-tap selection moves and rotates a group, while Cancel preserves 
   assert.deepEqual(ui.state().machines.map(({ id, x, y, facing }) => ({ id, x, y, facing })), original);
   ui.ids.get("moveGroup").emit("click");
   ui.ids.get("rotateRight").emit("click");
-  ui.ids.get("cargo").emit("pointermove", screenPoint(125, 125)); ui.frame(200);
+  ui.ids.get("cargo").emit("pointermove", screenPoint(115, 125)); ui.frame(200);
   assert.equal(ui.view().interaction.group.turns, 1);
-  ui.ids.get("cargo").emit("click", screenPoint(125, 125));
+  ui.ids.get("cargo").emit("click", screenPoint(115, 125));
   const moved = ui.state().machines;
-  assert.deepEqual(moved.map(({ x, y, facing }) => [x, y, facing]), [[125, 125, "down"], [126, 128, "down"], [126, 129, "down"]]);
+  assert.deepEqual(moved.map(({ x, y, facing }) => [x, y, facing]), [[115, 125, "down"], [116, 128, "down"], [116, 129, "down"]]);
   assert.deepEqual(moved.map((machine) => machine.id), ids);
   ui.ids.get("pickupGroup").emit("click");
   const state = ui.state(); assert.equal(state.machines.length, 0);
@@ -301,6 +327,33 @@ test("opening browser scripts boot every tab without missing elements or runtime
     assert.equal(ui.ids.get(button.dataset.tab).hidden, false);
     ui.frame(100); ui.frame(200);
   }
+});
+
+test("crew hiring updates cash, available/total crew and the next price immediately across every tab and reload", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.cash = 10.5;
+  const ui = boot(factory.exportSave()), hire = ui.ids.get("hireCrew");
+  assert.equal(hire.textContent, "Hire · $5"); assert.equal(hire.disabled, false);
+  hire.emit("click");
+  assert.equal(ui.state().cash, 5.5); assert.equal(ui.state().hiredCrew, 1);
+  assert.equal(ui.ids.get("crew").textContent, "11 / 11"); assert.equal(hire.textContent, "Hire · $5.5");
+  for (const tab of ui.tabs) { tab.emit("click"); ui.frame(100); assert.equal(ui.ids.get("hireCrew"), hire); }
+  hire.emit("click");
+  assert.equal(ui.state().cash, 0); assert.equal(ui.state().hiredCrew, 2);
+  assert.equal(ui.ids.get("crew").textContent, "12 / 12");
+  assert.equal(hire.textContent, "Hire · $6.05"); assert.equal(hire.disabled, true);
+  hire.emit("click"); assert.equal(ui.state().hiredCrew, 2);
+  const loaded = boot(ui.storage.get(A.DATA.saveKey));
+  assert.equal(loaded.ids.get("crew").textContent, "12 / 12"); assert.equal(loaded.ids.get("hireCrew").textContent, "Hire · $6.05");
+});
+
+test("the Hire button enables when factory income reaches its cost without remounting", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.cash = 4.9;
+  factory.place("planter", 121, 121); factory.place("sellTube", 124, 121);
+  const ui = boot(factory.exportSave()), hire = ui.ids.get("hireCrew");
+  assert.equal(hire.disabled, true);
+  for (let now = 100; now <= 2300; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get("hireCrew"), hire); assert.equal(hire.disabled, false);
+  hire.emit("click"); assert.equal(ui.state().hiredCrew, 1);
 });
 
 test("Shop buy handler, quantities, material affordability and owned feedback use the real simulation", () => {

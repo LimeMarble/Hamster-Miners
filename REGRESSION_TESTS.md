@@ -11,6 +11,15 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Fixed-terrain checks compare all 36 green centers from the revised workbook,
+  including one-based center to zero-based 3x3 origin conversion. Every seed
+  shares the map; footprints and all four Logger outputs remain unobstructed.
+- Legacy/different terrain enforces that map and picks up all placed machinery
+  once. Normal pickup conserves Basket, input, output, unfinished-job, conveyor
+  and hauling quantities; machine identity/facing, cash and hires survive.
+  Repeated imports/reloads cannot duplicate resources or pick up replacement
+  machinery. Invalid cargo/routes still fail validation before migration.
+  UI startup/import checks cover the notice, autosave and non-overwritten backup.
 - `tests/noammo-opening.test.cjs` runs the real opening from zero to the $22
   powered setup using earned Leeks/Fiber/Wood, then verifies a powered sale line.
 - Shared contracts cover every opening machine in every rotation through
@@ -51,6 +60,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   gives no cash, while collection and hauling controls keep working.
 - Primitive Conveyors cost $1 and 20 Wood each. Normal and bulk purchases require
   sufficient cash and Wood, show scaled costs, and cannot borrow free belts.
+- Crew hiring costs $5 × 1.1^paid hires, excluding the ten starting hamsters.
+  It deducts cash once, unlocks machine/hauler capacity and persists through
+  placement, pickup and save/load. Old saves default to zero hires; invalid
+  counts are rejected. The stable Hire button updates its price, affordability
+  and available/total count on every screen, including after incoming sales.
 - Wood sells for $0.10 through inventory and Sell Tube, retaining fresh
   upgraded cargo values and its 50 heat units. One starter Sell Tube is free;
   extra tubes require $250 and 200 Bricks each, with normal bulk costs and no

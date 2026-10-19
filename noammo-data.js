@@ -1,12 +1,24 @@
 (function (root) {
   "use strict";
 
+  // Miners Starting Terrain.xlsx: green centers in the first 250 rows/columns.
+  // These are one-based [Excel column, Excel row], not tree footprint origins.
+  const TREE_CENTERS = [
+    [110, 41], [128, 42], [162, 44], [59, 49], [119, 55], [181, 55],
+    [69, 60], [63, 64], [158, 68], [67, 75], [130, 105], [137, 108],
+    [118, 112], [133, 116], [184, 121], [129, 130], [136, 132], [97, 133],
+    [167, 134], [76, 136], [131, 139], [124, 141], [135, 149], [113, 155],
+    [128, 160], [74, 169], [68, 183], [71, 192], [147, 202], [166, 205],
+    [99, 211], [68, 213], [142, 216], [147, 216], [164, 226], [142, 227],
+  ];
   const DATA = {
     saveKind: "hamster-miners-noammo-opening",
     saveVersion: 1,
     saveKey: "hamster-miners-noammo-opening-v1",
+    startingTerrain: { version: 1, treeCenters: TREE_CENTERS },
     config: {
-      columns: 250, rows: 250, treeCount: 30, startingCrew: 10,
+      columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 10,
+      crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
       planterSeconds: 2, fiberSeconds: 2, loggerSeconds: 12,
       basketCapacity: 100, beltSeconds: 1, beltWeight: 5,
       clicksPerSecond: 5, chopsPerHarvest: 5,

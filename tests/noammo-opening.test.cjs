@@ -35,10 +35,10 @@ function drawingContext() {
   return { context, calls };
 }
 
-test("opening has its own save identity, 250×250 grid, 30 permanent trees and a free Planter/Basket", () => {
+test("opening has its own save identity, 250×250 grid, fixed permanent trees and a free Planter/Basket", () => {
   const state = createState(123);
   assert.equal(D.config.columns, 250); assert.equal(D.config.rows, 250);
-  assert.equal(state.trees.length, 30);
+  assert.equal(state.trees.length, D.config.treeCount);
   assert.equal(state.stock.planter, 1); assert.equal(state.stock.basket, 1);
   assert.equal(state.stock.sellTube, 1);
   assert.equal(state.stock.logger, 0); assert.equal(state.cash, 0);
@@ -58,6 +58,57 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.primitive.cost, { cash: 5, materials: { wood: 50, leekFiber: 10 } });
   assert.equal(D.materials.wood.heat, 50);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
+});
+
+test("crew hiring starts at $5, scales by 1.1 per paid hire, and rejects unaffordable hires without mutation", () => {
+  const factory = new Factory(createState(1));
+  assert.equal(factory.totalCrew(), 10); assert.equal(factory.availableCrew(), 10);
+  for (let hired = 0; hired < 5; hired++) {
+    const cost = 5 * 1.1 ** hired;
+    assert.equal(factory.crewHireCost(), cost);
+    factory.state.cash = cost - 0.01;
+    const before = factory.exportSave();
+    assert.equal(factory.canHireCrew(), false); assert.ok(factory.hireCrew().error);
+    assert.equal(factory.exportSave(), before);
+    factory.state.cash = cost;
+    assert.equal(factory.hireCrew().cost, cost); assert.equal(factory.state.cash, 0);
+    assert.equal(factory.state.hiredCrew, hired + 1);
+    assert.equal(factory.totalCrew(), 11 + hired); assert.equal(factory.availableCrew(), 11 + hired);
+  }
+  assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
+});
+
+test("hired crew support additional machines and haulers and survive placement, pickup and save/load", () => {
+  const factory = new Factory(createState(1));
+  for (let index = 0; index < 10; index++) place(factory, "fiber", 40 + index * 2, 40);
+  const source = place(factory, "basket", 70, 45), destination = place(factory, "basket", 72, 45);
+  assert.equal(factory.availableCrew(), 0);
+  assert.ok(factory.addRoute(source.id, destination.id).error);
+  factory.state.stock.fiber++;
+  assert.ok(factory.place("fiber", 80, 40).error);
+  factory.state.cash = 10.5; factory.hireCrew();
+  const extra = factory.place("fiber", 80, 40).machine;
+  assert.ok(extra); assert.equal(factory.availableCrew(), 0);
+  factory.hireCrew(); assert.ok(factory.addRoute(source.id, destination.id).route);
+  assert.equal(factory.totalCrew(), 12); assert.equal(factory.availableCrew(), 0);
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.equal(loaded.totalCrew(), 12); assert.equal(loaded.availableCrew(), 0);
+  assert.equal(loaded.move(extra.id, 80, 42, "right").error, undefined);
+  loaded.pickup(extra.id);
+  assert.equal(loaded.availableCrew(), 1); assert.equal(loaded.state.hiredCrew, 2);
+  assert.equal(loaded.crewHireCost(), 5 * 1.1 ** 2);
+});
+
+test("old saves default to zero paid hires and malformed hired counts are rejected", () => {
+  const factory = new Factory(createState(1));
+  delete factory.state.hiredCrew;
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.equal(loaded.state.hiredCrew, 0); assert.equal(loaded.totalCrew(), 10); assert.equal(loaded.crewHireCost(), 5);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+  for (const invalid of [-1, 1.5, null, "2"]) {
+    const saved = JSON.parse(factory.exportSave()); saved.state.hiredCrew = invalid;
+    assert.throws(() => Factory.importSave(JSON.stringify(saved)), /Invalid hired crew/);
+  }
 });
 
 test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route", () => {
@@ -212,7 +263,7 @@ test("five globally capped chops yield one 1–5 Wood burst; idle time and reloa
   advance(loaded, 60);
   assert.equal(loaded.chop(trees[1].id).accepted, true);
   assert.equal(loaded.chop(trees[2].id).accepted, false);
-  assert.equal(loaded.state.trees.length, 30);
+  assert.equal(loaded.state.trees.length, D.config.treeCount);
 });
 
 test("Fiber matches the actual Ingot Molder footprint and lower working tile, without a conveyor", () => {
@@ -361,7 +412,7 @@ test("Logger is inside the tree, uses crew, faces outward and produces Wood on a
     advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
     assert.ok(factory.placement("logger", tree.x + 1, tree.y + 1, "right"));
     assert.ok(factory.placement("logger", tree.x - 1, tree.y + 1, "left"));
-    assert.equal(factory.state.trees.length, 30);
+    assert.equal(factory.state.trees.length, D.config.treeCount);
   }
 });
 

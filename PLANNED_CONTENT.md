@@ -15,9 +15,16 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Factory supports Shift/two-tap box selection and intentional dragging, including
   additive selection. Groups can move, rotate both ways, and be picked up. Invalid
   destinations change nothing; Cancel preserves the original layout and contents.
-- Factory: 250x250, with 30 inexhaustible 3x3 trees. One tree has a fixed
-  position; the rest are seeded/scattered and saved. Refresh starts at the
-  grid's centre; game tabs preserve the current camera position and zoom.
+- Factory: 250x250, with 36 inexhaustible 3x3 trees at the fixed green-center
+  positions from `Miners Starting Terrain.xlsx` (first 250 rows/columns).
+  New saves share this layout. Loading/importing a different terrain picks up
+  all placed machinery once, recovering Basket contents, buffers, unfinished
+  inputs, conveyor cargo and carried items through normal pickup rules.
+  Cash, inventory, hired crew and machine identities remain intact. The browser
+  keeps the first pre-migration save as a local backup when storage permits.
+  Re-placed machines survive subsequent refreshes. Refresh starts at the grid's
+  centre; game tabs preserve the current camera position and zoom.
+- Water is not implemented; groundwater pumps are a tentative later approach.
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - One free Leek Planter, Basket and Sell Tube are supplied. With clicking enabled,
@@ -48,6 +55,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   uses Manhattan centre distance; pathfinding is not implemented. Full
   destinations retain the carried item. Collector withdrawals reset cash value
   to base; in-process items retain their actual value. Crew is shared.
+- Crew starts at 10. Hiring beside the crew counter costs $5 × 1.1^previous
+  paid hires. Each hire adds one available hamster for machinery or hauling;
+  both the count and the next price persist through save/load.
 - Sell Tube costs $250 and 200 Bricks after the free starter. Old saves with no
   tube receive one once; existing owned tubes count as their starter. Bricks are
   registered as a construction material; their production recipe remains pending.

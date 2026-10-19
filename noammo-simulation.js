@@ -71,24 +71,20 @@
     state.random = (Math.imul(1664525, state.random) + 1013904223) >>> 0;
     return state.random / 4294967296;
   }
+  function startingTrees() {
+    return D.startingTerrain.treeCenters.map(([column, row], index) => ({
+      id: `tree-${index + 1}`, x: column - 2, y: row - 2,
+    }));
+  }
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
-      storedMachines: [], machines: [], routes: [], trees: [], harvestProgress: 0,
-      clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0,
+      storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
+      clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0, hiredCrew: 0,
       tuning: { primitiveBonus: 0.1, primitiveLimit: 1 },
     };
-    // Guarantee a tree in the starting viewport; the remaining forest is seeded and scattered.
-    state.trees.push({ id: "tree-1", x: 127, y: 9 });
-    while (state.trees.length < D.config.treeCount) {
-      const x = 3 + Math.floor(random(state) * (D.config.columns - 8));
-      const y = 4 + Math.floor(random(state) * (D.config.rows - 9));
-      if (x > 114 && x < 137 && y < 21) continue;
-      if (state.trees.some((tree) => Math.abs(tree.x - x) < 5 && Math.abs(tree.y - y) < 5)) continue;
-      state.trees.push({ id: `tree-${state.trees.length + 1}`, x, y });
-    }
     state.stock.planter = 1;
     state.stock.basket = 1;
     state.stock.sellTube = 1;
@@ -131,9 +127,22 @@
           && y + 0.5 >= area.y && y + 0.5 < area.y + area.height;
       });
     }
+    totalCrew() { return D.config.startingCrew + this.state.hiredCrew; }
+    crewHireCost() { return D.config.crewHireBaseCost * D.config.crewHireCostMultiplier ** this.state.hiredCrew; }
+    canHireCrew() {
+      const cost = this.crewHireCost();
+      return Number.isFinite(cost) && this.state.cash + epsilon >= cost;
+    }
+    hireCrew() {
+      if (!this.canHireCrew()) return { error: "Not enough cash to hire a hamster." };
+      const cost = this.crewHireCost();
+      this.state.cash = Math.max(0, this.state.cash - cost);
+      this.state.hiredCrew++;
+      return { cost };
+    }
     availableCrew() {
       const used = this.state.machines.reduce((sum, machine) => sum + (D.machines[machine.type].crew ?? 0), 0);
-      return D.config.startingCrew - used - this.state.routes.length;
+      return this.totalCrew() - used - this.state.routes.length;
     }
     placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null) {
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
@@ -479,10 +488,12 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if (!Object.hasOwn(state, "hiredCrew")) state.hiredCrew = 0;
+      if (!Number.isSafeInteger(state.hiredCrew) || state.hiredCrew < 0) throw new Error("Invalid hired crew count.");
       const legacyEconomy = (state.openingEconomyVersion ?? 0) < 1;
       if (legacyEconomy && state.inventory && !Object.hasOwn(state.inventory, "brick")) state.inventory.brick = 0;
       if (!Array.isArray(state.machines) || !Array.isArray(state.trees) || !Array.isArray(state.routes)
-        || !Array.isArray(state.storedMachines) || state.trees.length !== D.config.treeCount) throw new Error("Incomplete prototype save.");
+        || !Array.isArray(state.storedMachines)) throw new Error("Incomplete prototype save.");
       for (const field of ["cash", "earned", "seconds", "harvestedWood", "producedFiber", "soldItems"]) {
         if (!Number.isFinite(state[field]) || state[field] < 0) throw new Error(`Invalid ${field}.`);
       }
@@ -532,6 +543,10 @@
       state.clickTokens = Math.max(0, Math.min(1, finite(state.clickTokens)));
       state.tuning = { primitiveBonus: Math.max(0, finite(state.tuning?.primitiveBonus, base.tuning.primitiveBonus)),
         primitiveLimit: Math.max(0, finite(state.tuning?.primitiveLimit, base.tuning.primitiveLimit)) };
+      const trees = startingTrees();
+      const terrainUpdated = state.terrainVersion !== D.startingTerrain.version
+        || state.trees.length !== trees.length
+        || trees.some((tree, index) => Object.keys(tree).some((field) => state.trees[index]?.[field] !== tree[field]));
       const legacyFootprint = !state.planterFootprintVersion || state.planterFootprintVersion < 2;
       const legacyHorizontalFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 2;
       const legacyFiber = !state.fiberFootprintVersion || state.fiberFootprintVersion < 3;
@@ -554,7 +569,9 @@
       const priority = (machine) => machine.type === "planter" ? 2 : machine.type === "fiber" ? 1 : 0;
       const ordered = migrateFootprints ? [...state.machines].sort((a, b) => priority(b) - priority(a)) : state.machines;
       for (const machine of ordered) {
-        const error = factory.placement(machine.type, machine.x, machine.y, machine.facing);
+        // Terrain migration picks everything up below. Do not reject an old
+        // Logger or a corrected footprint before its contents can be recovered.
+        const error = terrainUpdated ? null : factory.placement(machine.type, machine.x, machine.y, machine.facing);
         if (error && migrateFootprints && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
           factory.state.machines.push(machine); factory.rebuild(); factory.pickup(machine.id);
           recovered.add(machine.id); continue;
@@ -581,6 +598,17 @@
         ids.add(route.id); factory.state.routes.push(route);
       }
       if ([...ids].some((id) => /^(machine|route)-\d+$/.test(id) && Number(id.split("-")[1]) >= state.nextId)) throw new Error("Invalid next identity.");
+      factory.terrainUpdated = terrainUpdated;
+      factory.pickedUpForTerrainReset = 0;
+      if (terrainUpdated) {
+        factory.pickedUpForTerrainReset = factory.state.machines.length;
+        // Normal pickup also recovers linked haulers, unfinished inputs, Basket
+        // contents and conveyor cargo, and retains each owned machine instance.
+        factory.pickupGroup(factory.state.machines.map((machine) => machine.id));
+        factory.state.trees = trees;
+        factory.state.terrainVersion = D.startingTerrain.version;
+        factory.rebuild();
+      }
       if (legacyEconomy) {
         // Previously borrowed tubes already count as the free starter machine.
         if (!factory.state.stock.sellTube && !factory.state.machines.some((machine) => machine.type === "sellTube")) factory.state.stock.sellTube = 1;

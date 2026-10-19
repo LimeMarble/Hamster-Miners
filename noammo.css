@@ -22,6 +22,7 @@ textarea { resize: vertical; }
 .brand { white-space: nowrap; }.brand strong { display: block; font-size: 19px; }.brand small { display: block; font-size: 11px; }
 nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
 .totals { display: flex; gap: 18px; white-space: nowrap; }.totals small, .totals strong { display: block; }.totals strong { font-size: 19px; }
+.crew-total { display: flex; align-items: center; gap: 8px; }.crew-total button { font-size: 12px; padding: 6px 8px; }
 #notice { position: fixed; left: 50%; top: 83px; transform: translateX(-50%); z-index: 20; pointer-events: none; background: #10190fef; border: 1px solid var(--accent); border-radius: 6px; padding: 8px 16px; max-width: 90vw; text-align: center; opacity: 0; transition: opacity .15s; }
 #notice.visible { opacity: 1; }
 main { padding: 12px; }

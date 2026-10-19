@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=basket-belts-20261019">
+  <link rel="stylesheet" href="noammo.css?v=fixed-terrain-20261019">
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +17,7 @@
       <button data-tab="recipes">Recipes</button>
       <button data-tab="options">Options</button>
     </nav>
-    <div class="totals"><span><small>Cash</small><strong id="cash">$0</strong></span><span><small>Available crew</small><strong id="crew">10 / 10</strong></span></div>
+    <div class="totals"><span><small>Cash</small><strong id="cash">$0</strong></span><span class="crew-total"><span><small>Available crew</small><strong id="crew">10 / 10</strong></span><button id="hireCrew" class="secondary" title="Hire one crew hamster">Hire · $5</button></span></div>
   </header>
   <div id="notice" role="status" aria-live="polite"></div>
   <main>
@@ -43,7 +43,7 @@
             <button id="zoomIn" aria-label="Zoom in">+</button>
           </div>
         </div>
-        <div class="factory-footer"><span>250 × 250 · 30 inexhaustible trees</span><span>Shift: box select · edge hover: pan · wheel: zoom</span></div>
+        <div class="factory-footer"><span>250 × 250 · 36 inexhaustible trees</span><span>Shift: box select · edge hover: pan · wheel: zoom</span></div>
       </section>
       <aside id="inspector" class="panel inspector"><h2>Factory</h2><p>Select a building to move it, collect a Basket, or assign a hauling hamster.</p></aside>
     </section>
@@ -98,9 +98,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=basket-belts-20261019"></script>
-  <script src="noammo-simulation.js?v=basket-belts-20261019"></script>
-  <script src="noammo-renderer.js?v=basket-belts-20261019"></script>
-  <script src="noammo-ui.js?v=basket-belts-20261019"></script>
+  <script src="noammo-data.js?v=fixed-terrain-20261019"></script>
+  <script src="noammo-simulation.js?v=fixed-terrain-20261019"></script>
+  <script src="noammo-renderer.js?v=fixed-terrain-20261019"></script>
+  <script src="noammo-ui.js?v=fixed-terrain-20261019"></script>
 </body>
 </html>

@@ -3,7 +3,16 @@
   const A = window.NoAmmo, D = A.DATA, R = window.NoAmmoRenderer;
   const $ = (id) => document.getElementById(id);
   let factory, storageFailed = false;
-  try { const save = localStorage.getItem(D.saveKey); factory = save ? A.Factory.importSave(save) : new A.Factory(); }
+  function backupTerrainSave(raw, loaded) {
+    if (!loaded.terrainUpdated) return;
+    const key = `${D.saveKey}-before-fixed-terrain-${D.startingTerrain.version}`;
+    try { if (localStorage.getItem(key) === null) localStorage.setItem(key, raw); }
+    catch (error) { console.warn("Could not back up the old terrain save:", error); }
+  }
+  function terrainNotice() {
+    return `Fixed tree map applied. ${factory.pickedUpForTerrainReset} placed machine(s) returned to inventory; their contents were recovered.`;
+  }
+  try { const save = localStorage.getItem(D.saveKey); factory = save ? A.Factory.importSave(save) : new A.Factory(); if (save) backupTerrainSave(save, factory); }
   catch (error) { factory = new A.Factory(); storageFailed = true; console.warn("Prototype save not loaded:", error); }
   const camera = { x: 0, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
   let cameraReady = false;
@@ -152,6 +161,11 @@
   });
   $("openInventory").addEventListener("click", () => { inventoryTab = "machines"; setTab("inventory"); });
   $("boxSelect").addEventListener("click", beginBox);
+  $("hireCrew").addEventListener("click", () => {
+    const response = factory.hireCrew();
+    if (!response.error) save();
+    result(response, "Hired one hamster.");
+  });
   $("rotateLeft").addEventListener("click", () => rotate(-1)); $("rotateRight").addEventListener("click", () => rotate(1));
   $("cancel").addEventListener("click", cancel); $("home").addEventListener("click", home);
   $("zoomIn").addEventListener("click", () => zoom(0.1)); $("zoomOut").addEventListener("click", () => zoom(-0.1));
@@ -405,7 +419,10 @@
     $("placeMachine").disabled = available < 1;
   }
   function refresh() {
-    text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${D.config.startingCrew}`);
+    text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${factory.totalCrew()}`);
+    const hireCost = factory.crewHireCost();
+    text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);
+    $("hireCrew").disabled = !factory.canHireCrew();
     text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : "Tap the first corner"
       : interaction.group ? `Moving ${interaction.group.ids.length} machines · Q/E rotates the group`
       : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
@@ -417,11 +434,11 @@
   }
   $("export").addEventListener("click", () => { $("saveText").value = factory.exportSave(); $("saveText").select(); save(); });
   $("import").addEventListener("click", () => {
-    try { const replacement = A.Factory.importSave($("saveText").value); factory = replacement; storageFailed = false;
+    try { const replacement = A.Factory.importSave($("saveText").value); backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
       $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
-      save(); refresh(); notify(factory.recoveredForPlanterResize
+      save(); refresh(); notify(factory.terrainUpdated ? terrainNotice() : factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
         : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Prototype save imported.");
     } catch (error) { notify(error.message); }
@@ -470,6 +487,7 @@
   }
   resize(); refresh();
   if (storageFailed) notify("A saved prototype could not be loaded. It has not been overwritten; export or import a valid save before continuing.");
+  else if (factory.terrainUpdated) notify(terrainNotice());
   else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
   else if (factory.reorientedForFiberResize) notify("Fiber Extractor layouts corrected; reconnect their working tile. Contents are preserved.");
   if (!storageFailed) save();
