@@ -128,6 +128,32 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   50 Wood and 5 Fiber. Its belts require Drive coverage. The new effect was
   not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
   values, rather than changing the old game's established effect.
+- Brick Seal: implemented at $10 and 35 fired Bricks, with no crew. Exactly the
+  old Rock Shack footprint: one column, two rows; upper cell is the sole
+  conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
+  5 (two seconds/tile), requires Conveyor Drive coverage like other primitive
+  conveyors. Cash effect x1.15, 9 uses across all Seal instances, incoming value
+  below $10, base value at least $0.50. Generic sellable/base-value eligibility,
+  not clay-only, not hardcoded ore/ingot distinctions. The last eligible use may
+  cross $10; never clamp a product's value down to the limit.
+  On clay products, each grade-repair pass converts 5 percentage points of Poor
+  chance to Standard, capped at four repair passes / 20 percentage points.
+  Grade repair is separate from cash-use counts and still applies when cash
+  eligibility fails. Clay, unfired/fired Bricks and Pots share the clay family.
+  Repairs carry through shaping/firing while cash-use tags reset on material
+  changes. Combining the same-material Clay ingredients uses a shared
+  quantity-weighted average, with untreated ingredients contributing zero.
+  This helper can be reused, but quantity/mass weighting is NOT a settled
+  universal rule for future mixed-material products. Small but important
+  components (especially Tiara gems) must not become irrelevant beside a heavy
+  body. Mixed-material contribution weights, including solder's role, remain
+  undecided and must be specified with the relevant recipe.
+  Differently repaired cargo remains separate in collector contents;
+  direct hauling preserves repair data while resetting cash to base value.
+  Aggregate inventory collection/pickup still follows the opening prototype's
+  material-count-only inventory model. Grading rolls and grade sale multipliers
+  are not implemented yet; these repairs are recorded modifiers for the future
+  grader, not an immediate extra cash multiplier.
 - The older Fiber construction costs above were halved exactly; the new
   Planter's explicitly supplied 100-Fiber cost is not halved again.
 - Baskets can assign hauling hamsters, each carrying one item. Loaded travel
@@ -145,8 +171,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   using actual upgraded stack proceeds and shared number notation. Feedback
   rises/fades, stays bounded, and is not part of saves or cash accounting.
 - Primitive Conveyor costs $1 and 20 Wood per tile. One object per belt tile,
-  weight capacity 5 and two-second transit (speed 5). Primitive Upgrader belts
-  share this speed; no multi-cargo belt redesign.
+  weight capacity 5 and two-second transit (speed 5). Primitive Upgrader and
+  Brick Seal belts share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied
   as exact stats. Grades, connectors, further resource

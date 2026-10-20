@@ -34,11 +34,11 @@
       leek: { name: "Leek", value: 0.1, weight: 1, color: "#9dbf65" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30 },
-      clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53" },
-      unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67" },
-      unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70" },
-      brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955" },
-      pot: { name: "Fired Pot", value: 4, weight: 2, color: "#c47b55" },
+      clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53", family: "clay" },
+      unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67", family: "clay" },
+      unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
+      brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955", family: "clay" },
+      pot: { name: "Fired Pot", value: 4, weight: 2, color: "#c47b55", family: "clay" },
     },
     machines: {
       planter: {
@@ -80,7 +80,6 @@
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
-        crewCells: [[0, 2], [1, 2]],
         cost: { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250, heatPerSecond: 5, outputSeconds: 2,
         recipes: {
@@ -105,6 +104,14 @@
         cost: { cash: 5, materials: { wood: 50, leekFiber: 5 } },
         cashEffect: null,
         description: "Two parallel primitive conveyor lanes. Requires a powered Conveyor Drive. Its new cash effect is not yet set.",
+      },
+      brickSeal: {
+        name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
+        labelCell: [0, 1], labelLines: ["Brick", "Seal"],
+        cost: { cash: 10, materials: { brick: 35 } },
+        cashEffect: { multiplier: 1.15, useLimit: 9, upperLimit: 10, baseValueRequired: 0.5 },
+        gradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
+        description: "Seals passing products to increase their value. Gradually fixes Poor clay products through four uses.",
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",

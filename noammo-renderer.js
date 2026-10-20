@@ -52,14 +52,7 @@
       const definition = D.machines[machine.type], x = machine.x * TILE, y = machine.y * TILE;
       ctx.fillStyle = definition.color; ctx.strokeStyle = "#c3cba890"; ctx.lineWidth = 1;
       machineBox(ctx, machine, 2);
-      for (const [cx, cy] of definition.crewCells ?? []) {
-        const cell = API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing);
-        ctx.fillStyle = "#7d654d";
-        ctx.fillRect((machine.x + cell.x) * TILE + 3, (machine.y + cell.y) * TILE + 3, TILE - 6, TILE - 6);
-        ctx.fillStyle = "#eee4cd"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "9px system-ui";
-        ctx.fillText("Crew", (machine.x + cell.x + 0.5) * TILE, (machine.y + cell.y + 0.5) * TILE);
-      }
-      if (machine.type === "primitive" || machine.type === "belt") {
+      if (["primitive", "belt", "brickSeal"].includes(machine.type)) {
         for (const point of ports(machine).filter((point) => point.role === "output")) {
           ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";
           ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
@@ -71,20 +64,21 @@
         if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
-        } else if (machine.type !== "belt" && machine.type !== "primitive") arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
+        } else if (!["belt", "primitive", "brickSeal"].includes(machine.type)) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
       }
       if (machine.type !== "belt") {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
-        const occupied = cells(machine).filter((cell) => !(definition.crewCells ?? []).some(([cx, cy]) => {
-          const point = API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing);
-          return cell.x === machine.x + point.x && cell.y === machine.y + point.y;
-        }));
+        const labelPoint = definition.labelCell && API.rotatePoint(...definition.labelCell, definition.width, definition.height, machine.facing);
+        const occupied = labelPoint ? [{ x: machine.x + labelPoint.x, y: machine.y + labelPoint.y }] : cells(machine);
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
         const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
-        ctx.fillText(names[machine.type] ?? machine.type, cx * TILE, cy * TILE, bounds.width * TILE - 8);
+        const lines = definition.labelLines ?? [names[machine.type] ?? machine.type];
+        for (const [index, line] of lines.entries()) ctx.fillText(line, cx * TILE, cy * TILE + (index - (lines.length - 1) / 2) * 10,
+          definition.labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
-      if ((machine.type === "belt" || machine.type === "primitive") && !cells(machine).every((cell) => factory.powered(cell.x, cell.y))) {
+      if (["belt", "primitive", "brickSeal"].includes(machine.type) && !ports(machine).filter((point) => point.role === "output")
+        .every((cell) => factory.powered(cell.x, cell.y))) {
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(x + 3, y + 3, 4, 4);
       }
     }

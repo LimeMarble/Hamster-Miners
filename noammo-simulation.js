@@ -60,6 +60,7 @@
       case "fiber": add(0, 1, "left", "input"); add(0, 1, "right", "output"); break;
       case "clayShaper": add(1, 1, "left", "input"); add(1, 1, "right", "output"); break;
       case "kiln": add(0, 0, "left", "input"); add(0, 1, "left", "input"); add(1, 1, "right", "output"); break;
+      case "brickSeal": add(0, 0, "left", "input"); add(0, 0, "right", "output"); break;
       case "belt": add(0, 0, "right", "output"); break;
       case "primitive":
         for (let y = 0; y < 2; y++) { add(0, y, "left", "input"); add(0, y, "right", "output"); }
@@ -77,11 +78,40 @@
   function validCargo(item) {
     return item && D.materials[item.material] && Number.isFinite(item.quantity) && item.quantity > 0
       && Number.isFinite(item.value) && item.value >= 0 && item.upgrades && typeof item.upgrades === "object"
-      && !Array.isArray(item.upgrades) && Number.isFinite(item.progress) && item.progress >= 0 && item.progress <= 1;
+      && !Array.isArray(item.upgrades) && Number.isFinite(item.progress) && item.progress >= 0 && item.progress <= 1
+      && (!Object.hasOwn(item.upgrades, "brickSeal") || (Number.isInteger(item.upgrades.brickSeal)
+        && item.upgrades.brickSeal >= 0 && item.upgrades.brickSeal <= D.machines.brickSeal.cashEffect.useLimit))
+      && (item.gradeRepairs === undefined || (item.gradeRepairs && typeof item.gradeRepairs === "object" && !Array.isArray(item.gradeRepairs)
+        && Object.entries(item.gradeRepairs).every(([type, count]) => Object.hasOwn(D.machines, type)
+          && D.machines[type].gradeEffect && Number.isFinite(count) && count >= 0 && count <= D.machines[type].gradeEffect.useLimit)));
   }
   function sameCargo(a, b) {
     return a.material === b.material && Math.abs(a.value - b.value) < epsilon
-      && JSON.stringify(a.upgrades) === JSON.stringify(b.upgrades);
+      && JSON.stringify(a.upgrades) === JSON.stringify(b.upgrades)
+      && JSON.stringify(a.gradeRepairs ?? {}) === JSON.stringify(b.gradeRepairs ?? {});
+  }
+  function blendGradeRepairs(output, inputs) {
+    const total = inputs.reduce((sum, item) => sum + item.quantity, 0);
+    if (total <= 0) return output;
+    const repairs = {};
+    for (const item of inputs) for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
+      repairs[type] = (repairs[type] ?? 0) + count * item.quantity / total;
+    }
+    for (const type of Object.keys(repairs)) repairs[type] = Math.min(D.machines[type].gradeEffect.useLimit, repairs[type]);
+    if (Object.values(repairs).some((count) => count > 0)) output.gradeRepairs = repairs;
+    return output;
+  }
+  function applyBrickSeal(item) {
+    const definition = D.machines.brickSeal, effect = definition.cashEffect, material = D.materials[item.material];
+    const uses = item.upgrades.brickSeal ?? 0;
+    if (material.value !== null && material.value >= effect.baseValueRequired && item.value < effect.upperLimit && uses < effect.useLimit) {
+      item.value *= effect.multiplier; item.upgrades.brickSeal = uses + 1;
+    }
+    // Material repair is independent of cash eligibility and has its own cap.
+    if (material.family === definition.gradeEffect.family) {
+      item.gradeRepairs = { ...item.gradeRepairs,
+        brickSeal: Math.min(definition.gradeEffect.useLimit, (item.gradeRepairs?.brickSeal ?? 0) + 1) };
+    }
   }
   function random(state) {
     state.random = (Math.imul(1664525, state.random) + 1013904223) >>> 0;
@@ -94,7 +124,7 @@
   }
   function createState(seed = Date.now() >>> 0) {
     const state = {
-      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
+      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -340,12 +370,14 @@
       const recipe = D.machines.clayShaper.recipes[machine.mode];
       if (machine.job || machine.output.length || this.total(machine, "input") + epsilon < recipe.input) return;
       let needed = recipe.input, value = 0;
+      const ingredients = [];
       while (needed > epsilon) {
         const item = machine.input[0], amount = Math.min(needed, item.quantity);
+        ingredients.push({ ...item, quantity: amount });
         value += amount * item.value; needed -= amount; item.quantity -= amount;
         if (item.quantity <= epsilon) machine.input.shift();
       }
-      machine.job = { input: cargo("clay", recipe.input, value / recipe.input), mode: machine.mode, remaining: recipe.seconds };
+      machine.job = { input: blendGradeRepairs(cargo("clay", recipe.input, value / recipe.input), ingredients), mode: machine.mode, remaining: recipe.seconds };
     }
     startKiln(machine) {
       const definition = D.machines.kiln, material = machine.input[0]?.material, recipe = definition.recipes[material];
@@ -360,7 +392,7 @@
     finishKiln(machine) {
       if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
       const recipe = D.machines.kiln.recipes[machine.job.recipe];
-      for (const item of machine.job.inputs) machine.output.push(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier));
+      for (const item of machine.job.inputs) machine.output.push(blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier), [item]));
       machine.job = null;
     }
     unloadKiln(machine) {
@@ -412,7 +444,7 @@
           quantity = Math.min(Math.floor(item.quantity), definition.recipes[item.material].input - this.total(machine, "input"));
           if (consume && quantity > 0) machine.input.push({ ...copy(item), quantity, progress: 0 });
         }
-      } else if (machine.type === "belt" || (machine.type === "primitive" && input)) {
+      } else if (machine.type === "belt" || (["primitive", "brickSeal"].includes(machine.type) && input)) {
         if (!this.powered(x, y)) return 0;
         if (machine.type === "belt" && incomingSide === machine.facing) return 0;
         const lane = this.laneIndex(machine, x, y);
@@ -461,7 +493,7 @@
         const entry = source.contents.find((item) => route.material === "any" || item.material === route.material);
         if (!entry) return;
         // A collector withdrawal is stale: fresh cash upgrades do not teleport through storage.
-        route.item = cargo(entry.material, Math.min(1, entry.quantity));
+        route.item = blendGradeRepairs(cargo(entry.material, Math.min(1, entry.quantity)), [entry]);
         entry.quantity -= route.item.quantity;
         source.contents = source.contents.filter((item) => item.quantity > epsilon);
         route.duration = this.routeDistance(source, destination) * D.config.loadedSecondsPerTilePerWeight
@@ -526,7 +558,7 @@
           machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
           if (machine.job.remaining <= epsilon && !machine.output.length) {
             const recipe = definition.recipes[machine.job.mode];
-            machine.output.push(cargo(recipe.output, 1, machine.job.input.value * recipe.input * recipe.valueMultiplier));
+            machine.output.push(blendGradeRepairs(cargo(recipe.output, 1, machine.job.input.value * recipe.input * recipe.valueMultiplier), [machine.job.input]));
             machine.job = null;
           }
         } else if (machine.type === "kiln") {
@@ -561,6 +593,7 @@
             item.upgrades.primitive = (item.upgrades.primitive ?? 0) + 1;
           }
         }
+        if (machine.type === "brickSeal" && before + epsilon < 0.5 && item.progress + epsilon >= 0.5) applyBrickSeal(item);
         if (item.progress >= 1 - epsilon) {
           item.quantity -= this.send(machine, item, output);
           if (item.quantity <= epsilon) delete machine.lanes[lane];
@@ -576,7 +609,8 @@
       if (machine.type === "wheel") return "Kinetic source · connections on both long edges";
       if (machine.type === "drive") return this.driveHasWheel(machine) ? "Powered · 16×16 coverage" : "Connect its facing intake to a wheel’s long edge";
       if (machine.type === "basket") return `${this.total(machine, "contents")} / ${D.config.basketCapacity} items`;
-      if (machine.type === "belt" || machine.type === "primitive") return cells(machine).every((cell) => this.powered(cell.x, cell.y)) ? "Kinetic power available" : "Waiting for kinetic power";
+      if (["belt", "primitive", "brickSeal"].includes(machine.type)) return ports(machine).filter((point) => point.role === "output")
+        .every((point) => this.powered(point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
       if (machine.type === "kiln") {
         if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked" : `Firing · ${formatNumber(machine.job.remaining)}s`;
         if (machine.output.length) return "Output waiting";
@@ -598,6 +632,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.brickSealVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "brickSeal")) state.stock.brickSeal = 0;
+        state.brickSealVersion = 1;
+      }
       if ((state.kilnVersion ?? 0) < 1) {
         if (state.inventory && !Object.hasOwn(state.inventory, "pot")) state.inventory.pot = 0;
         if (state.stock && !Object.hasOwn(state.stock, "kiln")) state.stock.kiln = 0;
@@ -682,7 +720,7 @@
         if (sourceMaterial && (machine.output.some((item) => item.material !== sourceMaterial)
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) + epsilon)) throw new Error("Invalid source buffer.");
         if (!["fiber", "clayShaper", "kiln"].includes(machine.type) && !sourceMaterial && machine.output.length) throw new Error("Unexpected output buffer.");
-        const laneCount = machine.type === "primitive" ? 2 : machine.type === "belt" ? 1 : 0;
+        const laneCount = machine.type === "primitive" ? 2 : ["belt", "brickSeal"].includes(machine.type) ? 1 : 0;
         for (const [lane, item] of Object.entries(machine.lanes)) {
           if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > D.config.beltWeight + epsilon) throw new Error("Invalid conveyor cargo.");
         }
@@ -775,7 +813,7 @@
       return factory;
     }
   }
-  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, cargo, opposite, turn, copy, key, formatNumber };
+  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.NoAmmo = API;
 }(globalThis));

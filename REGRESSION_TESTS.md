@@ -67,6 +67,19 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Primitive belts and both Primitive Upgrader lanes take two seconds per tile
   (speed 5). Floating-point comparisons trigger the cash upgrade exactly once at
   the halfway mark, without changing source or shaping processing timers.
+- Brick Seal tests compare the real legacy Rock Shack footprint, including its
+  single upper conveyor and inactive lower cell in all rotations. Cash checks
+  cover its exact price, zero crew, x1.15/9-use/$10/base-$0.50 rules, eligibility
+  of a future non-clay material, unit values versus stack totals, and a last use
+  crossing the ceiling without any clamp. Cash and grade caps stay independent;
+  output blockage and saved mid-pass cargo cannot repeat an effect. Four repairs
+  remove 20 absolute percentage points of Poor chance. Mixed repaired/untreated
+  inputs, the quantity-blending helper's 4:1/9:1 arithmetic, partly consumed stacks and floating-point
+  caps preserve the modifiers through shaping, firing, hauling and save/load.
+  UI tests cover effect fields in Shop/Inventory, material-cost multiplication,
+  repeat placement, independent identities and stable machine controls.
+  Helper arithmetic does not establish mass/quantity weighting as a design rule
+  for mixed-material recipes; those quality contributions remain undecided.
 - Fiber matches the actual Ingot Molder's 1-column/2-row, right-facing layout:
   body above, input/output on the lower cell, without a conveyor. Real Planter
   feeds work in all rotations; the body rejects cargo. Earlier Fiber saves

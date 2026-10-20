@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const A = require("../noammo-simulation.js");
+const R = require("../noammo-renderer.js");
 const { DATA: D, Factory, createState, cargo, cells, ports } = A;
 
 function place(factory, type, x, y, facing = "right") {
@@ -21,6 +22,22 @@ function setup() {
   const factory = new Factory(createState(1)), kiln = place(factory, "kiln", 40, 40);
   return { factory, kiln };
 }
+
+test("Kiln is a plain labelled machine box, without crew tiles or labels, in every rotation", () => {
+  for (const facing of D.directions) {
+    const factory = new Factory(createState(1)), kiln = place(factory, "kiln", 40, 40, facing);
+    const labels = [], fills = [];
+    const context = new Proxy({}, { get: (object, name) => object[name] ?? ((...args) => {
+      if (name === "fillText") labels.push(args[0]);
+      if (name === "fillRect") fills.push({ color: object.fillStyle, args });
+    }) });
+    R.drawFloor(context, factory, { x: 38, y: 38, zoom: 1 }, { width: 400, height: 400 });
+    assert.equal(labels.filter((label) => label === "Clay Kiln").length, 1);
+    assert.equal(labels.includes("Crew"), false);
+    assert.equal(fills.filter((entry) => entry.color === D.machines.kiln.color).length, 1);
+    assert.equal(cells(kiln).length, 6); assert.equal(factory.availableCrew(), 8);
+  }
+});
 
 test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free unlock", () => {
   assert.deepEqual(D.machines.kiln.cost, { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });

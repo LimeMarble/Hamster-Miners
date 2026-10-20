@@ -26,6 +26,16 @@
   const machineCards = new Map(), cards = new Map();
   const number = A.formatNumber;
   const money = (value) => `$${number(value)}`;
+  function appendMachineEffects(panel, definition) {
+    const effect = definition.cashEffect;
+    if (!effect || typeof effect !== "object") return;
+    const lines = [
+      `Cash effect: ×${number(effect.multiplier)}`, `Use Limit: ${number(effect.useLimit)}`,
+      `Upper Limit: ${money(effect.upperLimit)}`, `Base Value Required: ${money(effect.baseValueRequired)}`,
+    ];
+    if (definition.gradeEffect) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Standard per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
+    for (const line of lines) panel.append(element("p", line, "machine-effect"));
+  }
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }
   function element(tag, content, className) {
     const node = document.createElement(tag);
@@ -291,6 +301,7 @@
         const definition = D.machines[machine.type];
         const status = element("p", "", "status"); status.id = "machineStatus";
         panel.append(element("h2", definition.name), status, element("p", definition.description));
+        appendMachineEffects(panel, definition);
         const controls = element("div", undefined, "row");
         const move = action("Move", () => {
           interaction.box = null; interaction.marquee = null; gesture = null;
@@ -382,6 +393,7 @@
     const definition = D.machines[shopSelection], panel = $("shopDetail");
     if (shopSignature !== shopSelection) {
       shopSignature = shopSelection; panel.replaceChildren(element("h2", definition.name), element("p", definition.description));
+      appendMachineEffects(panel, definition);
       const defaultSize = A.size({ type: shopSelection, facing: definition.defaultFacing ?? "right" });
       panel.append(element("p", `${defaultSize.width}×${defaultSize.height} default footprint${definition.crew ? ` · ${definition.crew} crew` : ""}`, "muted"));
       const owned = element("p"); owned.id = "shopOwned"; panel.append(owned);
@@ -455,6 +467,7 @@
       machineSignature = inventorySelection;
       const definition = D.machines[inventorySelection], bounds = A.size({ type: inventorySelection, facing: definition.defaultFacing ?? "right" });
       panel.replaceChildren(element("h2", definition.name), element("p", definition.description), element("p", `${bounds.width}×${bounds.height} default footprint`, "muted"));
+      appendMachineEffects(panel, definition);
       const owned = element("p"); owned.id = "inventoryOwned";
       const place = action("Place", () => build(inventorySelection)); place.id = "placeMachine";
       panel.append(owned, place, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"));

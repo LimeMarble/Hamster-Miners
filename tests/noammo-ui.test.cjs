@@ -577,6 +577,34 @@ test("Shop categories filter actual cards rather than merely changing the select
   for (let i = 0; i < cards.length; i++) assert.equal(cards[i].hidden, definitions[i].category !== "Cash");
 });
 
+test("Brick Seal exposes its effect fields, purchase cost and repeat placement without remounting controls", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 20; factory.state.inventory.brick = 70;
+  const ui = boot(factory.exportSave());
+  ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("brickSeal")].emit("click");
+  const effects = ui.ids.get("shopDetail").children.filter((node) => node.className === "machine-effect");
+  assert.deepEqual(effects.slice(0, 4).map((node) => node.textContent), [
+    "Cash effect: ×1.15", "Use Limit: 9", "Upper Limit: $10", "Base Value Required: $0.5",
+  ]);
+  assert.match(effects[4].textContent, /5 percentage points/);
+  ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
+  assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "70 / 70");
+  assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
+  assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0);
+  chooseMachine(ui, "brickSeal");
+  assert.ok(ui.ids.get("machineDetail").children.some((node) => node.textContent === "Use Limit: 9"));
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(ui.state().stock.brickSeal, 1);
+  ui.ids.get("cargo").emit("click", screenPoint(123, 121));
+  const machines = ui.state().machines.filter((machine) => machine.type === "brickSeal");
+  assert.equal(machines.length, 2); assert.notEqual(machines[0].id, machines[1].id);
+  assert.equal(ui.ids.get("crew").textContent, "10 / 10");
+  const move = ui.ids.get("moveMachine");
+  for (let frame = 1; frame <= 20; frame++) ui.frame(frame * 100);
+  assert.equal(ui.ids.get("moveMachine"), move);
+});
+
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.cash = 30;
