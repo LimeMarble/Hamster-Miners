@@ -293,7 +293,7 @@ test("a different machine, Basket, tree or group suppresses quick actions and se
     if (selection === "group") box(ui, [120, 120], [125, 123]);
     shiftClick(ui, 124, 122); ui.frame(100);
     const state = ui.state();
-    assert.deepEqual(state.inventory, { leek: 0, leekFiber: 0, wood: 0, clay: 0, brick: 0 }, selection);
+    assert.deepEqual(state.inventory, A.createState(1).inventory, selection);
     assert.equal(state.machines.find((m) => m.id === basket.id).contents.length, 2);
     assert.deepEqual(ui.view().interaction.selectedIds, [basket.id]);
     assert.equal(ui.view().interaction.box, null);
@@ -541,6 +541,32 @@ test("Items exposes Wood's $0.10 sale and hides it again when sold", () => {
   wood.children.find((child) => child.textContent === "Sell all").emit("click");
   assert.equal(ui.state().cash, 1); assert.equal(ui.state().inventory.wood, 0);
   assert.match(ui.ids.get("itemCards").children[0].textContent, /Inventory is empty/);
+});
+
+test("Clay Bench Shop cost, one-crew placement, sparse hitbox and stable mode selector use the actual browser handlers", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 20; factory.state.inventory.wood = 50; factory.state.inventory.leekFiber = 5;
+  const ui = boot(factory.exportSave());
+  ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("clayShaper")].emit("click");
+  assert.equal(ui.ids.get("costs").children.length, 3, "Cash, Wood and Fiber only");
+  assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
+  chooseMachine(ui, "clayShaper");
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  let state = ui.state(), bench = state.machines.find((machine) => machine.type === "clayShaper");
+  assert.equal(bench.mode, "brick"); assert.equal(ui.ids.get("crew").textContent, "9 / 10");
+  const selector = ui.ids.get("shapingMode");
+  assert.deepEqual(selector.options.map((option) => option.value), ["brick", "pot"]);
+  selector.value = "pot"; selector.emit("change");
+  for (let frame = 1; frame <= 20; frame++) ui.frame(frame * 100);
+  assert.equal(ui.ids.get("shapingMode"), selector, "simulation ticks must not rebuild the selector");
+  state = ui.state(); bench = state.machines.find((machine) => machine.type === "clayShaper");
+  assert.equal(bench.mode, "pot");
+  ui.ids.get("cargo").emit("click", screenPoint(121, 122)); ui.frame(2100);
+  assert.deepEqual(ui.view().interaction.selectedIds, [], "empty lower-left cell is not a hidden machine hitbox");
+  const reloaded = boot(ui.storage.get(A.DATA.saveKey));
+  reloaded.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(reloaded.ids.get("shapingMode").value, "pot");
 });
 
 test("Shop categories filter actual cards rather than merely changing the selected tab", () => {

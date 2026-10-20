@@ -24,14 +24,7 @@
   let overlaySignature = "";
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
   const machineCards = new Map(), cards = new Map();
-  const suffices = ["", "k", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No", "Dc"];
-  function number(value) {
-    if (!Number.isFinite(value)) return "0";
-    if (value === 0) return "0";
-    const tier = Math.max(0, Math.floor(Math.log10(Math.abs(value)) / 3));
-    if (tier >= suffices.length) return value.toExponential(2);
-    return `${Number((value / 1000 ** tier).toPrecision(3))}${suffices[tier]}`;
-  }
+  const number = A.formatNumber;
   const money = (value) => `$${number(value)}`;
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }
   function element(tag, content, className) {
@@ -309,6 +302,17 @@
         controls.append(move, pickup);
         panel.append(controls);
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
+        if (machine.type === "clayShaper") {
+          const label = element("label", "Shaping mode "), mode = element("select");
+          mode.id = "shapingMode"; mode.setAttribute("aria-label", "Shaping mode");
+          for (const [id, recipe] of Object.entries(definition.recipes)) {
+            const option = element("option", `${recipe.name} · ${recipe.input} Clay · ${recipe.seconds}s`);
+            option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => result(factory.setShapingMode(machine.id, mode.value)));
+          label.append(mode); panel.append(label, element("p", "Mode changes apply to the next job. The lower working tile accepts Clay from behind and outputs in the facing direction.", "muted"));
+        }
         if (machine.type === "basket") {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";

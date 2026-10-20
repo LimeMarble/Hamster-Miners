@@ -15,6 +15,16 @@
   function world(ctx, camera) {
     ctx.save(); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x * TILE, -camera.y * TILE);
   }
+  function machineBox(ctx, machine, inset, fill = true) {
+    const bounds = size(machine);
+    const boxes = D.machines[machine.type].footprint ? cells(machine).map((cell) => ({ ...cell, width: 1, height: 1 }))
+      : [{ x: machine.x, y: machine.y, ...bounds }];
+    for (const box of boxes) {
+      const args = [box.x * TILE + inset, box.y * TILE + inset, box.width * TILE - inset * 2, box.height * TILE - inset * 2];
+      if (fill) ctx.fillRect(...args);
+      ctx.strokeRect(...args);
+    }
+  }
   function drawFloor(ctx, factory, camera, viewport) {
     ctx.clearRect(0, 0, viewport.width, viewport.height);
     ctx.fillStyle = "#111a14"; ctx.fillRect(0, 0, viewport.width, viewport.height);
@@ -40,8 +50,8 @@
       const bounds = size(machine);
       if (!visible(machine.x, machine.y, bounds.width, bounds.height, camera, viewport)) continue;
       const definition = D.machines[machine.type], x = machine.x * TILE, y = machine.y * TILE;
-      ctx.fillStyle = definition.color; ctx.fillRect(x + 2, y + 2, bounds.width * TILE - 4, bounds.height * TILE - 4);
-      ctx.strokeStyle = "#c3cba890"; ctx.lineWidth = 1; ctx.strokeRect(x + 2, y + 2, bounds.width * TILE - 4, bounds.height * TILE - 4);
+      ctx.fillStyle = definition.color; ctx.strokeStyle = "#c3cba890"; ctx.lineWidth = 1;
+      machineBox(ctx, machine, 2);
       if (machine.type === "primitive" || machine.type === "belt") {
         for (const point of ports(machine).filter((point) => point.role === "output")) {
           ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";
@@ -57,9 +67,12 @@
         } else if (machine.type !== "belt" && machine.type !== "primitive") arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
       }
       if (machine.type !== "belt") {
-        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
+        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
-        ctx.fillText(names[machine.type] ?? machine.type, x + bounds.width * 16, y + bounds.height * 16, bounds.width * TILE - 8);
+        const occupied = cells(machine);
+        const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
+        const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
+        ctx.fillText(names[machine.type] ?? machine.type, cx * TILE, cy * TILE, bounds.width * TILE - 8);
       }
       if ((machine.type === "belt" || machine.type === "primitive") && !cells(machine).every((cell) => factory.powered(cell.x, cell.y))) {
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(x + 3, y + 3, 4, 4);
@@ -109,8 +122,8 @@
     for (const id of interaction.selectedIds ?? (selected ? [selected.id] : [])) {
       const machine = factory.byId.get(id);
       if (!machine) continue;
-      const bounds = size(machine); ctx.strokeStyle = "#eef7b2"; ctx.lineWidth = 2;
-      ctx.strokeRect(machine.x * TILE + 1, machine.y * TILE + 1, bounds.width * TILE - 2, bounds.height * TILE - 2);
+      ctx.strokeStyle = "#eef7b2"; ctx.lineWidth = 2;
+      machineBox(ctx, machine, 1, false);
     }
     if (interaction.tree) { const tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
       if (tree) { ctx.strokeStyle = "#e8e9ab"; ctx.lineWidth = 2; ctx.strokeRect(tree.x * TILE, tree.y * TILE, 96, 96); } }
@@ -123,10 +136,8 @@
       previews.push({ machine, error: factory.placement(machine.type, machine.x, machine.y, machine.facing, machine.id) });
     }
     for (const { machine: preview, error } of previews) {
-      const bounds = size(preview);
       ctx.fillStyle = error ? "#df796433" : "#dceaa73a"; ctx.strokeStyle = error ? "#ee9b89" : "#e3efa9"; ctx.lineWidth = 2;
-      ctx.fillRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
-      ctx.strokeRect(preview.x * TILE, preview.y * TILE, bounds.width * TILE, bounds.height * TILE);
+      machineBox(ctx, preview, 0);
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
     }
@@ -137,6 +148,15 @@
       ctx.fillStyle = "#dceaa725"; ctx.strokeStyle = "#e3efa9"; ctx.lineWidth = 1.5;
       ctx.fillRect(x * TILE, y * TILE, width * TILE, height * TILE);
       ctx.strokeRect(x * TILE, y * TILE, width * TILE, height * TILE);
+    }
+    for (const entry of factory.saleTexts) {
+      const age = factory.state.seconds - entry.created;
+      if (age < 0 || age >= 1.2 || !visible(entry.x - 1, entry.y - 1.5, 2, 2, camera, viewport)) continue;
+      ctx.save(); ctx.globalAlpha = 1 - age / 1.2;
+      ctx.fillStyle = "#75df86"; ctx.font = "bold 13px system-ui";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText(`+$${API.formatNumber(entry.amount)}`, entry.x * TILE, entry.y * TILE - 4 - age * 22);
+      ctx.restore();
     }
     ctx.restore();
   }

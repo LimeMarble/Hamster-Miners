@@ -2,6 +2,22 @@
 
 Implemented entries are marked below; the remaining decisions are not yet content.
 
+## Reality cash capstone: four-gem Tiara (planning, not implemented)
+
+- The final assembly must meaningfully use Ruby, Sapphire, Aquamarine and
+  Emerald. It must not reduce progression to Emerald alone. A reality-era Orrery
+  and broader paint industry are shelved; Malachite-painted decorative vases remain
+  a separate early-product idea.
+- Proposed value formula: Sterling Silver^0.5 × Emerald^0.3 × Aquamarine^0.3
+  × Ruby^0.3 × Sapphire^0.3, using values delivered to assembly.
+- Terminal-reality balancing benchmark: Sterling Silver 1e10, Emerald 1e22,
+  Aquamarine 1e17, Ruby 1e19, Sapphire 1e19. The weighted metal contribution is
+  1e5 and the combined weighted gem contribution is 1e23.1, giving a Tiara
+  value of 1e28.1 (approximately 1.26e28).
+- Do not further boost the metal input or the combined geometric gem
+  contribution beyond this benchmark to keep inflating the Tiara chain.
+  This is a balancing constraint, not a runtime clamp or a new implemented recipe.
+
 ## noammo opening prototype (2026-10-18)
 
 - Entry: `noammo.html`, linked from the existing game. This is a separate playable
@@ -55,6 +71,27 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Clay has a $0.25 base value and weight 1. Four pits can sell directly into
   the four sides of the starter Sell Tube for $5/minute without conveyors.
 - Limestone extraction remains deferred; no Quarry is implemented yet.
+- Clay Shaping Bench: implemented at $20, 50 Wood and 5 Leek Fiber, with no
+  Clay construction cost. Hand-operated by one crew member, without kinetic
+  power. Brick mode shapes 1 Clay into 1 Unfired Brick in 2 seconds, preserving
+  its value. Pot mode shapes 2 Clay into 1 Unfired Pot in 4 seconds, multiplying
+  the sum of both inputs' actual values by 2. Unfired Brick base value/weight
+  are $0.25/1; Unfired Pot base value/weight are $1/2.
+  The default right-facing footprint is:
+
+  ```text
+  .       .
+  (blank) Input/Output
+  ```
+
+  The lower-left tile remains free, including placement, selection and previews.
+  The lower-right working tile takes input from the left and outputs right;
+  rotation moves both ports and the three occupied cells together. Each bench
+  holds at most 2 waiting Clay and 1 finished product. Partial pot ingredients
+  wait for the second Clay. A mode change affects the next job, not the running
+  one. Modes, remaining processing time and contents survive moves/saves; normal
+  pickup recovers unfinished Clay and completed products once. Firing is not
+  implemented in this noammo slice yet.
 - Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
   edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
   its reference footprint; existing saved orientations are unchanged.
@@ -77,12 +114,15 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   both the count and the next price persist through save/load.
 - Sell Tube costs $250 and 200 Bricks after the free starter. Old saves with no
   tube receive one once; existing owned tubes count as their starter. Bricks are
-  registered as a construction material; their production recipe remains pending.
+  registered as a construction material; firing them remains pending.
+- Sell Tube sales show small green floating cash texts at the selling Tube,
+  using actual upgraded stack proceeds and shared number notation. Feedback
+  rises/fades, stays bounded, and is not part of saves or cash accounting.
 - Primitive Conveyor costs $1 and 20 Wood per tile. One object per belt tile,
   weight capacity 5 and one-second transit; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied
-  as exact stats. Grades, connectors, heating, Bricks/Pots, further resource
+  as exact stats. Grades, connectors, heating/firing, further resource
   depots and all later chains remain outside this opening slice.
 - The existing mining game and its simulation files are unchanged. Parent-level
   architecture/state documents predate both this slice and much of the mining game.

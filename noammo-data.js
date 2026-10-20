@@ -35,6 +35,8 @@
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 50 },
       clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53" },
+      unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67" },
+      unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70" },
       brick: { name: "Bricks", value: null, weight: 1, color: "#b97955" },
     },
     machines: {
@@ -64,6 +66,16 @@
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Material", crew: 1,
         cost: { cash: 0, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
         description: "One Clay every 12 seconds. Manually operated by one hamster; no kinetic power required.",
+      },
+      clayShaper: {
+        name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
+        footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick",
+        cost: { cash: 20, materials: { wood: 50, leekFiber: 5 } },
+        recipes: {
+          brick: { name: "Unfired Brick", input: 1, output: "unfiredBrick", seconds: 2, valueMultiplier: 1 },
+          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 4, valueMultiplier: 2 },
+        },
+        description: "Hand-shapes Clay into unfired Bricks or Pots. Bricks retain their Clay’s value; Pots double the combined value of their two Clay inputs.",
       },
       wheel: {
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,

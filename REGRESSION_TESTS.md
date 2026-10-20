@@ -35,6 +35,20 @@ future pipe tiers) are not treated as current acceptance requirements.
   Old saves gain zero-valued new inventory keys, not free pits or resources.
   Invalid/overfull source buffers are still rejected. Shop, Inventory, recipes,
   shared lifecycle rendering, crew accounting and new prices are covered.
+- Sell Tube cash feedback uses effective stack proceeds only after a sale,
+  never during intake previews. Green texts rise/fade above their own Tube,
+  use common notation, expire while off-screen, and stay bounded under bursts.
+  Rendering does not mutate quantities/value and loading never replays texts.
+- Clay Shaping Bench checks cover the $20/50 Wood/5 Fiber cost, one crew,
+  three occupied cells in every rotation, and the free lower-left cell across
+  placement, selection and rendering. Real Pit-to-Bench-to-Basket routes work
+  without power. Brick/Pot modes take 2/4 seconds for 1/2 Clay; mixed upgraded
+  Clay values combine correctly, with the Pot's additional x2 multiplier.
+  Bounded input/output, sustained 0.5 Clay/s, read-only intake previews, mode
+  changes during work, independent instances, moves, pickups and hydration
+  preserve quantities and values. Older saves gain only the new zeroed keys;
+  malformed current buffers/modes are rejected. UI tests exercise the real
+  purchase/placement/mode handlers and ensure ticks do not remount the selector.
 - Shared contracts cover every opening machine in every rotation through
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
 - Fiber matches the actual Ingot Molder's 1-column/2-row, right-facing layout:

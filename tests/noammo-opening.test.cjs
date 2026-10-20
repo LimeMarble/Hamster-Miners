@@ -135,6 +135,47 @@ test("four unpowered Clay Pits feed one free Sell Tube from four sides for exact
   assert.equal(factory.availableCrew(), 6); assert.equal(factory.poweredDrives.length, 0);
 });
 
+test("Sell Tube feedback uses actual stack proceeds, never fires on intake checks, stays bounded and is not saved", () => {
+  const factory = new Factory(createState(1)), tube = place(factory, "sellTube", 40, 40);
+  const item = cargo("clay", 3, 0.75);
+  assert.equal(factory.receive(tube, item, 40, 40, "left"), 3);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.saleTexts.length, 0);
+  factory.receive(tube, item, 40, 40, "left", true);
+  assert.equal(factory.state.cash, 2.25);
+  assert.deepEqual(factory.saleTexts[0], { amount: 2.25, x: 41, y: 40, created: 0 });
+  const other = place(factory, "sellTube", 45, 40);
+  factory.receive(other, cargo("wood", 2), 45, 40, "left", true);
+  assert.equal(factory.saleTexts[1].x, 46);
+  assert.equal(factory.saleTexts[1].amount, 0.2);
+  assert.equal(Factory.importSave(factory.exportSave()).saleTexts.length, 0);
+  assert.equal(JSON.stringify(factory.state).includes("saleTexts"), false);
+  for (let i = 0; i < 100; i++) factory.receive(tube, cargo("clay"), 40, 40, "left", true);
+  assert.equal(factory.saleTexts.length, 64);
+  assert.equal(factory.state.cash, 27.45, "limiting feedback cannot limit earnings");
+  advance(factory, 1.3); assert.equal(factory.saleTexts.length, 0);
+});
+
+test("sale text renders green, rises and fades, follows camera coordinates and never mutates earnings or save state", () => {
+  const factory = new Factory(createState(1)), tube = place(factory, "sellTube", 40, 40);
+  factory.receive(tube, cargo("clay", 1, 0.123456), 40, 40, "left", true);
+  function draw() {
+    const { context, calls } = drawingContext();
+    context.fillText = (label, x, y) => calls.push(["text", label, x, y, context.fillStyle, context.globalAlpha]);
+    const before = factory.exportSave(), feedback = JSON.stringify(factory.saleTexts);
+    R.drawOverlay(context, factory, { x: 38, y: 38, zoom: 1 }, { width: 600, height: 400 });
+    assert.equal(factory.exportSave(), before); assert.equal(JSON.stringify(factory.saleTexts), feedback);
+    return calls.find(([kind, label]) => kind === "text" && label.startsWith("+$"));
+  }
+  const first = draw();
+  assert.equal(first[1], "+$0.123"); assert.equal(first[2], 41 * R.TILE);
+  assert.equal(first[4], "#75df86"); assert.equal(first[5], 1);
+  advance(factory, 0.5); const next = draw();
+  assert.ok(next[3] < first[3]); assert.ok(next[5] < first[5]);
+  assert.equal(factory.state.cash, 0.123456);
+  advance(factory, 1); assert.equal(draw(), undefined);
+  assert.equal(A.formatNumber(12345), "12.3k");
+});
+
 test("older opening saves default the new Clay fields without changing progress or granting free pits", () => {
   const factory = new Factory(createState(1));
   factory.place("planter", 40, 40); factory.state.cash = 17;
