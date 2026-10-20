@@ -51,6 +51,22 @@ future pipe tiers) are not treated as current acceptance requirements.
   purchase/placement/mode handlers and ensure ticks do not remount the selector.
 - Shared contracts cover every opening machine in every rotation through
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
+- Clay Kiln coverage includes its exact price, 2 crew, all six occupied cells
+  and two interchangeable inputs in all rotations. Full 4-Brick/2-Pot batches
+  require eight seconds and consume 40u once at start, with Wood providing 30u
+  and a hard heat capacity of 250u. Invalid sides, partial batches, overfull or
+  incompatible inputs and fuel overflow reject safely; intake previews do not
+  mutate heat. Each ingredient retains its own upgraded value through firing.
+  Blocked output cannot drain unlimited materials, stall another kiln, bank
+  bursts or prevent normal overlap between firing and unloading. Actual powered
+  belt tests maintain one output every two seconds, regardless of instance order.
+  Single/bulk moves, pickups, terrain migration and hydration preserve identity,
+  heat, cooldowns, values and quantities without leaving tile-owned contents.
+  UI heat/status/control nodes stay mounted while jobs advance. Fired goods sell
+  and serve construction costs; storage withdrawals use their base values.
+- Primitive belts and both Primitive Upgrader lanes take two seconds per tile
+  (speed 5). Floating-point comparisons trigger the cash upgrade exactly once at
+  the halfway mark, without changing source or shaping processing timers.
 - Fiber matches the actual Ingot Molder's 1-column/2-row, right-facing layout:
   body above, input/output on the lower cell, without a conveyor. Real Planter
   feeds work in all rotations; the body rejects cargo. Earlier Fiber saves

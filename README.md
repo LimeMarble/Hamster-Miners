@@ -4,7 +4,7 @@ yay hamsta 2
 The `noammo` opening prototype is in [noammo.html](noammo.html). It uses a
 separate local save and does not replace the existing mining game in `index.html`.
 It currently tests scarce Leeks/Fiber, manual Wood/Clay, Baskets/hauling, Loggers,
-unfired Brick/Pot shaping and the first kinetic-powered upgrading line.
+Brick/Pot shaping and fuelled firing, and the first kinetic-powered upgrading line.
 Machines are labelled boxes.
 
 Run `npm run check` and `node --test --test-concurrency=2 tests/**/*.test.cjs`

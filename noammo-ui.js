@@ -302,6 +302,11 @@
         controls.append(move, pickup);
         panel.append(controls);
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
+        if (machine.type === "kiln") {
+          const heat = element("p"); heat.id = "kilnHeat";
+          const buffers = element("p"); buffers.id = "kilnBuffers";
+          panel.append(heat, buffers, element("p", "Full batches only. Each firing consumes 40u of heat when it starts; Wood provides 30u. Either input accepts Wood or unfired products.", "muted"));
+        }
         if (machine.type === "clayShaper") {
           const label = element("label", "Shaping mode "), mode = element("select");
           mode.id = "shapingMode"; mode.setAttribute("aria-label", "Shaping mode");
@@ -349,6 +354,10 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (machine.type === "kiln") {
+        text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines.kiln.heatCapacity)}u`);
+        text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
+      }
       if (machine.type === "basket") {
         const totals = new Map();
         for (const item of machine.contents) totals.set(item.material, (totals.get(item.material) ?? 0) + item.quantity);

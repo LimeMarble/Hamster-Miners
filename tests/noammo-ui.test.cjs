@@ -577,6 +577,43 @@ test("Shop categories filter actual cards rather than merely changing the select
   for (let i = 0; i < cards.length; i++) assert.equal(cards[i].hidden, definitions[i].category !== "Cash");
 });
 
+test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 30;
+  Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
+  let ui = boot(factory.exportSave());
+  ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("kiln")].emit("click");
+  assert.equal(ui.ids.get("costs").children.length, 4);
+  assert.equal(ui.ids.get("buyMachine").disabled, true);
+  factory.state.inventory.leekFiber = 15;
+  assert.equal(factory.buy("kiln").amount, 1);
+  const kiln = factory.place("kiln", 121, 121).machine;
+  const [input] = A.ports(kiln);
+  factory.receive(kiln, A.cargo("wood", 2), input.x, input.y, input.direction, true);
+  factory.receive(kiln, A.cargo("unfiredBrick", 4, 1.05), input.x, input.y, input.direction, true);
+  ui = boot(factory.exportSave());
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  const heat = ui.ids.get("kilnHeat"), buffers = ui.ids.get("kilnBuffers"), move = ui.ids.get("moveMachine");
+  assert.equal(ui.ids.get("crew").textContent, "8 / 10"); assert.equal(heat.textContent, "Heat: 60 / 250u");
+  for (let frame = 1; frame <= 90; frame++) ui.frame(frame * 100);
+  assert.equal(ui.ids.get("kilnHeat"), heat); assert.equal(ui.ids.get("kilnBuffers"), buffers);
+  assert.equal(ui.ids.get("moveMachine"), move, "production must not remount the control buttons");
+  assert.equal(heat.textContent, "Heat: 20 / 250u");
+  assert.equal(buffers.textContent, "Waiting inputs: 0 · Finished products: 4");
+  move.emit("click"); ui.ids.get("rotateRight").emit("click");
+  ui.ids.get("cargo").emit("click", screenPoint(125, 120));
+  const moved = ui.state().machines.find((machine) => machine.id === kiln.id);
+  assert.equal(moved.facing, "down"); assert.equal(moved.heat, 20); assert.equal(moved.output[0].quantity, 4);
+  ui.ids.get("pickupMachine").emit("click");
+  assert.equal(ui.state().inventory.brick, 4); assert.equal(ui.ids.get("crew").textContent, "10 / 10");
+  ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
+  const bricks = ui.ids.get("itemCards").children.find((card) => card.children.some((node) => node.textContent === "Bricks"));
+  assert.ok(bricks.children.some((node) => node.textContent === "$1 each from inventory"));
+  bricks.children.find((node) => node.textContent === "Sell all").emit("click");
+  assert.equal(ui.state().cash, 4); assert.equal(ui.state().inventory.brick, 0);
+});
+
 test("visible place/rotate/cancel controls create the correct footprint and preserve the old game save", () => {
   const ui = boot(new A.Factory(A.createState(1)).exportSave());
   chooseMachine(ui, "planter");

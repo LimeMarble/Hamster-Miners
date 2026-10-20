@@ -20,7 +20,7 @@
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 10,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
       planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 12,
-      basketCapacity: 100, beltSeconds: 1, beltWeight: 5,
+      basketCapacity: 100, beltSeconds: 2, beltWeight: 5,
       clicksPerSecond: 5, chopsPerHarvest: 5,
       loadedSecondsPerTilePerWeight: 0.5, emptySecondsPerTile: 0.5,
       powerAreaSize: 16,
@@ -33,11 +33,12 @@
     materials: {
       leek: { name: "Leek", value: 0.1, weight: 1, color: "#9dbf65" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
-      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 50 },
+      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30 },
       clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67" },
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70" },
-      brick: { name: "Bricks", value: null, weight: 1, color: "#b97955" },
+      brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955" },
+      pot: { name: "Fired Pot", value: 4, weight: 2, color: "#c47b55" },
     },
     machines: {
       planter: {
@@ -77,6 +78,17 @@
         },
         description: "Hand-shapes Clay into unfired Bricks or Pots. Bricks retain their Clay’s value; Pots double the combined value of their two Clay inputs.",
       },
+      kiln: {
+        name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
+        crewCells: [[0, 2], [1, 2]],
+        cost: { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
+        heatCapacity: 250, heatPerSecond: 5, outputSeconds: 2,
+        recipes: {
+          unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4 },
+          unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4 },
+        },
+        description: "Fires four unfired Bricks or two unfired Pots in eight seconds, multiplying their value by four. Either input accepts fuel or unfired products. Uses two hamsters.",
+      },
       wheel: {
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
         defaultFacing: "down",
@@ -97,7 +109,7 @@
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
         cost: { cash: 1, materials: { wood: 20 } },
-        description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes one second per tile.",
+        description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes two seconds per tile.",
       },
       sellTube: {
         name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",

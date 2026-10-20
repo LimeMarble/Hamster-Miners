@@ -64,7 +64,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
 - Logger: 1x1, $0, 50 Wood, 5 Leek Fiber, one crew; one Wood/12 seconds.
   It must be inside a tree's middle edge tile, facing outward. Wood sells for
-  $0.10 and has 50 heat units; fuel processing itself is outside this slice.
+  $0.10 and provides 30 heat units as Kiln fuel.
 - Clay Pit: 2x2, $0 and 100 Wood, one crew. Manually produces one Clay every
   12 seconds without kinetic power. Its centered two-wide facing-edge output
   can feed either adjacent receiving tile. At most one Clay waits when blocked.
@@ -90,8 +90,34 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   holds at most 2 waiting Clay and 1 finished product. Partial pot ingredients
   wait for the second Clay. A mode change affects the next job, not the running
   one. Modes, remaining processing time and contents survive moves/saves; normal
-  pickup recovers unfinished Clay and completed products once. Firing is not
-  implemented in this noammo slice yet.
+  pickup recovers unfinished Clay and completed products once.
+- Clay Kiln: implemented at $30, 50 Unfired Bricks, 10 Clay and 15 Leek Fiber;
+  no Limestone. Two crew and a solid 2x3 right-facing reference footprint:
+
+  ```text
+  Input .
+  Input Output->
+  .     .
+  ```
+
+  The upper four cells are the Kiln; the lower two are the operating hamsters.
+  Both left inputs accept either fuel or unfired products. Full batches only:
+  4 Unfired Bricks -> 4 Bricks or 2 Unfired Pots -> 2 Fired Pots in 8 seconds.
+  Each product keeps its own incoming value multiplied by 4, without averaging
+  different input values. Fired Brick base value/weight are $1/1; Fired Pot
+  base value/weight are $4/2. New-material cash eligibility starts fresh.
+  Fuel converts immediately to abstract heat, capacity 250u; whole fuel items
+  are accepted only if their heat fits. Wood provides 30u, so it is accepted
+  at 220u and rejected above 220u. Starting a full batch consumes 5 times the
+  recipe duration in heat (40u), once, together with all ingredients.
+  Each instance holds one pending input batch, one firing/ready job and one
+  finished output batch. Output releases one product every two seconds; blocked
+  time cannot bank bursts. Firing and previous-batch unloading overlap.
+  Heat, separate input values, remaining time, output and unloading cooldown
+  survive movement/saves. Pickup recovers inputs and products once; already
+  spent fuel is not refunded, and unspent heat stays with the owned Kiln.
+  Later ore-smelting batches are planned as 4 ores in 20 seconds (100u);
+  the noammo ore sources and molten-metal chain are not implemented yet.
 - Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
   edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
   its reference footprint; existing saved orientations are unchanged.
@@ -114,15 +140,16 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   both the count and the next price persist through save/load.
 - Sell Tube costs $250 and 200 Bricks after the free starter. Old saves with no
   tube receive one once; existing owned tubes count as their starter. Bricks are
-  registered as a construction material; firing them remains pending.
+  obtainable by firing and remain usable both for construction and cash.
 - Sell Tube sales show small green floating cash texts at the selling Tube,
   using actual upgraded stack proceeds and shared number notation. Feedback
   rises/fades, stays bounded, and is not part of saves or cash accounting.
 - Primitive Conveyor costs $1 and 20 Wood per tile. One object per belt tile,
-  weight capacity 5 and one-second transit; no multi-cargo belt redesign.
+  weight capacity 5 and two-second transit (speed 5). Primitive Upgrader belts
+  share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied
-  as exact stats. Grades, connectors, heating/firing, further resource
+  as exact stats. Grades, connectors, further resource
   depots and all later chains remain outside this opening slice.
 - The existing mining game and its simulation files are unchanged. Parent-level
   architecture/state documents predate both this slice and much of the mining game.

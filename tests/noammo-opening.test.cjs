@@ -59,7 +59,7 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
   assert.deepEqual(D.machines.planter.cost, { cash: 500, materials: { brick: 50, leekFiber: 100 } });
   assert.equal(D.config.planterSeconds, 8); assert.equal(D.machines.planter.cycle, 8);
-  assert.equal(D.materials.wood.heat, 50);
+  assert.equal(D.materials.wood.heat, 30);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
 });
 
@@ -238,7 +238,7 @@ test("old saves default to zero paid hires and malformed hired counts are reject
 });
 
 test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route", () => {
-  assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 50);
+  assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 30);
   const factory = new Factory(createState(1));
   factory.state.inventory.wood = 10;
   assert.equal(factory.sellInventory("wood", 10), 1);
@@ -565,7 +565,7 @@ test("unpowered belts reject cargo; powered lanes have one object, weight 5 and 
   assert.equal(factory.receive(distant, cargo("leek", 1), 60, 60, "left", true), 0);
   assert.equal(factory.receive(first, cargo("leek", 20), 21, 26, "left", true), 5);
   assert.equal(factory.receive(first, cargo("leek", 1), 21, 26, "left", true), 0);
-  advance(factory, 1);
+  advance(factory, D.config.beltSeconds);
   assert.equal(first.lanes[0], undefined);
   assert.equal(second.lanes[0].quantity, 5);
   assert.equal(second.lanes[0].progress, 0);
@@ -626,7 +626,7 @@ test("Primitive test ceiling is incoming eligibility, not an output clamp, and b
   const { factory } = poweredFactory();
   const primitive = place(factory, "primitive", 23, 24);
   assert.equal(factory.receive(primitive, cargo("leek", 1, 0.95), 23, 24, "left", true), 1);
-  advance(factory, 0.5);
+  advance(factory, D.config.beltSeconds / 2);
   assert.ok(Math.abs(primitive.lanes[0].value - 1.05) < 1e-8);
   advance(factory, 10);
   assert.ok(Math.abs(primitive.lanes[0].value - 1.05) < 1e-8);

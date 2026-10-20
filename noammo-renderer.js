@@ -52,6 +52,13 @@
       const definition = D.machines[machine.type], x = machine.x * TILE, y = machine.y * TILE;
       ctx.fillStyle = definition.color; ctx.strokeStyle = "#c3cba890"; ctx.lineWidth = 1;
       machineBox(ctx, machine, 2);
+      for (const [cx, cy] of definition.crewCells ?? []) {
+        const cell = API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing);
+        ctx.fillStyle = "#7d654d";
+        ctx.fillRect((machine.x + cell.x) * TILE + 3, (machine.y + cell.y) * TILE + 3, TILE - 6, TILE - 6);
+        ctx.fillStyle = "#eee4cd"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "9px system-ui";
+        ctx.fillText("Crew", (machine.x + cell.x + 0.5) * TILE, (machine.y + cell.y + 0.5) * TILE);
+      }
       if (machine.type === "primitive" || machine.type === "belt") {
         for (const point of ports(machine).filter((point) => point.role === "output")) {
           ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";
@@ -67,9 +74,12 @@
         } else if (machine.type !== "belt" && machine.type !== "primitive") arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
       }
       if (machine.type !== "belt") {
-        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
+        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
-        const occupied = cells(machine);
+        const occupied = cells(machine).filter((cell) => !(definition.crewCells ?? []).some(([cx, cy]) => {
+          const point = API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing);
+          return cell.x === machine.x + point.x && cell.y === machine.y + point.y;
+        }));
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
         const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
         ctx.fillText(names[machine.type] ?? machine.type, cx * TILE, cy * TILE, bounds.width * TILE - 8);
