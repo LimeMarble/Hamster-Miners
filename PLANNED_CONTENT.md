@@ -51,12 +51,19 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - One free Leek Planter, Basket and Sell Tube are supplied. With clicking enabled,
   no free Logger is needed. Additional Planters cost $500, 50 Bricks and
-  100 Leek Fiber; the starter remains free and existing owned machines are kept.
+  100 Leek Fiber and 200 Soil; the starter remains free and existing owned machines are kept.
 - Planter: 3x3, no internal conveyors, one Leek/8 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 5 Leek Fiber instead of raw Leeks.
   No direct selling or manual inventory deposits. Collection and movement empty
   it into inventory; hauling remains available.
+- Brick Resource Storage: implemented at $200, 100 Bricks and 15 Clay, with
+  capacity for 600 total resources and no operating crew. Solid 2x2 footprint;
+  its only input is on the lower-left cell, entering from the left in the
+  default right-facing orientation. It has no conveyor or automatic output.
+  Collect-all, Shift-click, hauling and movement/pickup recovery share Basket
+  behavior; contents and capacity remain independent per instance. Existing
+  saves receive an empty stock entry, not a free machine.
 - Fiber Extractor: Ingot Molder-style footprint: 1 column x 2 rows facing right,
   with body above and input/output on the lower tile; no conveyor. Freely
   rotatable. Costs 30 Wood and 1 Leek, with no cash requirement. One Leek yields two
@@ -71,6 +78,19 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Clay has a $0.25 base value and weight 1. Four pits can sell directly into
   the four sides of the starter Sell Tube for $5/minute without conveyors.
 - Limestone extraction remains deferred; no Quarry is implemented yet.
+- Pebble Sifter: implemented at $700, 150 Wood, 30 Bricks and 50 Leek Fiber.
+  Solid 3x2 footprint, with Soil output at the upper-right cell and Chert output
+  at the lower-right cell, both facing right by default. Its lower-middle cell
+  has a downward-facing kinetic intake that must match a Hamster Wheel output;
+  Conveyor Drive area coverage does not power the Sifter. No operating crew.
+  A two-second cycle produces 0.1 Soil and 0.1 Chert together. Each material has
+  its own port and at most one batch of waiting output; any uncleared output
+  pauses further production without discarding resources or banking cycles.
+  Chert base sale value is $0.10; Soil is unsellable. Both have unit weight 1.
+  Fractional quantities, timer and buffers survive rotation/movement and saves;
+  pickup returns waiting resources once. Older saves gain only the missing
+  zero-valued inventory/stock keys. Primitive and Electric Rock Drills remain
+  planning, not implemented.
 - Clay Shaping Bench: implemented at $20, 50 Wood and 5 Leek Fiber, with no
   Clay construction cost. Hand-operated by one crew member, without kinetic
   power. Brick mode shapes 1 Clay into 1 Unfired Brick in 2 seconds, preserving
@@ -128,7 +148,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   50 Wood and 5 Fiber. Its belts require Drive coverage. The new effect was
   not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
   values, rather than changing the old game's established effect.
-- Brick Seal: implemented at $10 and 35 fired Bricks, with no crew. Exactly the
+- Brick Seal: implemented at $115 and 35 fired Bricks, with no crew. Exactly the
   old Rock Shack footprint: one column, two rows; upper cell is the sole
   conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
   5 (two seconds/tile), requires Conveyor Drive coverage like other primitive

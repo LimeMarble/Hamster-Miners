@@ -64,7 +64,8 @@
         if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
-        } else if (!["belt", "primitive", "brickSeal"].includes(machine.type)) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6);
+        } else if (!["belt", "primitive", "brickSeal"].includes(machine.type)) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
+          D.materials[point.material]?.color);
       }
       if (machine.type !== "belt") {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
@@ -77,8 +78,8 @@
         for (const [index, line] of lines.entries()) ctx.fillText(line, cx * TILE, cy * TILE + (index - (lines.length - 1) / 2) * 10,
           definition.labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
-      if (["belt", "primitive", "brickSeal"].includes(machine.type) && !ports(machine).filter((point) => point.role === "output")
-        .every((cell) => factory.powered(cell.x, cell.y))) {
+      if ((["belt", "primitive", "brickSeal"].includes(machine.type) && !ports(machine).filter((point) => point.role === "output")
+        .every((cell) => factory.powered(cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(x + 3, y + 3, 4, 4);
       }
     }
@@ -88,9 +89,9 @@
     const definition = D.materials[item.material];
     ctx.fillStyle = definition.color; ctx.strokeStyle = "#172318"; ctx.lineWidth = 1;
     ctx.fillRect(x - 6, y - 5, 12, 10); ctx.strokeRect(x - 6, y - 5, 12, 10);
-    if (item.quantity > 1) {
+    if (item.quantity !== 1) {
       ctx.fillStyle = "#10190f"; ctx.fillRect(x + 3, y + 2, 11, 12);
-      ctx.fillStyle = "#edf1d7"; ctx.font = "9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(item.quantity), x + 8, y + 8);
+      ctx.fillStyle = "#edf1d7"; ctx.font = "9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(API.formatNumber(item.quantity), x + 8, y + 8);
     }
   }
   function drawOverlay(ctx, factory, camera, viewport, interaction = {}) {
@@ -112,15 +113,23 @@
         drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
       }
       if (machine.output.length && outputs.length) {
-        const points = D.machines[machine.type].centeredOutput ? outputs : [outputs[0]];
-        const x = points.reduce((sum, point) => sum + point.x + 0.5, 0) / points.length;
-        const y = points.reduce((sum, point) => sum + point.y + 0.5, 0) / points.length;
-        drawCargo(ctx, machine.output[0], x * TILE, y * TILE);
+        if (outputs.some((point) => point.material)) {
+          for (const point of outputs) {
+            const item = machine.output.find((entry) => entry.material === point.material);
+            if (item) drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
+          }
+        } else {
+          const points = D.machines[machine.type].centeredOutput ? outputs : [outputs[0]];
+          const x = points.reduce((sum, point) => sum + point.x + 0.5, 0) / points.length;
+          const y = points.reduce((sum, point) => sum + point.y + 0.5, 0) / points.length;
+          drawCargo(ctx, machine.output[0], x * TILE, y * TILE);
+        }
       }
-      if (machine.type === "basket") {
+      if (API.collectorCapacity(machine)) {
         const count = factory.total(machine, "contents");
-        if (count) { ctx.fillStyle = "#102014"; ctx.fillRect(machine.x * TILE + 4, machine.y * TILE + 9, 24, 14);
-          ctx.fillStyle = "#f0edcf"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(count), (machine.x + 0.5) * TILE, (machine.y + 0.5) * TILE); }
+        const point = ports(machine).find((entry) => entry.role === "input") ?? machine;
+        if (count) { ctx.fillStyle = "#102014"; ctx.fillRect(point.x * TILE + 4, point.y * TILE + 9, 24, 14);
+          ctx.fillStyle = "#f0edcf"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(API.formatNumber(count), (point.x + 0.5) * TILE, (point.y + 0.5) * TILE); }
       }
     }
     for (const id of interaction.selectedIds ?? (selected ? [selected.id] : [])) {

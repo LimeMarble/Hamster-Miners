@@ -15,6 +15,7 @@
   const opposite = (direction) => D.directions[(D.directions.indexOf(direction) + 2) % 4];
   const turn = (direction, count) => D.directions[(D.directions.indexOf(direction) + count + 4) % 4];
   const jobInputs = (job) => job?.inputs ?? (job?.input ? [job.input] : []);
+  const collectorCapacity = (machine) => D.machines[machine?.type]?.collectorCapacity ?? 0;
 
   function rotatePoint(x, y, width, height, direction) {
     if (direction === "down") return { x: height - 1 - y, y: x };
@@ -53,12 +54,18 @@
   }
   function ports(machine) {
     const result = [], add = (x, y, direction, role) => result.push(port(machine, x, y, direction, role));
+    const configured = D.machines[machine.type].ports;
+    if (configured) return configured.map((point) => ({
+      ...port(machine, point.x, point.y, point.direction, point.role),
+      ...(point.material ? { material: point.material } : {}),
+    }));
     switch (machine.type) {
       case "planter": add(2, 1, "right", "output"); break;
       case "logger": add(0, 0, "right", "output"); break;
       case "clayPit": add(1, 0, "right", "output"); add(1, 1, "right", "output"); break;
       case "fiber": add(0, 1, "left", "input"); add(0, 1, "right", "output"); break;
       case "clayShaper": add(1, 1, "left", "input"); add(1, 1, "right", "output"); break;
+      case "brickStorage": add(0, 1, "left", "input"); break;
       case "kiln": add(0, 0, "left", "input"); add(0, 1, "left", "input"); add(1, 1, "right", "output"); break;
       case "brickSeal": add(0, 0, "left", "input"); add(0, 0, "right", "output"); break;
       case "belt": add(0, 0, "right", "output"); break;
@@ -124,7 +131,7 @@
   }
   function createState(seed = Date.now() >>> 0) {
     const state = {
-      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
+      kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, random: seed >>> 0, seconds: 0, nextId: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -155,7 +162,11 @@
       this.layoutVersion++;
     }
     driveHasWheel(drive) {
-      const intake = ports(drive).find((point) => point.role === "kineticInput");
+      return this.kineticHasWheel(drive);
+    }
+    kineticHasWheel(machine) {
+      const intake = ports(machine).find((point) => point.role === "kineticInput");
+      if (!intake) return false;
       const v = D.vectors[intake.direction], wheel = this.at.get(key(intake.x + v.x, intake.y + v.y));
       return wheel?.type === "wheel" && ports(wheel).some((point) => point.role === "kineticOutput"
         && point.x === intake.x + v.x && point.y === intake.y + v.y
@@ -230,7 +241,7 @@
       if (!machine) return { error: "Machine not found." };
       const error = this.placement(machine.type, x, y, facing, id);
       if (error) return { error };
-      if (machine.type === "basket") this.collect(id);
+      if (collectorCapacity(machine)) this.collect(id);
       Object.assign(machine, { x, y, facing }); this.rebuild();
       return { machine };
     }
@@ -275,7 +286,7 @@
       // Validate the entire destination before collecting or moving anything.
       for (const entry of plan.machines) {
         const machine = this.byId.get(entry.id);
-        if (machine.type === "basket") this.collect(machine.id);
+        if (collectorCapacity(machine)) this.collect(machine.id);
         Object.assign(machine, { x: entry.x, y: entry.y, facing: entry.facing });
       }
       this.rebuild(); return { machines: plan.machines.map((entry) => this.byId.get(entry.id)) };
@@ -288,7 +299,7 @@
     }
     collect(id) {
       const basket = this.byId.get(id);
-      if (basket?.type !== "basket") return 0;
+      if (!collectorCapacity(basket)) return 0;
       let quantity = 0;
       for (const item of basket.contents) { this.state.inventory[item.material] += item.quantity; quantity += item.quantity; }
       basket.contents = [];
@@ -297,7 +308,7 @@
     pickup(id) {
       const machine = this.byId.get(id);
       if (!machine) return false;
-      if (machine.type === "basket") this.collect(id);
+      if (collectorCapacity(machine)) this.collect(id);
       // A pickup ends linked haul jobs; carried resources are recovered once, never copied.
       for (const route of this.state.routes.filter((route) => route.source === id || route.destination === id)) this.removeRoute(route.id);
       for (const item of [...machine.input, ...machine.output, ...Object.values(machine.lanes)]) {
@@ -407,13 +418,20 @@
       this.finishKiln(machine);
       this.startKiln(machine);
     }
+    unloadBatchSource(machine) {
+      const outputs = ports(machine).filter((point) => point.role === "output");
+      for (const item of [...machine.output]) for (const output of outputs.filter((point) => point.material === item.material)) {
+        item.quantity -= this.send(machine, item, output);
+        if (item.quantity <= epsilon) { machine.output.splice(machine.output.indexOf(item), 1); break; }
+      }
+    }
     receive(machine, item, x, y, incomingSide, consume = false) {
       if (!validCargo(item)) return 0;
       const input = ports(machine).find((point) => point.role === "input" && point.x === x && point.y === y
         && (!incomingSide || point.direction === incomingSide));
       let quantity = 0;
-      if (machine.type === "basket") {
-        quantity = Math.min(item.quantity, D.config.basketCapacity - this.total(machine, "contents"));
+      if (collectorCapacity(machine) && (machine.type === "basket" || input)) {
+        quantity = Math.min(item.quantity, collectorCapacity(machine) - this.total(machine, "contents"));
         if (consume && quantity > epsilon) {
           const existing = machine.contents.find((entry) => sameCargo(entry, item));
           if (existing) existing.quantity += quantity;
@@ -467,7 +485,7 @@
     }
     addRoute(sourceId, destinationId, material = "any") {
       const source = this.byId.get(sourceId), destination = this.byId.get(destinationId);
-      if (source?.type !== "basket" || !destination || sourceId === destinationId) return { error: "Choose a Basket and a different destination." };
+      if (!collectorCapacity(source) || !destination || sourceId === destinationId) return { error: "Choose a resource collector and a different destination." };
       if (!ports(destination).some((point) => point.role === "input") && !["basket", "sellTube", "belt"].includes(destination.type)) return { error: "That machine cannot accept deliveries." };
       if (this.availableCrew() < 1) return { error: "No hamster available for hauling." };
       if (material !== "any" && !D.materials[material]) return { error: "Unknown hauling material." };
@@ -534,7 +552,15 @@
       const oldLanes = state.machines.flatMap((machine) => Object.entries(machine.lanes).map(([lane, item]) => ({ machine, lane, item })));
       for (const machine of state.machines) {
         const definition = D.machines[machine.type];
-        if (definition.source) {
+        if (definition.batchOutputs) {
+          if (!machine.output.length && (!definition.requiresKinetic || this.kineticHasWheel(machine))) {
+            machine.timer += seconds;
+            if (machine.timer + epsilon >= definition.cycle) {
+              machine.timer = Math.max(0, machine.timer - definition.cycle);
+              for (const [material, quantity] of Object.entries(definition.batchOutputs)) machine.output.push(cargo(material, quantity));
+            }
+          }
+        } else if (definition.source) {
           const cycle = definition.cycle, limit = definition.outputLimit ?? 1;
           if (this.total(machine, "output") < limit) {
             machine.timer += seconds;
@@ -568,7 +594,7 @@
           // A previous finished batch may unload while the next one fires.
           this.startKiln(machine);
         }
-        if (machine.type !== "kiln" && machine.output.length) {
+        if (machine.type !== "kiln" && !definition.batchOutputs && machine.output.length) {
           const item = machine.output[0];
           for (const output of ports(machine).filter((point) => point.role === "output")) {
             item.quantity -= this.send(machine, item, output);
@@ -602,13 +628,21 @@
       // Belts release their old cargo first: a Kiln must not see its own
       // departing product as a blockage and lose an extra tick every output.
       for (const machine of state.machines) if (machine.type === "kiln") this.unloadKiln(machine);
+      // Like the Kiln, batch sources must not lose throughput by seeing their
+      // own departing belt cargo as a blocked outlet on the next cycle.
+      for (const machine of state.machines) if (D.machines[machine.type].batchOutputs) this.unloadBatchSource(machine);
       for (const route of [...state.routes]) this.updateRoute(route, seconds);
     }
     status(machine) {
+      if (D.machines[machine.type].batchOutputs) {
+        if (machine.output.length) return "Output blocked";
+        if (D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
+        return `Sifting · ${formatNumber(Math.max(0, D.machines[machine.type].cycle - machine.timer))}s`;
+      }
       if (machine.type === "clayPit") return machine.output.length ? "Output blocked" : `Digging Clay · ${Math.max(0, D.machines.clayPit.cycle - machine.timer).toFixed(1)}s`;
       if (machine.type === "wheel") return "Kinetic source · connections on both long edges";
       if (machine.type === "drive") return this.driveHasWheel(machine) ? "Powered · 16×16 coverage" : "Connect its facing intake to a wheel’s long edge";
-      if (machine.type === "basket") return `${this.total(machine, "contents")} / ${D.config.basketCapacity} items`;
+      if (collectorCapacity(machine)) return `${formatNumber(this.total(machine, "contents"))} / ${collectorCapacity(machine)} items`;
       if (["belt", "primitive", "brickSeal"].includes(machine.type)) return ports(machine).filter((point) => point.role === "output")
         .every((point) => this.powered(point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
       if (machine.type === "kiln") {
@@ -632,6 +666,17 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.pebbleSifterVersion ?? 0) < 1) {
+        for (const material of ["chert", "soil"]) {
+          if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        }
+        if (state.stock && !Object.hasOwn(state.stock, "pebbleSifter")) state.stock.pebbleSifter = 0;
+        state.pebbleSifterVersion = 1;
+      }
+      if ((state.brickStorageVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "brickStorage")) state.stock.brickStorage = 0;
+        state.brickStorageVersion = 1;
+      }
       if ((state.brickSealVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "brickSeal")) state.stock.brickSeal = 0;
         state.brickSealVersion = 1;
@@ -683,13 +728,13 @@
         for (const item of [...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes)]) if (!validCargo(item)) throw new Error("Invalid cargo.");
         if (machine.job && (machine.type !== "kiln" && !validCargo(machine.job.input)
           || !Number.isFinite(machine.job.remaining))) throw new Error("Invalid production job.");
-        if (machine.type === "basket" && machine.contents.reduce((sum, item) => sum + item.quantity, 0) > D.config.basketCapacity + epsilon) throw new Error("Basket exceeds capacity.");
+        if (collectorCapacity(machine) && machine.contents.reduce((sum, item) => sum + item.quantity, 0) > collectorCapacity(machine) + epsilon) throw new Error("Collector exceeds capacity.");
         if (machine.type === "fiber" && (machine.input.reduce((sum, item) => sum + item.quantity, 0) > 1 + epsilon
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > 2 + epsilon
           || machine.input.some((item) => item.material !== "leek" || item.quantity !== 1)
           || machine.output.some((item) => item.material !== "leekFiber")
           || (machine.job && (machine.job.input.material !== "leek" || machine.job.input.quantity !== 1)))) throw new Error("Invalid Fiber buffer.");
-        if (machine.type !== "basket" && machine.contents.length) throw new Error("Only Baskets hold collector contents.");
+        if (!collectorCapacity(machine) && machine.contents.length) throw new Error("Only resource collectors hold collector contents.");
         if (machine.type === "clayShaper") {
           const recipes = D.machines.clayShaper.recipes, recipe = recipes[machine.job?.mode];
           if (!Object.hasOwn(recipes, machine.mode)
@@ -717,9 +762,14 @@
         }
         if (!["fiber", "clayShaper", "kiln"].includes(machine.type) && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
         const sourceMaterial = D.machines[machine.type].source;
+        const batch = D.machines[machine.type].batchOutputs;
+        if (batch && (machine.timer > D.machines[machine.type].cycle + epsilon
+          || machine.output.some((item) => !Object.hasOwn(batch, item.material))
+          || Object.entries(batch).some(([material, quantity]) => machine.output.filter((item) => item.material === material)
+            .reduce((sum, item) => sum + item.quantity, 0) > quantity + epsilon))) throw new Error("Invalid sifter timer or output buffer.");
         if (sourceMaterial && (machine.output.some((item) => item.material !== sourceMaterial)
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) + epsilon)) throw new Error("Invalid source buffer.");
-        if (!["fiber", "clayShaper", "kiln"].includes(machine.type) && !sourceMaterial && machine.output.length) throw new Error("Unexpected output buffer.");
+        if (!["fiber", "clayShaper", "kiln"].includes(machine.type) && !sourceMaterial && !batch && machine.output.length) throw new Error("Unexpected output buffer.");
         const laneCount = machine.type === "primitive" ? 2 : ["belt", "brickSeal"].includes(machine.type) ? 1 : 0;
         for (const [lane, item] of Object.entries(machine.lanes)) {
           if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > D.config.beltWeight + epsilon) throw new Error("Invalid conveyor cargo.");
@@ -777,7 +827,7 @@
           }
           continue;
         }
-        if (ids.has(route.id) || typeof route.id !== "string" || factory.byId.get(route.source)?.type !== "basket"
+        if (ids.has(route.id) || typeof route.id !== "string" || !collectorCapacity(factory.byId.get(route.source))
           || !factory.byId.has(route.destination) || !["pickup", "loaded", "return"].includes(route.phase)
           || !Number.isFinite(route.remaining) || route.remaining < 0 || !Number.isFinite(route.duration)
           || route.duration < 0 || (route.item && !validCargo(route.item))
@@ -813,7 +863,7 @@
       return factory;
     }
   }
-  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs };
+  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs, collectorCapacity };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.NoAmmo = API;
 }(globalThis));

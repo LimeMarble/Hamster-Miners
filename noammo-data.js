@@ -39,18 +39,26 @@
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
       brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955", family: "clay" },
       pot: { name: "Fired Pot", value: 4, weight: 2, color: "#c47b55", family: "clay" },
+      chert: { name: "Chert", value: 0.1, weight: 1, color: "#858581" },
+      soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
     },
     machines: {
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
-        cost: { cash: 500, materials: { brick: 50, leekFiber: 100 } }, source: "leek", cycle: 8, outputLimit: 2,
+        cost: { cash: 500, materials: { brick: 50, leekFiber: 100, soil: 200 } }, source: "leek", cycle: 8, outputLimit: 2,
         description: "Grows one Leek every 8 seconds. Outputs directly from its facing edge; no conveyor inside.",
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
-        quickAction: "collect",
+        quickAction: "collect", collectorCapacity: 100,
         cost: { cash: 0, materials: { leekFiber: 5 } },
         description: "Holds up to 100 items. Collect them into inventory or assign a hauling hamster. No manual deposits.",
+      },
+      brickStorage: {
+        name: "Brick Resource Storage", width: 2, height: 2, color: "#b57355", category: "Logistics",
+        labelLines: ["Brick Resource", "Storage"], quickAction: "collect", collectorCapacity: 600,
+        cost: { cash: 200, materials: { brick: 100, clay: 15 } },
+        description: "Holds up to 600 resources. Collect them into inventory or assign a hauling hamster. No manual deposits.",
       },
       fiber: {
         name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
@@ -67,6 +75,18 @@
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Material", crew: 1,
         cost: { cash: 0, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
         description: "One Clay every 12 seconds. Manually operated by one hamster; no kinetic power required.",
+      },
+      pebbleSifter: {
+        name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Material",
+        labelLines: ["Pebble", "Sifter"],
+        cost: { cash: 700, materials: { wood: 150, brick: 30, leekFiber: 50 } },
+        cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.1, chert: 0.1 },
+        ports: [
+          { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
+          { x: 1, y: 1, direction: "down", role: "kineticInput" },
+          { x: 2, y: 1, direction: "right", role: "output", material: "chert" },
+        ],
+        description: "Sifts 0.1 Soil and 0.1 Chert every two seconds. Requires a connected Hamster Wheel. Both outputs must clear before sifting continues.",
       },
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
@@ -108,7 +128,7 @@
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
-        cost: { cash: 10, materials: { brick: 35 } },
+        cost: { cash: 115, materials: { brick: 35 } },
         cashEffect: { multiplier: 1.15, useLimit: 9, upperLimit: 10, baseValueRequired: 0.5 },
         gradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
         description: "Seals passing products to increase their value. Gradually fixes Poor clay products through four uses.",

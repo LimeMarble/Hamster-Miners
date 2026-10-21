@@ -253,10 +253,11 @@ test("box selection supports reversed corners, additive boxes, repeat/input guar
   assert.doesNotMatch(ui.ids.get("toolLabel").textContent, /first corner/);
 });
 
-function quickActionFixture() {
+function quickActionFixture(type = "basket") {
   const factory = new A.Factory(A.createState(1));
   const planter = factory.place("planter", 121, 121).machine;
-  const basket = factory.place("basket", 124, 122).machine;
+  if (type !== "basket") factory.state.stock[type]++;
+  const basket = factory.place(type, 124, 122).machine;
   factory.state.stock.basket++;
   const other = factory.place("basket", 127, 122).machine;
   basket.contents.push(A.cargo("wood", 3), A.cargo("leekFiber", 2));
@@ -268,9 +269,9 @@ function shiftClick(ui, x, y, tapOnly = false) {
   ui.ids.get("cargo").emit("click", { ...screenPoint(x, y), shiftKey: !tapOnly });
 }
 
-test("Shift-click collects an unselected or currently selected Basket once, without selling or selecting it", () => {
-  for (const selected of [false, true]) for (const tapOnly of [false, true]) {
-    const { ui, basket } = quickActionFixture();
+test("Shift-click collects an unselected or currently selected resource collector once, without selling or selecting it", () => {
+  for (const type of ["basket", "brickStorage"]) for (const selected of [false, true]) for (const tapOnly of [false, true]) {
+    const { ui, basket } = quickActionFixture(type);
     if (selected) ui.ids.get("cargo").emit("click", screenPoint(124, 122));
     shiftClick(ui, 124, 122, tapOnly); ui.frame(100);
     let state = ui.state();
@@ -445,6 +446,8 @@ test("Home recentres the floor without discarding zoom", () => {
 });
 
 test("opening browser scripts boot every tab without missing elements or runtime errors", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
+  assert.doesNotMatch(html, /250\s*(?:×|by|x)\s*250|36\s+inexhaustible\s+trees/i);
   const ui = boot();
   assert.equal(ui.state().stock.basket, 1);
   for (const button of ui.tabs) {
@@ -513,6 +516,39 @@ test("Clay Pit purchases show material-only costs, update ownership, place, and 
   assert.equal(ui.state().cash, 0.75); assert.equal(ui.state().inventory.clay, 0);
 });
 
+test("Brick Storage Shop, inventory placement, collection and stable hauling controls use real handlers", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 400; factory.state.inventory.brick = 200; factory.state.inventory.clay = 30;
+  const basket = factory.place("basket", 128, 124).machine;
+  const ui = boot(factory.exportSave());
+  ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.categories.find((button) => button.dataset.category === "Logistics").emit("click");
+  const card = ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("brickStorage")];
+  assert.equal(card.hidden, false); card.emit("click");
+  ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$400 / $400");
+  assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "200 / 200");
+  assert.equal(ui.ids.get("costs").children[2].children[1].textContent, "30 / 30");
+  ui.ids.get("buyMachine").emit("click");
+  assert.equal(ui.state().stock.brickStorage, 2);
+  chooseMachine(ui, "brickStorage"); ui.ids.get("cargo").emit("click", screenPoint(123, 122));
+  ui.ids.get("cancel").emit("click"); ui.ids.get("cargo").emit("click", screenPoint(123, 122));
+  assert.equal(ui.state().stock.brickStorage, 1);
+  const storage = ui.state().machines.find((machine) => machine.type === "brickStorage");
+  assert.ok(ui.ids.get("haulDestination").options.some((option) => option.value === basket.id));
+  const controls = ui.ids.get("haulDestination"); ui.frame(100); ui.frame(300);
+  assert.equal(ui.ids.get("haulDestination"), controls);
+  const loaded = new A.Factory(ui.state());
+  loaded.byId.get(storage.id).contents.push(A.cargo("clay", 600));
+  const refreshed = boot(loaded.exportSave());
+  refreshed.ids.get("cargo").emit("click", screenPoint(123, 122));
+  assert.equal(refreshed.ids.get("basketContents").children[0].children[1].textContent, "600");
+  refreshed.ids.get("collectBasket").emit("click");
+  assert.equal(refreshed.state().inventory.clay, 600);
+  assert.equal(refreshed.state().cash, 0);
+  assert.equal(refreshed.ids.get("collectBasket").disabled, true);
+});
+
 test("Shop material costs scale with quantity and enforce Sell Tube and Primitive Conveyor prices", () => {
   for (const [type, material, required, cash] of [["sellTube", "brick", 200, 250], ["belt", "wood", 20, 1]]) for (const owned of [required - 1, required]) {
     const factory = new A.Factory(A.createState(1)); factory.state.cash = cash; factory.state.inventory[material] = owned;
@@ -531,6 +567,34 @@ test("Shop material costs scale with quantity and enforce Sell Tube and Primitiv
       assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory[material], 0); assert.equal(ui.state().stock[type], initialStock + 1);
     }
   }
+});
+
+test("Sifter Shop costs, repeat placement and sellable Chert versus unsellable Soil use actual UI handlers", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 1400;
+  Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100, chert: 0.3, soil: 0.3 });
+  const ui = boot(factory.exportSave());
+  ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.categories.find((button) => button.dataset.category === "Material").emit("click");
+  const card = ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("pebbleSifter")];
+  assert.equal(card.hidden, false); card.emit("click");
+  ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
+  assert.deepEqual(ui.ids.get("costs").children.map((row) => row.children[1].textContent), ["$1.4k / $1.4k", "300 / 300", "60 / 60", "100 / 100"]);
+  ui.ids.get("buyMachine").emit("click");
+  assert.equal(ui.state().stock.pebbleSifter, 2);
+  chooseMachine(ui, "pebbleSifter"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(ui.state().stock.pebbleSifter, 1);
+  ui.ids.get("cargo").emit("click", screenPoint(126, 121));
+  assert.equal(ui.state().machines.filter((machine) => machine.type === "pebbleSifter").length, 2);
+  ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
+  const cards = ui.ids.get("itemCards").children;
+  const soil = cards.find((entry) => entry.children.some((node) => node.textContent === "Soil"));
+  const chert = cards.find((entry) => entry.children.some((node) => node.textContent === "Chert"));
+  assert.ok(soil); assert.ok(chert);
+  assert.equal(soil.children.some((node) => node.tagName === "BUTTON"), false);
+  chert.children.find((node) => node.textContent === "Sell all").emit("click");
+  assert.ok(Math.abs(ui.state().cash - 0.03) < 1e-8);
+  assert.equal(ui.state().inventory.soil, 0.3);
 });
 
 test("Items exposes Wood's $0.10 sale and hides it again when sold", () => {
@@ -579,7 +643,7 @@ test("Shop categories filter actual cards rather than merely changing the select
 
 test("Brick Seal exposes its effect fields, purchase cost and repeat placement without remounting controls", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 20; factory.state.inventory.brick = 70;
+  factory.state.cash = 230; factory.state.inventory.brick = 70;
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("brickSeal")].emit("click");
@@ -589,9 +653,10 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   ]);
   assert.match(effects[4].textContent, /5 percentage points/);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$230 / $230");
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "70 / 70");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
-  assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0);
+  assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0); assert.equal(ui.state().cash, 0);
   chooseMachine(ui, "brickSeal");
   assert.ok(ui.ids.get("machineDetail").children.some((node) => node.textContent === "Use Limit: 9"));
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));

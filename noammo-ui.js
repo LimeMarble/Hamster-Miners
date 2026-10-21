@@ -329,11 +329,11 @@
           mode.addEventListener("change", () => result(factory.setShapingMode(machine.id, mode.value)));
           label.append(mode); panel.append(label, element("p", "Mode changes apply to the next job. The lower working tile accepts Clay from behind and outputs in the facing direction.", "muted"));
         }
-        if (machine.type === "basket") {
+        if (A.collectorCapacity(machine)) {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
-          collectButton.title = "Shift-click this Basket to collect all, unless another object is selected.";
-          panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another object is selected, the first Shift-click only selects this Basket.", "muted"), element("hr"), element("h3", "Hauling hamster"));
+          collectButton.title = "Shift-click this collector to collect all, unless another object is selected.";
+          panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another object is selected, the first Shift-click only selects this collector.", "muted"), element("hr"), element("h3", "Hauling hamster"));
           const destinations = element("select"); destinations.id = "haulDestination"; destinations.setAttribute("aria-label", "Hauling destination");
           for (const destination of factory.state.machines.filter((entry) => entry.id !== machine.id
             && (["basket", "sellTube", "belt"].includes(entry.type) || A.ports(entry).some((point) => point.role === "input")))) {
@@ -369,7 +369,7 @@
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines.kiln.heatCapacity)}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
-      if (machine.type === "basket") {
+      if (A.collectorCapacity(machine)) {
         const totals = new Map();
         for (const item of machine.contents) totals.set(item.material, (totals.get(item.material) ?? 0) + item.quantity);
         const signature = JSON.stringify([...totals]);

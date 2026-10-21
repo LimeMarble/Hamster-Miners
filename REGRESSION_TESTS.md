@@ -11,6 +11,21 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Pebble Sifter tests cover its exact cost, six-cell footprint, matching Wheel
+  connections and separate rotated Soil/Chert ports, 0.1 of each every 2s,
+  fractional quantities, either outlet blocking the complete cycle, power loss,
+  independent instances, move/pickup/save recovery, old-save defaults and corrupt
+  buffer rejection. Rendering checks draw both materials at their own output
+  cells, with compact fractional labels. Shop/Items checks cover multi-buy,
+  repeat placement, Chert sales and no Soil sale buttons. Generic lifecycle
+  tests include the Sifter without losing other machine labels.
+- Resource collector contracts cover the 100-item Basket and 600-item Brick
+  Resource Storage: mixed/fractional capacity, blocked intake, preview purity,
+  collection without selling, instance isolation, move/pickup recovery and saves.
+  Brick Storage checks cover its $200/100 Bricks/15 Clay purchase, sole rotated
+  lower-left input, actual Clay Pit backpressure, hauling in both directions,
+  old-save defaults, overcapacity rejection, Shop quantities and collection UI.
+  The generic all-machine lifecycle/render test includes the new collector.
 - Fixed-terrain checks compare all 36 green centers from the revised workbook,
   including one-based center to zero-based 3x3 origin conversion. Every seed
   shares the map; footprints and all four Logger outputs remain unobstructed.
@@ -24,7 +39,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   powered setup using manual Wood, a cash-free Fiber Extractor, and four Clay
   Pits funding the cash costs, then verifies a powered Fiber sale line.
 - Planters produce one Leek per eight seconds. One starter is free; repeat
-  purchases enforce $500, 50 Bricks and 100 Fiber per unit. Old free Planters
+  purchases enforce $500, 50 Bricks, 100 Fiber and 200 Soil per unit. Bulk buying
+  requires and consumes the scaled Soil amount without charging failed purchases. Old free Planters
   remain owned, without granting new free machines on reload.
 - Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
   halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
