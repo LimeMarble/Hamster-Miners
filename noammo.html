@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=stack-rules-20261021">
+  <link rel="stylesheet" href="noammo.css?v=settled-content-20261022">
 </head>
 <body>
   <header class="topbar">
@@ -95,10 +95,14 @@
       <h1>Recipes</h1>
       <article class="recipe"><h2>Leek Fiber Extractor</h2><p>1 Leek → 2 Leek Fiber</p><p>Each Fiber retains the Leek’s incoming value. Hand-operated; no kinetic connection.</p></article>
       <article class="recipe"><h2>Logger</h2><p>1 Wood every 12 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
-      <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p></article>
+      <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p><p>Centered output needs two compatible receiving conveyors or a machine covering its full width. If one conveyor feeds the other, the front conveyor receives the cargo; otherwise both must face the same direction.</p></article>
+      <article class="recipe"><h2>Primitive Rock Drill</h2><p>2 Chert or 2 Granite every 5 seconds. Select the rock in the machine controls.</p><p>Uses the same centered-output rules as Clay Pit. Chert, Granite and Limestone have $0.10 base value; Corundum has $1 base value.</p></article>
       <article class="recipe"><h2>Clay Shaping Bench</h2><p>1 Clay → 1 Unfired Brick in 2 seconds, retaining its value.</p><p>2 Clay → 1 Unfired Pot in 4 seconds, worth twice their combined value.</p><p>Hand-operated · 1 crew. Unfired Pots weigh 2; Unfired Bricks weigh 1.</p></article>
       <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots.</p><p>Full batches take 8 seconds and 40u of heat. Each product retains four times its incoming value. Uses 2 crew.</p><p>Stores up to 250u of heat. Both inputs accept fuel or unfired products.</p></article>
-      <article class="recipe"><h2>Brick Seal</h2><p>×1.15 value, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $10.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Standard on clay products before grading. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
+      <article class="recipe"><h2>Leek Infuser</h2><p>Adds $0.40 to sellables worth less than $2. Does not consume ingredients during operation.</p></article>
+      <article class="recipe"><h2>Brick Seal</h2><p>Adds $1.25, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $15.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Standard on clay products before grading. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
+      <article class="recipe"><h2>Primitive Shack</h2><p>Multiplies value by 2 once, requiring at least $1.20 base value and incoming value below $100. Two independent three-tile conveyor paths.</p></article>
+      <article class="recipe"><h2>Primitive Conveyor Bridge</h2><p>A three-tile span carrying one stream over an ordinary conveyor. Only its middle tile can overlap a ground conveyor; the entrance and exit need clear space.</p><p>Costs $10, 50 Wood and four unplaced Primitive Conveyors.</p></article>
       <article class="recipe"><h2>Grading Bench</h2><p>Grades one stack in 1 second per total weight, using 1 crew.</p><p>Clay products start with 20% Poor, 60% Standard and 20% Fine; stone starts at 100% Standard. Poor ×0.75, Standard ×1.5, Fine ×2.5, Remarkable ×8.</p><p>Combining stacks averages actual unit values and pre-grading quality modifiers, keeps each upgrader's highest use count and combines its tags. If any input is graded, the whole stack is graded and cannot roll again. Splitting preserves these properties.</p></article>
       <article class="recipe"><h2>Leek Planter</h2><p>1 Leek every 8 seconds</p><p>Direct edge output, without an internal conveyor.</p></article>
       <article class="recipe"><h2>Wood fuel</h2><p>1 Wood = 30 units of heat.</p><p>The Clay Kiln accepts whole fuel items only when their heat fits in its remaining capacity.</p></article>
@@ -116,9 +120,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=stack-rules-20261021"></script>
-  <script src="noammo-simulation.js?v=stack-rules-20261021"></script>
-  <script src="noammo-renderer.js?v=stack-rules-20261021"></script>
-  <script src="noammo-ui.js?v=stack-rules-20261021"></script>
+  <script src="noammo-data.js?v=settled-content-20261022"></script>
+  <script src="noammo-simulation.js?v=settled-content-20261022"></script>
+  <script src="noammo-renderer.js?v=settled-content-20261022"></script>
+  <script src="noammo-ui.js?v=settled-content-20261022"></script>
 </body>
 </html>

@@ -594,6 +594,42 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
   assert.match(html, /If any input is graded, the whole stack is graded and cannot roll again/);
 });
 
+test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 20; factory.state.inventory.wood = 100; factory.state.stock.belt = 7;
+  const ui = boot(factory.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("primitiveBridge")].emit("click");
+  ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
+  assert.deepEqual(ui.ids.get("costs").children.map(row => row.children[1].textContent), ["$20 / $20", "100 / 100", "7 / 8"]);
+  assert.equal(ui.ids.get("buyMachine").disabled, true);
+  ui.ids.get("quantity").value = "1"; ui.ids.get("quantity").emit("input");
+  assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
+  assert.equal(ui.state().stock.belt, 3); assert.equal(ui.state().stock.primitiveBridge, 1);
+});
+
+test("Rock Drill mode selector remains mounted during production and persists through refresh and movement", () => {
+  const factory = new A.Factory(A.createState(1)); factory.state.stock.primitiveRockDrill = 1;
+  const drill = factory.place("primitiveRockDrill", 121, 121).machine;
+  const ui = boot(factory.exportSave()); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  const mode = ui.ids.get("extractionMode"); assert.ok(mode);
+  assert.deepEqual(mode.children.map(option => option.textContent), ["Chert", "Granite"]);
+  mode.value = "granite"; mode.emit("change"); ui.frame(100); ui.frame(400);
+  assert.equal(ui.ids.get("extractionMode"), mode);
+  assert.equal(ui.state().machines.find(m => m.id === drill.id).mode, "granite");
+  const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: ui.state() }));
+  reloaded.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(reloaded.ids.get("extractionMode").value, "granite");
+});
+
+test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
+  const ui = boot(); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
+  for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2"]],
+    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $100", "Base Value Required: $1.2"]]]) {
+    ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf(type)].emit("click");
+    assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent), expected);
+  }
+});
+
 test("Sifter Shop costs, repeat placement and sellable Chert versus unsellable Soil use actual UI handlers", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.cash = 1400;
@@ -674,7 +710,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("brickSeal")].emit("click");
   const effects = ui.ids.get("shopDetail").children.filter((node) => node.className === "machine-effect");
   assert.deepEqual(effects.slice(0, 4).map((node) => node.textContent), [
-    "Cash effect: ×1.15", "Use Limit: 9", "Upper Limit: $10", "Base Value Required: $0.5",
+    "Cash effect: +$1.25", "Use Limit: 9", "Upper Limit: $15", "Base Value Required: $0.5",
   ]);
   assert.match(effects[4].textContent, /5 percentage points/);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");

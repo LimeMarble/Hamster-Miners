@@ -45,7 +45,7 @@ test("Brick Storage rotates its four occupied tiles and sole lower-left input; a
     }
     assert.equal(storage.contents.length, 0, "intake previews are read-only");
     const sourceFacing = A.opposite(input.direction);
-    const outputLocal = A.rotatePoint(1, 0, 2, 2, sourceFacing);
+    const outputLocal = A.rotatePoint(1, 1, 2, 2, sourceFacing);
     const pit = place(factory, "clayPit", input.x + vector.x - outputLocal.x, input.y + vector.y - outputLocal.y, sourceFacing);
     receive(factory, storage, cargo("clay", 600));
     factory.update(12);

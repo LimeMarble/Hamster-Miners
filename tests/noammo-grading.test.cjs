@@ -73,9 +73,8 @@ test("real Clay Pit → Grading Bench → Basket works through the sparse workin
   for (const facing of D.directions) {
     const { factory, bench, basket } = setup(facing);
     const input = A.ports(bench).find((point) => point.role === "input"), v = D.vectors[input.direction];
-    const local = A.rotatePoint(1, 0, 2, 2, facing);
-    place(factory, "clayPit", input.x + v.x - local.x, input.y + v.y - local.y, facing);
-    factory.update(13.1);
+    require('./helpers/noammo-centered.cjs').attachPitFeed(factory, input, facing);
+    factory.update(17.1);
     near(factory.total(basket, "contents"), 1);
     assert.equal(basket.contents[0].material, "clay"); assert.equal(basket.contents[0].graded, true);
     near(basket.contents[0].value, 0.375);

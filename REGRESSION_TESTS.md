@@ -11,6 +11,21 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Settled-content tests cover exact Infuser/Shack/Bridge/Rock Drill prices,
+  optional effect fields, no ingredient consumption, new material base values,
+  atomic machine-ingredient purchases and bulk affordability. Shack's two rows
+  have three real conveyor cells each, six-second transit, one upgrade per
+  material stage and base-value eligibility. All rotations are exercised.
+- Centered source ports have fractional coordinates. Lone, incompatible,
+  opposing and occupied receiver pairs block; front priority is directional.
+  Parallel pairs hold one cargo object with a reserved second footprint and
+  actual lateral position. Tests cover onward travel, full-width receivers,
+  missing support, read-only previews, serialization and no duplicated income.
+- Bridge tests overlap only the middle tile with an ordinary belt, in either
+  construction order. Upper/lower streams stay independent through blocked
+  movement, transit, save/load, group rotation and pickup. Generic rendering
+  lifecycle tests include all new machines; drill mode controls stay mounted.
+
 - Grading Bench contracts cover its approved cost, one crew, exact sparse
   Clay Shaping footprint, all rotated real source/input/output paths, and one
   second per total weight (including fractional Chert and Pot stacks).
@@ -104,7 +119,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   the halfway mark, without changing source or shaping processing timers.
 - Brick Seal tests compare the real legacy Rock Shack footprint, including its
   single upper conveyor and inactive lower cell in all rotations. Cash checks
-  cover its exact price, zero crew, x1.15/9-use/$10/base-$0.50 rules, eligibility
+  cover its exact price, zero crew, +$1.25/9-use/$15/base-$0.50 rules, eligibility
   of a future non-clay material, unit values versus stack totals, and a last use
   crossing the ceiling without any clamp. Cash and grade caps stay independent;
   output blockage and saved mid-pass cargo cannot repeat an effect. Four repairs

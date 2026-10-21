@@ -29,10 +29,10 @@
   function appendMachineEffects(panel, definition) {
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
-    const lines = [
-      `Cash effect: ×${number(effect.multiplier)}`, `Use Limit: ${number(effect.useLimit)}`,
-      `Upper Limit: ${money(effect.upperLimit)}`, `Base Value Required: ${money(effect.baseValueRequired)}`,
-    ];
+    const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
+    if (effect.useLimit !== undefined) lines.push(`Use Limit: ${number(effect.useLimit)}`);
+    if (effect.upperLimit !== undefined) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
+    if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
     if (definition.gradeEffect) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Standard per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
     for (const line of lines) panel.append(element("p", line, "machine-effect"));
   }
@@ -333,6 +333,16 @@
           const chance = element("p"); chance.id = "gradingChances";
           panel.append(element("p", "One grade roll per stack, at one second per total weight. Uses one hamster. Graded stacks cannot be graded again."), chance);
         }
+        if (definition.sourceModes) {
+          const label = element("label", "Extraction mode "), mode = element("select");
+          mode.id = "extractionMode"; mode.setAttribute("aria-label", "Extraction mode");
+          for (const [id, name] of Object.entries(definition.sourceModes)) {
+            const option = element("option", name); option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => result(factory.setSourceMode(machine.id, mode.value)));
+          label.append(mode); panel.append(label);
+        }
         if (A.collectorCapacity(machine)) {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
@@ -428,7 +438,9 @@
     const count = factory.state.stock[shopSelection], total = count + factory.state.machines.filter((machine) => machine.type === shopSelection).length;
     text($("shopOwned"), `Owned: ${number(total)} · available to place: ${number(count)}`);
     const amount = Number($("quantity").value), valid = Number.isInteger(amount) && amount >= 1 && amount <= 9999;
-    const entries = definition.cost ? [["Cash", factory.state.cash, definition.cost.cash], ...Object.entries(definition.cost.materials).map(([id, needed]) => [D.materials[id].name, factory.state.inventory[id], needed])] : [];
+    const entries = definition.cost ? [["Cash", factory.state.cash, definition.cost.cash],
+      ...Object.entries(definition.cost.materials).map(([id, needed]) => [D.materials[id].name, factory.state.inventory[id], needed]),
+      ...Object.entries(definition.cost.machines ?? {}).map(([id, needed]) => [D.machines[id].name, factory.state.stock[id], needed])] : [];
     const signature = JSON.stringify([entries, amount]);
     if ($("costs").dataset.signature !== signature) {
       $("costs").dataset.signature = signature; $("costs").replaceChildren();

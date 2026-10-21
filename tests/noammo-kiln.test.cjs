@@ -191,12 +191,12 @@ test("Actual Clay Pit → shaping → firing → collection works through either
     const input = ports(kiln)[inputIndex], v = D.vectors[facing];
     const benchOffset = ports({ type: "clayShaper", x: 0, y: 0, facing }).find((point) => point.role === "output");
     const bench = place(factory, "clayShaper", input.x - v.x - benchOffset.x, input.y - v.y - benchOffset.y, facing);
-    const benchInput = ports(bench)[0], pitOffset = ports({ type: "clayPit", x: 0, y: 0, facing })[0];
-    place(factory, "clayPit", benchInput.x - v.x - pitOffset.x, benchInput.y - v.y - pitOffset.y, facing);
+    const benchInput = ports(bench)[0];
+    require('./helpers/noammo-centered.cjs').attachPitFeed(factory, benchInput, facing);
     const output = ports(kiln).find((point) => point.role === "output");
     const basket = place(factory, "basket", output.x + v.x, output.y + v.y);
     feed(factory, kiln, "wood", 4, 0.1, 1 - inputIndex);
-    advance(factory, 115);
+    advance(factory, 119);
     assert.equal(factory.total(basket, "contents"), 8);
     assert.equal(basket.contents[0].material, "brick"); assert.equal(basket.contents[0].value, 1);
     assert.equal(kiln.heat, 40);

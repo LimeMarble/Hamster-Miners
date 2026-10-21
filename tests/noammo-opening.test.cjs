@@ -85,7 +85,7 @@ test("slow starter Planter yields one Leek per eight seconds and additional Plan
   assert.equal(factory.borrow("planter"), false);
 });
 
-test("manual Clay Pits cost 100 Wood, use one crew, and output to either half of their two-wide facing edge", () => {
+test("manual Clay Pits cost 100 Wood, use one crew, and use one centered outlet into a full-width Sell Tube", () => {
   assert.deepEqual(D.machines.clayPit.cost, { cash: 0, materials: { wood: 100 } });
   assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 1);
   for (const facing of D.directions) {
@@ -94,17 +94,13 @@ test("manual Clay Pits cost 100 Wood, use one crew, and output to either half of
     factory.state.inventory.wood = 100; assert.equal(factory.buy("clayPit").amount, 1);
     const pit = factory.place("clayPit", 40, 40, facing).machine;
     assert.equal(factory.availableCrew(), 9); assert.deepEqual(size(pit), { width: 2, height: 2 });
-    const outputs = ports(pit); assert.equal(outputs.length, 2);
-    const targets = outputs.map((point) => {
-      assert.equal(point.direction, facing);
-      const v = D.vectors[facing]; return place(factory, "basket", point.x + v.x, point.y + v.y);
-    });
-    targets[0].contents.push(cargo("wood", 100));
-    advance(factory, 11.9); assert.equal(factory.total(targets[1], "contents"), 0);
-    advance(factory, 0.1); assert.equal(factory.total(targets[1], "contents"), 1);
-    assert.equal(targets[1].contents[0].material, "clay");
+    const outputs = ports(pit); assert.equal(outputs.length, 1); assert.equal(outputs[0].span, 2);
+    const [tx, ty] = { right: [42, 40], down: [40, 42], left: [38, 40], up: [40, 38] }[facing];
+    place(factory, "sellTube", tx, ty);
+    advance(factory, 11.9); assert.equal(factory.state.cash, 0);
+    advance(factory, 0.1); assert.equal(factory.state.cash, 0.25);
     assert.equal(factory.poweredDrives.length, 0, "manual extraction needs no Wheel or Drive");
-    assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.wood, 0);
+    assert.equal(factory.state.inventory.wood, 0);
   }
 });
 
@@ -319,7 +315,10 @@ for (const facing of D.directions) {
     for (const type of Object.keys(D.machines)) {
       const machine = { type, x: 30, y: 30, facing };
       const occupied = new Set(cells(machine).map((point) => A.key(point.x, point.y)));
-      for (const point of ports(machine)) assert.ok(occupied.has(A.key(point.x, point.y)), `${type} port belongs to its footprint`);
+      for (const point of ports(machine)) {
+        for (const x of [Math.floor(point.x), Math.ceil(point.x)]) for (const y of [Math.floor(point.y), Math.ceil(point.y)])
+          assert.ok(occupied.has(A.key(x, y)), `${type} port belongs to its footprint`);
+      }
     }
     const drive = { type: "drive", x: 30, y: 30, facing };
     assert.equal(ports(drive).find((port) => port.role === "kineticInput").direction, facing);

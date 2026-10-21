@@ -51,14 +51,13 @@ for (const facing of D.directions) test(`Clay shaping ${facing}: sparse footprin
   const [input, output] = ports(bench), v = D.vectors[facing];
   assert.deepEqual([input.x, input.y], [output.x, output.y]);
   assert.equal(input.direction, A.opposite(facing)); assert.equal(output.direction, facing);
-  const sourceOffset = ports({ type: "clayPit", x: 0, y: 0, facing })[0];
-  place(factory, "clayPit", input.x - v.x - sourceOffset.x, input.y - v.y - sourceOffset.y, facing);
+  require('./helpers/noammo-centered.cjs').attachPitFeed(factory, input, facing);
   const basket = place(factory, "basket", output.x + v.x, output.y + v.y);
   assert.equal(factory.receive(bench, cargo("clay"), input.x, input.y, facing, true), 0);
   for (const cell of cells(bench).filter((point) => point.x !== input.x || point.y !== input.y)) {
     assert.equal(factory.receive(bench, cargo("clay"), cell.x, cell.y, input.direction, true), 0);
   }
-  advance(factory, 51);
+  advance(factory, 55);
   assert.equal(factory.total(basket, "contents"), 4);
   assert.equal(basket.contents[0].material, "unfiredBrick");
   assert.deepEqual(bench.lanes, {}, "no hidden conveyor or kinetic requirement");

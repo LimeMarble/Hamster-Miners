@@ -74,7 +74,12 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   $0.10 and provides 30 heat units as Kiln fuel.
 - Clay Pit: 2x2, $0 and 100 Wood, one crew. Manually produces one Clay every
   12 seconds without kinetic power. Its centered two-wide facing-edge output
-  can feed either adjacent receiving tile. At most one Clay waits when blocked.
+  is one fractional-coordinate port, not two independent outlets. Both receiving
+  conveyors must exist. If exactly one feeds the other, the front/downstream
+  conveyor receives the item. Otherwise both must face the same direction,
+  sharing one centered cargo object which reserves both cells. A lone conveyor,
+  incompatible directions or two conveyors facing each other block the outlet.
+  A full-width receiver such as Sell Tube can accept directly. At most one Clay waits when blocked.
   Clay has a $0.25 base value and weight 1. Four pits can sell directly into
   the four sides of the starter Sell Tube for $5/minute without conveyors.
 - Limestone extraction remains deferred; no Quarry is implemented yet.
@@ -152,10 +157,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   old Rock Shack footprint: one column, two rows; upper cell is the sole
   conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
   5 (two seconds/tile), requires Conveyor Drive coverage like other primitive
-  conveyors. Cash effect x1.15, 9 uses across all Seal instances, incoming value
-  below $10, base value at least $0.50. Generic sellable/base-value eligibility,
+  conveyors. Cash effect +$1.25, 9 uses across all Seal instances, incoming value
+  below $15, base value at least $0.50. Generic sellable/base-value eligibility,
   not clay-only, not hardcoded ore/ingot distinctions. The last eligible use may
-  cross $10; never clamp a product's value down to the limit.
+  cross $15; never clamp a product's value down to the limit.
   On clay products, each grade-repair pass converts 5 percentage points of Poor
   chance to Standard, capped at four repair passes / 20 percentage points.
   Grade repair is separate from cash-use counts and still applies when cash
@@ -230,6 +235,40 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   depots and all later chains remain outside this opening slice.
 - The existing mining game and its simulation files are unchanged. Parent-level
   architecture/state documents predate both this slice and much of the mining game.
+
+## Settled noammo additions (2026-10-22)
+
+- Leek Infuser: implemented at $20, 20 Leeks, 15 Leek Fiber. Same 1x2
+  footprint as Brick Seal: upper conveyor and lower body. Adds $0.40 while
+  incoming value is below $2, without ingredient consumption or a use cap.
+- Primitive Shack: implemented at $5k, 1,000 Wood, 200 Fiber, 50 Chert,
+  20 Fired Pots. Solid 3x4: body row, two independent three-tile conveyor
+  paths, body row. Multiplies actual unit value by 2 once per material stage,
+  requiring base >=$1.20 and incoming value <$100. Upgrade cells are the middle
+  conveyor cells; crossing the whole building never applies more than once.
+- Primitive Conveyor Bridge: implemented at $10, 50 Wood, four unplaced
+  Primitive Conveyors. Three conveyor tiles; only the center can overlap an
+  ordinary Conveyor. Ramps cannot overlap machines or trees. Can be built in
+  either order with its underlying belt. Upper and lower cargo are separate;
+  moves, group rotation, pickup and saves retain that ownership. Shop multi-buy
+  accounts for machine ingredients, including picked-up conveyor instances.
+- Primitive Rock Drill: implemented at $5k, 40 Chert and 50 Wood. Solid 3x2
+  reference footprint: four body cells at the back, two output-conveyor cells
+  at the front. One centered output, following Clay Pit's shared geometry/rules.
+  Select Chert (default) or Granite; produces a stack of two every 5 seconds.
+  One waiting batch, no accumulated blocked cycles. Mode and contents survive
+  moves and saves; changing mode does not rewrite existing output.
+- All new machines use zero crew. Primitive conveyors retain two-second tile
+  transit, weight capacity 5 and Conveyor Drive power; multi-cell conveyors
+  advance one tile at a time, without instantaneous internal transfers.
+- Basic stone base values: Chert/Granite/Limestone $0.10, Corundum $1;
+  stones use the Standard-only base grading table. Native Copper base $1.50.
+  Only Chert/Granite extraction is implemented here; the other definitions do
+  not invent new sources, smelting chains or construction requirements.
+- Content migration adds only missing zero inventory/stock entries. Existing
+  cargo's actual value and upgrade history are preserved by the balance change.
+- Still unsettled: remaining Stacker cost/specification, revised Rock Shack,
+  final Granite Processor, and later mineral extraction/smelting machinery.
 
 ## Hot Fluid Pipe
 

@@ -46,16 +46,30 @@
       ctx.fillStyle = "#d7dfc2"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.font = "bold 12px system-ui"; ctx.fillText("TREE", x + 48, y + 48);
     }
-    for (const machine of factory.state.machines) {
+    for (const machine of [...factory.state.machines.filter((entry) => !D.machines[entry.type].bridge),
+      ...factory.state.machines.filter((entry) => D.machines[entry.type].bridge)]) {
       const bounds = size(machine);
       if (!visible(machine.x, machine.y, bounds.width, bounds.height, camera, viewport)) continue;
       const definition = D.machines[machine.type], x = machine.x * TILE, y = machine.y * TILE;
       ctx.fillStyle = definition.color; ctx.strokeStyle = "#c3cba890"; ctx.lineWidth = 1;
-      machineBox(ctx, machine, 2);
-      if (["primitive", "belt", "brickSeal"].includes(machine.type)) {
-        for (const point of ports(machine).filter((point) => point.role === "output")) {
+      if (definition.bridge) {
+        const tiles = API.conveyorCells(machine), horizontal = machine.facing === "right" || machine.facing === "left";
+        for (const point of [tiles[0], tiles[2]]) {
+          ctx.fillRect(point.x * TILE + 2, point.y * TILE + 2, TILE - 4, TILE - 4);
+          ctx.strokeRect(point.x * TILE + 2, point.y * TILE + 2, TILE - 4, TILE - 4);
+        }
+        const middle = tiles[1];
+        for (const offset of [3, 27]) ctx.fillRect(middle.x * TILE + (horizontal ? 0 : offset),
+          middle.y * TILE + (horizontal ? offset : 0), horizontal ? TILE : 2, horizontal ? 2 : TILE);
+      } else machineBox(ctx, machine, 2);
+      const displayedBelts = definition.outputConveyors
+        ? definition.outputConveyors.map(([cx, cy]) => ({ ...API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing), direction: machine.facing }))
+          .map((point) => ({ ...point, x: point.x + machine.x, y: point.y + machine.y }))
+        : API.conveyorCells(machine);
+      if (displayedBelts.length) {
+        for (const point of displayedBelts) {
           ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";
-          ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
+          if (!definition.bridge || point.index !== 1) ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
           arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.8);
         }
       }
@@ -64,7 +78,7 @@
         if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
-        } else if (!["belt", "primitive", "brickSeal"].includes(machine.type)) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
+        } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
           D.materials[point.material]?.color);
       }
       if (machine.type !== "belt") {
@@ -78,7 +92,7 @@
         for (const [index, line] of lines.entries()) ctx.fillText(line, cx * TILE, cy * TILE + (index - (lines.length - 1) / 2) * 10,
           definition.labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
-      if ((["belt", "primitive", "brickSeal"].includes(machine.type) && !ports(machine).filter((point) => point.role === "output")
+      if ((definition.conveyors && !API.conveyorCells(machine)
         .every((cell) => factory.powered(cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(x + 3, y + 3, 4, 4);
       }
@@ -109,14 +123,16 @@
       ctx.fillStyle = "#e9d18a0d"; ctx.fillRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
       ctx.strokeStyle = "#d3c47d80"; ctx.lineWidth = 1; ctx.strokeRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
     }
-    for (const machine of factory.state.machines) {
+    for (const machine of [...factory.state.machines.filter((entry) => !D.machines[entry.type].bridge),
+      ...factory.state.machines.filter((entry) => D.machines[entry.type].bridge)]) {
       const bounds = size(machine);
       if (!visible(machine.x, machine.y, bounds.width, bounds.height, camera, viewport)) continue;
       const outputs = ports(machine).filter((point) => point.role === "output");
       for (const [index, item] of Object.entries(machine.lanes)) {
-        const point = outputs[Number(index)];
+        const point = API.conveyorCells(machine)[Number(index)];
         if (!point) continue;
-        drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
+        const v = D.vectors[point.direction], lateral = item.lateral ?? 0;
+        drawCargo(ctx, item, (point.x + 0.5 - v.y * lateral) * TILE, (point.y + 0.5 + v.x * lateral) * TILE);
       }
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
@@ -157,6 +173,10 @@
     for (const { machine: preview, error } of previews) {
       ctx.fillStyle = error ? "#df796433" : "#dceaa73a"; ctx.strokeStyle = error ? "#ee9b89" : "#e3efa9"; ctx.lineWidth = 2;
       machineBox(ctx, preview, 0);
+      for (const point of API.conveyorCells(preview)) {
+        ctx.fillStyle = "#455d4a77"; ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
+        arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.65, "#f1edbd");
+      }
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
     }

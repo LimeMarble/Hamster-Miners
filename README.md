@@ -5,7 +5,9 @@ The `noammo` opening prototype is in [noammo.html](noammo.html). It uses a
 separate local save and does not replace the existing mining game in `index.html`.
 It currently tests scarce Leeks/Fiber, manual Wood/Clay, Baskets/hauling, Loggers,
 Brick/Pot shaping and fuelled firing, kinetic-powered upgrading, stone sifting,
-and weight-timed product grading.
+weight-timed product grading, selectable rock drilling, Infusers, Shacks and
+primitive conveyor bridges. Two-wide source outputs preserve centered cargo
+and enforce compatible receiver layouts.
 Machines are labelled boxes.
 
 Run `npm run check` and `node --test --test-concurrency=2 tests/**/*.test.cjs`
