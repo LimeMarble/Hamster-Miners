@@ -329,6 +329,10 @@
           mode.addEventListener("change", () => result(factory.setShapingMode(machine.id, mode.value)));
           label.append(mode); panel.append(label, element("p", "Mode changes apply to the next job. The lower working tile accepts Clay from behind and outputs in the facing direction.", "muted"));
         }
+        if (machine.type === "gradingBench") {
+          const chance = element("p"); chance.id = "gradingChances";
+          panel.append(element("p", "One grade roll per stack, at one second per total weight. Uses one hamster. Graded stacks cannot be graded again."), chance);
+        }
         if (A.collectorCapacity(machine)) {
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
@@ -365,17 +369,25 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (machine.type === "gradingBench") {
+        const item = machine.job?.input ?? machine.input[0] ?? machine.output[0] ?? A.cargo("clay");
+        const probabilities = A.gradeProbabilities(item);
+        text($("gradingChances"), `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`);
+      }
       if (machine.type === "kiln") {
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines.kiln.heatCapacity)}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
-        for (const item of machine.contents) totals.set(item.material, (totals.get(item.material) ?? 0) + item.quantity);
+        for (const item of machine.contents) {
+          const grade = A.gradeLabel(item), label = `${D.materials[item.material].name}${grade ? ` · ${grade}` : ""}`;
+          totals.set(label, (totals.get(label) ?? 0) + item.quantity);
+        }
         const signature = JSON.stringify([...totals]);
         if ($("basketContents").dataset.signature !== signature) {
           $("basketContents").dataset.signature = signature; $("basketContents").replaceChildren();
-          for (const [material, quantity] of totals) { const line = element("div"); line.append(element("span", D.materials[material].name), element("strong", number(quantity))); $("basketContents").append(line); }
+          for (const [label, quantity] of totals) { const line = element("div"); line.append(element("span", label), element("strong", number(quantity))); $("basketContents").append(line); }
         }
         $("collectBasket").disabled = machine.contents.length === 0;
       }

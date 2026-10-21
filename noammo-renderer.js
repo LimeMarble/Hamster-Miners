@@ -88,7 +88,13 @@
   function drawCargo(ctx, item, x, y) {
     const definition = D.materials[item.material];
     ctx.fillStyle = definition.color; ctx.strokeStyle = "#172318"; ctx.lineWidth = 1;
+    const grade = API.gradeLabel(item);
+    if (grade) { ctx.strokeStyle = "#d8bf88"; ctx.lineWidth = 2; }
     ctx.fillRect(x - 6, y - 5, 12, 10); ctx.strokeRect(x - 6, y - 5, 12, 10);
+    if (grade) {
+      ctx.fillStyle = ctx.strokeStyle; ctx.font = "bold 8px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(grade[0], x - 8, y - 8);
+    }
     if (item.quantity !== 1) {
       ctx.fillStyle = "#10190f"; ctx.fillRect(x + 3, y + 2, 11, 12);
       ctx.fillStyle = "#edf1d7"; ctx.font = "9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(API.formatNumber(item.quantity), x + 8, y + 8);

@@ -569,6 +569,31 @@ test("Shop material costs scale with quantity and enforce Sell Tube and Primitiv
   }
 });
 
+test("Grading Bench Shop, inventory, live probabilities and graded collector labels use stable real controls", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.cash = 1250; Object.assign(factory.state.inventory, { wood: 100, leekFiber: 50, chert: 10 });
+  const basket = factory.place("basket", 123, 122).machine;
+  basket.contents.push(A.gradeStack({ random: 1500 }, A.cargo("brick", 1, 10)));
+  const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf("gradingBench")].emit("click");
+  assert.equal(ui.ids.get("buyMachine").disabled, false);
+  assert.deepEqual(ui.ids.get("costs").children.map((row) => row.children[1].textContent), ["$1.25k / $1.25k", "100 / 100", "50 / 50", "10 / 10"]);
+  ui.ids.get("buyMachine").emit("click"); chooseMachine(ui, "gradingBench");
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  ui.ids.get("cancel").emit("click"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.match(ui.ids.get("gradingChances").textContent, /Clay: Poor 20%.*Standard 60%.*Fine 20%/);
+  const chance = ui.ids.get("gradingChances"); ui.frame(100); ui.frame(400);
+  assert.equal(ui.ids.get("gradingChances"), chance);
+  assert.match(ui.ids.get("machineStatus").textContent, /Waiting for Clay/);
+  ui.ids.get("cargo").emit("click", screenPoint(123, 122));
+  assert.equal(ui.ids.get("basketContents").children[0].children[0].textContent, "Bricks · Graded");
+  assert.equal(ui.state().machines.find((machine) => machine.type === "gradingBench").input.length, 0);
+  const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
+  assert.doesNotMatch(html, /Grades and their sale multipliers will only apply once grading is introduced/);
+  assert.doesNotMatch(html, /Previously graded portions/);
+  assert.match(html, /If any input is graded, the whole stack is graded and cannot roll again/);
+});
+
 test("Sifter Shop costs, repeat placement and sellable Chert versus unsellable Soil use actual UI handlers", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.cash = 1400;

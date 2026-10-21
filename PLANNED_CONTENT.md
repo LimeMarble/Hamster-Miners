@@ -171,9 +171,40 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Differently repaired cargo remains separate in collector contents;
   direct hauling preserves repair data while resetting cash to base value.
   Aggregate inventory collection/pickup still follows the opening prototype's
-  material-count-only inventory model. Grading rolls and grade sale multipliers
-  are not implemented yet; these repairs are recorded modifiers for the future
-  grader, not an immediate extra cash multiplier.
+  material-count-only inventory model. Grade repairs modify the Grading Bench's
+  first roll; they do not directly multiply cash or change an already rolled grade.
+- Grading Bench: implemented at $1.25k, 100 Wood, 50 Leek Fiber and 10 Chert.
+  Uses one crew, with exactly the Clay Shaping Bench's sparse footprint and
+  lower-right input/output cell. Processing takes 1 second per total cargo
+  weight, including fractional stacks; one incoming stack receives one roll.
+  Clay and its unfired/fired products start at 20% Poor / 60% Standard / 20% Fine.
+  Stone (currently Chert) starts at 100% Standard. Other current materials,
+  including Soil, have no table and are rejected rather than assigned one.
+  Multipliers are Poor x0.75, Standard x1.5, Fine x2.5 and Remarkable x8; the
+  base tables cannot roll Remarkable. Grades multiply actual incoming value,
+  never the material's declared base value.
+  The Bench has one queued input stack (up to primitive-belt weight), one job
+  and one finished output stack. Blockage cannot reroll or accumulate output.
+  A grade's multiplier is baked into actual value; only a boolean graded flag
+  is retained, not a grade category or internal portions. The flag survives
+  shaping/firing, saves and moves. Already graded stacks cannot roll again.
+  Explicit same-material stack formation sums quantities and averages actual
+  unit values and pre-grading repair modifiers by quantity. Cash-use counts take
+  the maximum for each upgrader, while one-off tags combine by union. Combining
+  different upgrade histories deliberately sacrifices remaining eligibility;
+  it never refunds uses. If any ingredient is graded, the whole merged stack
+  becomes graded, including any formerly ungraded quantity. No reroll follows.
+  Splitting copies unit value, graded flag, modifiers and all upgrade history
+  unchanged; only quantity and derived total weight/value change. Belt capacity
+  still splits whole items and preserves any fractional remainder. Cash
+  eligibility resets on a new material as before. This is not a new Stacker.
+  Existing portion-based saves migrate without changing actual cash/quantity;
+  any graded portion marks the whole stack graded, and old fractional cash-use
+  counts round upward rather than refunding eligibility.
+  Direct hauling restores base cash while retaining the graded flag and repair
+  modifiers; no grade category exists to reconstruct a multiplier. Collecting
+  into aggregate inventory still retains counts only. Factory cargo and
+  collector details indicate Graded without assigning a persistent category.
 - The older Fiber construction costs above were halved exactly; the new
   Planter's explicitly supplied 100-Fiber cost is not halved again.
 - Baskets can assign hauling hamsters, each carrying one item. Loaded travel
@@ -195,7 +226,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Brick Seal belts share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied
-  as exact stats. Grades, connectors, further resource
+  as exact stats. Connectors, further resource
   depots and all later chains remain outside this opening slice.
 - The existing mining game and its simulation files are unchanged. Parent-level
   architecture/state documents predate both this slice and much of the mining game.

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=pebble-sifter-20261021">
+  <link rel="stylesheet" href="noammo.css?v=stack-rules-20261021">
 </head>
 <body>
   <header class="topbar">
@@ -98,13 +98,14 @@
       <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p></article>
       <article class="recipe"><h2>Clay Shaping Bench</h2><p>1 Clay → 1 Unfired Brick in 2 seconds, retaining its value.</p><p>2 Clay → 1 Unfired Pot in 4 seconds, worth twice their combined value.</p><p>Hand-operated · 1 crew. Unfired Pots weigh 2; Unfired Bricks weigh 1.</p></article>
       <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots.</p><p>Full batches take 8 seconds and 40u of heat. Each product retains four times its incoming value. Uses 2 crew.</p><p>Stores up to 250u of heat. Both inputs accept fuel or unfired products.</p></article>
-      <article class="recipe"><h2>Brick Seal</h2><p>×1.15 value, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $10.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Standard on clay products. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
+      <article class="recipe"><h2>Brick Seal</h2><p>×1.15 value, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $10.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Standard on clay products before grading. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
+      <article class="recipe"><h2>Grading Bench</h2><p>Grades one stack in 1 second per total weight, using 1 crew.</p><p>Clay products start with 20% Poor, 60% Standard and 20% Fine; stone starts at 100% Standard. Poor ×0.75, Standard ×1.5, Fine ×2.5, Remarkable ×8.</p><p>Combining stacks averages actual unit values and pre-grading quality modifiers, keeps each upgrader's highest use count and combines its tags. If any input is graded, the whole stack is graded and cannot roll again. Splitting preserves these properties.</p></article>
       <article class="recipe"><h2>Leek Planter</h2><p>1 Leek every 8 seconds</p><p>Direct edge output, without an internal conveyor.</p></article>
       <article class="recipe"><h2>Wood fuel</h2><p>1 Wood = 30 units of heat.</p><p>The Clay Kiln accepts whole fuel items only when their heat fits in its remaining capacity.</p></article>
     </section>
     <section id="options" class="screen panel options-panel" hidden>
       <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
-      <p>Grade repairs are recorded on factory cargo. Grades and their sale multipliers will only apply once grading is introduced.</p>
+      <p>The Grading Bench applies grades and sale multipliers to factory cargo. Brick Seal repairs affect the first grading roll. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
       <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
       <details open><summary>Unsettled balance — test settings</summary>
@@ -115,9 +116,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=planter-soil-20261021"></script>
-  <script src="noammo-simulation.js?v=pebble-sifter-20261021"></script>
-  <script src="noammo-renderer.js?v=pebble-sifter-20261021"></script>
-  <script src="noammo-ui.js?v=pebble-sifter-20261021"></script>
+  <script src="noammo-data.js?v=stack-rules-20261021"></script>
+  <script src="noammo-simulation.js?v=stack-rules-20261021"></script>
+  <script src="noammo-renderer.js?v=stack-rules-20261021"></script>
+  <script src="noammo-ui.js?v=stack-rules-20261021"></script>
 </body>
 </html>

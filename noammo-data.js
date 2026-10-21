@@ -39,9 +39,16 @@
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
       brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955", family: "clay" },
       pot: { name: "Fired Pot", value: 4, weight: 2, color: "#c47b55", family: "clay" },
-      chert: { name: "Chert", value: 0.1, weight: 1, color: "#858581" },
+      chert: { name: "Chert", value: 0.1, weight: 1, color: "#858581", family: "stone" },
       soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
     },
+    grades: [
+      { name: "Poor", multiplier: 0.75, color: "#ba7b65" },
+      { name: "Standard", multiplier: 1.5, color: "#c5c8b0" },
+      { name: "Fine", multiplier: 2.5, color: "#8bc799" },
+      { name: "Remarkable", multiplier: 8, color: "#9eb3ec" },
+    ],
+    gradeTables: { clay: [0.2, 0.6, 0.2, 0], stone: [0, 1, 0, 0] },
     machines: {
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
@@ -97,6 +104,13 @@
           pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 4, valueMultiplier: 2 },
         },
         description: "Hand-shapes Clay into unfired Bricks or Pots. Bricks retain their Clay’s value; Pots double the combined value of their two Clay inputs.",
+      },
+      gradingBench: {
+        name: "Grading Bench", width: 2, height: 2, color: "#b2a782", category: "Cash",
+        crew: 1, secondsPerWeight: 1, inputWeightLimit: 5,
+        labelLines: ["Grading", "Bench"], footprint: [[0, 0], [1, 0], [1, 1]],
+        cost: { cash: 1250, materials: { wood: 100, leekFiber: 50, chert: 10 } },
+        description: "Evaluates Clay products and stone, rolling once per ungraded stack. Takes one second per weight and uses one hamster.",
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,

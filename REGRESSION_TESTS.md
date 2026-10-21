@@ -11,6 +11,25 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Grading Bench contracts cover its approved cost, one crew, exact sparse
+  Clay Shaping footprint, all rotated real source/input/output paths, and one
+  second per total weight (including fractional Chert and Pot stacks).
+  Tables and actual-value multipliers cover Poor/Standard/Fine and zero base
+  Remarkable chance; Brick Seal changes Poor into Standard before the roll.
+  Intake and output are bounded; previews, blocked outputs, already graded
+  cargo and reloads cannot reroll or multiply the same grade twice.
+  Same-material stack formation sums quantities and conserves cash by averaging
+  actual unit values and pre-grading repair modifiers. Upgrade counts take the
+  per-upgrader maximum and tags form a union; disjoint exhausted histories and
+  the x2/10-use mixing exploit cannot restore eligibility. Graded plus ungraded
+  becomes one graded stack with no reroll; only the actual value and a graded
+  flag persist, not categories or portions. Splitting preserves every property
+  except quantity/derived totals, including fractional remainders. Shaping/firing
+  preserve graded status and value, resetting cash tags on material change.
+  Tests cover hauling's base-cash reset with graded flag retained, independent
+  jobs, pickup recovery, migration of all cargo locations from portion saves,
+  conservative upward rounding of legacy use counts, corrupt metadata rejection,
+  stable UI chances and generic Graded labels.
 - Pebble Sifter tests cover its exact cost, six-cell footprint, matching Wheel
   connections and separate rotated Soil/Chert ports, 0.1 of each every 2s,
   fractional quantities, either outlet blocking the complete cycle, power loss,

@@ -207,7 +207,7 @@ test("Invalid repair data and invalid cash-use tags cannot be imported or accept
     assert.throws(() => Factory.importSave(factory.exportSave()), /Invalid cargo/);
     delete seal.lanes[0];
   }
-  for (const uses of [-1, 1.5, 10]) {
+  for (const uses of [-1, 1.5, NaN, Infinity, 10]) {
     const item = cargo("brick"); item.upgrades.brickSeal = uses;
     assert.equal(receive(factory, seal, item), 0);
   }
