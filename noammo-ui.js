@@ -27,6 +27,9 @@
   const number = A.formatNumber;
   const money = (value) => `$${number(value)}`;
   function appendMachineEffects(panel, definition) {
+    for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradeProfile) {
+      panel.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
+    }
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
     const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
@@ -318,6 +321,25 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", "Full batches only. Each firing consumes 40u of heat when it starts; Wood provides 30u. Either input accepts Wood or unfired products.", "muted"));
         }
+        if (machine.type === "potSpinner") {
+          const buffers = element("p"); buffers.id = "spinnerBuffers";
+          panel.append(buffers);
+        }
+        if (machine.type === "crudeGearBench") {
+          const buffers = element("p"); buffers.id = "gearBuffers"; panel.append(buffers);
+        }
+        if (definition.maxStackSize) {
+          const label = element("label", "Stack size "), input = element("input");
+          input.id = "stackSize"; input.type = "number"; input.min = "1";
+          input.max = String(definition.maxStackSize); input.step = "1";
+          input.setAttribute("aria-label", "Stack size"); input.value = machine.stackSize;
+          input.addEventListener("change", () => {
+            const changed = factory.setStackSize(machine.id, input.value);
+            if (changed.error) input.value = machine.stackSize;
+            result(changed);
+          });
+          label.append(input); panel.append(label);
+        }
         if (machine.type === "clayShaper") {
           const label = element("label", "Shaping mode "), mode = element("select");
           mode.id = "shapingMode"; mode.setAttribute("aria-label", "Shaping mode");
@@ -372,13 +394,14 @@
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Build manual Clay Pits for 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Build manual Clay Pits for 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Crude Gear Bench costs 25 Wood. Haul Wood from a Basket to carve gears before building conveyors.", "Primitive Conveyors cost $1, 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "gradingBench") {
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0] ?? A.cargo("clay");
         const probabilities = A.gradeProbabilities(item);
@@ -388,6 +411,7 @@
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines.kiln.heatCapacity)}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
+      if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
         for (const item of machine.contents) {

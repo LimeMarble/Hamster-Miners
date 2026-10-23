@@ -38,13 +38,13 @@ function receive(factory, machine, item) {
 }
 
 test("Brick Seal costs $115 and 35 fired Bricks, needs no crew, and exactly copies Rock Shack's one upper conveyor footprint", () => {
-  assert.deepEqual(D.machines.brickSeal.cost, { cash: 115, materials: { brick: 35 } });
+  assert.deepEqual(D.machines.brickSeal.cost, { cash: 115, materials: { brick: 35 }, machines: { belt: 1 } });
   const context = vm.createContext({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "game-data.js"), "utf8") + "\nglobalThis.layout = MACHINE_LAYOUT.rockShack;", context);
   const layout = context.layout;
   assert.equal(D.machines.brickSeal.width, layout.width); assert.equal(D.machines.brickSeal.height, layout.height);
   assert.equal(layout.internalConveyors.length, 1);
-  const factory = new Factory(A.createState(1)); factory.state.cash = 115; factory.state.inventory.brick = 34;
+  const factory = new Factory(A.createState(1)); factory.state.cash = 115; factory.state.inventory.brick = 34; factory.state.stock.belt = 1;
   assert.ok(factory.buy("brickSeal").error); assert.equal(factory.state.cash, 115);
   factory.state.inventory.brick = 35; factory.state.cash = 114.99;
   assert.ok(factory.buy("brickSeal").error); assert.equal(factory.state.inventory.brick, 35);

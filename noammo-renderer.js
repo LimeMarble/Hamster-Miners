@@ -62,10 +62,7 @@
         for (const offset of [3, 27]) ctx.fillRect(middle.x * TILE + (horizontal ? 0 : offset),
           middle.y * TILE + (horizontal ? offset : 0), horizontal ? TILE : 2, horizontal ? 2 : TILE);
       } else machineBox(ctx, machine, 2);
-      const displayedBelts = definition.outputConveyors
-        ? definition.outputConveyors.map(([cx, cy]) => ({ ...API.rotatePoint(cx, cy, definition.width, definition.height, machine.facing), direction: machine.facing }))
-          .map((point) => ({ ...point, x: point.x + machine.x, y: point.y + machine.y }))
-        : API.conveyorCells(machine);
+      const displayedBelts = API.conveyorCells(machine);
       if (displayedBelts.length) {
         for (const point of displayedBelts) {
           ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";

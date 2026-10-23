@@ -148,12 +148,14 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   its reference footprint; existing saved orientations are unchanged.
   Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 7.5 Fiber; its facing side
   is the intake; it has no physical output port. Direct intake-to-Wheel
-  connections work in all rotations. A powered Drive covers a 16x16 area.
+  connections work in all rotations. A powered Drive reaches seven tiles beyond
+  each footprint edge: 15x16 when vertical, 16x15 when horizontal. Coverage is
+  tile-aligned and rotates with the Drive; previews use the same bounds.
 - Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $5,
-  50 Wood and 5 Fiber. Its belts require Drive coverage. The new effect was
+  10 Wood, 5 Fiber and two Primitive Conveyors. Its belts require Drive coverage. The new effect was
   not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
   values, rather than changing the old game's established effect.
-- Brick Seal: implemented at $115 and 35 fired Bricks, with no crew. Exactly the
+- Brick Seal: implemented at $115, 35 fired Bricks and one Primitive Conveyor, with no crew. Exactly the
   old Rock Shack footprint: one column, two rows; upper cell is the sole
   conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
   5 (two seconds/tile), requires Conveyor Drive coverage like other primitive
@@ -185,8 +187,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Clay and its unfired/fired products start at 20% Poor / 60% Standard / 20% Fine.
   Stone (currently Chert) starts at 100% Standard. Other current materials,
   including Soil, have no table and are rejected rather than assigned one.
-  Multipliers are Poor x0.75, Standard x1.5, Fine x2.5 and Remarkable x8; the
-  base tables cannot roll Remarkable. Grades multiply actual incoming value,
+  Multipliers are Poor x0.75, Standard x1.5, Fine x2.5, Remarkable x8 and
+  Exceptional x25. Ordinary base tables cannot roll Remarkable or Exceptional;
+  manufactured quality profiles such as spun pottery can. Grades multiply actual incoming value,
   never the material's declared base value.
   The Bench has one queued input stack (up to primitive-belt weight), one job
   and one finished output stack. Blockage cannot reroll or accumulate output.
@@ -226,7 +229,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Sell Tube sales show small green floating cash texts at the selling Tube,
   using actual upgraded stack proceeds and shared number notation. Feedback
   rises/fades, stays bounded, and is not part of saves or cash accounting.
-- Primitive Conveyor costs $1 and 20 Wood per tile. One object per belt tile,
+- Primitive Conveyor costs $1, 10 Wood and four Wooden Gears per tile. One object per belt tile,
   weight capacity 5 and two-second transit (speed 5). Primitive Upgrader and
   Brick Seal belts share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
@@ -238,23 +241,23 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Settled noammo additions (2026-10-22)
 
-- Leek Infuser: implemented at $20, 20 Leeks, 15 Leek Fiber. Same 1x2
+- Leek Infuser: implemented at $20, 20 Leeks, 15 Leek Fiber and one Primitive Conveyor. Same 1x2
   footprint as Brick Seal: upper conveyor and lower body. Adds $0.40 while
   incoming value is below $2, without ingredient consumption or a use cap.
-- Primitive Shack: implemented at $5k, 1,000 Wood, 200 Fiber, 50 Chert,
-  20 Fired Pots. Solid 3x4: body row, two independent three-tile conveyor
+- Primitive Shack: implemented at $5k, 880 Wood, 200 Fiber, 50 Chert,
+  20 Fired Pots and six Primitive Conveyors. Solid 3x4: body row, two independent three-tile conveyor
   paths, body row. Multiplies actual unit value by 2 once per material stage,
   requiring base >=$1.20 and incoming value <$100. Upgrade cells are the middle
   conveyor cells; crossing the whole building never applies more than once.
-- Primitive Conveyor Bridge: implemented at $10, 50 Wood, four unplaced
+- Primitive Conveyor Bridge: implemented at $10 and four unplaced
   Primitive Conveyors. Three conveyor tiles; only the center can overlap an
   ordinary Conveyor. Ramps cannot overlap machines or trees. Can be built in
   either order with its underlying belt. Upper and lower cargo are separate;
   moves, group rotation, pickup and saves retain that ownership. Shop multi-buy
   accounts for machine ingredients, including picked-up conveyor instances.
 - Primitive Rock Drill: implemented at $5k, 40 Chert and 50 Wood. Solid 3x2
-  reference footprint: four body cells at the back, two output-conveyor cells
-  at the front. One centered output, following Clay Pit's shared geometry/rules.
+  reference footprint: six occupied cells with one centered front-edge output,
+  following Clay Pit's shared geometry/rules. Neither pits nor drills have internal conveyors.
   Select Chert (default) or Granite; produces a stack of two every 5 seconds.
   One waiting batch, no accumulated blocked cycles. Mode and contents survive
   moves and saves; changing mode does not rewrite existing output.
@@ -267,8 +270,61 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   not invent new sources, smelting chains or construction requirements.
 - Content migration adds only missing zero inventory/stock entries. Existing
   cargo's actual value and upgrade history are preserved by the balance change.
-- Still unsettled: remaining Stacker cost/specification, revised Rock Shack,
+- Still unsettled: later Stacker cost/specification, revised Rock Shack,
   final Granite Processor, and later mineral extraction/smelting machinery.
+
+## Wooden Gears and construction components (implemented, 2026-10-23)
+
+- Crude Gear Bench: 25 Wood, no cash, one crew. Solid 1-column/2-row reference
+  footprint, upper body and lower working tile. Input from the left and output
+  to the right of that lower tile; both rotate with the machine. No conveyor or power.
+- 2 Wood become 1 Wooden Gear in 12 seconds, preserving total incoming value
+  and weight (base $0.20, weight 2). Two waiting Wood, one running recipe and
+  one finished Gear maximum. A blocked output stops further jobs.
+- Primitive Conveyors require $1, 10 Wood and four Wooden Gears. Every existing
+  belt-equipped machine requires one purchased conveyor per internal belt tile,
+  subtracting 20 Wood per tile from its old raw Wood cost, down to zero.
+  The Bridge retains its already-specified four-conveyor requirement (three
+  physical belt tiles); its remaining 50 Wood is removed by this deduction.
+- Pits and drills have no internal belts, no conveyor component costs and no
+  fake belt visuals. Centered output and receiver compatibility are unchanged.
+- Existing machines are not picked up or charged retroactively. Older saves
+  gain only zero-valued Wooden Gear inventory and Gear Bench stock keys.
+
+## Pot Spinner (implemented, 2026-10-23)
+
+- Cost: $2,500, 150 Wood, 60 Bricks, 30 Granite and 15 Leek Fiber.
+- Solid 2x3 right-facing footprint: middle-left material input from the left,
+  middle-right output to the right, top-left kinetic intake facing up, and
+  bottom-left kinetic intake facing down. Either intake accepts a directly
+  adjacent long-edge Hamster Wheel output. Area power alone is insufficient.
+  The complete footprint and all ports rotate together. No extra operating
+  crew beyond the Wheel; no cosmetic animation.
+- Two Clay -> one Unfired Pot in 12 powered seconds, preserving the shaping
+  bench's pot recipe/value: twice the combined actual Clay value. Firing still
+  takes place in the Kiln. Power loss pauses the same job without consuming
+  more ingredients. One pending batch of 2 Clay, one job and one finished Pot
+  bound intake/production; a blocked output does not bank cycles.
+- Before Brick Seal repairs, spun pots have 20% Poor / 10% Standard / 40% Fine /
+  25% Remarkable / 5% Exceptional. Four repairs move 20 percentage points from
+  Poor to Standard, yielding 0/30/40/25/5 and an average grading multiplier of
+  4.70 (4.55 without repairs). The fifth tier is Exceptional at x25.
+- This is a carried pre-roll probability profile, not a rolled grade category
+  or a new inventory material. The Grading Bench rolls once as usual. Firing,
+  moves, saves, splitting and direct hauling preserve the profile. Combining
+  same-material cargo averages profiles by quantity, with ordinary cargo
+  contributing its ordinary table. Already graded inputs remain graded and
+  cannot roll again; cash-use tags reset at the normal material transformation.
+  Profiles and Seal repair modifiers are independent. Inventory collection
+  retains counts only, as before. Ordinary pot/brick/stone chances are unchanged.
+- Shop/Inventory show base chances, the inspector updates input/output counts
+  without remounting controls, and Recipes documents the same real recipe.
+  Older saves gain only a zero Pot Spinner stock entry, not a free machine.
+- Painting remains unimplemented. Settled revised transfers are 15 percentage
+  points Standard -> Fine, 20 Fine -> Remarkable and 10 Remarkable -> Exceptional,
+  limited by the available source chance; shortfalls are discarded. Fully
+  repaired spun pots would become 0/15/35/35/15 (mean x7.65), while unrepaired
+  ones become 20/0/30/35/15 (mean x7.45). This does not add a Painter or recipe.
 
 ## Hot Fluid Pipe
 
@@ -334,6 +390,19 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   ```
 
 ## Cargo weight and Heavy Stacker
+
+- The noammo Primitive Stacker is implemented: $1,000, 80 Wood, 50 Chert,
+  80 Granite and one Primitive Conveyor. Uses the old Splitter's 1x1 footprint, with three input sides
+  and an output in the facing direction. No crew; requires Conveyor Drive
+  power and uses primitive conveyor timing (two seconds per outgoing stack).
+- Stack size is a typed whole number from 1 to 2, default 1, rather than a
+  dropdown. One matching-material buffer fills only to the selected size,
+  subject to belt weight capacity; blocked/full buffers reject further input.
+  Fractional inputs can accumulate into a complete stack. Reducing the setting
+  does not discard already buffered items. Settings, cargo and progress persist
+  through moves and saves; pickup returns buffered resources once.
+- Combining uses the shared value/grade averaging, maximum upgrader use counts
+  and tag union rules. Adjacent Stackers transfer directly but never instantly.
 
 - Cargo weights and automatic capacity splitting are implemented; Heavy Stacker
   and the Industrial Conveyor purchase remain pending.

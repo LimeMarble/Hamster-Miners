@@ -23,7 +23,7 @@
       basketCapacity: 100, beltSeconds: 2, beltWeight: 5,
       clicksPerSecond: 5, chopsPerHarvest: 5,
       loadedSecondsPerTilePerWeight: 0.5, emptySecondsPerTile: 0.5,
-      powerAreaSize: 16,
+      powerAreaReach: 7,
     },
     directions: ["right", "down", "left", "up"],
     vectors: {
@@ -34,6 +34,7 @@
       leek: { name: "Leek", value: 0.1, weight: 1, color: "#9dbf65" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30 },
+      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 2, color: "#c19762" },
       clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67", family: "clay" },
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
@@ -51,8 +52,9 @@
       { name: "Standard", multiplier: 1.5, color: "#c5c8b0" },
       { name: "Fine", multiplier: 2.5, color: "#8bc799" },
       { name: "Remarkable", multiplier: 8, color: "#9eb3ec" },
+      { name: "Exceptional", multiplier: 25, color: "#d6b3e6" },
     ],
-    gradeTables: { clay: [0.2, 0.6, 0.2, 0], stone: [0, 1, 0, 0] },
+    gradeTables: { clay: [0.2, 0.6, 0.2, 0, 0], stone: [0, 1, 0, 0, 0] },
     machines: {
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
@@ -85,7 +87,6 @@
       clayPit: {
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Material", crew: 1,
         cost: { cash: 0, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
-        outputConveyors: [[1, 0], [1, 1]],
         description: "One Clay every 12 seconds. Manually operated by one hamster; no kinetic power required.",
       },
       primitiveRockDrill: {
@@ -93,7 +94,7 @@
         labelLines: ["Primitive", "Rock Drill"], labelCell: [0.5, 0.5],
         cost: { cash: 5000, materials: { chert: 40, wood: 50 } },
         sourceModes: { chert: "Chert", granite: "Granite" }, defaultMode: "chert",
-        cycle: 5, sourceQuantity: 2, outputLimit: 2, centeredOutput: true, outputConveyors: [[2, 0], [2, 1]],
+        cycle: 5, sourceQuantity: 2, outputLimit: 2, centeredOutput: true,
         description: "Extracts two Chert or Granite every five seconds.",
       },
       pebbleSifter: {
@@ -110,13 +111,40 @@
       },
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
-        footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick",
+        footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick", craftInput: "clay", inputLimit: 2,
         cost: { cash: 20, materials: { wood: 50, leekFiber: 5 } },
         recipes: {
           brick: { name: "Unfired Brick", input: 1, output: "unfiredBrick", seconds: 2, valueMultiplier: 1 },
           pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 4, valueMultiplier: 2 },
         },
         description: "Hand-shapes Clay into unfired Bricks or Pots. Bricks retain their Clay’s value; Pots double the combined value of their two Clay inputs.",
+      },
+      crudeGearBench: {
+        name: "Crude Gear Bench", width: 1, height: 2, color: "#b18b62", category: "Material", crew: 1,
+        labelLines: ["Gear", "Bench"], labelCell: [0, 0],
+        cost: { cash: 0, materials: { wood: 25 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
+        ports: [
+          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 0, y: 1, direction: "right", role: "output" },
+        ],
+        recipes: { gear: { name: "Wooden Gear", input: 2, output: "woodenGear", seconds: 12, valueMultiplier: 1 } },
+        description: "One hamster carves two Wood into one Wooden Gear in twelve seconds. Hand-operated.",
+      },
+      potSpinner: {
+        name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",
+        labelLines: ["Pot", "Spinner"], craftInput: "clay", inputLimit: 2, defaultMode: "pot", requiresKinetic: true,
+        cost: { cash: 2500, materials: { wood: 150, brick: 60, granite: 30, leekFiber: 15 } },
+        ports: [
+          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 1, y: 1, direction: "right", role: "output" },
+          { x: 0, y: 0, direction: "up", role: "kineticInput" },
+          { x: 0, y: 2, direction: "down", role: "kineticInput" },
+        ],
+        recipes: {
+          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 12, valueMultiplier: 2,
+            gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] },
+        },
+        description: "Carefully shapes two Clay into one unfired Pot in twelve seconds, improving its grade chances. Connect a Hamster Wheel to either kinetic intake.",
       },
       gradingBench: {
         name: "Grading Bench", width: 2, height: 2, color: "#b2a782", category: "Cash",
@@ -144,11 +172,11 @@
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
         cost: { cash: 4, materials: { wood: 75, leekFiber: 7.5 } },
-        description: "Connect to a Hamster Wheel to power primitive conveyors within a 16×16 area.",
+        description: "Connect to a Hamster Wheel to power primitive conveyors up to seven tiles beyond the Drive’s footprint.",
       },
       primitive: {
         name: "Primitive Upgrader", width: 1, height: 2, color: "#a58b60", category: "Cash",
-        cost: { cash: 5, materials: { wood: 50, leekFiber: 5 } },
+        cost: { cash: 5, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } },
         cashEffect: null,
         conveyors: [[0, 0], [0, 1]],
         description: "Two parallel primitive conveyor lanes. Requires a powered Conveyor Drive. Its new cash effect is not yet set.",
@@ -156,7 +184,7 @@
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
-        cost: { cash: 115, materials: { brick: 35 } },
+        cost: { cash: 115, materials: { brick: 35 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
         cashEffect: { bonus: 1.25, useLimit: 9, upperLimit: 15, baseValueRequired: 0.5 },
         gradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
@@ -165,7 +193,7 @@
       leekInfuser: {
         name: "Leek Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
         labelCell: [0, 1], labelLines: ["Leek", "Infuser"], conveyors: [[0, 0]],
-        cost: { cash: 20, materials: { leek: 20, leekFiber: 15 } },
+        cost: { cash: 20, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } },
         cashEffect: { bonus: 0.4, upperLimit: 2 },
         description: "Infuses passing sellables with Leek essence to increase their value.",
       },
@@ -174,21 +202,34 @@
         labelCell: [1, 0], labelLines: ["Primitive Shack"],
         conveyors: [[0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
         upgradeCells: [[1, 1], [1, 2]],
-        cost: { cash: 5000, materials: { wood: 1000, leekFiber: 200, chert: 50, pot: 20 } },
+        cost: { cash: 5000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } },
         cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 100, baseValueRequired: 1.2 },
         description: "Doubles the value of passing products. Two parallel conveyor paths run through the Shack.",
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
-        cost: { cash: 1, materials: { wood: 20 } },
+        cost: { cash: 1, materials: { wood: 10, woodenGear: 4 } },
         conveyors: [[0, 0]],
         description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes two seconds per tile.",
       },
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
         labelLines: ["Bridge"], conveyors: [[0, 0], [1, 0], [2, 0]], bridge: true,
-        cost: { cash: 10, materials: { wood: 50 }, machines: { belt: 4 } },
+        cost: { cash: 10, materials: {}, machines: { belt: 4 } },
         description: "Carries cargo over one ordinary conveyor. The entrance and exit must remain clear.",
+      },
+      primitiveStacker: {
+        name: "Primitive Stacker", width: 1, height: 1, color: "#9b906e", category: "Logistics",
+        labelLines: ["Stacker"],
+        cost: { cash: 1000, materials: { wood: 80, chert: 50, granite: 80 }, machines: { belt: 1 } },
+        conveyors: [[0, 0]], maxStackSize: 2, defaultStackSize: 1,
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "input" },
+          { x: 0, y: 0, direction: "up", role: "input" },
+          { x: 0, y: 0, direction: "down", role: "input" },
+          { x: 0, y: 0, direction: "right", role: "output" },
+        ],
+        description: "Combines matching items into a stack of the typed size, up to two. Accepts from three sides and outputs in its facing direction. Requires kinetic power.",
       },
       sellTube: {
         name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",

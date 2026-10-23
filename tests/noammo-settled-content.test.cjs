@@ -28,10 +28,10 @@ function pair(f, source, directions) {
 }
 
 test('settled construction prices, zero crew, stone base values and Copper base value are exact', () => {
-  assert.deepEqual(D.machines.leekInfuser.cost, { cash: 20, materials: { leek: 20, leekFiber: 15 } });
-  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 5000, materials: { wood: 1000, leekFiber: 200, chert: 50, pot: 20 } });
+  assert.deepEqual(D.machines.leekInfuser.cost, { cash: 20, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } });
+  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 5000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } });
   assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 5000, materials: { chert: 40, wood: 50 } });
-  assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 10, materials: { wood: 50 }, machines: { belt: 4 } });
+  assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 10, materials: {}, machines: { belt: 4 } });
   for (const material of ['chert', 'granite', 'limestone']) assert.equal(D.materials[material].value, 0.1);
   assert.equal(D.materials.corundum.value, 1); assert.equal(D.materials.nativeCopper.value, 1.5);
   for (const type of ['leekInfuser', 'primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) {

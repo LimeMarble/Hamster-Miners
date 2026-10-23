@@ -11,6 +11,32 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Pot Spinner checks cover the exact cash/material price, six occupied cells,
+  every rotated material/kinetic port and either Wheel connection. One Wheel
+  can power two opposite-facing intake sides without blocking material input.
+  Drive coverage, gaps and short Wheel edges cannot power it. Twelve-second
+  jobs pause on power loss; pending Clay is capped at two and finished output
+  at one. Probes, partial inputs, oversized overflow, output blockage, moves,
+  independent instances, pickup and reload preserve ingredients and progress.
+- Spun pottery carries the agreed 20/10/40/25/5 pre-roll profile through firing,
+  with Exceptional at x25 and Seal repairs remaining independent. Tests cover
+  both expected means (4.55/4.70), all five seeded grade outcomes, no early RNG,
+  no regrading, mixed ordinary/spun stacks, profile averaging, belt splitting,
+  stale hauling, collector separation and malformed metadata. An actual
+  Spinner/Kiln/belt/Grading Bench line checks value and timing end to end.
+  Generic rendering lifecycle tests include Spinner placement/movement/pickup;
+  real-script UI checks verify bulk costs, categories, repeated rotated
+  placement, visible chances and stable live controls. Previous four-grade
+  portion saves remain importable without changing earned cash or rolls.
+
+- Primitive Stacker tests cover its exact cost, old Splitter's 1x1 footprint,
+  all rotated three-side inputs, typed sizes 1–2, limited homogeneous buffers,
+  fractional Sifter inputs, grade/value averaging and maximum-use tag merging.
+  Direct chains have primitive transit timing without instant transfers, output
+  self-blockage or banked bursts. Moves, setting reductions, saves, pickup and
+  old-save stock migration preserve resources. UI typing stays mounted across
+  ticks and invalid edits; generic placement/render lifecycle tests include it.
+
 - Settled-content tests cover exact Infuser/Shack/Bridge/Rock Drill prices,
   optional effect fields, no ingredient consumption, new material base values,
   atomic machine-ingredient purchases and bulk affordability. Shack's two rows
@@ -137,7 +163,11 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Every Wheel long-edge port accepts the correct Drive intake, while short
   edges, gaps and wrong facing reject it. Losing the Wheel immediately stops power.
   Drives have no physical output port in any rotation; their output is the
-  16×16 powered area, shared by previews and placed machinery.
+  tile-aligned powered area extending seven tiles beyond each footprint edge
+  (15×16 or 16×15 depending on orientation), shared by previews and placed
+  machinery. Every covered tile and the immediately outside perimeter are
+  checked across all rotations and Wheel connections; coverage rendering and
+  status dimensions match the simulation.
 - Tests cover global click limits, saved partial chops, RNG harvest bounds,
   limited machine buffers, blocked outputs, independent instances, collector
   capacity, real hauler timing, stale exports, and cash/material affordability.
@@ -173,8 +203,16 @@ future pipe tiers) are not treated as current acceptance requirements.
   labelled as unsettled, not a canonical effect.
 - Baskets have no selling action or sale API. Holding or collecting sellables
   gives no cash, while collection and hauling controls keep working.
-- Primitive Conveyors cost $1 and 20 Wood each. Normal and bulk purchases require
-  sufficient cash and Wood, show scaled costs, and cannot borrow free belts.
+- Primitive Conveyors cost $1, 10 Wood and four Wooden Gears each. Normal and bulk
+  purchases require sufficient cash, Wood and Gears, show scaled costs, and cannot borrow free belts.
+- Gear Bench checks cover its 25 Wood price, one crew, two-cell body/working-tile
+  footprint in all rotations, bounded two-Wood input, exact twelve-second jobs,
+  five gears/minute, conserved value/weight, blocked output, independent instances,
+  move/pickup conservation, old-save migration and malformed-current-save rejection.
+- All belt-equipped construction recipes require owned conveyor components and
+  deduct 20 raw Wood per belt tile without negative costs. Pits and drills remain
+  conveyor-free plain boxes with centered outputs. The opening test actually
+  routes Logger Wood into a Gear Bench before purchasing belts and Upgraders.
 - Crew hiring costs $5 × 1.1^paid hires, excluding the ten starting hamsters.
   It deducts cash once, unlocks machine/hauler capacity and persists through
   placement, pickup and save/load. Old saves default to zero hires; invalid
