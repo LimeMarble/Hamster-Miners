@@ -51,7 +51,7 @@ function boot(saved, { width = 900, height = 600 } = {}) {
   const inventoryTabs = ["machines", "items"].map((name) => {
     const button = new Element("button"); button.dataset.inventoryTab = name; return button;
   });
-  const inventoryCategories = ["All", "Cash", "Material", "Ammo", "Logistics"].map((name) => {
+  const inventoryCategories = [...html.matchAll(/data-inventory-category="([^"]+)"/g)].map((match) => match[1]).map((name) => {
     const button = new Element("button"); button.dataset.inventoryCategory = name; return button;
   });
   const categories = ["All", "Cash", "Material", "Logistics"].map((name) => {
@@ -93,6 +93,8 @@ function boot(saved, { width = 900, height = 600 } = {}) {
     frame(now) { assert.ok(frames.length); frames.shift()(now); },
     view() { return renders.at(-1); },
     key(key, event = {}) { documentEvents.get("keydown")({ key, preventDefault() {}, ...event }); },
+    keyUp(key) { documentEvents.get("keyup")({ key }); },
+    blur() { windowEvents.get("blur")(); },
     releaseOn(element) { windowEvents.get("pointerup")({ target: element }); },
     resize(nextWidth, nextHeight) {
       rectangle.width = nextWidth; rectangle.height = nextHeight;
@@ -194,7 +196,8 @@ test("Inventory separates Machines and Items, with no default machine list on th
 });
 
 test("machine cards filter, select stable details, and Place returns to the unchanged factory camera", () => {
-  const ui = boot(); ui.frame(100);
+  const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0;
+  const ui = boot(factory.exportSave()); ui.frame(100);
   ui.ids.get("zoomIn").emit("click"); ui.frame(200);
   const before = ui.view().camera;
   ui.ids.get("openInventory").emit("click");
@@ -210,7 +213,7 @@ test("machine cards filter, select stable details, and Place returns to the unch
   assert.match(ui.ids.get("toolLabel").textContent, /Placing Leek Basket/);
   ui.ids.get("cancel").emit("click");
   ui.ids.get("openInventory").emit("click");
-  ui.inventoryCategories.find((button) => button.dataset.inventoryCategory === "Ammo").emit("click");
+  ui.inventoryCategories.find((button) => button.dataset.inventoryCategory === "Cash").emit("click");
   assert.equal(ui.ids.get("machineEmpty").hidden, false); assert.equal(ui.ids.get("machineDetail").hidden, true);
 });
 
@@ -625,7 +628,7 @@ test("Rock Drill mode selector remains mounted during production and persists th
 test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
   const ui = boot(); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2"]],
-    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $100", "Base Value Required: $1.2"]]]) {
+    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $2.5k", "Base Value Required: $1.2"]]]) {
     ui.ids.get("shopCards").children[Object.keys(A.DATA.machines).indexOf(type)].emit("click");
     assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent), expected);
   }
@@ -923,6 +926,92 @@ test("Conveyor Shop independently checks gears and machine purchases check scale
     ui.ids.get('quantity').value = '1'; ui.ids.get('quantity').emit('input'); ui.ids.get('buyMachine').emit('click');
     const state = ui.state(); assert.equal((component === 'belt' ? state.stock : state.inventory)[component], 0);
   }
+});
+
+test("noammo removes debug upgrade controls and Ammo navigation without breaking import, reset or saved effects", () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.primitive = 1;
+  f.state.tuning = { primitiveBonus: 0.23, primitiveLimit: 7 };
+  f.place('primitive', 121, 121);
+  const saved = f.exportSave(), ui = boot(saved);
+  assert.deepEqual(ui.inventoryCategories.map(button => button.dataset.inventoryCategory), ['All', 'Cash', 'Material', 'Logistics']);
+  for (const id of ['primitiveBonus', 'primitiveLimit', 'applyTuning']) assert.equal(ui.ids.has(id), false);
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const copy = ui.ids.get('inspector').children.map(node => node.textContent).join(' ');
+  assert.match(copy, /Cash effect: \+\$0.23/); assert.doesNotMatch(copy, /TEST|Adjustable|not final|not yet set/);
+  ui.tabs.find(b => b.dataset.tab === 'options').emit('click');
+  ui.ids.get('saveText').value = saved; ui.ids.get('import').emit('click');
+  assert.deepEqual(ui.state().tuning, f.state.tuning);
+  ui.ids.get('reset').emit('click'); assert.equal(ui.state().machines.length, 0);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'noammo.html'), 'utf8');
+  assert.doesNotMatch(html, /Unsettled balance|Apply test values|primitiveBonus|data-inventory-category="Ammo"/);
+});
+
+test("selected upgrader and Shift-hover share live output history, preserve controls and keep shortcuts independent", () => {
+  const f = new A.Factory(A.createState(1));
+  for (const [type, x, y, facing] of [['wheel', 119, 125, 'right'], ['drive', 120, 123, 'down'], ['primitive', 121, 121, 'right']]) {
+    f.state.stock[type]++; assert.ok(f.place(type, x, y, facing).machine);
+  }
+  const m = f.state.machines.find(m => m.type === 'primitive');
+  m.lanes[0] = { ...A.cargo('wood', 2, 0.1), progress: 0.49 };
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const list = ui.ids.get('outputHistory'), move = ui.ids.get('moveMachine');
+  assert.equal(list.children[0].textContent, 'No processed output yet.');
+  ui.frame(100); ui.frame(200);
+  assert.equal(list.children[0].textContent, '$0.4 total · 2 × $0.2');
+  assert.equal(ui.ids.get('moveMachine'), move); assert.equal(ui.ids.get('outputHistory'), list);
+  const row = list.children[0];
+  for (let now = 300; now < 4000; now += 100) ui.frame(now);
+  assert.equal(list.children.length, 1); assert.equal(list.children[0], row, 'unchanged histories do not redraw');
+  const selected = ui.state().machines.map(m => m.id);
+  ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: false });
+  assert.equal(ui.ids.get('historyTooltip').hidden, true);
+  ui.key('Shift'); assert.equal(ui.ids.get('historyTooltip').hidden, false);
+  assert.equal(ui.ids.get('hoverOutputHistory').children[0].textContent, row.textContent);
+  assert.deepEqual(ui.state().machines.map(m => m.id), selected);
+  ui.keyUp('Shift'); assert.equal(ui.ids.get('historyTooltip').hidden, true);
+  ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: true });
+  assert.equal(ui.ids.get('historyTooltip').hidden, false);
+  ui.ids.get('cargo').emit('pointerleave'); assert.equal(ui.ids.get('historyTooltip').hidden, true);
+  ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: true }); ui.blur();
+  assert.equal(ui.ids.get('historyTooltip').hidden, true);
+  ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: true });
+  ui.tabs.find(b => b.dataset.tab === 'shop').emit('click'); assert.equal(ui.ids.get('historyTooltip').hidden, true);
+});
+
+test("Grading history shows the actual Exceptional roll and $3k value in both views without rerolling", () => {
+  const f = new A.Factory(A.createState(1900)); f.state.stock.gradingBench = 1;
+  const m = f.place('gradingBench', 121, 121).machine;
+  m.job = { input: { ...A.cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] }, remaining: 0.1 };
+  const reference = { random: 1900 }; A.gradeStack(reference, m.job.input);
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const list = ui.ids.get('outputHistory'); ui.frame(100); ui.frame(200);
+  assert.equal(list.children[0].textContent, 'Exceptional · $3k'); assert.equal(ui.state().random, reference.random);
+  ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: true });
+  assert.equal(ui.ids.get('hoverOutputHistory').children[0].textContent, 'Exceptional · $3k');
+  assert.match(ui.ids.get('historyTooltipTitle').textContent, /Grading Bench/);
+  const row = list.children[0]; for (let now = 300; now <= 3000; now += 100) ui.frame(now);
+  assert.equal(list.children[0], row); assert.equal(ui.state().random, reference.random);
+  ui.ids.get('cancel').emit('click'); ui.ids.get('moveMachine').emit('click');
+  assert.equal(ui.ids.get('historyTooltip').hidden, true, 'placement suppresses hover tooltips');
+});
+
+test("Granite Processor Shop scales Granite and conveyor components, filters Cash and exposes all rules on selection", () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 70000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
+  const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  const card = ui.ids.get('shopCards').children[Object.keys(A.DATA.machines).indexOf('graniteProcessor')];
+  ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
+  ui.categories.find(b => b.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
+  const expected = ['Cash effect: ×1.3', 'Use Limit: 12', 'Upper Limit: $525', 'Base Value Required: $3.5'];
+  assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
+  ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$70k / $70k', '600 / 600', '3 / 4']);
+  assert.equal(ui.ids.get('buyMachine').disabled, true);
+  ui.ids.get('quantity').value = '1'; ui.ids.get('quantity').emit('input'); ui.ids.get('buyMachine').emit('click');
+  assert.equal(ui.state().stock.belt, 1); assert.equal(ui.state().stock.graniteProcessor, 1);
+  chooseMachine(ui, 'graniteProcessor'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  assert.deepEqual(ui.ids.get('inspector').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
+  assert.equal(ui.ids.get('outputHistory').children[0].textContent, 'No processed output yet.');
 });
 
 test("unreadable saves survive startup, autosave, export and unload until an explicit reset", () => {

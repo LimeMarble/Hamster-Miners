@@ -16,6 +16,7 @@
   const turn = (direction, count) => D.directions[(D.directions.indexOf(direction) + count + 4) % 4];
   const jobInputs = (job) => job?.inputs ?? (job?.input ? [job.input] : []);
   const collectorCapacity = (machine) => D.machines[machine?.type]?.collectorCapacity ?? 0;
+  const supportsOutputHistory = (type) => type === "primitive" || type === "gradingBench" || Boolean(D.machines[type]?.cashEffect);
 
   function rotatePoint(x, y, width, height, direction) {
     if (direction === "down") return { x: height - 1 - y, y: x };
@@ -109,10 +110,8 @@
       && Number.isFinite(item.value) && item.value >= 0 && item.upgrades && typeof item.upgrades === "object"
       && !Array.isArray(item.upgrades) && Number.isFinite(item.progress) && item.progress >= 0 && item.progress <= 1
       && Object.values(item.upgrades).every((value) => typeof value === "boolean" || (Number.isSafeInteger(value) && value >= 0))
-      && (!Object.hasOwn(item.upgrades, "brickSeal") || (Number.isSafeInteger(item.upgrades.brickSeal)
-        && item.upgrades.brickSeal >= 0 && item.upgrades.brickSeal <= D.machines.brickSeal.cashEffect.useLimit))
-      && (!Object.hasOwn(item.upgrades, "primitiveShack") || (Number.isSafeInteger(item.upgrades.primitiveShack)
-        && item.upgrades.primitiveShack >= 0 && item.upgrades.primitiveShack <= 1))
+      && Object.entries(item.upgrades).every(([type, uses]) => D.machines[type]?.cashEffect?.useLimit === undefined
+        || (Number.isSafeInteger(uses) && uses >= 0 && uses <= D.machines[type].cashEffect.useLimit))
       && item.grading === undefined && (item.graded === undefined || typeof item.graded === "boolean")
       && (item.gradeProfile === undefined || (D.gradeTables[D.materials[item.material].gradeTable ?? D.materials[item.material].family]
         && Array.isArray(item.gradeProfile) && item.gradeProfile.length === D.grades.length
@@ -185,7 +184,7 @@
     output.upgrades = Object.fromEntries(uses);
     return blendGradeRepairs(output, inputs);
   }
-  function gradeStack(state, item) {
+  function gradeStack(state, item, onGrade) {
     const result = copy(item), chances = gradeProbabilities(item);
     if (!chances || item.graded) return result;
     const roll = random(state);
@@ -193,6 +192,7 @@
     while (index < chances.length - 1 && roll >= threshold) threshold += chances[++index];
     result.graded = true;
     result.value *= D.grades[index].multiplier;
+    if (onGrade) onGrade(D.grades[index].name);
     return result;
   }
   function blendGradeRepairs(output, inputs) {
@@ -239,7 +239,7 @@
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
-      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1,
+      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -256,6 +256,8 @@
     constructor(state = createState()) {
       this.state = state;
       this.saleTexts = [];
+      // Diagnostics are session-local snapshots, not cargo properties or save data.
+      this.outputHistories = new Map();
       this.layoutVersion = 0;
       this.rebuild();
     }
@@ -272,6 +274,14 @@
       }
       this.poweredDrives = this.state.machines.filter((machine) => machine.type === "drive" && this.driveHasWheel(machine));
       this.layoutVersion++;
+    }
+    recentOutputs(id) { return copy(this.outputHistories.get(id) ?? []); }
+    recordOutput(machine, item, grade = null) {
+      if (!supportsOutputHistory(machine.type)) return;
+      const history = this.outputHistories.get(machine.id) ?? [];
+      history.unshift({ value: D.materials[item.material].value === null ? null : item.value, quantity: item.quantity, grade });
+      history.length = Math.min(5, history.length);
+      this.outputHistories.set(machine.id, history);
     }
     driveHasWheel(drive) {
       return this.kineticHasWheel(drive);
@@ -433,6 +443,7 @@
       this.state.machines = this.state.machines.filter((other) => other !== machine);
       this.state.stock[machine.type]++;
       this.state.storedMachines.push(machine);
+      this.outputHistories.delete(id);
       this.rebuild(); return true;
     }
     affordability(type, amount = 1) {
@@ -839,7 +850,9 @@
         } else if (machine.type === "gradingBench" && machine.job) {
           machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
           if (machine.job.remaining <= epsilon && !machine.output.length) {
-            machine.output.push(gradeStack(state, machine.job.input)); machine.job = null;
+            let grade = "Already graded";
+            const product = gradeStack(state, machine.job.input, (name) => { grade = name; });
+            machine.output.push(product); this.recordOutput(machine, product, grade); machine.job = null;
           }
         } else if (machine.type === "kiln") {
           machine.outputCooldown = Math.max(0, machine.outputCooldown - seconds);
@@ -897,6 +910,7 @@
           }
         }
         if (output.upgrade && before + epsilon < 0.5 && item.progress + epsilon >= 0.5) applyCashEffect(item, machine.type);
+        if ((machine.type === "primitive" || output.upgrade) && before + epsilon < 0.5 && item.progress + epsilon >= 0.5) this.recordOutput(machine, item);
         if (item.progress >= 1 - epsilon) {
           const stacking = Boolean(D.machines[machine.type].maxStackSize);
           const outgoing = stacking ? { ...copy(item), quantity: Math.min(item.quantity, this.stackTarget(machine, item)) } : item;
@@ -965,6 +979,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.graniteProcessorVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "graniteProcessor")) state.stock.graniteProcessor = 0;
+        state.graniteProcessorVersion = 1;
+      }
       if ((state.crudeGearBenchVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "crudeGearBench")) state.stock.crudeGearBench = 0;
         if (state.inventory && !Object.hasOwn(state.inventory, "woodenGear")) state.inventory.woodenGear = 0;
@@ -1228,7 +1246,7 @@
     }
   }
   const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs, collectorCapacity,
-    combineCargo, gradeProbabilities, gradeStack, gradeLabel, conveyorCells };
+    combineCargo, gradeProbabilities, gradeStack, gradeLabel, conveyorCells, supportsOutputHistory };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.NoAmmo = API;
 }(globalThis));

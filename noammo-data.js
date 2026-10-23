@@ -179,7 +179,7 @@
         cost: { cash: 5, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } },
         cashEffect: null,
         conveyors: [[0, 0], [0, 1]],
-        description: "Two parallel primitive conveyor lanes. Requires a powered Conveyor Drive. Its new cash effect is not yet set.",
+        description: "Two parallel primitive conveyor lanes. Requires a powered Conveyor Drive.",
       },
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
@@ -203,8 +203,15 @@
         conveyors: [[0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
         upgradeCells: [[1, 1], [1, 2]],
         cost: { cash: 5000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } },
-        cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 100, baseValueRequired: 1.2 },
+        cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 2500, baseValueRequired: 1.2 },
         description: "Doubles the value of passing products. Two parallel conveyor paths run through the Shack.",
+      },
+      graniteProcessor: {
+        name: "Granite Processor", width: 1, height: 2, color: "#aa8077", category: "Cash",
+        labelLines: ["Granite", "Processor"], conveyors: [[0, 0], [0, 1]],
+        cost: { cash: 35000, materials: { granite: 300 }, machines: { belt: 2 } },
+        cashEffect: { multiplier: 1.3, useLimit: 12, upperLimit: 525, baseValueRequired: 3.5 },
+        description: "Processes passing products to increase their value. Two parallel primitive conveyor lanes.",
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",

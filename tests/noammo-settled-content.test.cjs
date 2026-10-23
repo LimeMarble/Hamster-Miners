@@ -98,9 +98,22 @@ test('Shack uses declared base >=$1.20, not family, stack value or rounded curre
     const item = shack.lanes[2]; assert.equal(item.value, 50); assert.equal(item.upgrades.primitiveShack, undefined);
     delete shack.lanes[2];
   }
-  feed(f, shack, cargo('pot', 1, 100)); f.update(6); assert.equal(shack.lanes[2].value, 100);
+  feed(f, shack, cargo('pot', 1, 2500)); f.update(6); assert.equal(shack.lanes[2].value, 2500);
   const blocked = A.copy(shack.lanes[2]); f.update(60); assert.deepEqual(shack.lanes[2], blocked);
   assert.equal(f.receive(shack, cargo('pot'), shack.x, shack.y, 'left', true), 0, 'body is not a conveyor');
+});
+
+test('Shack doubles values below $2.5k without clamping the result, and rejects $2.5k or above', () => {
+  const f = powered(), shack = place(f, 'primitiveShack', 40, 38);
+  assert.deepEqual(D.machines.primitiveShack.cashEffect, { multiplier: 2, useLimit: 1, upperLimit: 2500, baseValueRequired: 1.2 });
+  for (const [input, output] of [[100, 200], [600, 1200], [1000, 2000], [1200, 2400], [1800, 3600], [2250, 4500], [2499.99, 4999.98], [2500, 2500], [3000, 3000]]) {
+    feed(f, shack, cargo('pot', 1, input)); f.update(6);
+    near(shack.lanes[2].value, output);
+    assert.equal(shack.lanes[2].upgrades.primitiveShack, input < 2500 ? 1 : undefined);
+    const result = A.copy(shack.lanes[2]); delete shack.lanes[2];
+    feed(f, shack, result); f.update(6); near(shack.lanes[2].value, output);
+    delete shack.lanes[2];
+  }
 });
 
 for (const facing of D.directions) for (const type of ['clayPit', 'primitiveRockDrill']) {

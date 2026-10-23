@@ -199,8 +199,23 @@ future pipe tiers) are not treated as current acceptance requirements.
   recovery rules. Shared tests cover every opening machine in every orientation,
   including read-only group previews and selection outlines.
 - Prototype saves have a different kind/key; importing a legacy mining save
-  fails without mutating live state. Primitive tuning remains explicitly
-  labelled as unsettled, not a canonical effect.
+  fails without mutating live state. The debug upgrade editor is absent; saved
+  upgrade values remain compatible without exposing test controls. No Ammo
+  category appears in the noammo inventory.
+- Granite Processor checks cover exact $35k/300 Granite/two-conveyor cost,
+  atomic bulk affordability, four rotations/two independent powered lanes,
+  per-unit base/cash eligibility without an incoming lower bound, twelve uses
+  shared across instances, the $525 boundary and final-result overshoot,
+  blockage, preserved quality/tags, move/save continuity, old-save migration,
+  malformed-use rejection and Shop/Inventory/effect/history integration.
+- Output-history tests cover every upgrader's five-entry bound/newest-first
+  order, actual post-effect unit cash/quantity, capped passes, blockage without
+  duplicate entries, independent machine instances, move/pickup lifecycle and
+  session-only snapshots. Grading records all five actual grades without any
+  extra RNG draws or persistent cargo grade categories; already-graded items
+  cannot reroll. DOM checks exercise selected and Shift-hover views, stable
+  controls/rows, stack totals, key release, pointer leave, blur, tab switching
+  and placement suppression alongside existing Shift-selection shortcuts.
 - Baskets have no selling action or sale API. Holding or collecting sellables
   gives no cash, while collection and hauling controls keep working.
 - Primitive Conveyors cost $1, 10 Wood and four Wooden Gears each. Normal and bulk

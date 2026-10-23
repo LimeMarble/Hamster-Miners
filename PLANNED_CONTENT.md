@@ -153,8 +153,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   tile-aligned and rotates with the Drive; previews use the same bounds.
 - Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $5,
   10 Wood, 5 Fiber and two Primitive Conveyors. Its belts require Drive coverage. The new effect was
-  not settled: Options clearly labels editable +$0.1/up-to-$1 defaults as TEST
-  values, rather than changing the old game's established effect.
+  not settled. The existing effect and saved values remain unchanged, but the
+  debug balance editor and test-only UI copy have been removed from the prototype.
 - Brick Seal: implemented at $115, 35 fired Bricks and one Primitive Conveyor, with no crew. Exactly the
   old Rock Shack footprint: one column, two rows; upper cell is the sole
   conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
@@ -247,7 +247,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Primitive Shack: implemented at $5k, 880 Wood, 200 Fiber, 50 Chert,
   20 Fired Pots and six Primitive Conveyors. Solid 3x4: body row, two independent three-tile conveyor
   paths, body row. Multiplies actual unit value by 2 once per material stage,
-  requiring base >=$1.20 and incoming value <$100. Upgrade cells are the middle
+  requiring base >=$1.20 and incoming value <$2.5k. Upgrade cells are the middle
   conveyor cells; crossing the whole building never applies more than once.
 - Primitive Conveyor Bridge: implemented at $10 and four unplaced
   Primitive Conveyors. Three conveyor tiles; only the center can overlap an
@@ -272,6 +272,38 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   cargo's actual value and upgrade history are preserved by the balance change.
 - Still unsettled: later Stacker cost/specification, revised Rock Shack,
   final Granite Processor, and later mineral extraction/smelting machinery.
+
+## Granite Processor (implemented, 2026-10-23)
+
+- Cost: $35k, 300 Granite, two owned Primitive Conveyors. Cash category,
+  zero crew, the original 1-column/2-row footprint with two independent
+  right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
+  Drive coverage and uses two-second transit with normal belt capacity.
+- Cash effect: x1.3, up to 12 uses across all Processor instances. Declared
+  per-item base value must be at least $3.50; incoming per-item actual value
+  must be below $525. No incoming lower bound. This is not a result clamp.
+- Uses travel with cargo through saves and moves, follow existing stack merge
+  rules and are validated against each upgrader's declared limit. Existing
+  grade/repair metadata and other upgrader tags remain intact.
+- Shop/Inventory effects, bulk costs, rotated previews, Recipes and output
+  diagnostics use the shared systems. Older saves gain only zero Processor
+  stock; no machine is awarded and no old mining-game balance changes.
+
+## Machine output diagnostics (implemented, 2026-10-23)
+
+- Upgraders and the Grading Bench show the last five processed stack results,
+  newest first, both in the selected-machine panel and via Shift-hover. No
+  settings toggle. Help lists the hover shortcut alongside existing Shift actions.
+- Entries show actual cash value; stacks show total, quantity and unit value.
+  Grading entries additionally show the actual rolled grade. Already-graded
+  inputs say "Already graded" rather than inferring a grade from averaged cash.
+- Each processing event records once, including an unchanged capped pass.
+  Blocked outputs never flood the list. Diagnostics do not affect RNG, cargo
+  grades, upgrades, quantities or sale values. Lists are per-instance, follow
+  moves, clear on pickup and refresh/import, and are not part of save data.
+- History text changes only when results change. Existing machine controls are
+  not remounted. Hover tooltips do not intercept clicks, hide on release/leave/
+  blur/tab changes, and are suppressed during placement and active box selection.
 
 ## Wooden Gears and construction components (implemented, 2026-10-23)
 

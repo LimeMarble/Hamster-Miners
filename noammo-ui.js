@@ -19,7 +19,7 @@
   const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
-  let gesture = null, suppressClick = false;
+  let gesture = null, suppressClick = false, shiftHeld = false;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
   let overlaySignature = "";
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
@@ -40,6 +40,33 @@
     for (const line of lines) panel.append(element("p", line, "machine-effect"));
   }
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }
+  function renderOutputHistory(list, machine) {
+    const history = factory.recentOutputs(machine.id), signature = JSON.stringify([machine.id, history]);
+    if (list.dataset.signature === signature) return;
+    list.dataset.signature = signature; list.replaceChildren();
+    if (!history.length) { list.append(element("li", "No processed output yet.", "muted")); return; }
+    for (const entry of history) {
+      const value = entry.value === null ? "Unsellable" : Math.abs(entry.quantity - 1) < 1e-8 ? money(entry.value)
+        : `${money(entry.value * entry.quantity)} total · ${number(entry.quantity)} × ${money(entry.value)}`;
+      list.append(element("li", `${entry.grade ? `${entry.grade} · ` : ""}${value}`));
+    }
+  }
+  function renderHoverHistory() {
+    const tooltip = $("historyTooltip");
+    const point = pointer && tile(pointer), machine = point && factory.at.get(A.key(point.x, point.y));
+    const visible = activeTab === "factory" && shiftHeld && machine && A.supportsOutputHistory(machine.type)
+      && !interaction.tool && !interaction.group && !gesture?.active && !interaction.box?.start
+      && (!interaction.box || interaction.box.contextual);
+    tooltip.hidden = !visible;
+    if (!visible) return;
+    text($("historyTooltipTitle"), `${D.machines[machine.type].name} · Last 5 outputs`);
+    renderOutputHistory($("hoverOutputHistory"), machine);
+    const width = Math.min(260, viewport.width - 16);
+    tooltip.style.width = `${width}px`;
+    const height = Math.min(tooltip.offsetHeight || 205, viewport.height - 16);
+    tooltip.style.left = `${Math.max(8, Math.min(pointer.x + 14, viewport.width - width - 8))}px`;
+    tooltip.style.top = `${Math.max(8, Math.min(pointer.y + 14, viewport.height - height - 8))}px`;
+  }
   function element(tag, content, className) {
     const node = document.createElement(tag);
     if (content !== undefined) node.textContent = content;
@@ -202,11 +229,13 @@
   });
   $("cargo").addEventListener("pointermove", (event) => {
     pointer = position(event); interaction.hover = tile(pointer);
+    if (typeof event.shiftKey === "boolean") shiftHeld = event.shiftKey;
     if (gesture) {
       if (Math.hypot(pointer.x - gesture.pixel.x, pointer.y - gesture.pixel.y) >= 8) gesture.active = true;
       if (gesture.active) interaction.marquee = { start: gesture.start, end: interaction.hover };
     }
     if (interaction.box?.start) interaction.box.end = interaction.hover;
+    renderHoverHistory();
   });
   $("cargo").addEventListener("pointerup", (event) => {
     if (!gesture) return;
@@ -220,7 +249,7 @@
     if (event.target !== $("cargo")) { gesture = null; interaction.marquee = null; }
   });
   $("cargo").addEventListener("pointercancel", () => { gesture = null; interaction.marquee = null; });
-  $("cargo").addEventListener("pointerleave", () => { pointer = null; interaction.hover = null; });
+  $("cargo").addEventListener("pointerleave", () => { pointer = null; interaction.hover = null; renderHoverHistory(); });
   $("cargo").addEventListener("contextmenu", (event) => { event.preventDefault(); cancel(); });
   $("cargo").addEventListener("click", (event) => {
     if (activeTab !== "factory") return;
@@ -271,6 +300,7 @@
   document.addEventListener("keydown", (event) => {
     const target = event.target ?? document.activeElement;
     if (["INPUT", "SELECT", "TEXTAREA"].includes(target?.tagName) || target?.isContentEditable) return;
+    if (event.key === "Shift") { shiftHeld = true; renderHoverHistory(); }
     if (event.key === "Escape") cancel();
     if (activeTab !== "factory") return;
     if (event.key === "Shift" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !interaction.tool && !interaction.group) {
@@ -279,6 +309,8 @@
     if (event.key.toLowerCase() === "q") rotate(-1);
     if (event.key.toLowerCase() === "e") rotate(1);
   });
+  document.addEventListener("keyup", (event) => { if (event.key === "Shift") { shiftHeld = false; renderHoverHistory(); } });
+  window.addEventListener("blur", () => { shiftHeld = false; pointer = null; renderHoverHistory(); });
   function renderInspector() {
     const machine = factory.byId.get(interaction.selected), tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
     const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${factory.state.routes.map((route) => route.id).join(",")}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
@@ -305,6 +337,10 @@
         const status = element("p", "", "status"); status.id = "machineStatus";
         panel.append(element("h2", definition.name), status, element("p", definition.description));
         appendMachineEffects(panel, definition);
+        if (A.supportsOutputHistory(machine.type)) {
+          const history = element("ol", undefined, "output-history"); history.id = "outputHistory";
+          panel.append(element("h3", "Last 5 outputs · newest first"), history);
+        }
         const controls = element("div", undefined, "row");
         const move = action("Move", () => {
           interaction.box = null; interaction.marquee = null; gesture = null;
@@ -387,7 +423,9 @@
           const line = element("div", undefined, "route"), status = element("span"); status.id = `status-${route.id}`;
           line.append(status, action("Unassign", () => { factory.removeRoute(route.id); refresh(); }, "secondary")); panel.append(line);
         }
-        if (machine.type === "primitive") panel.append(element("p", `TEST effect: +${money(factory.state.tuning.primitiveBonus)} below ${money(factory.state.tuning.primitiveLimit)}. Adjustable in Options; not final balance.`));
+        if (machine.type === "primitive") panel.append(
+          element("p", `Cash effect: +${money(factory.state.tuning.primitiveBonus)}`, "machine-effect"),
+          element("p", `Upper Limit: ${money(factory.state.tuning.primitiveLimit)}`, "machine-effect"));
       } else {
         panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click a Basket to collect all; other occupied tiles select. Box select can start anywhere."),
@@ -401,6 +439,7 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "gradingBench") {
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0] ?? A.cargo("clay");
@@ -537,13 +576,13 @@
     if (activeTab === "factory") renderInspector();
     if (activeTab === "shop") renderShop();
     if (activeTab === "inventory") renderInventory();
+    renderHoverHistory();
   }
   $("export").addEventListener("click", () => { $("saveText").value = factory.exportSave(); $("saveText").select(); save(); });
   $("import").addEventListener("click", () => {
     try { const replacement = A.Factory.importSave($("saveText").value); backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
-      $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
       save(); refresh(); notify(factory.terrainUpdated ? terrainNotice() : factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
         : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Prototype save imported.");
@@ -553,14 +592,7 @@
     if (!window.confirm("Reset only this opening prototype? Existing mining saves will not be changed.")) return;
     factory = new A.Factory(); storageFailed = false; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
     inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
-    $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
     home(); save(); refresh();
-  });
-  $("primitiveBonus").value = factory.state.tuning.primitiveBonus; $("primitiveLimit").value = factory.state.tuning.primitiveLimit;
-  $("applyTuning").addEventListener("click", () => {
-    const bonus = Number($("primitiveBonus").value), limit = Number($("primitiveLimit").value);
-    if (!Number.isFinite(bonus) || !Number.isFinite(limit) || bonus < 0 || limit < 0) return notify("Enter finite, nonnegative test values.");
-    factory.state.tuning = { primitiveBonus: bonus, primitiveLimit: limit }; inspectorSignature = ""; save(); refresh(); notify("Primitive test values updated.");
   });
   window.addEventListener("resize", resize); window.addEventListener("beforeunload", save);
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); lastFrame = performance.now(); });
@@ -583,7 +615,7 @@
           if (gesture?.active) interaction.marquee = { start: gesture.start, end: interaction.hover };
         }
         const signature = `${factory.layoutVersion}:${camera.x}:${camera.y}:${camera.zoom}:${viewport.width}:${viewport.height}`;
-        if (floorSignature !== signature) { floorSignature = signature; R.drawFloor(floor, factory, camera, viewport); }
+        if (floorSignature !== signature) { floorSignature = signature; R.drawFloor(floor, factory, camera, viewport); renderHoverHistory(); }
         const cargoSignature = `${signature}:${factory.state.seconds}:${interaction.selectedIds.join(",")}:${interaction.tree}:${JSON.stringify(interaction.tool)}:${JSON.stringify(interaction.group)}:${JSON.stringify(interaction.box)}:${JSON.stringify(interaction.marquee)}:${JSON.stringify(interaction.hover)}`;
         if (overlaySignature !== cargoSignature) { overlaySignature = cargoSignature; R.drawOverlay(overlay, factory, camera, viewport, interaction); }
       }

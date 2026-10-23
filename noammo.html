@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=wooden-gears-20261023">
+  <link rel="stylesheet" href="noammo.css?v=shack-2500-20261023">
 </head>
 <body>
   <header class="topbar">
@@ -36,6 +36,10 @@
         <div id="viewport" tabindex="0" aria-label="Factory. Click to place or select. Shift-click empty ground then tap the opposite corner to box-select. Shift-click a Basket to collect; when another object is selected, this only selects the Basket. Box select can start on occupied tiles. Hover near edges to pan. Q and E rotate; Escape cancels.">
           <canvas id="floor" aria-hidden="true"></canvas>
           <canvas id="cargo" aria-label="Interactive factory"></canvas>
+          <div id="historyTooltip" class="history-tooltip" role="tooltip" hidden>
+            <strong id="historyTooltipTitle"></strong>
+            <ol id="hoverOutputHistory" class="output-history"></ol>
+          </div>
           <div class="map-controls">
             <button id="home" title="Return to the starting area">Home</button>
             <button id="zoomOut" aria-label="Zoom out">−</button>
@@ -50,6 +54,7 @@
             <dt>Click</dt><dd>Select machinery, chop a tree, or place the machine you are holding.</dd>
             <dt>Shift-click empty ground</dt><dd>Start box selection; tap the opposite corner to finish. Pressing and releasing Shift, then tapping also works. Hold Shift on a corner to add to your selection.</dd>
             <dt>Shift-click an object</dt><dd>Use its quick action: resource collectors collect all contents. Objects without a quick action are selected instead. If a different object or group is selected, the first Shift-click only selects the target.</dd>
+            <dt>Shift-hover an upgrader or Grading Bench</dt><dd>View its last five processed outputs, newest first. The same history is shown when selected. Grading includes the rolled grade; stacks show total and per-item values.</dd>
             <dt>Box select button</dt><dd>Tap any two corners, even on occupied tiles. You can also drag from empty ground.</dd>
             <dt>Q / E</dt><dd>Rotate counterclockwise / clockwise. Visible Rotate buttons do the same.</dd>
             <dt>Escape / right-click</dt><dd>Cancel placement, movement or box selection; otherwise clear selection. The visible Cancel button works too.</dd>
@@ -78,7 +83,6 @@
             <button data-inventory-category="All" class="active">All</button>
             <button data-inventory-category="Cash">Cash</button>
             <button data-inventory-category="Material">Material</button>
-            <button data-inventory-category="Ammo">Ammo</button>
             <button data-inventory-category="Logistics">Logistics</button>
           </div>
           <div id="machineCards" class="shop-cards"></div>
@@ -104,7 +108,8 @@
       <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots.</p><p>Full batches take 8 seconds and 40u of heat. Each product retains four times its incoming value. Uses 2 crew.</p><p>Stores up to 250u of heat. Both inputs accept fuel or unfired products.</p></article>
       <article class="recipe"><h2>Leek Infuser</h2><p>Adds $0.40 to sellables worth less than $2. Does not consume ingredients during operation.</p></article>
       <article class="recipe"><h2>Brick Seal</h2><p>Adds $1.25, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $15.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Standard on clay products before grading. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
-      <article class="recipe"><h2>Primitive Shack</h2><p>Multiplies value by 2 once, requiring at least $1.20 base value and incoming value below $100. Two independent three-tile conveyor paths.</p></article>
+      <article class="recipe"><h2>Primitive Shack</h2><p>Multiplies value by 2 once, requiring at least $1.20 base value and incoming value below $2.5k. Two independent three-tile conveyor paths.</p></article>
+      <article class="recipe"><h2>Granite Processor</h2><p>Multiplies value by 1.3, up to 12 uses. Requires at least $3.50 base value and incoming value below $525. Two parallel primitive conveyor lanes.</p></article>
       <article class="recipe"><h2>Primitive Conveyor Bridge</h2><p>A three-tile span carrying one stream over an ordinary conveyor. Only its middle tile can overlap a ground conveyor; the entrance and exit need clear space.</p><p>Costs $10 and four unplaced Primitive Conveyors.</p></article>
       <article class="recipe"><h2>Primitive Stacker</h2><p>Combines matching items into stacks of the typed size (1–2). Accepts from three sides and outputs in its facing direction. Requires kinetic power and takes two seconds per outgoing stack.</p></article>
       <article class="recipe"><h2>Grading Bench</h2><p>Grades one stack in 1 second per total weight, using 1 crew.</p><p>Ordinary Clay products start with 20% Poor, 60% Standard and 20% Fine; stone starts at 100% Standard. Poor ×0.75, Standard ×1.5, Fine ×2.5, Remarkable ×8, Exceptional ×25.</p><p>Combining stacks averages actual unit values and pre-grading quality modifiers, keeps each upgrader's highest use count and combines its tags. If any input is graded, the whole stack is graded and cannot roll again. Splitting preserves these properties.</p></article>
@@ -116,17 +121,12 @@
       <p>The Grading Bench applies grades and sale multipliers to factory cargo. Brick Seal repairs affect the first grading roll. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
       <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
-      <details open><summary>Unsettled balance — test settings</summary>
-        <p>The Primitive Upgrader’s new effect has not been agreed. These editable test values are not a settled balance change.</p>
-        <div class="row"><label>Additive effect $<input id="primitiveBonus" type="number" min="0" step="0.05"></label><label>Incoming value ceiling $<input id="primitiveLimit" type="number" min="0" step="0.1"></label><button id="applyTuning">Apply test values</button></div>
-        <p>The hand-operated Extractor currently takes 2 seconds and one crew; the Wheel uses one crew. These are visible prototype assumptions to test, not new purchase requirements.</p>
-      </details>
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=wooden-gears-20261023"></script>
-  <script src="noammo-simulation.js?v=wooden-gears-20261023"></script>
-  <script src="noammo-renderer.js?v=wooden-gears-20261023"></script>
-  <script src="noammo-ui.js?v=wooden-gears-20261023"></script>
+  <script src="noammo-data.js?v=shack-2500-20261023"></script>
+  <script src="noammo-simulation.js?v=shack-2500-20261023"></script>
+  <script src="noammo-renderer.js?v=shack-2500-20261023"></script>
+  <script src="noammo-ui.js?v=shack-2500-20261023"></script>
 </body>
 </html>
