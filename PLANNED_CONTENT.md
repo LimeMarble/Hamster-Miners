@@ -112,7 +112,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   The lower-left tile remains free, including placement, selection and previews.
   The lower-right working tile takes input from the left and outputs right;
   rotation moves both ports and the three occupied cells together. Each bench
-  holds at most 2 waiting Clay and 1 finished product. Partial pot ingredients
+  holds at most 2 waiting Clay and 1 buffered finished product while the next
+  job runs. A ready job waits if that single finished slot remains full. Output
+  unloads after downstream conveyors release, and newly arrived Clay can start
+  the next job that same tick. Partial pot ingredients
   wait for the second Clay. A mode change affects the next job, not the running
   one. Modes, remaining processing time and contents survive moves/saves; normal
   pickup recovers unfinished Clay and completed products once.
@@ -230,7 +233,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   using actual upgraded stack proceeds and shared number notation. Feedback
   rises/fades, stays bounded, and is not part of saves or cash accounting.
 - Primitive Conveyor costs $1, 10 Wood and four Wooden Gears per tile. One object per belt tile,
-  weight capacity 5 and two-second transit (speed 5). Primitive Upgrader and
+  weight capacity 2 and two-second transit (speed 5). Primitive Upgrader and
   Brick Seal belts share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
   and one operating hamster; the Wheel uses one hamster. These were not supplied
@@ -262,7 +265,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   One waiting batch, no accumulated blocked cycles. Mode and contents survive
   moves and saves; changing mode does not rewrite existing output.
 - All new machines use zero crew. Primitive conveyors retain two-second tile
-  transit, weight capacity 5 and Conveyor Drive power; multi-cell conveyors
+  transit, weight capacity 2 and Conveyor Drive power; multi-cell conveyors
   advance one tile at a time, without instantaneous internal transfers.
 - Basic stone base values: Chert/Granite/Limestone $0.10, Corundum $1;
   stones use the Standard-only base grading table. Native Copper base $1.50.
@@ -272,6 +275,35 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   cargo's actual value and upgrade history are preserved by the balance change.
 - Still unsettled: later Stacker cost/specification, revised Rock Shack,
   final Granite Processor, and later mineral extraction/smelting machinery.
+
+## Manual Overflow and primitive belt capacity (implemented, 2026-10-25)
+
+- Manual Overflow costs $2, 20 Wood, two owned Primitive Conveyors and two
+  Wooden Gears. Logistics category, one crew. The two middle cells are the
+  ordinary straight conveyor route. If its input cargo cannot proceed, the
+  hamster carries one stack to the selected upper or lower output in exactly
+  two seconds, without weight/distance adjustments or an extra unload delay.
+- Reference footprint is two columns by three rows. Both outer-left output
+  cells, middle-left input and middle-right normal output are always occupied.
+  Only the selected outer-right hamster cell is occupied; the other is free.
+  Up is the initial mode. All cells and ports rotate together.
+- Changing mode requires the new hamster cell to be free. Refusal is atomic;
+  successful changes preserve carried cargo and the remaining transfer time.
+  Normal downstream releases are resolved before overflow, including adjacent
+  Overflow machines. Blocked hand deliveries hold their single stack and do
+  not accumulate extra transfers. Manual carrying continues if belt power is
+  removed; the ordinary conveyors retain their normal power requirement.
+- Selection, previews, single/group movement, pickup and save/import use the
+  selected footprint. Carried cargo, normal belt cargo and all metadata remain
+  instance-owned. Pickup recovers each item once and preserves the stored mode.
+- Noammo primitive belts and built-in primitive conveyor lanes now carry at
+  most two weight, including Stackers and Bridges. Transit remains two seconds
+  per tile. Older five-weight belt stacks split on import: the legal front
+  portion stays on the belt and its remainder waits on that same instance,
+  releasing legal portions at normal transit speed. Material quantity, value
+  and upgrade/grade metadata are preserved. Pickup also recovers remainders.
+- Existing saves gain zero Overflow stock, not a free machine. No legacy
+  mining-game capacity or production balance is changed.
 
 ## Granite Processor (implemented, 2026-10-23)
 

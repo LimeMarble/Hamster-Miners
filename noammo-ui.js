@@ -131,7 +131,8 @@
   function build(type) {
     if (!(factory.state.stock[type] > 0)) { shopSelection = type; shopSignature = ""; setTab("shop"); return; }
     select([]); interaction.group = null; interaction.box = null;
-    interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right" };
+    interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right",
+      mode: factory.state.storedMachines.find((machine) => machine.type === type)?.mode ?? D.machines[type].defaultMode };
     setTab("factory"); inspectorSignature = ""; refresh();
   }
   function select(ids) {
@@ -287,6 +288,7 @@
       const response = tool.id ? factory.move(tool.id, point.x, point.y, tool.facing) : factory.place(tool.type, point.x, point.y, tool.facing);
       if (response.error) return notify(response.error);
       if (tool.id || !factory.state.stock[tool.type]) interaction.tool = null;
+      else tool.mode = factory.state.storedMachines.find((machine) => machine.type === tool.type)?.mode ?? D.machines[tool.type].defaultMode;
       select([response.machine.id]);
     } else {
       const machine = factory.at.get(A.key(point.x, point.y)), tree = factory.treeAt.get(A.key(point.x, point.y));
@@ -344,7 +346,7 @@
         const controls = element("div", undefined, "row");
         const move = action("Move", () => {
           interaction.box = null; interaction.marquee = null; gesture = null;
-          interaction.tool = { type: machine.type, id: machine.id, facing: machine.facing }; refresh();
+          interaction.tool = { type: machine.type, id: machine.id, facing: machine.facing, mode: machine.mode }; refresh();
         }); move.id = "moveMachine";
         const pickup = action("Pick up", () => {
           factory.pickup(machine.id); select([]); interaction.tool = null; interaction.box = null; interaction.marquee = null; gesture = null; refresh();
@@ -352,6 +354,21 @@
         controls.append(move, pickup);
         panel.append(controls);
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
+        if (definition.manualTransferSeconds) {
+          const label = element("label", "Overflow side "), mode = element("select");
+          mode.id = "overflowMode"; mode.setAttribute("aria-label", "Overflow side");
+          for (const [id, name] of [["up", "Upper side"], ["down", "Lower side"]]) {
+            const option = element("option", name); option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => {
+            const response = factory.setOverflowMode(machine.id, mode.value);
+            if (response.error) mode.value = machine.mode;
+            else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
+            result(response);
+          });
+          label.append(mode); panel.append(label);
+        }
         if (machine.type === "kiln") {
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
@@ -385,7 +402,8 @@
           }
           mode.value = machine.mode;
           mode.addEventListener("change", () => result(factory.setShapingMode(machine.id, mode.value)));
-          label.append(mode); panel.append(label, element("p", "Mode changes apply to the next job. The lower working tile accepts Clay from behind and outputs in the facing direction.", "muted"));
+          const buffers = element("p"); buffers.id = "shapingBuffers";
+          label.append(mode); panel.append(label, buffers, element("p", "Mode changes apply to the next job. The lower working tile accepts Clay from behind and outputs in the facing direction.", "muted"));
         }
         if (machine.type === "gradingBench") {
           const chance = element("p"); chance.id = "gradingChances";
@@ -441,6 +459,7 @@
       text($("machineStatus"), factory.status(machine));
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
+      if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit)} · Finished items: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "gradingBench") {
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0] ?? A.cargo("clay");
         const probabilities = A.gradeProbabilities(item);

@@ -577,16 +577,16 @@ test("Logger is inside the tree, uses crew, faces outward and produces Wood on a
   }
 });
 
-test("unpowered belts reject cargo; powered lanes have one object, weight 5 and no same-tick chain teleport", () => {
+test("unpowered belts reject cargo; powered lanes have one object, weight 2 and no same-tick chain teleport", () => {
   const { factory } = poweredFactory();
   const first = place(factory, "belt", 21, 26), second = place(factory, "belt", 22, 26);
   const distant = place(factory, "belt", 60, 60);
   assert.equal(factory.receive(distant, cargo("leek", 1), 60, 60, "left", true), 0);
-  assert.equal(factory.receive(first, cargo("leek", 20), 21, 26, "left", true), 5);
+  assert.equal(factory.receive(first, cargo("leek", 20), 21, 26, "left", true), 2);
   assert.equal(factory.receive(first, cargo("leek", 1), 21, 26, "left", true), 0);
   advance(factory, D.config.beltSeconds);
   assert.equal(first.lanes[0], undefined);
-  assert.equal(second.lanes[0].quantity, 5);
+  assert.equal(second.lanes[0].quantity, 2);
   assert.equal(second.lanes[0].progress, 0);
 });
 

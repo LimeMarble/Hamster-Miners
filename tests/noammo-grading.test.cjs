@@ -158,14 +158,14 @@ test("integer-capacity belt splitting copies all stack properties and preserves 
   const factory = new Factory(createState(1));
   place(factory, "wheel", 20, 20); place(factory, "drive", 21, 22, "up");
   const belt = place(factory, "belt", 23, 24);
-  const source = { ...A.cargo("brick", 8.5, 12.75), graded: true,
+  const source = { ...A.cargo("brick", 3.5, 12.75), graded: true,
     upgrades: { brickSeal: 9, primitive: 5, oneOff: true }, gradeRepairs: { brickSeal: 2.5 } };
   const before = A.copy(source);
   const accepted = factory.receive(belt, source, belt.x, belt.y, "left", true);
-  assert.equal(accepted, 5); assert.deepEqual(source, before, "receive leaves source accounting to its caller");
+  assert.equal(accepted, 2); assert.deepEqual(source, before, "receive leaves source accounting to its caller");
   source.quantity -= accepted;
   const first = A.copy(belt.lanes[0]); delete belt.lanes[0];
-  assert.equal(factory.receive(belt, source, belt.x, belt.y, "left", true), 3.5);
+  assert.equal(factory.receive(belt, source, belt.x, belt.y, "left", true), 1.5);
   const second = belt.lanes[0];
   for (const piece of [first, second]) {
     assert.equal(piece.graded, true); assert.equal(piece.value, before.value);

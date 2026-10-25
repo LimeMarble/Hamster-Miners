@@ -17,7 +17,7 @@ for (const type of Object.keys(D.machines).filter(type => A.supportsOutputHistor
   test(`${type}: history has only the latest five processed values, newest first, including unchanged capped passes`, () => {
     const { f, m } = powered(type), expected = [];
     for (let i = 0; i < 7; i++) {
-      const item = cargo('pot', 2, 2500 + i); // Above every early upgrader ceiling.
+      const item = cargo('brick', 2, 2500 + i); // Above every early upgrader ceiling.
       assert.equal(feed(f, m, item), 2); f.update(6);
       const result = Object.values(m.lanes)[0]; assert.ok(result);
       expected.unshift({ value: result.value, quantity: 2, grade: null }); expected.length = Math.min(5, expected.length);
@@ -31,7 +31,7 @@ for (const type of Object.keys(D.machines).filter(type => A.supportsOutputHistor
 
 test('Upgrader records actual post-effect unit value and quantity, not input value or a rounded cash total', () => {
   const { f, m } = powered('brickSeal');
-  feed(f, m, cargo('pot', 2, 4.12345)); f.update(1);
+  feed(f, m, cargo('brick', 2, 4.12345)); f.update(1);
   assert.deepEqual(f.recentOutputs(m.id), [{ value: 5.37345, quantity: 2, grade: null }]);
   const snapshot = f.recentOutputs(m.id); m.lanes[0].value = 500; assert.deepEqual(f.recentOutputs(m.id), snapshot);
 });

@@ -36,7 +36,8 @@
   }
   function cells(machine) {
     const definition = D.machines[machine.type];
-    if (definition.footprint) return definition.footprint.map(([x, y]) => {
+    const footprint = definition.modeFootprints?.[machine.mode ?? definition.defaultMode] ?? definition.footprint;
+    if (footprint) return footprint.map(([x, y]) => {
       const point = rotatePoint(x, y, definition.width, definition.height, D.directions[rotation(machine)]);
       return { x: machine.x + point.x, y: machine.y + point.y };
     });
@@ -56,9 +57,10 @@
   function ports(machine) {
     const result = [], add = (x, y, direction, role) => result.push(port(machine, x, y, direction, role));
     const configured = D.machines[machine.type].ports;
-    if (configured) return configured.map((point) => ({
+    if (configured) return configured.filter((point) => !point.mode || point.mode === (machine.mode ?? D.machines[machine.type].defaultMode)).map((point) => ({
       ...port(machine, point.x, point.y, point.direction, point.role),
       ...(point.material ? { material: point.material } : {}),
+      ...(point.mode ? { mode: point.mode } : {}),
     }));
     if (D.machines[machine.type].centeredOutput) {
       const definition = D.machines[machine.type];
@@ -239,7 +241,7 @@
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
-      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1,
+      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1, manualOverflowVersion: 1, beltCapacityVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -323,9 +325,9 @@
       const used = this.state.machines.reduce((sum, machine) => sum + (D.machines[machine.type].crew ?? 0), 0);
       return this.totalCrew() - used - this.state.routes.length;
     }
-    placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null) {
+    placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null, mode = undefined) {
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
-      const machine = { type, x, y, facing }, occupied = cells(machine);
+      const machine = { type, x, y, facing, mode: mode ?? this.byId.get(ignoreId)?.mode ?? D.machines[type].defaultMode }, occupied = cells(machine);
       if (occupied.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= D.config.columns || cell.y >= D.config.rows)) return "Outside the factory.";
       if (occupied.some((cell) => {
         return (this.occupantsAt.get(key(cell.x, cell.y)) ?? []).some((other) =>
@@ -345,11 +347,11 @@
       return null;
     }
     place(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right") {
-      const error = this.placement(type, x, y, facing);
+      const storedIndex = this.state.storedMachines.findIndex((machine) => machine.type === type);
+      const error = this.placement(type, x, y, facing, null, this.state.storedMachines[storedIndex]?.mode);
       if (error) return { error };
       if (!(this.state.stock[type] > 0)) return { error: "No owned machine to place." };
       this.state.stock[type]--;
-      const storedIndex = this.state.storedMachines.findIndex((machine) => machine.type === type);
       const stored = storedIndex < 0 ? null : this.state.storedMachines.splice(storedIndex, 1)[0];
       const machine = Object.assign(stored ?? { id: `machine-${this.state.nextId++}`, type, timer: 0,
         input: [], output: [], contents: [], lanes: {}, job: null,
@@ -389,12 +391,13 @@
           [dx, dy], [height - dy - bounds.height, dx],
           [width - dx - bounds.width, height - dy - bounds.height], [dy, width - dx - bounds.width],
         ][rotation];
-        return { id: machine.id, type: machine.type, x: x + offsets[0], y: y + offsets[1], facing: turn(machine.facing, rotation) };
+        return { id: machine.id, type: machine.type, x: x + offsets[0], y: y + offsets[1], facing: turn(machine.facing, rotation),
+          ...(machine.mode ? { mode: machine.mode } : {}) };
       });
       let error = null;
       const occupied = new Map();
       for (const machine of planned) {
-        error ||= this.placement(machine.type, machine.x, machine.y, machine.facing, selected);
+        error ||= this.placement(machine.type, machine.x, machine.y, machine.facing, selected, machine.mode);
         for (const cell of cells(machine)) {
           const position = key(cell.x, cell.y);
           const others = occupied.get(position) ?? [];
@@ -435,11 +438,12 @@
       if (collectorCapacity(machine)) this.collect(id);
       // A pickup ends linked haul jobs; carried resources are recovered once, never copied.
       for (const route of this.state.routes.filter((route) => route.source === id || route.destination === id)) this.removeRoute(route.id);
-      for (const item of [...machine.input, ...machine.output, ...Object.values(machine.lanes)]) {
+      for (const item of [...machine.input, ...machine.output, ...Object.values(machine.lanes), ...Object.values(machine.beltRemainders ?? {})]) {
         if (validCargo(item)) this.state.inventory[item.material] += item.quantity;
       }
       for (const item of jobInputs(machine.job)) this.state.inventory[item.material] += item.quantity;
       machine.input = []; machine.output = []; machine.contents = []; machine.lanes = {}; machine.job = null; machine.timer = 0;
+      delete machine.beltRemainders;
       this.state.machines = this.state.machines.filter((other) => other !== machine);
       this.state.stock[machine.type]++;
       this.state.storedMachines.push(machine);
@@ -507,6 +511,21 @@
       return this.sell([cargo(material, count)]);
     }
     total(machine, field) { return machine[field].reduce((sum, item) => sum + item.quantity, 0); }
+    setOverflowMode(id, mode) {
+      const machine = this.byId.get(id), definition = D.machines[machine?.type];
+      if (!definition?.manualTransferSeconds || !Object.hasOwn(definition.modeFootprints, mode)) return { error: "Invalid overflow mode." };
+      if (machine.mode === mode) return { machine };
+      const error = this.placement(machine.type, machine.x, machine.y, machine.facing, id, mode);
+      if (error) return { error: "The other hamster position must be clear to change overflow mode." };
+      machine.mode = mode; this.rebuild();
+      return { machine };
+    }
+    unloadManualOverflow(machine) {
+      if (!machine.job || machine.job.remaining > epsilon) return;
+      const output = ports(machine).find((point) => point.mode);
+      machine.job.input.quantity -= this.send(machine, machine.job.input, output);
+      if (machine.job.input.quantity <= epsilon) machine.job = null;
+    }
     setStackSize(id, value) {
       const machine = this.byId.get(id), definition = D.machines[machine?.type];
       const amount = typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : value;
@@ -533,7 +552,7 @@
     }
     startShaping(machine) {
       const definition = D.machines[machine.type], recipe = definition.recipes[machine.mode];
-      if (machine.job || machine.output.length || this.total(machine, "input") + epsilon < recipe.input
+      if (machine.job || machine.output.length > (definition.outputBuffer ?? 0) || this.total(machine, "input") + epsilon < recipe.input
         || (definition.requiresKinetic && !this.kineticHasWheel(machine))) return;
       let needed = recipe.input;
       const ingredients = [];
@@ -544,6 +563,22 @@
         if (item.quantity <= epsilon) machine.input.shift();
       }
       machine.job = { input: combineCargo(ingredients), mode: machine.mode, remaining: recipe.seconds };
+    }
+    finishShaping(machine) {
+      if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
+      const recipe = D.machines[machine.type].recipes[machine.job.mode];
+      const product = blendGradeRepairs(cargo(recipe.output, 1, machine.job.input.value * recipe.input * recipe.valueMultiplier), [machine.job.input]);
+      if (recipe.gradeProfile) product.gradeProfile = [...recipe.gradeProfile];
+      machine.output.push(product); machine.job = null;
+    }
+    unloadShaping(machine) {
+      if (machine.output.length) {
+        const item = machine.output[0], output = ports(machine).find((point) => point.role === "output");
+        item.quantity -= this.send(machine, item, output);
+        if (item.quantity <= epsilon) machine.output.shift();
+      }
+      this.finishShaping(machine);
+      this.startShaping(machine);
     }
     startGrading(machine) {
       if (machine.job || machine.output.length || !machine.input.length) return;
@@ -614,6 +649,7 @@
       return false;
     }
     receiveConveyor(machine, item, tile, consume, lateral = null) {
+      if (machine.beltRemainders?.[tile.index]) return 0;
       const elevated = Boolean(D.machines[machine.type].bridge);
       const stacking = Boolean(D.machines[machine.type].maxStackSize), existing = machine.lanes[tile.index];
       if (stacking && existing && (existing.material !== item.material || (existing.lateral ?? null) !== lateral)) return 0;
@@ -806,8 +842,13 @@
       if (this.saleTexts.length) this.saleTexts = this.saleTexts.filter((entry) => state.seconds - entry.created < 1.2);
       state.clickTokens = Math.min(1, state.clickTokens + seconds * D.config.clicksPerSecond);
       // Arrivals cannot traverse a second belt during the same simulation step.
-      const oldLanes = state.machines.flatMap((machine) => Object.entries(machine.lanes).map(([lane, item]) => ({ machine, lane, item,
-        ready: !D.machines[machine.type].maxStackSize || item.quantity + epsilon >= this.stackTarget(machine, item) })));
+      const oldLanes = state.machines.flatMap((machine) => {
+        const entries = Object.entries(machine.lanes);
+        // Release the straight outlet before deciding whether its inlet is blocked.
+        if (D.machines[machine.type].manualTransferSeconds) entries.reverse();
+        return entries.map(([lane, item]) => ({ machine, lane, item,
+          ready: !D.machines[machine.type].maxStackSize || item.quantity + epsilon >= this.stackTarget(machine, item) }));
+      });
       for (const machine of state.machines) {
         const definition = D.machines[machine.type];
         if (definition.batchOutputs) {
@@ -827,6 +868,8 @@
               machine.output.push(cargo(definition.source ?? machine.mode, definition.sourceQuantity ?? 1));
             }
           }
+        } else if (definition.manualTransferSeconds && machine.job) {
+          machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
         } else if (machine.type === "fiber") {
           if (machine.job) {
             machine.job.remaining -= seconds;
@@ -840,13 +883,7 @@
           }
         } else if (definition.craftInput && machine.job) {
           if (!definition.requiresKinetic || this.kineticHasWheel(machine)) machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
-          if (machine.job.remaining <= epsilon && !machine.output.length) {
-            const recipe = definition.recipes[machine.job.mode];
-            const product = blendGradeRepairs(cargo(recipe.output, 1, machine.job.input.value * recipe.input * recipe.valueMultiplier), [machine.job.input]);
-            if (recipe.gradeProfile) product.gradeProfile = [...recipe.gradeProfile];
-            machine.output.push(product);
-            machine.job = null;
-          }
+          this.finishShaping(machine);
         } else if (machine.type === "gradingBench" && machine.job) {
           machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
           if (machine.job.remaining <= epsilon && !machine.output.length) {
@@ -861,7 +898,7 @@
           // A previous finished batch may unload while the next one fires.
           this.startKiln(machine);
         }
-        if (!["kiln", "gradingBench"].includes(machine.type) && !definition.batchOutputs && machine.output.length) {
+        if (!["kiln", "gradingBench"].includes(machine.type) && !definition.batchOutputs && !definition.outputBuffer && machine.output.length) {
           const item = machine.output[0];
           for (const output of ports(machine).filter((point) => point.role === "output")) {
             item.quantity -= this.send(machine, item, output);
@@ -877,7 +914,8 @@
       // departing output as a blockage. New arrivals still wait for the next step.
       const stackers = new Map(oldLanes.filter(({ machine }) => D.machines[machine.type].maxStackSize)
         .map((entry) => [entry.machine.id, entry]));
-      const orderedLanes = oldLanes.filter(({ machine }) => !D.machines[machine.type].maxStackSize), visited = new Set();
+      const orderedLanes = oldLanes.filter(({ machine }) => !D.machines[machine.type].maxStackSize
+        && !D.machines[machine.type].manualTransferSeconds), visited = new Set();
       // Resolve occupied Stacker chains downstream first, independent of placement
       // order. Mark before following links so a closed loop cannot recurse forever.
       for (const entry of stackers.values()) {
@@ -890,8 +928,27 @@
         }
         while (chain.length) orderedLanes.push(chain.pop());
       }
+      // Check overflow only after downstream belts/Stackers have released. A
+      // departing normal output must never trigger a spurious hand transfer.
+      const overflows = new Map();
+      for (const entry of oldLanes) if (D.machines[entry.machine.type].manualTransferSeconds) {
+        if (!overflows.has(entry.machine.id)) overflows.set(entry.machine.id, []);
+        overflows.get(entry.machine.id).push(entry);
+      }
+      const overflowVisited = new Set();
+      for (const entries of overflows.values()) {
+        const chain = []; let next = entries;
+        while (next && !overflowVisited.has(next[0].machine.id)) {
+          const machine = next[0].machine;
+          overflowVisited.add(machine.id); chain.push(next);
+          const output = ports(machine).find((point) => point.role === "output" && !point.mode), v = D.vectors[output.direction];
+          next = overflows.get(this.at.get(key(output.x + v.x, output.y + v.y))?.id);
+        }
+        while (chain.length) orderedLanes.push(...chain.pop());
+      }
       for (const { machine, lane, item, ready } of orderedLanes) {
         if (machine.lanes[lane] !== item) continue;
+        if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
         if (!ready) continue;
         const output = conveyorCells(machine)[Number(lane)];
         if (!output || !this.powered(output.x, output.y)) continue;
@@ -918,8 +975,20 @@
           item.quantity -= accepted;
           if (stacking && accepted > epsilon) item.progress = 0;
           if (item.quantity <= epsilon) delete machine.lanes[lane];
+          else if (D.machines[machine.type].manualTransferSeconds && Number(lane) === 0 && accepted <= epsilon && !machine.job) {
+            // One bounded carried stack. The hand transfer has its own fixed
+            // duration, independent of distance, weight and conveyor power.
+            machine.job = { input: { ...copy(item), progress: 0 }, remaining: D.machines[machine.type].manualTransferSeconds };
+            delete machine.job.input.lateral;
+            delete machine.lanes[lane];
+          }
         }
       }
+      for (const machine of state.machines) if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
+      // A buffered shaping bench can work while one finished item waits. Let
+      // its departing conveyor cargo clear before unloading and queueing work.
+      for (const machine of state.machines) if (D.machines[machine.type].craftInput
+        && D.machines[machine.type].outputBuffer) this.unloadShaping(machine);
       // Belts release their old cargo first: a Kiln must not see its own
       // departing product as a blockage and lose an extra tick every output.
       for (const machine of state.machines) if (machine.type === "kiln") this.unloadKiln(machine);
@@ -927,9 +996,25 @@
       // Like the Kiln, batch sources must not lose throughput by seeing their
       // own departing belt cargo as a blocked outlet on the next cycle.
       for (const machine of state.machines) if (D.machines[machine.type].batchOutputs) this.unloadBatchSource(machine);
+      // Old saves can contain one heavier stack per belt cell. Keep its
+      // remainder on that instance and release legal portions without bursts.
+      for (const machine of state.machines) for (const [lane, item] of Object.entries(machine.beltRemainders ?? {})) {
+        if (machine.lanes[lane]) continue;
+        const quantity = Math.min(item.quantity, Math.floor(D.config.beltWeight / D.materials[item.material].weight));
+        machine.lanes[lane] = { ...copy(item), quantity, progress: 0, fresh: true };
+        item.quantity -= quantity;
+        if (item.quantity <= epsilon) delete machine.beltRemainders[lane];
+        if (!Object.keys(machine.beltRemainders).length) delete machine.beltRemainders;
+      }
       for (const route of [...state.routes]) this.updateRoute(route, seconds);
     }
     status(machine) {
+      if (D.machines[machine.type].manualTransferSeconds) {
+        if (machine.job) return machine.job.remaining <= epsilon ? "Overflow output blocked"
+          : `Redirecting cargo · ${formatNumber(machine.job.remaining)}s`;
+        return conveyorCells(machine).every((point) => this.powered(point.x, point.y))
+          ? "Straight route first · manual overflow ready" : "Conveyors waiting for kinetic power";
+      }
       if (D.machines[machine.type].craftInput && D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
       if (D.machines[machine.type].maxStackSize) {
         if (!this.powered(machine.x, machine.y)) return "Waiting for kinetic power";
@@ -965,7 +1050,8 @@
         if (this.total(machine, "input") < recipe.input) return `Waiting for a full batch · ${this.total(machine, "input")} / ${recipe.input}`;
         return `Waiting for heat · ${recipe.seconds * D.machines.kiln.heatPerSecond}u required`;
       }
-      if (machine.job) return `Processing · ${Math.max(0, machine.job.remaining).toFixed(1)}s`;
+      if (machine.job) return machine.job.remaining <= epsilon && D.machines[machine.type].craftInput
+        ? "Output blocked" : `Processing · ${Math.max(0, machine.job.remaining).toFixed(1)}s`;
       if (machine.output.length) return "Output waiting";
       if (machine.type === "fiber") return "Waiting for a Leek · hand operated";
       if (machine.type === "clayShaper") return `Waiting for ${D.machines.clayShaper.recipes[machine.mode].input} Clay · hand operated`;
@@ -979,6 +1065,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.manualOverflowVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "manualOverflow")) state.stock.manualOverflow = 0;
+        state.manualOverflowVersion = 1;
+      }
       if ((state.graniteProcessorVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "graniteProcessor")) state.stock.graniteProcessor = 0;
         state.graniteProcessorVersion = 1;
@@ -1066,6 +1156,20 @@
         for (const route of state.routes) migrateCargo(route.item);
         state.gradingVersion = 2;
       }
+      if ((state.beltCapacityVersion ?? 0) < 1) {
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          if (machine.beltRemainders !== undefined) throw new Error("Unexpected legacy conveyor remainder.");
+          for (const [lane, item] of Object.entries(machine.lanes ?? {})) {
+            if (!validCargo(item) || item.quantity * D.materials[item.material].weight > 5 + epsilon) throw new Error("Invalid legacy conveyor cargo.");
+            const capacity = Math.floor(D.config.beltWeight / D.materials[item.material].weight);
+            if (item.quantity <= capacity + epsilon) continue;
+            machine.beltRemainders ??= {};
+            machine.beltRemainders[lane] = { ...copy(item), quantity: item.quantity - capacity, progress: 0 };
+            item.quantity = capacity;
+          }
+        }
+        state.beltCapacityVersion = 1;
+      }
       for (const field of ["cash", "earned", "seconds", "harvestedWood", "producedFiber", "soldItems"]) {
         if (!Number.isFinite(state[field]) || state[field] < 0) throw new Error(`Invalid ${field}.`);
       }
@@ -1088,7 +1192,10 @@
         ids.add(machine.id);
         if (!Number.isInteger(machine.x) || !Number.isInteger(machine.y) || !Number.isFinite(machine.timer) || machine.timer < 0) throw new Error("Invalid machine position or timer.");
         if (![machine.input, machine.output, machine.contents].every(Array.isArray) || !machine.lanes || typeof machine.lanes !== "object") throw new Error("Invalid machine buffers.");
-        for (const item of [...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes)]) if (!validCargo(item)) throw new Error("Invalid cargo.");
+        if (machine.beltRemainders !== undefined && (!machine.beltRemainders || typeof machine.beltRemainders !== "object"
+          || Array.isArray(machine.beltRemainders))) throw new Error("Invalid conveyor remainders.");
+        for (const item of [...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes),
+          ...Object.values(machine.beltRemainders ?? {})]) if (!validCargo(item)) throw new Error("Invalid cargo.");
         if (machine.job && (machine.type !== "kiln" && !validCargo(machine.job.input)
           || !Number.isFinite(machine.job.remaining))) throw new Error("Invalid production job.");
         if (collectorCapacity(machine) && machine.contents.reduce((sum, item) => sum + item.quantity, 0) > collectorCapacity(machine) + epsilon) throw new Error("Collector exceeds capacity.");
@@ -1098,6 +1205,16 @@
           || machine.output.some((item) => item.material !== "leekFiber")
           || (machine.job && (machine.job.input.material !== "leek" || machine.job.input.quantity !== 1)))) throw new Error("Invalid Fiber buffer.");
         if (!collectorCapacity(machine) && machine.contents.length) throw new Error("Only resource collectors hold collector contents.");
+        if (D.machines[machine.type].manualTransferSeconds) {
+          if (!Object.hasOwn(D.machines[machine.type].modeFootprints, machine.mode)
+            || machine.input.length || machine.output.length || machine.timer !== 0
+            || Object.keys(machine.lanes).some((lane) => lane !== "0" && lane !== "1")
+            || (machine.job && (machine.job.remaining < 0 || machine.job.remaining > D.machines[machine.type].manualTransferSeconds
+              || machine.job.input.lateral !== undefined
+              || machine.job.input.quantity * D.materials[machine.job.input.material].weight > D.config.beltWeight + epsilon))) {
+            throw new Error("Invalid Manual Overflow mode or carried cargo.");
+          }
+        }
         if (D.machines[machine.type].maxStackSize && (!Number.isInteger(machine.stackSize)
           || machine.stackSize < 1 || machine.stackSize > D.machines[machine.type].maxStackSize
           || Object.keys(machine.lanes).some((lane) => lane !== "0")
@@ -1121,7 +1238,8 @@
             || machine.output.length > 1
             || machine.output.some((item) => !Object.values(recipes).some((outputRecipe) => outputRecipe.output === item.material) || item.quantity !== 1)
             || (machine.job && (!recipe || machine.job.input.material !== definition.craftInput || machine.job.input.quantity !== recipe.input
-              || machine.job.remaining < 0 || machine.job.remaining > recipe.seconds || machine.output.length))) throw new Error(`Invalid ${definition.name} buffer or mode.`);
+              || machine.job.remaining < 0 || machine.job.remaining > recipe.seconds
+              || machine.output.length > (definition.outputBuffer ?? 0)))) throw new Error(`Invalid ${definition.name} buffer or mode.`);
         }
         if (machine.type === "kiln") {
           const definition = D.machines.kiln, inputRecipe = definition.recipes[machine.input[0]?.material];
@@ -1138,7 +1256,8 @@
               || machine.job.inputs.reduce((sum, item) => sum + item.quantity, 0) !== jobRecipe.input
               || machine.job.remaining < 0 || machine.job.remaining > jobRecipe.seconds))) throw new Error("Invalid Kiln heat, batch or output buffer.");
         }
-        if (!D.machines[machine.type].craftInput && !["fiber", "kiln", "gradingBench"].includes(machine.type) && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
+        if (!D.machines[machine.type].craftInput && !D.machines[machine.type].manualTransferSeconds
+          && !["fiber", "kiln", "gradingBench"].includes(machine.type) && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
         const sourceDefinition = D.machines[machine.type], sourceMaterial = sourceDefinition.source;
         if (sourceDefinition.sourceModes && (!Object.hasOwn(sourceDefinition.sourceModes, machine.mode)
           || machine.timer > sourceDefinition.cycle + epsilon
@@ -1155,6 +1274,12 @@
         const laneCount = conveyorCells(machine).length;
         for (const [lane, item] of Object.entries(machine.lanes)) {
           if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > D.config.beltWeight + epsilon) throw new Error("Invalid conveyor cargo.");
+        }
+        for (const [lane, item] of Object.entries(machine.beltRemainders ?? {})) {
+          const active = machine.lanes[lane];
+          if (!/^(0|[1-9]\d*)$/.test(lane) || Number(lane) >= laneCount || item.progress !== 0
+            || (active && active.material !== item.material)
+            || (item.quantity + (active?.quantity ?? 0)) * D.materials[item.material].weight > 5 + epsilon) throw new Error("Invalid conveyor remainder.");
         }
       }
       if (!Number.isInteger(state.nextId) || state.nextId < 1 || !Number.isInteger(state.random)) throw new Error("Invalid identity state.");
@@ -1193,7 +1318,7 @@
       for (const machine of ordered) {
         // Terrain migration picks everything up below. Do not reject an old
         // Logger or a corrected footprint before its contents can be recovered.
-        const error = terrainUpdated ? null : factory.placement(machine.type, machine.x, machine.y, machine.facing);
+        const error = terrainUpdated ? null : factory.placement(machine.type, machine.x, machine.y, machine.facing, null, machine.mode);
         if (error && migrateFootprints && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
           factory.state.machines.push(machine); factory.rebuild(); factory.pickup(machine.id);
           recovered.add(machine.id); continue;
@@ -1235,7 +1360,8 @@
         // Previously borrowed tubes already count as the free starter machine.
         if (!factory.state.stock.sellTube && !factory.state.machines.some((machine) => machine.type === "sellTube")) factory.state.stock.sellTube = 1;
         const existingCargo = [...factory.state.machines, ...factory.state.storedMachines].flatMap((machine) => [
-          ...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes), ...jobInputs(machine.job),
+          ...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes),
+          ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job),
         ]).concat(factory.state.routes.map((route) => route.item));
         for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
         factory.state.openingEconomyVersion = 1;

@@ -108,12 +108,14 @@ test("Bench intake previews are read-only and blocked output cannot drain endles
   advance(factory, 120);
   assert.equal(bench.output.length, 1); assert.equal(bench.output[0].quantity, 1);
   near(bench.output[0].value, 4.2);
-  assert.equal(factory.total(bench, "input"), 2); assert.equal(bench.job, null);
+  assert.equal(factory.total(bench, "input"), 0); assert.equal(bench.job.remaining, 0);
+  assert.equal(feed(factory, bench, 100), 2);
+  assert.equal(factory.total(bench, "input"), 2);
   assert.equal(feed(factory, bench, 100), 0);
   const basket = place(factory, "basket", 42, 41);
   factory.update(0.1); assert.equal(bench.job.remaining, 4);
   factory.update(4);
-  assert.equal(factory.total(basket, "contents"), 2);
+  assert.equal(factory.total(basket, "contents"), 3);
   near(basket.contents[1].value, 2);
 });
 
@@ -130,6 +132,54 @@ test("Both modes sustain 0.5 Clay/s without a blocked exit or an extra output cy
       near(bench.job.remaining, recipe.seconds);
     }
   }
+});
+
+for (const mode of ['brick', 'pot']) test(`${mode}: a real output conveyor does not add a simulation tick to each shaping cycle`, () => {
+  for (const downstreamFirst of [false, true]) {
+    const factory = new Factory(createState(1));
+    place(factory, 'wheel', 38, 44); place(factory, 'drive', 39, 42, 'down');
+    if (downstreamFirst) place(factory, 'belt', 42, 41);
+    const bench = place(factory, 'clayShaper', 40, 40);
+    if (!downstreamFirst) place(factory, 'belt', 42, 41);
+    const basket = place(factory, 'basket', 43, 41), recipe = D.machines.clayShaper.recipes[mode];
+    factory.setShapingMode(bench.id, mode); feed(factory, bench, recipe.input); factory.update(0.1);
+    for (let cycle = 0; cycle < 15; cycle++) {
+      assert.equal(feed(factory, bench, recipe.input), recipe.input);
+      factory.update(recipe.seconds);
+      assert.equal(factory.total(basket, 'contents'), cycle, 'no cumulative output delay');
+      near(bench.job.remaining, recipe.seconds);
+    }
+    factory.update(2); assert.equal(factory.total(basket, 'contents'), 15);
+  }
+});
+
+test('Clay arriving from a real conveyor can start shaping on that same tick', () => {
+  const factory = new Factory(createState(1));
+  place(factory, 'wheel', 38, 44); place(factory, 'drive', 39, 42, 'down');
+  const inlet = place(factory, 'belt', 40, 41), bench = place(factory, 'clayShaper', 40, 40);
+  assert.equal(factory.receive(inlet, cargo('clay', 2), 40, 41, 'left', true), 2);
+  factory.update(2); near(bench.job.remaining, 2); assert.equal(factory.total(bench, 'input'), 1);
+});
+
+test('one finished-item buffer overlaps work, remains bounded and survives mode changes, moves, reload and pickup', () => {
+  const factory = new Factory(createState(1)), bench = place(factory, 'clayShaper', 40, 40);
+  assert.equal(D.machines.clayShaper.outputBuffer, 1);
+  feed(factory, bench, 2, 3); factory.update(0.1); factory.update(2);
+  assert.equal(bench.output.length, 1); near(bench.output[0].value, 3); near(bench.job.remaining, 2);
+  factory.setShapingMode(bench.id, 'pot'); feed(factory, bench, 2, 7);
+  advance(factory, 60);
+  assert.equal(bench.output.length, 1); near(bench.job.remaining, 0); assert.equal(bench.job.mode, 'brick');
+  assert.equal(factory.total(bench, 'input'), 2); assert.equal(feed(factory, bench), 0);
+  assert.match(factory.status(bench), /blocked/i);
+  const before = A.copy(bench); factory.move(bench.id, 45, 40, 'down');
+  const loaded = Factory.importSave(factory.exportSave()), restored = loaded.byId.get(bench.id);
+  for (const field of ['job', 'input', 'output', 'mode']) assert.deepEqual(restored[field], before[field]);
+  loaded.pickup(restored.id); assert.equal(loaded.state.inventory.clay, 3); assert.equal(loaded.state.inventory.unfiredBrick, 1);
+  const replacement = loaded.place('clayShaper', 40, 40).machine;
+  assert.equal(replacement.mode, 'pot'); assert.equal(replacement.job, null); assert.equal(replacement.output.length, 0);
+  loaded.pickup(replacement.id); assert.equal(loaded.state.inventory.clay, 3);
+  const invalid = JSON.parse(factory.exportSave()); invalid.state.machines[0].output.push(cargo('unfiredBrick'));
+  assert.throws(() => Factory.importSave(JSON.stringify(invalid)), /Invalid/);
 });
 
 test("Bench instances, modes and jobs survive moves and saves; mode changes preserve the running recipe", () => {
@@ -194,16 +244,16 @@ test("Older saves gain only the new shaping keys; malformed current buffers, rec
 test("Sparse machine floor, selection, previews and group previews never fill the empty tile in any rotation", () => {
   for (const facing of D.directions) {
     const factory = new Factory(createState(1)), bench = place(factory, "clayShaper", 40, 40, facing);
-    const blank = A.rotatePoint(0, 1, 2, 2, facing), calls = [];
+    const calls = [];
     const context = new Proxy({}, { get: (object, name) => object[name] ?? ((...args) => calls.push([name, ...args])) });
     const camera = { x: 38, y: 38, zoom: 1 }, viewport = { width: 400, height: 400 };
     R.drawFloor(context, factory, camera, viewport);
     const floorBoxes = calls.filter(([name, , , w, h]) => name === "fillRect" && w === 28 && h === 28);
-    assert.equal(floorBoxes.length, 3);
-    assert.equal(floorBoxes.some(([, x, y]) => x === (40 + blank.x) * 32 + 2 && y === (40 + blank.y) * 32 + 2), false);
+    assert.equal(floorBoxes.length, 0, "the machine is one continuous outline, not three inset boxes");
     calls.length = 0;
     R.drawOverlay(context, factory, camera, viewport, { selected: bench.id, tool: { type: "clayShaper", facing }, hover: { x: 40, y: 40 } });
     assert.equal(calls.filter(([name, , , w, h]) => name === "strokeRect" && w === 62 && h === 62).length, 0);
-    assert.equal(calls.filter(([name, , , w, h]) => name === "fillRect" && w === 32 && h === 32).length, 3);
+    assert.equal(calls.filter(([name, , , w, h]) => name === "fillRect" && w === 32 && h === 32).length, 0);
+    assert.ok(calls.some(([name]) => name === "closePath"), "selection and preview follow the occupied outline");
   }
 });

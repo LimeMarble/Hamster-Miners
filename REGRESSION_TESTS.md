@@ -11,6 +11,11 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Clay Shaping Bench has one finished-item buffer that can overlap one running
+  job, without expanding its two-Clay pending intake. Real input/output conveyor
+  tests sustain the stated Brick/Pot cadence without extra simulation ticks in
+  either construction order. Blocked output remains bounded; modes, moves,
+  reload, pickup and stable inspector controls preserve both buffer and job.
 - Pot Spinner checks cover the exact cash/material price, six occupied cells,
   every rotated material/kinetic port and either Wheel connection. One Wheel
   can power two opposite-facing intake sides without blocking material input.
@@ -202,6 +207,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   fails without mutating live state. The debug upgrade editor is absent; saved
   upgrade values remain compatible without exposing test controls. No Ammo
   category appears in the noammo inventory.
+- Generic irregular-footprint rendering checks exercise every current sparse
+  machine in all rotations, plus synthetic ring/diagonal shapes. Occupied cells
+  join without seams, only the perimeter is outlined, holes stay empty and
+  placement/group previews cover the full occupied tiles in one alpha fill.
+  Rendering stays read-only and shared contour templates are cached by type/facing.
 - Granite Processor checks cover exact $35k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
   per-unit base/cash eligibility without an incoming lower bound, twelve uses
@@ -623,3 +633,17 @@ future pipe tiers) are not treated as current acceptance requirements.
   orientation-correct output arrows; placement uses the same 1×1 occupied tile.
 - Stacker and Splitter routing-port guides are faint and sit behind real
   conveyors and moving items, so they never obscure live factory traffic.
+- Noammo Manual Overflow: both modes and all rotations use the correct five
+  occupied tiles, reserving both output positions and only the active hamster
+  position. Mode switches, moves, group previews and save/import agree on the
+  footprint. Occupied mode changes reject without altering contents or state.
+- Manual Overflow normal routes take precedence at sustained belt cadence.
+  Blocked cargo uses exactly two seconds per hand transfer, independent of
+  weight and without an extra release tick. Downstream belt/Stacker releases
+  cannot falsely trigger overflow. Tests include adjacent Overflow chains,
+  bounded blocked cargo, power removal, live Kiln delivery, instance isolation,
+  pickup recovery, malformed saves, atomic component costs and stable UI controls.
+- Noammo two-weight conveyor capacity: whole-item splitting preserves fractional
+  remainders, value and grade/use metadata. Older five-weight saves split into
+  paced legal portions; reload, upgrades and pickup cannot lose or duplicate
+  queued quantities. Legacy mining-game capacity remains unchanged.

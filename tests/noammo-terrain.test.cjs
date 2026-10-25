@@ -12,6 +12,7 @@ const centers = [
 ];
 function legacyFactory() {
   const state = createState(924);
+  delete state.beltCapacityVersion;
   delete state.terrainVersion;
   state.trees = Array.from({ length: 30 }, (_, i) => ({
     id: `tree-${i + 1}`, x: 3 + (i % 10) * 20, y: 160 + Math.floor(i / 10) * 20,

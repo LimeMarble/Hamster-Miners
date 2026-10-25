@@ -15,14 +15,70 @@
   function world(ctx, camera) {
     ctx.save(); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x * TILE, -camera.y * TILE);
   }
+  const contourCache = new Map();
+  function footprintContours(machine) {
+    const cacheKey = `${machine.type}:${machine.facing}:${machine.mode ?? D.machines[machine.type].defaultMode ?? ""}`;
+    if (contourCache.has(cacheKey)) return contourCache.get(cacheKey);
+    const occupied = cells({ ...machine, x: 0, y: 0 }), tiles = new Set(occupied.map(p => API.key(p.x, p.y)));
+    const edges = [], outgoing = new Map();
+    function edge(x, y, ex, ey, direction) {
+      const segment = { x, y, ex, ey, direction }, start = API.key(x, y);
+      edges.push(segment);
+      if (!outgoing.has(start)) outgoing.set(start, []);
+      outgoing.get(start).push(segment);
+    }
+    for (const { x, y } of occupied) {
+      if (!tiles.has(API.key(x, y - 1))) edge(x, y, x + 1, y, 0);
+      if (!tiles.has(API.key(x + 1, y))) edge(x + 1, y, x + 1, y + 1, 1);
+      if (!tiles.has(API.key(x, y + 1))) edge(x + 1, y + 1, x, y + 1, 2);
+      if (!tiles.has(API.key(x - 1, y))) edge(x, y + 1, x, y, 3);
+    }
+    const used = new Set(), contours = [];
+    for (const first of edges) {
+      if (used.has(first)) continue;
+      const points = []; let segment = first;
+      do {
+        used.add(segment); points.push({ x: segment.x, y: segment.y });
+        if (segment.ex === first.x && segment.ey === first.y) break;
+        const next = outgoing.get(API.key(segment.ex, segment.ey)).filter(candidate => !used.has(candidate));
+        // Keep occupied tiles on the right, including at diagonal-only contacts.
+        const priority = candidate => [1, 0, 3, 2].indexOf((candidate.direction - segment.direction + 4) % 4);
+        segment = next.sort((a, b) => priority(a) - priority(b))[0];
+      } while (segment);
+      contours.push(points.filter((point, i) => {
+        const previous = points[(i + points.length - 1) % points.length], next = points[(i + 1) % points.length];
+        return (point.x - previous.x) * (next.y - point.y) !== (point.y - previous.y) * (next.x - point.x);
+      }));
+    }
+    contourCache.set(cacheKey, contours); return contours;
+  }
   function machineBox(ctx, machine, inset, fill = true) {
     const bounds = size(machine);
-    const boxes = D.machines[machine.type].footprint ? cells(machine).map((cell) => ({ ...cell, width: 1, height: 1 }))
-      : [{ x: machine.x, y: machine.y, ...bounds }];
-    for (const box of boxes) {
-      const args = [box.x * TILE + inset, box.y * TILE + inset, box.width * TILE - inset * 2, box.height * TILE - inset * 2];
-      if (fill) ctx.fillRect(...args);
-      ctx.strokeRect(...args);
+    if (!D.machines[machine.type].footprint && !D.machines[machine.type].modeFootprints) {
+      const args = [machine.x * TILE + inset, machine.y * TILE + inset, bounds.width * TILE - inset * 2, bounds.height * TILE - inset * 2];
+      if (fill) ctx.fillRect(...args); ctx.strokeRect(...args); return;
+    }
+    ctx.beginPath();
+    for (const points of footprintContours(machine)) {
+      for (const [i, point] of points.entries()) {
+        const previous = points[(i + points.length - 1) % points.length], next = points[(i + 1) % points.length];
+        const x = (machine.x + point.x) * TILE - inset * (Math.sign(point.y - previous.y) + Math.sign(next.y - point.y));
+        const y = (machine.y + point.y) * TILE + inset * (Math.sign(point.x - previous.x) + Math.sign(next.x - point.x));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+    if (fill) ctx.fill();
+    ctx.stroke();
+  }
+  function overflowMarkers(ctx, machine) {
+    const definition = D.machines[machine.type];
+    if (!definition.manualTransferSeconds) return;
+    for (const mode of ["up", "down"]) {
+      const point = API.rotatePoint(0, mode === "up" ? 0 : 2, definition.width, definition.height, machine.facing);
+      arrow(ctx, (machine.x + point.x + 0.5) * TILE, (machine.y + point.y + 0.5) * TILE,
+        API.turn(mode, D.directions.indexOf(machine.facing)), 0.8,
+        mode === (machine.mode ?? definition.defaultMode) ? "#f5d38c" : "#807766");
     }
   }
   function drawFloor(ctx, factory, camera, viewport) {
@@ -78,20 +134,23 @@
         } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
           D.materials[point.material]?.color);
       }
+      overflowMarkers(ctx, machine);
       if (machine.type !== "belt") {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
-        const labelPoint = definition.labelCell && API.rotatePoint(...definition.labelCell, definition.width, definition.height, machine.facing);
+        const labelCell = definition.manualTransferSeconds ? [1, (machine.mode ?? definition.defaultMode) === "up" ? 0 : 2] : definition.labelCell;
+        const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, machine.facing);
         const occupied = labelPoint ? [{ x: machine.x + labelPoint.x, y: machine.y + labelPoint.y }] : cells(machine);
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
         const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
         const lines = definition.labelLines ?? [names[machine.type] ?? machine.type];
         for (const [index, line] of lines.entries()) ctx.fillText(line, cx * TILE, cy * TILE + (index - (lines.length - 1) / 2) * 10,
-          definition.labelCell ? TILE - 6 : bounds.width * TILE - 8);
+          labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
       if ((definition.conveyors && !API.conveyorCells(machine)
         .every((cell) => factory.powered(cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
-        ctx.fillStyle = "#f5bc73"; ctx.fillRect(x + 3, y + 3, 4, 4);
+        const marker = cells(machine)[0];
+        ctx.fillStyle = "#f5bc73"; ctx.fillRect(marker.x * TILE + 3, marker.y * TILE + 3, 4, 4);
       }
     }
     ctx.restore();
@@ -131,6 +190,10 @@
         const v = D.vectors[point.direction], lateral = item.lateral ?? 0;
         drawCargo(ctx, item, (point.x + 0.5 - v.y * lateral) * TILE, (point.y + 0.5 + v.x * lateral) * TILE);
       }
+      if (D.machines[machine.type].manualTransferSeconds && machine.job) {
+        const point = API.rotatePoint(1, machine.mode === "up" ? 0 : 2, 2, 3, machine.facing);
+        drawCargo(ctx, machine.job.input, (machine.x + point.x + 0.5) * TILE, (machine.y + point.y + 0.5) * TILE);
+      }
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
           for (const point of outputs) {
@@ -165,7 +228,7 @@
       for (const machine of plan.machines) previews.push({ machine, error: plan.error });
     } else if (interaction.tool && interaction.hover) {
       const machine = { ...interaction.tool, ...interaction.hover };
-      previews.push({ machine, error: factory.placement(machine.type, machine.x, machine.y, machine.facing, machine.id) });
+      previews.push({ machine, error: factory.placement(machine.type, machine.x, machine.y, machine.facing, machine.id, machine.mode) });
     }
     for (const { machine: preview, error } of previews) {
       ctx.fillStyle = error ? "#df796433" : "#dceaa73a"; ctx.strokeStyle = error ? "#ee9b89" : "#e3efa9"; ctx.lineWidth = 2;
@@ -176,6 +239,7 @@
       }
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
+      overflowMarkers(ctx, preview);
     }
     const box = interaction.marquee ?? interaction.box;
     if (box?.start && box.end) {

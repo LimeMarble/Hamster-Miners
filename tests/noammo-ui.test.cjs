@@ -108,6 +108,51 @@ function screenPoint(x, y) {
     clientY: (y - A.DATA.config.rows / 2) * 32 + 302 };
 }
 
+test('shaping finished-item buffer is visible and its controls stay mounted while work overlaps blocked output', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.clayShaper = 1;
+  const bench = f.place('clayShaper', 121, 121).machine, input = A.ports(bench)[0];
+  f.receive(bench, A.cargo('clay', 2), input.x, input.y, input.direction, true);
+  f.update(0.1); f.update(2);
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const mode = ui.ids.get('shapingMode'), buffer = ui.ids.get('shapingBuffers');
+  assert.match(buffer.textContent, /Finished items: 1 \/ 1/);
+  for (let now = 100; now <= 4000; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get('shapingMode'), mode); assert.equal(ui.ids.get('shapingBuffers'), buffer);
+  assert.match(ui.ids.get('machineStatus').textContent, /blocked/i);
+  const restored = ui.state().machines.find(m => m.type === 'clayShaper');
+  assert.equal(restored.output.length, 1); assert.equal(restored.job.remaining, 0);
+});
+
+test('Manual Overflow Shop costs, stable side control, occupied-mode refusal and move previews use the real footprint', () => {
+  const f = new A.Factory(A.createState(1));
+  f.state.cash = 2; f.state.inventory.wood = 20; f.state.inventory.woodenGear = 2; f.state.stock.belt = 2;
+  const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  ui.ids.get('shopCards').children[Object.keys(A.DATA.machines).indexOf('manualOverflow')].emit('click');
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$2 / $2', '20 / 20', '2 / 2', '2 / 2']);
+  ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.manualOverflow, 1);
+  chooseMachine(ui, 'manualOverflow'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const mode = ui.ids.get('overflowMode'); assert.equal(mode.value, 'up');
+  for (let now = 100; now <= 500; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get('overflowMode'), mode, 'simulation updates do not remount the selector');
+  // The inactive lower hamster square accepts a separate Basket.
+  chooseMachine(ui, 'basket'); ui.ids.get('cargo').emit('click', screenPoint(122, 123));
+  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const blocked = ui.ids.get('overflowMode'); blocked.value = 'down'; blocked.emit('change');
+  assert.equal(blocked.value, 'up'); assert.match(ui.ids.get('notice').textContent, /must be clear/);
+  ui.ids.get('cargo').emit('click', screenPoint(122, 123)); ui.ids.get('pickupMachine').emit('click');
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  ui.ids.get('overflowMode').value = 'down'; ui.ids.get('overflowMode').emit('change');
+  assert.equal(ui.state().machines.find(m => m.type === 'manualOverflow').mode, 'down');
+  ui.ids.get('moveMachine').emit('click'); ui.frame(600);
+  assert.equal(ui.view().interaction.tool.mode, 'down');
+  ui.ids.get('overflowMode').value = 'up'; ui.ids.get('overflowMode').emit('change'); ui.frame(700);
+  assert.equal(ui.view().interaction.tool.mode, 'up', 'mode changes while moving update the preview too');
+  ui.ids.get('cargo').emit('click', screenPoint(123, 121));
+  const moved = ui.state().machines.find(m => m.type === 'manualOverflow');
+  assert.equal(moved.mode, 'up'); assert.equal(moved.x, 123); assert.equal(A.cells(moved).length, 5);
+});
+
 function viewCenter(view) {
   return { x: view.camera.x + view.viewport.width / (64 * view.camera.zoom),
     y: view.camera.y + view.viewport.height / (64 * view.camera.zoom) };

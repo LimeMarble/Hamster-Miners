@@ -58,10 +58,10 @@ test('Bridge multi-buy requires unplaced conveyors and consumes picked-up convey
 
 test('Leek Infuser replaces Primitive with +$0.40 below $2, without consuming ingredients or mutating stacks', () => {
   const f = powered(), infuser = place(f, 'leekInfuser', 40, 40), before = A.copy(f.state.inventory);
-  let item = cargo('clay', 5); item.graded = true; item.gradeRepairs = { brickSeal: 2 };
+  let item = cargo('clay', 2); item.graded = true; item.gradeRepairs = { brickSeal: 2 };
   for (let i = 0; i < 10; i++) item = pass(f, infuser, item);
   near(item.value, 2.25); assert.equal(item.upgrades.leekInfuser, 5);
-  assert.equal(item.quantity, 5); assert.equal(item.graded, true); assert.equal(item.gradeRepairs.brickSeal, 2);
+  assert.equal(item.quantity, 2); assert.equal(item.graded, true); assert.equal(item.gradeRepairs.brickSeal, 2);
   assert.deepEqual(f.state.inventory, before);
   assert.equal(pass(f, infuser, cargo('brick', 1, 2)).value, 2);
   assert.equal(pass(f, infuser, cargo('soil')).upgrades.leekInfuser, undefined);
@@ -70,7 +70,7 @@ test('Leek Infuser replaces Primitive with +$0.40 below $2, without consuming in
 
 test('Brick Seal is additive, capped by incoming $15, and $9 reaches $15.25 in five uses', () => {
   const f = powered(), seal = place(f, 'brickSeal', 40, 40);
-  let item = cargo('unfiredPot', 2, 9);
+  let item = cargo('unfiredPot', 1, 9);
   for (let i = 0; i < 12; i++) item = pass(f, seal, item);
   near(item.value, 15.25); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs.brickSeal, 4);
 });
@@ -82,7 +82,7 @@ for (const facing of D.directions) test(`Shack ${facing}: six real belt cells, i
     const v = D.vectors[out.direction]; return place(f, 'basket', out.x + v.x, out.y + v.y);
   });
   assert.equal(feed(f, shack, cargo('pot', 1, 61), 0), 1);
-  assert.equal(feed(f, shack, cargo('nativeCopper', 3, 2.3), 1), 3);
+  assert.equal(feed(f, shack, cargo('nativeCopper', 2, 2.3), 1), 2);
   f.update(5.9); assert.equal(baskets[0].contents.length, 0); f.update(0.1);
   near(baskets[0].contents[0].value, 122); near(baskets[1].contents[0].value, 4.6);
   assert.equal(baskets[0].contents[0].upgrades.primitiveShack, 1);

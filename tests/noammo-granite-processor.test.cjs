@@ -42,10 +42,10 @@ for (const facing of D.directions) test(`Granite Processor ${facing}: two indepe
     const v = D.vectors[p.direction]; return place(f, 'basket', p.x + v.x, p.y + v.y);
   });
   assert.equal(feed(f, m, cargo('pot', 1, 100), 0), 1);
-  assert.equal(feed(f, m, cargo('pot', 2, 200), 1), 2);
+  assert.equal(feed(f, m, cargo('pot', 1, 200), 1), 1);
   f.update(1.9); assert.equal(baskets[0].contents.length, 0); f.update(0.1);
   near(baskets[0].contents[0].value, 130); near(baskets[1].contents[0].value, 260);
-  assert.equal(baskets[1].contents[0].quantity, 2); assert.equal(f.availableCrew(), 9);
+  assert.equal(baskets[1].contents[0].quantity, 1); assert.equal(f.availableCrew(), 9);
   const distant = place(f, 'graniteProcessor', 70, 70, facing);
   assert.equal(feed(f, distant, cargo('pot')), 0); assert.match(f.status(distant), /kinetic power/);
 });
@@ -53,12 +53,12 @@ for (const facing of D.directions) test(`Granite Processor ${facing}: two indepe
 test('Cash eligibility is per unit below $525, without a lower bound or an output clamp', () => {
   const { f, m } = setup();
   for (const [input, output] of [[0.1, 0.13], [300, 390], [500, 650], [524.99, 682.487], [525, 525], [900, 900]]) {
-    const result = pass(f, m, cargo('pot', 2, input));
-    near(result.value, output); assert.equal(result.quantity, 2);
+    const result = pass(f, m, cargo('pot', 1, input));
+    near(result.value, output); assert.equal(result.quantity, 1);
     assert.equal(result.upgrades.graniteProcessor, input < 525 ? 1 : undefined);
   }
   for (const material of ['clay', 'brick', 'wood', 'woodenGear', 'nativeCopper']) {
-    const result = pass(f, m, cargo(material, 2, 100));
+    const result = pass(f, m, cargo(material, Math.floor(D.config.beltWeight / D.materials[material].weight), 100));
     near(result.value, 100); assert.equal(result.upgrades.graniteProcessor, undefined);
   }
 });

@@ -58,9 +58,9 @@ test("Brick Seal costs $115 and 35 fired Bricks, needs no crew, and exactly copi
 
 test("Cash uses are shared across Seal instances, capped at nine, and use current per-unit value without altering quantity", () => {
   const { factory, seal } = setup(), other = place(factory, "brickSeal", 42, 42);
-  let item = cargo("brick", 5, 1);
+  let item = cargo("brick", 2, 1);
   for (let index = 0; index < 12; index++) item = pass(factory, index % 2 ? other : seal, item);
-  near(item.value, 1 + 1.25 * 9); assert.equal(item.upgrades.brickSeal, 9); assert.equal(item.quantity, 5);
+  near(item.value, 1 + 1.25 * 9); assert.equal(item.upgrades.brickSeal, 9); assert.equal(item.quantity, 2);
   assert.equal(item.gradeRepairs.brickSeal, 4, "grade repair has a separate four-use cap");
 });
 
@@ -90,7 +90,7 @@ test("Eligibility uses declared base value, not current value, material family, 
   const context = vm.createContext({ NoAmmoData: fixture });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "noammo-simulation.js"), "utf8"), context);
   const { factory: metalFactory, seal: metalSeal } = setup(context.NoAmmo);
-  const item = pass(metalFactory, metalSeal, context.NoAmmo.cargo("testMetal", 5, 2));
+  const item = pass(metalFactory, metalSeal, context.NoAmmo.cargo("testMetal", 2, 2));
   near(item.value, 3.25); assert.equal(item.upgrades.brickSeal, 1); assert.equal(item.gradeRepairs, undefined);
 });
 
@@ -158,7 +158,9 @@ test("Mixed Clay repair levels average per ingredient quantity, including untouc
   assert.equal(partial.gradeRepairs.brickSeal, 3, "one more pass repairs five more probability points");
   const brickBench = place(factory, "clayShaper", 55, 50);
   receive(factory, brickBench, { ...repaired, quantity: 2 }); factory.update(0.1); factory.update(2);
-  assert.equal(brickBench.output[0].gradeRepairs.brickSeal, 4); assert.equal(brickBench.job, null);
+  assert.equal(brickBench.output[0].gradeRepairs.brickSeal, 4);
+  assert.equal(brickBench.job.input.quantity, 1); assert.equal(brickBench.job.input.gradeRepairs.brickSeal, 4);
+  near(brickBench.job.remaining, 2); assert.equal(factory.total(brickBench, "input"), 0);
 });
 
 test("Quantity-blending helper computes 4:1 and 9:1 averages without using cash value or material type count", () => {

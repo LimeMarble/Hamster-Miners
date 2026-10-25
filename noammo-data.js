@@ -20,7 +20,7 @@
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 10,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
       planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 12,
-      basketCapacity: 100, beltSeconds: 2, beltWeight: 5,
+      basketCapacity: 100, beltSeconds: 2, beltWeight: 2,
       clicksPerSecond: 5, chopsPerHarvest: 5,
       loadedSecondsPerTilePerWeight: 0.5, emptySecondsPerTile: 0.5,
       powerAreaReach: 7,
@@ -111,7 +111,7 @@
       },
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
-        footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick", craftInput: "clay", inputLimit: 2,
+        footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick", craftInput: "clay", inputLimit: 2, outputBuffer: 1,
         cost: { cash: 20, materials: { wood: 50, leekFiber: 5 } },
         recipes: {
           brick: { name: "Unfired Brick", input: 1, output: "unfiredBrick", seconds: 2, valueMultiplier: 1 },
@@ -237,6 +237,23 @@
           { x: 0, y: 0, direction: "right", role: "output" },
         ],
         description: "Combines matching items into a stack of the typed size, up to two. Accepts from three sides and outputs in its facing direction. Requires kinetic power.",
+      },
+      manualOverflow: {
+        name: "Manual Overflow", width: 2, height: 3, color: "#a38e68", category: "Logistics", crew: 1,
+        labelLines: ["Manual", "Overflow"], defaultMode: "up", manualTransferSeconds: 2,
+        cost: { cash: 2, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
+        conveyors: [[0, 1], [1, 1]],
+        modeFootprints: {
+          up: [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]],
+          down: [[0, 0], [0, 1], [1, 1], [0, 2], [1, 2]],
+        },
+        ports: [
+          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 1, y: 1, direction: "right", role: "output" },
+          { x: 0, y: 0, direction: "up", role: "output", mode: "up" },
+          { x: 0, y: 2, direction: "down", role: "output", mode: "down" },
+        ],
+        description: "One hamster redirects blocked cargo to the selected side in two seconds. The straight conveyor route has priority.",
       },
       sellTube: {
         name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",

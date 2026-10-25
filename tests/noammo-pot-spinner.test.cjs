@@ -172,7 +172,7 @@ test('stacked profiles average with ordinary pots; splitting and hauling retain 
   const graded = A.combineCargo([{ ...a, graded: true }, b]); assert.equal(graded.graded, true);
   const state = { random: 99 }; A.gradeStack(state, graded); assert.equal(state.random, 99);
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
-  const belt = place(f, 'belt', 40, 40); assert.equal(f.receive(belt, mixed, 40, 40, 'left', true), 2);
+  const belt = place(f, 'belt', 40, 40); assert.equal(f.receive(belt, mixed, 40, 40, 'left', true), 1);
   assert.deepEqual(belt.lanes[0].gradeProfile, mixed.gradeProfile); near(belt.lanes[0].value, 4);
   const basket = place(f, 'basket', 43, 40), target = place(f, 'basket', 45, 40);
   f.receive(basket, a, 43, 40, 'left', true); f.receive(basket, { ...a, gradeProfile: undefined }, 43, 40, 'left', true);

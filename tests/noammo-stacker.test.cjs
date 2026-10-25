@@ -131,7 +131,7 @@ test('centered Rock Drill output can merge onto a Stacker in the front-priority 
 
 test('settings, partial cargo, progress and metadata survive movement, saves and pickup once', () => {
   const f = setup(), m = place(f, 'primitiveStacker', 40, 40); f.setStackSize(m.id, 2);
-  feed(f, m, cargo('pot', 2, 123)); f.update(0.7);
+  feed(f, m, cargo('brick', 2, 123)); f.update(0.7);
   const old = A.copy(m.lanes[0]); f.move(m.id, 41, 40, 'down');
   assert.deepEqual(m.lanes[0], old);
   const restored = Factory.importSave(f.exportSave()), r = restored.byId.get(m.id);
