@@ -59,7 +59,7 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
   assert.deepEqual(D.machines.planter.cost, { cash: 500, materials: { brick: 50, leekFiber: 100, soil: 200 } });
   assert.equal(D.config.planterSeconds, 8); assert.equal(D.machines.planter.cycle, 8);
-  assert.equal(D.materials.wood.heat, 30);
+  assert.equal(D.materials.wood.heat, 30000);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
 });
 
@@ -240,7 +240,7 @@ test("old saves default to zero paid hires and malformed hired counts are reject
 });
 
 test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route", () => {
-  assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 30);
+  assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 30000);
   const factory = new Factory(createState(1));
   factory.state.inventory.wood = 10;
   assert.equal(factory.sellInventory("wood", 10), 1);

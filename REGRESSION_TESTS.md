@@ -134,8 +134,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
 - Clay Kiln coverage includes its exact price, 2 crew, all six occupied cells
   and two interchangeable inputs in all rotations. Full 4-Brick/2-Pot batches
-  require eight seconds and consume 40u once at start, with Wood providing 30u
-  and a hard heat capacity of 250u. Invalid sides, partial batches, overfull or
+  require eight seconds and consume 40ku once at start, with Wood providing 30ku
+  and a hard heat capacity of 250ku. Invalid sides, partial batches, overfull or
   incompatible inputs and fuel overflow reject safely; intake previews do not
   mutate heat. Each ingredient retains its own upgraded value through firing.
   Blocked output cannot drain unlimited materials, stall another kiln, bank
@@ -215,7 +215,7 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Granite Processor checks cover exact $35k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
   per-unit base/cash eligibility without an incoming lower bound, twelve uses
-  shared across instances, the $525 boundary and final-result overshoot,
+  shared across instances, the $500 boundary and final-result overshoot,
   blockage, preserved quality/tags, move/save continuity, old-save migration,
   malformed-use rejection and Shop/Inventory/effect/history integration.
 - Output-history tests cover every upgrader's five-entry bound/newest-first
@@ -647,3 +647,21 @@ future pipe tiers) are not treated as current acceptance requirements.
   remainders, value and grade/use metadata. Older five-weight saves split into
   paced legal portions; reload, upgrades and pickup cannot lose or duplicate
   queued quantities. Legacy mining-game capacity remains unchanged.
+- Copper industry covers exact atomic purchases, crew assignment, all rotated
+  drill intakes/centered outlets, 15-second extraction, lost kinetic power and
+  bounded blocked production. A real front-priority belt merge feeds a Furnace.
+  Charcoal requires four Wood and exactly twelve seconds without fuel; Copper
+  requires four ores, twenty seconds and 500ku. Tests cover weighted input cash,
+  fresh tags, blocked batch bounds, output pacing, mode changes/refunds, move,
+  pickup, retained molten output, instance isolation and corrupt-save rejection.
+  Legacy heat rescales once without fuel refunds; UI controls stay mounted and
+  Shop costs, selected mode and heat displays reflect current data.
+- Copper finishing covers one-second direct molding in all facings and both
+  construction orders; fractional liquid input, bounded pending/working/output
+  buffers, no consumable Clay, value preservation, retained liquid on pickup,
+  unrelated replacement instances, migration and invalid saves. Material-driven
+  molding accepts other supported metals and rejects refractory-only Cast Iron.
+  Chimes cover exact costs, rotated lifecycle/rendering, kinetic dependence,
+  the per-unit $5k boundary/overshoot, one shared use, grade/tag preservation
+  and stable UI. A full smelting-to-molding-to-Chimes-to-collection scenario
+  verifies actual cash, fresh eligibility and useful construction inventory.

@@ -357,7 +357,7 @@
         if (definition.manualTransferSeconds) {
           const label = element("label", "Overflow side "), mode = element("select");
           mode.id = "overflowMode"; mode.setAttribute("aria-label", "Overflow side");
-          for (const [id, name] of [["up", "Upper side"], ["down", "Lower side"]]) {
+          for (const [id, name] of [["up", "Left"], ["down", "Right"]]) {
             const option = element("option", name); option.value = id; mode.append(option);
           }
           mode.value = machine.mode;
@@ -369,10 +369,22 @@
           });
           label.append(mode); panel.append(label);
         }
-        if (machine.type === "kiln") {
+        if (definition.heatCapacity) {
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
-          panel.append(heat, buffers, element("p", "Full batches only. Each firing consumes 40u of heat when it starts; Wood provides 30u. Either input accepts Wood or unfired products.", "muted"));
+          panel.append(heat, buffers, element("p", machine.type === "kiln"
+            ? "Full batches only. Each firing consumes 40ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Either input accepts fuel or unfired products."
+            : "Full batches only. Charcoal mode uses Wood as its ingredient, without external heat. Copper mode accepts fuel through either input and consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
+          if (definition.manualRecipes) {
+            const label = element("label", "Furnace mode "), mode = element("select");
+            mode.id = "furnaceMode"; mode.setAttribute("aria-label", "Furnace mode");
+            for (const [id, recipe] of Object.entries(definition.recipes)) {
+              const option = element("option", `${recipe.name} · ${recipe.seconds}s`); option.value = id; mode.append(option);
+            }
+            mode.value = machine.mode;
+            mode.addEventListener("change", () => result(factory.setFurnaceMode(machine.id, mode.value)));
+            label.append(mode); panel.append(label, element("p", "Changing mode returns waiting ingredients to inventory. The current batch finishes normally, and finished output stays in the furnace.", "muted"));
+          }
         }
         if (machine.type === "potSpinner") {
           const buffers = element("p"); buffers.id = "spinnerBuffers";
@@ -380,6 +392,10 @@
         }
         if (machine.type === "crudeGearBench") {
           const buffers = element("p"); buffers.id = "gearBuffers"; panel.append(buffers);
+        }
+        if (definition.molder) {
+          const buffers = element("p"); buffers.id = "molderBuffers";
+          panel.append(buffers, element("p", "One ingot per second, preserving the liquid metal's value. No Clay or other consumables. Cast Iron requires a Refractory Caster.", "muted"));
         }
         if (definition.maxStackSize) {
           const label = element("label", "Stack size "), input = element("input");
@@ -465,11 +481,12 @@
         const probabilities = A.gradeProbabilities(item);
         text($("gradingChances"), `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`);
       }
-      if (machine.type === "kiln") {
-        text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines.kiln.heatCapacity)}u`);
+      if (D.machines[machine.type].heatCapacity) {
+        text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines[machine.type].heatCapacity)}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
       if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
+      if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / 1 · Finished ingots: ${number(factory.total(machine, "output"))} / 1`);
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
         for (const item of machine.contents) {

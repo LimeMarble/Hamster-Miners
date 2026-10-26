@@ -21,7 +21,7 @@ function pass(f, m, item) {
 test('Granite Processor exact construction cost, rules and atomic bulk purchases consume owned belts', () => {
   const cost = D.machines.graniteProcessor.cost;
   assert.deepEqual(cost, { cash: 35000, materials: { granite: 300 }, machines: { belt: 2 } });
-  assert.deepEqual(D.machines.graniteProcessor.cashEffect, { multiplier: 1.3, useLimit: 12, upperLimit: 525, baseValueRequired: 3.5 });
+  assert.deepEqual(D.machines.graniteProcessor.cashEffect, { multiplier: 1.3, useLimit: 12, upperLimit: 500, baseValueRequired: 3.5 });
   assert.equal(D.machines.graniteProcessor.crew ?? 0, 0);
   for (const missing of ['cash', 'granite', 'belt']) {
     const f = new Factory(A.createState(1)); f.state.cash = 70000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
@@ -50,12 +50,12 @@ for (const facing of D.directions) test(`Granite Processor ${facing}: two indepe
   assert.equal(feed(f, distant, cargo('pot')), 0); assert.match(f.status(distant), /kinetic power/);
 });
 
-test('Cash eligibility is per unit below $525, without a lower bound or an output clamp', () => {
+test('Cash eligibility is per unit below $500, without a lower bound or an output clamp', () => {
   const { f, m } = setup();
-  for (const [input, output] of [[0.1, 0.13], [300, 390], [500, 650], [524.99, 682.487], [525, 525], [900, 900]]) {
+  for (const [input, output] of [[0.1, 0.13], [300, 390], [499.99, 649.987], [500, 500], [523.23, 523.23], [525, 525], [900, 900]]) {
     const result = pass(f, m, cargo('pot', 1, input));
     near(result.value, output); assert.equal(result.quantity, 1);
-    assert.equal(result.upgrades.graniteProcessor, input < 525 ? 1 : undefined);
+    assert.equal(result.upgrades.graniteProcessor, input < 500 ? 1 : undefined);
   }
   for (const material of ['clay', 'brick', 'wood', 'woodenGear', 'nativeCopper']) {
     const result = pass(f, m, cargo(material, Math.floor(D.config.beltWeight / D.materials[material].weight), 100));

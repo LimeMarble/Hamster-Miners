@@ -62,20 +62,20 @@ test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free un
   assert.match(factory.place("kiln", 40, 40).error, /hamsters/);
 });
 
-test("Fuel becomes heat immediately, has a 250u capacity, accepts at 220u and rejects above it on either input", () => {
+test("Fuel becomes heat immediately, has a 250ku capacity, accepts at 220ku and rejects above it on either input", () => {
   for (const index of [0, 1]) {
     const { factory, kiln } = setup();
-    assert.equal(D.materials.wood.heat, 30);
+    assert.equal(D.materials.wood.heat, 30000);
     const before = factory.exportSave();
     assert.equal(feed(factory, kiln, "wood", 100, 0.1, index, false), 8);
     assert.equal(factory.exportSave(), before, "intake previews do not burn fuel");
     assert.equal(feed(factory, kiln, "wood", 100, 0.1, index), 8);
-    assert.equal(kiln.heat, 240); assert.deepEqual(kiln.input, []);
+    assert.equal(kiln.heat, 240000); assert.deepEqual(kiln.input, []);
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0);
-    kiln.heat = 220;
-    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 1); assert.equal(kiln.heat, 250);
-    kiln.heat = 221;
-    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0); assert.equal(kiln.heat, 221);
+    kiln.heat = 220000;
+    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 1); assert.equal(kiln.heat, 250000);
+    kiln.heat = 221000;
+    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0); assert.equal(kiln.heat, 221000);
     kiln.heat = 0;
     assert.equal(feed(factory, kiln, "wood", 0.5, 0.1, index), 0);
     assert.equal(feed(factory, kiln, "clay", 1, 0.25, index), 0);
@@ -84,15 +84,15 @@ test("Fuel becomes heat immediately, has a 250u capacity, accepts at 220u and re
   }
 });
 
-test("Both firing recipes require full batches and 40u, consume heat only at start, and finish after exactly eight seconds", () => {
+test("Both firing recipes require full batches and 40ku, consume heat only at start, and finish after exactly eight seconds", () => {
   for (const [material, recipe] of Object.entries(D.machines.kiln.recipes)) {
     const { factory, kiln } = setup();
     feed(factory, kiln, material, recipe.input - 1); feed(factory, kiln, "wood", 2);
     advance(factory, 60);
-    assert.equal(kiln.job, null); assert.equal(kiln.heat, 60); assert.equal(factory.total(kiln, "input"), recipe.input - 1);
+    assert.equal(kiln.job, null); assert.equal(kiln.heat, 60000); assert.equal(factory.total(kiln, "input"), recipe.input - 1);
     feed(factory, kiln, material); factory.update(0.1);
-    assert.equal(kiln.job.remaining, 8); assert.equal(kiln.heat, 20); assert.equal(kiln.input.length, 0);
-    factory.update(7.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 20);
+    assert.equal(kiln.job.remaining, 8); assert.equal(kiln.heat, 20000); assert.equal(kiln.input.length, 0);
+    factory.update(7.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 20000);
     factory.update(0.1);
     assert.equal(kiln.job, null); assert.equal(factory.total(kiln, "output"), recipe.input);
     assert.equal(kiln.output[0].material, recipe.output);
@@ -138,7 +138,7 @@ test("Blocked output retains a finished batch, one in-process batch and one wait
   assert.equal(kiln.job.remaining, 8, "the next batch fires while the previous output waits");
   feed(factory, kiln, "unfiredBrick", 100, 2);
   advance(factory, 120);
-  assert.equal(kiln.job.remaining, 0); assert.equal(kiln.heat, 160);
+  assert.equal(kiln.job.remaining, 0); assert.equal(kiln.heat, 160000);
   assert.equal(factory.total(kiln, "input"), 4); assert.equal(factory.total(kiln, "output"), 4);
   assert.equal(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100), 0);
@@ -199,7 +199,7 @@ test("Actual Clay Pit → shaping → firing → collection works through either
     advance(factory, 119);
     assert.equal(factory.total(basket, "contents"), 8);
     assert.equal(basket.contents[0].material, "brick"); assert.equal(basket.contents[0].value, 1);
-    assert.equal(kiln.heat, 40);
+    assert.equal(kiln.heat, 40000);
     factory.collect(basket.id); assert.equal(factory.state.inventory.brick, 8);
     assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
   }
@@ -218,7 +218,7 @@ test("Heat, cooldown, mixed-value job and buffers follow their kiln through sing
   assert.deepEqual({ heat: kiln.heat, job: kiln.job, input: kiln.input, cooldown: kiln.outputCooldown }, snapshot);
   factory.update(5);
   near(kiln.output[0].value, 8); near(kiln.output[1].value, 4.2);
-  assert.equal(kiln.job.recipe, "unfiredPot"); assert.equal(kiln.heat, 160);
+  assert.equal(kiln.job.recipe, "unfiredPot"); assert.equal(kiln.heat, 160000);
 });
 
 test("Pickup recovers pending ingredients, unfinished batches and fired products once, while heat stays with its instance", () => {
@@ -229,7 +229,7 @@ test("Pickup recovers pending ingredients, unfinished batches and fired products
   assert.equal(factory.state.inventory.unfiredBrick, 4); assert.equal(factory.state.inventory.unfiredPot, 2);
   assert.equal(factory.state.inventory.wood, 0, "heat is not duplicated as Wood on pickup");
   const id = kiln.id; kiln = factory.place("kiln", 50, 40).machine;
-  assert.equal(kiln.id, id); assert.equal(kiln.heat, 80); assert.equal(kiln.job, null);
+  assert.equal(kiln.id, id); assert.equal(kiln.heat, 80000); assert.equal(kiln.job, null);
   factory.state.stock.kiln++;
   const replacement = factory.place("kiln", 40, 40).machine;
   assert.equal(replacement.heat, 0); assert.equal(replacement.input.length, 0);
@@ -237,7 +237,7 @@ test("Pickup recovers pending ingredients, unfinished batches and fired products
   factory.pickup(kiln.id); assert.equal(factory.state.inventory.pot, 2);
   factory = Factory.importSave(factory.exportSave());
   assert.equal(factory.state.inventory.pot, 2); assert.equal(factory.state.inventory.unfiredBrick, 4);
-  assert.equal(factory.state.storedMachines.find((machine) => machine.id === id).heat, 40);
+  assert.equal(factory.state.storedMachines.find((machine) => machine.id === id).heat, 40000);
 });
 
 test("Kiln save migration adds zero stock/materials only, and corrupt heat, fractional batches or overfull buffers are rejected", () => {
@@ -250,7 +250,7 @@ test("Kiln save migration adds zero stock/materials only, and corrupt heat, frac
   const before = factory.exportSave();
   for (const mutate of [
     (state) => { delete state.inventory.pot; },
-    (state) => { state.machines[0].heat = 251; },
+    (state) => { state.machines[0].heat = 250001; },
     (state) => { state.machines[0].heat = -1; },
     (state) => { state.machines[0].outputCooldown = 3; },
     (state) => { state.machines[0].input = [cargo("unfiredBrick", 5)]; },
@@ -276,7 +276,7 @@ test("Terrain migration recovers a kiln's multi-input job once and preserves its
   assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.state.machines.length, 0);
   assert.equal(loaded.state.inventory.unfiredBrick, 4); assert.equal(loaded.state.inventory.unfiredPot, 2);
   assert.equal(loaded.state.inventory.wood, 0);
-  assert.equal(loaded.state.storedMachines[0].heat, 80);
+  assert.equal(loaded.state.storedMachines[0].heat, 80000);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 

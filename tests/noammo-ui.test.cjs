@@ -133,6 +133,7 @@ test('Manual Overflow Shop costs, stable side control, occupied-mode refusal and
   chooseMachine(ui, 'manualOverflow'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const mode = ui.ids.get('overflowMode'); assert.equal(mode.value, 'up');
+  assert.deepEqual(mode.children.map(option => [option.value, option.textContent]), [['up', 'Left'], ['down', 'Right']]);
   for (let now = 100; now <= 500; now += 100) ui.frame(now);
   assert.equal(ui.ids.get('overflowMode'), mode, 'simulation updates do not remount the selector');
   // The inactive lower hamster square accepts a separate Basket.
@@ -151,6 +152,58 @@ test('Manual Overflow Shop costs, stable side control, occupied-mode refusal and
   ui.ids.get('cargo').emit('click', screenPoint(123, 121));
   const moved = ui.state().machines.find(m => m.type === 'manualOverflow');
   assert.equal(moved.mode, 'up'); assert.equal(moved.x, 123); assert.equal(A.cells(moved).length, 5);
+});
+
+test('Copper finishing Shop prices, effects and molder production controls use shared data and stay mounted', () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 125000;
+  Object.assign(f.state.inventory, { brick: 40, clay: 20, leekFiber: 210, wood: 50, copperIngot: 10 }); f.state.stock.belt = 1;
+  let ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  for (const [type, expected] of [
+    ['ingotMolder', ['$125k / $25k', '40 / 40', '20 / 20', '210 / 10']],
+    ['copperChimes', ['$100k / $100k', '200 / 200', '50 / 50', '10 / 10', '1 / 1']],
+  ]) {
+    ui.ids.get('shopCards').children[Object.keys(A.DATA.machines).indexOf(type)].emit('click');
+    assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), expected);
+    if (type === 'copperChimes') assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent),
+      ['Cash effect: ×1.25', 'Use Limit: 1', 'Upper Limit: $5k']);
+    ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock[type], 1);
+  }
+  f.state.stock.primitiveFurnace = 1; f.state.stock.ingotMolder = 1; f.state.stock.basket++;
+  const furnace = f.place('primitiveFurnace', 121, 121).machine;
+  f.setFurnaceMode(furnace.id, 'copper'); furnace.output = [A.cargo('moltenCopper', 4, 108.4)];
+  f.place('ingotMolder', 123, 121); const basket = f.place('basket', 124, 122).machine;
+  ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(123, 121));
+  const buffers = ui.ids.get('molderBuffers'), move = ui.ids.get('moveMachine');
+  assert.equal(buffers.textContent, 'Waiting liquid: 0 / 1 · Finished ingots: 0 / 1');
+  for (let n = 1; n <= 45; n++) ui.frame(n * 100);
+  assert.equal(ui.ids.get('molderBuffers'), buffers); assert.equal(ui.ids.get('moveMachine'), move);
+  assert.equal(ui.state().machines.find(m => m.id === basket.id).contents[0].quantity, 4);
+  assert.equal(ui.state().inventory.clay, 20, 'molding never consumes construction Clay');
+});
+
+test('Copper industry Shop costs and furnace mode, heat and buffers stay current without remounting controls', () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 325000;
+  Object.assign(f.state.inventory, { granite: 200, chert: 50, woodenGear: 20, wood: 40, brick: 200, clay: 50 });
+  const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  for (const [type, expected] of [
+    ['copperDrill', ['$325k / $75k', '200 / 100', '50 / 50', '20 / 20', '40 / 40']],
+    ['primitiveFurnace', ['$250k / $250k', '200 / 200', '100 / 100', '50 / 50']],
+  ]) {
+    ui.ids.get('shopCards').children[Object.keys(A.DATA.machines).indexOf(type)].emit('click');
+    assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), expected);
+    ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock[type], 1);
+  }
+  chooseMachine(ui, 'primitiveFurnace'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const mode = ui.ids.get('furnaceMode'), heat = ui.ids.get('kilnHeat'), move = ui.ids.get('moveMachine');
+  assert.deepEqual(mode.children.map(o => [o.value, o.textContent]), [['charcoal', 'Charcoal · 12s'], ['copper', 'Copper smelting · 20s']]);
+  assert.equal(heat.textContent, 'Heat: 0 / 1Mu');
+  mode.value = 'copper'; mode.emit('change');
+  for (let n = 1; n <= 30; n++) ui.frame(n * 100);
+  assert.equal(ui.ids.get('furnaceMode'), mode); assert.equal(ui.ids.get('kilnHeat'), heat); assert.equal(ui.ids.get('moveMachine'), move);
+  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').mode, 'copper');
+  move.emit('click'); ui.ids.get('rotateRight').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(125, 121));
+  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').mode, 'copper');
 });
 
 function viewCenter(view) {
@@ -798,16 +851,16 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   ui = boot(factory.exportSave());
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   const heat = ui.ids.get("kilnHeat"), buffers = ui.ids.get("kilnBuffers"), move = ui.ids.get("moveMachine");
-  assert.equal(ui.ids.get("crew").textContent, "8 / 10"); assert.equal(heat.textContent, "Heat: 60 / 250u");
+  assert.equal(ui.ids.get("crew").textContent, "8 / 10"); assert.equal(heat.textContent, "Heat: 60k / 250ku");
   for (let frame = 1; frame <= 90; frame++) ui.frame(frame * 100);
   assert.equal(ui.ids.get("kilnHeat"), heat); assert.equal(ui.ids.get("kilnBuffers"), buffers);
   assert.equal(ui.ids.get("moveMachine"), move, "production must not remount the control buttons");
-  assert.equal(heat.textContent, "Heat: 20 / 250u");
+  assert.equal(heat.textContent, "Heat: 20k / 250ku");
   assert.equal(buffers.textContent, "Waiting inputs: 0 · Finished products: 4");
   move.emit("click"); ui.ids.get("rotateRight").emit("click");
   ui.ids.get("cargo").emit("click", screenPoint(125, 120));
   const moved = ui.state().machines.find((machine) => machine.id === kiln.id);
-  assert.equal(moved.facing, "down"); assert.equal(moved.heat, 20); assert.equal(moved.output[0].quantity, 4);
+  assert.equal(moved.facing, "down"); assert.equal(moved.heat, 20000); assert.equal(moved.output[0].quantity, 4);
   ui.ids.get("pickupMachine").emit("click");
   assert.equal(ui.state().inventory.brick, 4); assert.equal(ui.ids.get("crew").textContent, "10 / 10");
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
@@ -1046,7 +1099,7 @@ test("Granite Processor Shop scales Granite and conveyor components, filters Cas
   const card = ui.ids.get('shopCards').children[Object.keys(A.DATA.machines).indexOf('graniteProcessor')];
   ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(b => b.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const expected = ['Cash effect: ×1.3', 'Use Limit: 12', 'Upper Limit: $525', 'Base Value Required: $3.5'];
+  const expected = ['Cash effect: ×1.3', 'Use Limit: 12', 'Upper Limit: $500', 'Base Value Required: $3.5'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$70k / $70k', '600 / 600', '3 / 4']);

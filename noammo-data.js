@@ -33,7 +33,8 @@
     materials: {
       leek: { name: "Leek", value: 0.1, weight: 1, color: "#9dbf65" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0" },
-      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30 },
+      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000 },
+      charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
       woodenGear: { name: "Wooden Gear", value: 0.2, weight: 2, color: "#c19762" },
       clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67", family: "clay" },
@@ -45,6 +46,8 @@
       limestone: { name: "Limestone", value: 0.1, weight: 1, color: "#c6bea0", family: "stone" },
       corundum: { name: "Corundum", value: 1, weight: 1, color: "#9b899d", family: "stone" },
       nativeCopper: { name: "Native Copper", value: 1.5, weight: 1, color: "#c58b58" },
+      moltenCopper: { name: "Molten Copper", value: 6, weight: 1, color: "#ef9958", fluid: true, moldsTo: "copperIngot" },
+      copperIngot: { name: "Copper Ingot", value: 6, weight: 1, color: "#d29a69", family: "metal" },
       soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
     },
     grades: [
@@ -96,6 +99,17 @@
         sourceModes: { chert: "Chert", granite: "Granite" }, defaultMode: "chert",
         cycle: 5, sourceQuantity: 2, outputLimit: 2, centeredOutput: true,
         description: "Extracts two Chert or Granite every five seconds.",
+      },
+      copperDrill: {
+        name: "Copper Drill", width: 3, height: 2, color: "#b18461", category: "Material",
+        labelLines: ["Copper", "Drill"], labelCell: [0.5, 0.5],
+        cost: { cash: 75000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
+        source: "nativeCopper", cycle: 15, outputLimit: 1, requiresKinetic: true, centeredOutput: true,
+        ports: [
+          { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
+          { x: 1, y: 1, direction: "down", role: "kineticInput" },
+        ],
+        description: "Extracts one Native Copper every fifteen seconds. Requires a connected Hamster Wheel and uses a centered two-tile output.",
       },
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Material",
@@ -156,12 +170,40 @@
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
         cost: { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
-        heatCapacity: 250, heatPerSecond: 5, outputSeconds: 2,
+        heatCapacity: 250000, heatPerSecond: 5000, outputSeconds: 2,
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4 },
           unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4 },
         },
         description: "Fires four unfired Bricks or two unfired Pots in eight seconds, multiplying their value by four. Either input accepts fuel or unfired products. Uses two hamsters.",
+      },
+      primitiveFurnace: {
+        name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,
+        labelLines: ["Primitive", "Furnace"],
+        cost: { cash: 250000, materials: { brick: 200, granite: 100, clay: 50 } },
+        heatCapacity: 1000000, heatPerSecond: 25000, outputSeconds: 2,
+        manualRecipes: true, defaultMode: "charcoal",
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "input" },
+          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 1, y: 1, direction: "right", role: "output" },
+        ],
+        recipes: {
+          charcoal: { name: "Charcoal", material: "wood", input: 4, output: "charcoal", outputQuantity: 2, seconds: 12, heatPerSecond: 0, valueMultiplier: 1 },
+          copper: { name: "Copper smelting", material: "nativeCopper", input: 4, output: "moltenCopper", outputQuantity: 4, seconds: 20, valueMultiplier: 4 },
+        },
+        description: "Makes two Charcoal from four Wood in twelve seconds without external heat, or smelts four Native Copper in twenty seconds using 500ku of heat. Feeds molten Copper directly into an Ingot Molder. Uses two hamsters.",
+      },
+      ingotMolder: {
+        name: "Ingot Molder", width: 1, height: 2, color: "#b99472", category: "Material", crew: 1,
+        labelLines: ["Ingot", "Molder"], labelCell: [0, 0],
+        cost: { cash: 25000, materials: { brick: 40, clay: 20, leekFiber: 10 } },
+        molder: true, inputLimit: 1, outputBuffer: 1, seconds: 1,
+        ports: [
+          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 0, y: 1, direction: "right", role: "output" },
+        ],
+        description: "Molds one unit of liquid metal into one ingot every second, preserving its value. Uses one hamster and no consumables. Cast Iron requires a Refractory Caster.",
       },
       wheel: {
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
@@ -210,8 +252,15 @@
         name: "Granite Processor", width: 1, height: 2, color: "#aa8077", category: "Cash",
         labelLines: ["Granite", "Processor"], conveyors: [[0, 0], [0, 1]],
         cost: { cash: 35000, materials: { granite: 300 }, machines: { belt: 2 } },
-        cashEffect: { multiplier: 1.3, useLimit: 12, upperLimit: 525, baseValueRequired: 3.5 },
+        cashEffect: { multiplier: 1.3, useLimit: 12, upperLimit: 500, baseValueRequired: 3.5 },
         description: "Processes passing products to increase their value. Two parallel primitive conveyor lanes.",
+      },
+      copperChimes: {
+        name: "Copper Chimes", width: 1, height: 3, color: "#c58a5a", category: "Cash",
+        labelLines: ["Copper", "Chimes"], labelCell: [0, 0], conveyors: [[0, 1]],
+        cost: { cash: 100000, materials: { leekFiber: 200, wood: 50, copperIngot: 10 }, machines: { belt: 1 } },
+        cashEffect: { multiplier: 1.25, useLimit: 1, upperLimit: 5000 },
+        description: "Increases the value of passing sellables by 25% once. Requires kinetic power for its conveyor.",
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",

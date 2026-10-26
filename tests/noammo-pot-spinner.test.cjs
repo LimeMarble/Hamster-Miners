@@ -153,7 +153,7 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   feed(f, m, { ...cargo('clay', 1, 2), gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9 } });
   feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(12);
   const pot = m.output[0]; near(pot.value, 10); near(pot.gradeRepairs.brickSeal, 2); assert.deepEqual(pot.upgrades, {});
-  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 40;
+  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 40000;
   const input = ports(kiln).find(p => p.role === 'input');
   f.receive(kiln, pot, input.x, input.y, input.direction, true);
   f.receive(kiln, cargo('unfiredPot', 1, 1), input.x, input.y, input.direction, true);
@@ -185,7 +185,7 @@ test('stacked profiles average with ordinary pots; splitting and hauling retain 
 test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades spun pots without early RNG or extra cash', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'potSpinner', 40, 40);
   place(f, 'wheel', 39, 43); place(f, 'drive', 39, 45, 'up');
-  const kiln = place(f, 'kiln', 42, 41); kiln.heat = 240;
+  const kiln = place(f, 'kiln', 42, 41); kiln.heat = 240000;
   place(f, 'belt', 44, 42); place(f, 'gradingBench', 44, 41);
   const basket = place(f, 'basket', 46, 42);
   for (let i = 0; i < 450; i++) { feed(f, m, cargo('clay', 2, 2)); f.update(0.1); if (i < 300) assert.equal(f.state.random, 1); }

@@ -126,10 +126,10 @@ test('normal conveyor and adjacent Overflow chains release downstream first in e
 
 test('overflow into a real Kiln respects its limited full-batch input and preserves leftovers', () => {
   const { f, m } = setup(); block(m);
-  const kiln = place(f, 'kiln', 39, 38, 'up'); kiln.heat = 100;
+  const kiln = place(f, 'kiln', 39, 38, 'up'); kiln.heat = 100000;
   for (let i = 0; i < 2; i++) { assert.equal(feed(f, m, cargo('unfiredBrick', 2)), 2); f.update(4.1); }
   f.update(0.1); assert.equal(kiln.job.recipe, 'unfiredBrick');
-  near(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4); near(kiln.heat, 60);
+  near(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4); near(kiln.heat, 60000);
 });
 
 test('independent instances, carrying saves, mode changes and pickup recover each stack once', () => {

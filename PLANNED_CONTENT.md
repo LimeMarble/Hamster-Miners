@@ -134,18 +134,18 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Each product keeps its own incoming value multiplied by 4, without averaging
   different input values. Fired Brick base value/weight are $1/1; Fired Pot
   base value/weight are $4/2. New-material cash eligibility starts fresh.
-  Fuel converts immediately to abstract heat, capacity 250u; whole fuel items
-  are accepted only if their heat fits. Wood provides 30u, so it is accepted
-  at 220u and rejected above 220u. Starting a full batch consumes 5 times the
-  recipe duration in heat (40u), once, together with all ingredients.
+  Fuel converts immediately to abstract heat, capacity 250ku; whole fuel items
+  are accepted only if their heat fits. Wood provides 30ku, so it is accepted
+  at 220ku and rejected above 220ku. Starting a full batch consumes 5ku times the
+  recipe duration in heat (40ku), once, together with all ingredients.
   Each instance holds one pending input batch, one firing/ready job and one
   finished output batch. Output releases one product every two seconds; blocked
   time cannot bank bursts. Firing and previous-batch unloading overlap.
   Heat, separate input values, remaining time, output and unloading cooldown
   survive movement/saves. Pickup recovers inputs and products once; already
   spent fuel is not refunded, and unspent heat stays with the owned Kiln.
-  Later ore-smelting batches are planned as 4 ores in 20 seconds (100u);
-  the noammo ore sources and molten-metal chain are not implemented yet.
+  Copper extraction and smelting are implemented by the Copper Drill and
+  Primitive Furnace described below, with direct Ingot Molder connections.
 - Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
   edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
   its reference footprint; existing saved orientations are unchanged.
@@ -281,12 +281,14 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Manual Overflow costs $2, 20 Wood, two owned Primitive Conveyors and two
   Wooden Gears. Logistics category, one crew. The two middle cells are the
   ordinary straight conveyor route. If its input cargo cannot proceed, the
-  hamster carries one stack to the selected upper or lower output in exactly
+  hamster carries one stack to the selected left or right output, relative to
+  the machine's facing, in exactly
   two seconds, without weight/distance adjustments or an extra unload delay.
 - Reference footprint is two columns by three rows. Both outer-left output
   cells, middle-left input and middle-right normal output are always occupied.
   Only the selected outer-right hamster cell is occupied; the other is free.
-  Up is the initial mode. All cells and ports rotate together.
+  Left is the initial mode. All cells and ports rotate together. Saved mode
+  keys remain `up` (Left) and `down` (Right) for compatibility.
 - Changing mode requires the new hamster cell to be free. Refusal is atomic;
   successful changes preserve carried cargo and the remaining transfer time.
   Normal downstream releases are resolved before overflow, including adjacent
@@ -305,6 +307,69 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Existing saves gain zero Overflow stock, not a free machine. No legacy
   mining-game capacity or production balance is changed.
 
+## Copper Drill and Primitive Furnace (implemented, 2026-10-26)
+
+- Copper Drill: $75k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
+  Solid 3x2 footprint, four rear cells and a centered two-cell outlet, without
+  internal conveyors. Kinetic intake is below the middle column, as on Pebble
+  Sifter. One Native Copper ($1.50 base, weight 1) every 15 seconds; no extra
+  crew beyond the connected Wheel. Production pauses without kinetic power
+  or when its single-item output is full; no banked cycles.
+- Primitive Furnace: $250k, 200 Bricks, 100 Granite and 50 Clay; two crew.
+  Uses Clay Kiln's solid 2x3 footprint and ports: two left inputs at the top
+  and middle rows, and one right output in the middle row. Both inputs work
+  identically, with bounded whole-item feed/fuel acceptance.
+- Selected Charcoal mode: 4 Wood -> 2 Charcoal in 12 seconds, requiring zero
+  external heat. Wood is recipe feed in this mode, never accidentally burned
+  as fuel. Total incoming cash value is preserved ($0.20 base per Charcoal).
+  Charcoal weighs 1 and provides 240ku of heat.
+- Selected Copper mode: 4 Native Copper -> 4 Molten Copper in 20 seconds,
+  consuming 500ku once at start (25ku/s). The finished batch averages its
+  input values and multiplies by 4; new-material cash-use tags reset.
+  Molten Copper has $6 nominal base value and weight 1; it is a fluid, not
+  solid collector/conveyor cargo, inventory material or a direct sellable.
+  It feeds an adjacent Ingot Molder; fluid transfer follows the receiver's
+  bounded capacity, independently of the solid-output unloading timer.
+- Furnace heat capacity is two copper firings (1Mu). It holds one pending
+  full input batch, one running/ready job and one finished batch. Solid output
+  unloads every two seconds. Mode changes return only waiting inputs to
+  inventory; the running recipe, heat and finished output remain intact.
+  Moves and saves retain all instance-owned state. Pickup recovers solid
+  ingredients/output once; remaining molten metal and heat stay with that
+  owned furnace, never with its former tiles or another instance.
+- Thermal units are scaled by 1000 across the noammo prototype: Wood 30ku,
+  Clay Kiln 250ku capacity and 5ku/s. Existing fuel runtimes are unchanged.
+  Old placed/stored furnace heat migrates exactly once; new machines/materials
+  receive zero stock/counts. Legacy mining-game thermal values are unchanged.
+
+## Ingot Molder and Copper Chimes (implemented, 2026-10-26)
+
+- Ingot Molder: $25k, 40 Bricks, 20 Clay and 10 Leek Fiber. One crew;
+  same 1x2 vertical footprint and lower-tile left input/right output as Fiber
+  Extractor. One liquid unit -> one ingot every second with no cash bonus,
+  fuel or consumable Clay. Copper Ingot base value $6, weight 1.
+- One waiting liquid unit, one working/ready job and one finished ingot.
+  Fractional arrivals of matching liquid can fill the one-unit input buffer.
+  Working can overlap finished output waiting; solid belts clear before
+  unloading, and new liquid deliveries can start work in that same step.
+  Direct Furnace-to-Molder transfer sustains 1/s in every facing and either
+  machine order, without pipes or a two-second liquid release throttle.
+- Liquid-to-solid mappings belong to material definitions. Refractory-only
+  materials, including future Cast Iron, are excluded from basic molding.
+  Pickup collects finished ingots once and retains liquid inputs/jobs with
+  that owned Molder. Moves, group moves and saves retain work and values.
+- Copper Chimes: $100k, 200 Leek Fiber, 50 Wood, 10 Copper Ingots and its
+  standard one purchased Primitive Conveyor component. Zero crew. Three
+  occupied cells in a vertical column with a right-facing middle conveyor;
+  kinetic power and two-second transit, rotating normally.
+- Cash effect: x1.25 once across all Chimes instances, incoming value strictly
+  below $5k, no base-value minimum. Eligibility is per item, and the final
+  result can exceed $5k. New-material transformations renew cash eligibility.
+  Uses and other cargo metadata persist through ordinary moves and saves.
+- Older noammo saves gain zero stock/counts for these additions. Shop,
+  Inventory, Recipes, stable machine controls and recent output history use
+  the real definitions. Legacy mining-game machinery is unchanged.
+
 ## Granite Processor (implemented, 2026-10-23)
 
 - Cost: $35k, 300 Granite, two owned Primitive Conveyors. Cash category,
@@ -313,7 +378,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Drive coverage and uses two-second transit with normal belt capacity.
 - Cash effect: x1.3, up to 12 uses across all Processor instances. Declared
   per-item base value must be at least $3.50; incoming per-item actual value
-  must be below $525. No incoming lower bound. This is not a result clamp.
+  must be below $500 (rebalanced 2026-10-26). No incoming lower bound. This is not a result clamp.
 - Uses travel with cargo through saves and moves, follow existing stack merge
   rules and are validated against each upgrader's declared limit. Existing
   grade/repair metadata and other upgrader tags remain intact.
@@ -505,6 +570,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   being discarded or split into fractions. Heavy Stacker settings are unsettled.
 
 ## Cast Iron and Steel
+
+The following are legacy mining-game settings. Noammo uses direct-working
+iron blooms and reserves Cast Iron for the Refractory Caster; its basic Molder
+does not consume Clay during operation.
 
 - Cast Iron is the earlier, coal-using material that fills the machinery role
   previously planned for early Steel. It is not a rename of ordinary Iron.
