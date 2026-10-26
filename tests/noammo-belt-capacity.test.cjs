@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 function place(f, type, x, y, facing = 'right') { f.state.stock[type]++; return f.place(type, x, y, facing).machine; }
 function legacy(type = 'belt', material = 'clay', quantity = 5) {
   const f = new A.Factory(A.createState(1)); const m = place(f, type, 40, 40);
@@ -18,6 +21,71 @@ test('primitive belts have two weight capacity and split whole items without rou
     assert.equal(f.receive(m, A.cargo(material, offered), 40, 40, 'left', true), expected);
     assert.equal(m.lanes[0].quantity, expected); delete m.lanes[0];
   }
+});
+
+test('thermal outputs fill the receiving belt in whole units, preserve cargo and retain paced remainders in every orientation', () => {
+  for (const facing of A.DATA.directions) for (const [type, material, quantity, chunk] of [
+    ['kiln', 'brick', 4, 2], ['kiln', 'pot', 2, 1], ['primitiveFurnace', 'charcoal', 2, 2],
+  ]) {
+    const f = new A.Factory(A.createState(1));
+    place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
+    const source = place(f, type, 40, 40, facing);
+    const output = A.ports(source).find(p => p.role === 'output'), v = A.DATA.vectors[output.direction];
+    const belt = place(f, 'belt', output.x + v.x, output.y + v.y, facing);
+    const basket = place(f, 'basket', output.x + 2 * v.x, output.y + 2 * v.y);
+    const item = A.cargo(material, quantity, 17); item.graded = true; item.upgrades = { saved: 3 };
+    source.output.push(item);
+    f.update(0.1);
+    assert.equal(belt.lanes[0].quantity, chunk);
+    assert.equal(f.total(source, 'output'), quantity - chunk);
+    assert.equal(source.outputCooldown, 2);
+    assert.equal(belt.lanes[0].value, 17); assert.equal(belt.lanes[0].graded, true);
+    assert.deepEqual(belt.lanes[0].upgrades, { saved: 3 });
+    assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
+    f.update(1.9); assert.equal(f.total(basket, 'contents'), 0);
+    f.update(0.1); assert.equal(f.total(basket, 'contents'), chunk);
+    assert.equal(f.total(source, 'output'), 0);
+    if (quantity > chunk) {
+      assert.equal(belt.lanes[0].quantity, chunk);
+      f.update(2);
+    }
+    assert.equal(f.total(basket, 'contents'), quantity);
+    assert.equal(basket.contents[0].value, 17);
+  }
+});
+
+test('kiln outputs use machine conveyor capacity too and cannot accumulate bursts while blocked', () => {
+  const f = new A.Factory(A.createState(1));
+  place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
+  const kiln = place(f, 'kiln', 40, 40), seal = place(f, 'brickSeal', 42, 41);
+  kiln.output.push(A.cargo('brick', 4)); seal.lanes[0] = { ...A.cargo('wood', 2), progress: 1 };
+  f.update(30); assert.equal(f.total(kiln, 'output'), 4);
+  delete seal.lanes[0]; f.update(0.1);
+  assert.equal(seal.lanes[0].quantity, 2); assert.equal(f.total(kiln, 'output'), 2);
+  delete seal.lanes[0]; f.update(1.9); assert.equal(seal.lanes[0], undefined);
+  f.update(0.1); assert.equal(seal.lanes[0].quantity, 2); assert.equal(kiln.output.length, 0);
+});
+
+test('generic machine outputs use destination capacity without splitting an overweight individual item', () => {
+  const data = JSON.parse(JSON.stringify(A.DATA));
+  data.materials.testKettle = { name: 'Test Kettle', value: 100, weight: 3 };
+  data.machines.testIndustrialBelt = { ...data.machines.belt, beltWeight: 30 };
+  const sandbox = { module: { exports: {} }, require: () => data };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
+  const api = sandbox.module.exports, f = new api.Factory(api.createState(1));
+  place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
+  const source = place(f, 'gradingBench', 40, 40), output = api.ports(source).find(p => p.role === 'output');
+  const belt = place(f, 'belt', output.x + 1, output.y);
+  const kettles = api.cargo('testKettle', 2, 321); kettles.graded = true;
+  source.output.push(kettles);
+  const before = JSON.stringify(source.output);
+  f.update(4); assert.equal(JSON.stringify(source.output), before); assert.equal(belt.lanes[0], undefined);
+  f.pickup(belt.id);
+  const industrial = place(f, 'testIndustrialBelt', output.x + 1, output.y);
+  f.update(0.1); assert.equal(source.output.length, 0);
+  assert.equal(industrial.lanes[0].quantity, 2); assert.equal(industrial.lanes[0].value, 321);
+  assert.equal(industrial.lanes[0].graded, true);
+  assert.deepEqual(JSON.parse(api.Factory.importSave(f.exportSave()).exportSave()), JSON.parse(f.exportSave()));
 });
 test('older five-weight stacks split and retain exact quantity, cash, metadata and paced transit across reloads', () => {
   for (const [type, material, quantity] of [['belt', 'clay', 5], ['primitiveBridge', 'pot', 2], ['primitive', 'clay', 4.5]]) {

@@ -113,22 +113,30 @@ test('Blocked smelting is bounded to finished, active and pending batches; mode 
   assert.equal(f.move(m.id, 50, 40, 'down').error, undefined);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
   const id = m.id; f.pickup(id); assert.equal(f.state.inventory.nativeCopper, 8);
-  assert.equal(f.state.inventory.moltenCopper, 0); assert.equal(f.state.storedMachines[0].output[0].quantity, 4);
+  assert.equal(f.state.inventory.moltenCopper, 0); assert.equal(f.state.storedMachines[0].output.length, 0);
   const restored = f.place('primitiveFurnace', 60, 40).machine; assert.equal(restored.id, id);
-  assert.equal(restored.mode, 'copper'); assert.equal(restored.output[0].quantity, 4); near(restored.heat, heat);
+  assert.equal(restored.mode, 'copper'); assert.equal(restored.output.length, 0); near(restored.heat, 0);
+  assert.equal(restored.input.length, 0); assert.equal(restored.job, null); assert.equal(restored.outputCooldown, 0);
   const fresh = place(f, 'primitiveFurnace', 50, 40); assert.equal(fresh.heat, 0); assert.equal(fresh.output.length, 0);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
 test('Legacy heat rescales once, new content defaults to zero, and malformed furnace states reject', () => {
   const f = new Factory(A.createState(1)), kiln = place(f, 'kiln', 40, 40), stored = place(f, 'kiln', 50, 40);
+  const storedFurnace = place(f, 'primitiveFurnace', 60, 40); f.pickup(storedFurnace.id);
   f.pickup(stored.id); const old = JSON.parse(f.exportSave());
   delete old.state.heatScaleVersion; delete old.state.copperIndustryVersion;
-  old.state.machines[0].heat = 120; old.state.storedMachines[0].heat = 80;
-  for (const type of ['copperDrill', 'primitiveFurnace']) delete old.state.stock[type];
+  old.state.machines[0].heat = 120;
+  for (const machine of old.state.storedMachines) { machine.heat = 80; machine.outputCooldown = 1; }
+  old.state.storedMachines.find(m => m.id === storedFurnace.id).output = [cargo('moltenCopper', 4)];
+  delete old.state.stock.copperDrill;
   for (const material of ['charcoal', 'moltenCopper']) delete old.state.inventory[material];
   const migrated = Factory.importSave(JSON.stringify(old)); near(migrated.byId.get(kiln.id).heat, 120000);
-  near(migrated.state.storedMachines[0].heat, 80000); assert.equal(migrated.state.stock.copperDrill, 0);
+  near(migrated.state.storedMachines[0].heat, 0); assert.equal(migrated.state.stock.copperDrill, 0);
+  for (const machine of migrated.state.storedMachines) {
+    assert.equal(machine.heat, 0); assert.equal(machine.outputCooldown, 0);
+    assert.deepEqual(machine.output, []); assert.deepEqual(machine.input, []); assert.equal(machine.job, null);
+  }
   assert.deepEqual(Factory.importSave(migrated.exportSave()).state, migrated.state);
   const { f: other, m } = fixture('copper');
   for (const mutate of [

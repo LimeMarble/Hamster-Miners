@@ -186,7 +186,11 @@
     const inventorySwatch = element("i", undefined, "machine-swatch"); inventorySwatch.style.backgroundColor = definition.color;
     button.dataset.machine = type;
     button.append(inventorySwatch, element("strong", definition.name), count); $("machineCards").append(button); machineCards.set(type, { button, count });
+  }
+  const shopEntries = Object.entries(D.machines).sort(([, a], [, b]) => (a.cost?.cash ?? Infinity) - (b.cost?.cash ?? Infinity));
+  for (const [type, definition] of shopEntries) {
     const card = action("", () => { shopSelection = type; shopSignature = ""; refresh(); }, "shop-card");
+    card.dataset.machine = type;
     const swatch = element("i", undefined, "machine-swatch"); swatch.style.backgroundColor = definition.color;
     const owned = element("span", "Owned: 0"), bottom = element("small"); bottom.append(swatch, owned);
     card.append(element("strong", definition.name), element("span", definition.cost ? money(definition.cost.cash) : "Cost unset", "muted"), bottom);
@@ -268,9 +272,9 @@
         if (machine && !otherSelected && D.machines[machine.type].quickAction === "collect") {
           collect(machine.id); return;
         }
-        // Occupied tiles without an available quick action select normally.
+        // Shift adds buildings to the selection without invoking their quick action.
         // Do not accidentally chop a tree or collect a different selected Basket.
-        select(machine ? [machine.id] : []);
+        select(machine ? [...interaction.selectedIds, machine.id] : []);
         interaction.tree = machine ? null : factory.treeAt.get(A.key(point.x, point.y))?.id ?? null;
         refresh(); return;
       }
@@ -462,7 +466,7 @@
           element("p", `Upper Limit: ${money(factory.state.tuning.primitiveLimit)}`, "machine-effect"));
       } else {
         panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter, Basket and Sell Tube. Click trees to gather Wood."),
-          element("p", "Shift-click empty ground to start two-tap box selection. Shift-click a Basket to collect all; other occupied tiles select. Box select can start anywhere."),
+          element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
@@ -600,6 +604,11 @@
     $("placeMachine").disabled = available < 1;
   }
   function refresh() {
+    if (interaction.selectedIds.some((id) => !factory.byId.has(id))) {
+      select(interaction.selectedIds.filter((id) => factory.byId.has(id)));
+    }
+    if (interaction.tool?.id && !factory.byId.has(interaction.tool.id)) interaction.tool = null;
+    if (interaction.group?.ids.some((id) => !factory.byId.has(id))) interaction.group = null;
     text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${factory.totalCrew()}`);
     const hireCost = factory.crewHireCost();
     text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);

@@ -22,6 +22,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 - Entry: `noammo.html`, linked from the existing game. This is a separate playable
   opening slice on the `noammo` branch, not a migration of the mining game.
+- Shop cards sort once by ascending cash price. Equal prices retain their
+  definition order; category filtering preserves card order and controls.
 - Save identity/key are separate; legacy mine saves cannot be imported here or
   overwritten. Prototype export/import and explicitly confirmed reset are available.
 - Plain labelled machine boxes and port markers; no cosmetic machine animation.
@@ -30,9 +32,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   has no permanent machine list. Items hide unowned materials.
 - Shift-click empty ground starts two-tap box selection; Shift can also be tapped
   before the first click for trackpad use. Occupied tiles use a defined quick
-  action (Basket: collect all), or select normally if no action exists. Selecting
-  a different target suppresses its quick action when another machine, group or
-  tree is selected. The explicit Box Select button can start on occupied tiles.
+  action (Basket: collect all), or select normally if no action exists. Shift-click
+  adds another building to an existing single/group selection, suppressing its
+  quick action. A selected tree also suppresses a different target's quick action.
+  The explicit Box Select button can start on occupied tiles.
   A persistent collapsible shortcut guide and Basket hint explain these rules.
 - Factory supports two-tap box selection and intentional dragging, including
   additive selection. Groups can move, rotate both ways, and be picked up. Invalid
@@ -139,11 +142,15 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   at 220ku and rejected above 220ku. Starting a full batch consumes 5ku times the
   recipe duration in heat (40ku), once, together with all ingredients.
   Each instance holds one pending input batch, one firing/ready job and one
-  finished output batch. Output releases one product every two seconds; blocked
-  time cannot bank bursts. Firing and previous-batch unloading overlap.
+  finished output batch. Every two seconds, solid output releases the largest
+  whole-item portion fitting the receiving conveyor's weight capacity; an
+  individually overweight product stays blocked. Direct non-conveyor inputs
+  retain one-product unloading. Blocked time cannot bank bursts. Firing and
+  previous-batch unloading overlap.
   Heat, separate input values, remaining time, output and unloading cooldown
-  survive movement/saves. Pickup recovers inputs and products once; already
-  spent fuel is not refunded, and unspent heat stays with the owned Kiln.
+  survive movement/saves while placed. Pickup recovers solid inputs and products
+  once, then clears heat, fluid contents, jobs and unloading timers. Spent fuel
+  is not refunded. Loading also clears runtime contents in stored furnaces.
   Copper extraction and smelting are implemented by the Copper Drill and
   Primitive Furnace described below, with direct Ingot Molder connections.
 - Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
@@ -332,14 +339,16 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   bounded capacity, independently of the solid-output unloading timer.
 - Furnace heat capacity is two copper firings (1Mu). It holds one pending
   full input batch, one running/ready job and one finished batch. Solid output
-  unloads every two seconds. Mode changes return only waiting inputs to
+  unloads every two seconds in portions sized to the receiving conveyor, with
+  the same whole-item rule as the Kiln. Mode changes return only waiting inputs to
   inventory; the running recipe, heat and finished output remain intact.
-  Moves and saves retain all instance-owned state. Pickup recovers solid
-  ingredients/output once; remaining molten metal and heat stay with that
-  owned furnace, never with its former tiles or another instance.
+  Moves and saves retain placed instance state. Pickup recovers solid
+  ingredients/output once and clears remaining molten metal, heat, jobs and
+  unloading timers. Replacing a picked-up furnace starts with empty buffers.
 - Thermal units are scaled by 1000 across the noammo prototype: Wood 30ku,
   Clay Kiln 250ku capacity and 5ku/s. Existing fuel runtimes are unchanged.
-  Old placed/stored furnace heat migrates exactly once; new machines/materials
+  Old placed furnace heat migrates exactly once; stored furnace runtime contents
+  are cleared. New machines/materials
   receive zero stock/counts. Legacy mining-game thermal values are unchanged.
 
 ## Ingot Molder and Copper Chimes (implemented, 2026-10-26)

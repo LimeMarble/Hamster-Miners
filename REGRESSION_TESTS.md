@@ -140,9 +140,16 @@ future pipe tiers) are not treated as current acceptance requirements.
   mutate heat. Each ingredient retains its own upgraded value through firing.
   Blocked output cannot drain unlimited materials, stall another kiln, bank
   bursts or prevent normal overlap between firing and unloading. Actual powered
-  belt tests maintain one output every two seconds, regardless of instance order.
-  Single/bulk moves, pickups, terrain migration and hydration preserve identity,
-  heat, cooldowns, values and quantities without leaving tile-owned contents.
+  belt tests maintain paced output every two seconds, regardless of instance order.
+  Thermal and generic machine outputs use the receiving conveyor's weight limit:
+  four weight-1 products split into two stacks of two, weight-2 products leave
+  individually, and overweight individual items remain blocked. Coverage includes
+  every rotation, internal machine belts, metadata/remainder conservation, save
+  round trips and a synthetic heavier belt without adding a new gameplay item.
+  Single/bulk moves and hydration preserve placed identity, heat, cooldowns,
+  values and quantities without leaving tile-owned contents. Single/group pickup
+  clears the inspector immediately, recovers solid cargo once and resets furnace
+  heat, fluids, buffers, jobs and timers; legacy stored furnaces are cleaned on load.
   UI heat/status/control nodes stay mounted while jobs advance. Fired goods sell
   and serve construction costs; storage withdrawals use their base values.
 - Primitive belts and both Primitive Upgrader lanes take two seconds per tile
@@ -191,7 +198,9 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Shift-click (or tap Shift then click) on empty ground arms two-tap selection;
   occupied tiles collect Baskets or select normally. Another selected machine,
   Basket, tree or group suppresses the target's quick action, including when a
-  group contains that target. Repeated collection cannot duplicate cargo or sell
+  group contains that target. Building targets join existing single/group selections
+  without duplicate IDs; plain clicks replace the group and restore single-collector
+  quick actions. Both held Shift and tap-Shift are covered. Repeated collection cannot duplicate cargo or sell
   it. Trees select without chopping under Shift. Placement/movement and explicit
   Box Select take precedence; pointer jitter cannot start an occupied-tile box.
   Shortcut help remains available regardless of selection.

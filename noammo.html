@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=copper-finish-20261026">
+  <link rel="stylesheet" href="noammo.css?v=furnace-pickup-20261026">
 </head>
 <body>
   <header class="topbar">
@@ -33,7 +33,7 @@
             <button id="cancel" class="secondary">Cancel</button>
           </div>
         </div>
-        <div id="viewport" tabindex="0" aria-label="Factory. Click to place or select. Shift-click empty ground then tap the opposite corner to box-select. Shift-click a Basket to collect; when another object is selected, this only selects the Basket. Box select can start on occupied tiles. Hover near edges to pan. Q and E rotate; Escape cancels.">
+        <div id="viewport" tabindex="0" aria-label="Factory. Click to place or select. Shift-click empty ground then tap the opposite corner to box-select. Shift-click a Basket to collect; when another building is selected, this adds the Basket to the selection. Box select can start on occupied tiles. Hover near edges to pan. Q and E rotate; Escape cancels.">
           <canvas id="floor" aria-hidden="true"></canvas>
           <canvas id="cargo" aria-label="Interactive factory"></canvas>
           <div id="historyTooltip" class="history-tooltip" role="tooltip" hidden>
@@ -47,13 +47,13 @@
             <button id="zoomIn" aria-label="Zoom in">+</button>
           </div>
         </div>
-        <div class="factory-footer"><span>Shift-click: quick action / select · empty ground: box select</span></div>
+        <div class="factory-footer"><span>Shift-click: quick action / add to selection · empty ground: box select</span></div>
         <details id="shortcutGuide" class="shortcut-guide">
           <summary>Shortcuts &amp; controls</summary>
           <dl>
             <dt>Click</dt><dd>Select machinery, chop a tree, or place the machine you are holding.</dd>
             <dt>Shift-click empty ground</dt><dd>Start box selection; tap the opposite corner to finish. Pressing and releasing Shift, then tapping also works. Hold Shift on a corner to add to your selection.</dd>
-            <dt>Shift-click an object</dt><dd>Use its quick action: resource collectors collect all contents. Objects without a quick action are selected instead. If a different object or group is selected, the first Shift-click only selects the target.</dd>
+            <dt>Shift-click an object</dt><dd>Use its quick action: resource collectors collect all contents. Objects without a quick action are selected instead. If another building or group is selected, add the clicked building to your selection without using its quick action. If a tree is selected, select the building without its quick action.</dd>
             <dt>Shift-hover an upgrader or Grading Bench</dt><dd>View its last five processed outputs, newest first. The same history is shown when selected. Grading includes the rolled grade; stacks show total and per-item values.</dd>
             <dt>Box select button</dt><dd>Tap any two corners, even on occupied tiles. You can also drag from empty ground.</dd>
             <dt>Q / E</dt><dd>Rotate counterclockwise / clockwise. Visible Rotate buttons do the same.</dd>
@@ -99,7 +99,7 @@
       <h1>Recipes</h1>
       <article class="recipe"><h2>Leek Fiber Extractor</h2><p>1 Leek → 2 Leek Fiber</p><p>Each Fiber retains the Leek’s incoming value. Hand-operated; no kinetic connection.</p></article>
       <article class="recipe"><h2>Crude Gear Bench</h2><p>2 Wood → 1 Wooden Gear in 12 seconds · 1 crew</p><p>Hand-operated. Input and output share the lower tile; the gear retains the combined value and weight of its Wood.</p></article>
-      <article class="recipe"><h2>Primitive Conveyor</h2><p>$1 + 10 Wood + 4 Wooden Gears per conveyor.</p><p>Machines with internal conveyors require purchased belts as construction components.</p></article>
+      <article class="recipe"><h2>Primitive Conveyor</h2><p>$1 + 10 Wood + 4 Wooden Gears per conveyor.</p><p>Carries up to 2 weight per stack. Machine outputs split into the largest whole-item portion that fits; individually heavier items cannot enter.</p><p>Machines with internal conveyors require purchased belts as construction components.</p></article>
       <article class="recipe"><h2>Logger</h2><p>1 Wood every 12 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
       <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p><p>Centered output needs two compatible receiving conveyors or a machine covering its full width. If one conveyor feeds the other, the front conveyor receives the cargo; otherwise both must face the same direction.</p></article>
       <article class="recipe"><h2>Primitive Rock Drill</h2><p>2 Chert or 2 Granite every 5 seconds. Select the rock in the machine controls.</p><p>Uses the same centered-output rules as Clay Pit. Chert, Granite and Limestone have $0.10 base value; Corundum has $1 base value.</p></article>
@@ -128,9 +128,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=copper-finish-20261026"></script>
-  <script src="noammo-simulation.js?v=copper-finish-20261026"></script>
-  <script src="noammo-renderer.js?v=copper-finish-20261026"></script>
-  <script src="noammo-ui.js?v=copper-finish-20261026"></script>
+  <script src="noammo-data.js?v=furnace-pickup-20261026"></script>
+  <script src="noammo-simulation.js?v=furnace-pickup-20261026"></script>
+  <script src="noammo-renderer.js?v=furnace-pickup-20261026"></script>
+  <script src="noammo-ui.js?v=furnace-pickup-20261026"></script>
 </body>
 </html>
