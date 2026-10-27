@@ -231,6 +231,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   retain contents/positions; successful moves and pickups use normal per-instance
   recovery rules. Shared tests cover every opening machine in every orientation,
   including read-only group previews and selection outlines.
+- Completed single/group moves continue placing configured copies from inventory.
+  Tests cover rotated layouts, retained mode/stack settings, distinct identities,
+  no duplicated source cargo, stored-instance consumption, combined crew, repeated
+  types, collision rejection without mutation, cancellation, correct copy previews
+  and automatic stop when remaining stock cannot fill another complete group.
 - Prototype saves have a different kind/key; importing a legacy mining save
   fails without mutating live state. The debug upgrade editor is absent; saved
   upgrade values remain compatible without exposing test controls. No Ammo

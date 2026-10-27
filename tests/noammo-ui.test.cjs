@@ -457,6 +457,51 @@ test("box selection supports reversed corners, additive boxes, repeat/input guar
   assert.doesNotMatch(ui.ids.get("toolLabel").textContent, /first corner/);
 });
 
+test('moving one machine continues placing configured copies until stock is exhausted', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.primitiveStacker = 3;
+  const original = f.place('primitiveStacker', 121, 121).machine; f.setStackSize(original.id, 2);
+  original.lanes[0] = { ...A.cargo('wood', 2), progress: 0.4 };
+  const ui = boot(f.exportSave()), canvas = ui.ids.get('cargo');
+  canvas.emit('click', screenPoint(121, 121)); ui.ids.get('moveMachine').emit('click');
+  canvas.emit('click', screenPoint(124, 123)); ui.frame(100);
+  assert.equal(ui.state().stock.primitiveStacker, 2, 'moving the original consumes no inventory');
+  assert.equal(ui.view().interaction.tool.id, undefined); assert.equal(ui.view().interaction.tool.repeat, true);
+  assert.equal(ui.view().interaction.tool.stackSize, 2);
+  const before = ui.state(); canvas.emit('click', screenPoint(124, 123)); assert.deepEqual(ui.state(), before, 'the repeat preview treats the moved original as occupied');
+  ui.ids.get('rotateRight').emit('click'); canvas.emit('click', screenPoint(126, 123)); ui.frame(200);
+  let state = ui.state(), copy = state.machines.find(m => m.id !== original.id);
+  assert.equal(copy.facing, 'down'); assert.equal(copy.stackSize, 2); assert.deepEqual(copy.lanes, {});
+  assert.equal(state.stock.primitiveStacker, 1); assert.ok(ui.view().interaction.tool);
+  canvas.emit('click', screenPoint(126, 125)); ui.frame(300);
+  state = ui.state(); assert.equal(state.machines.length, 3); assert.equal(state.stock.primitiveStacker, 0);
+  assert.equal(ui.view().interaction.tool, null);
+  const moved = state.machines.find(m => m.id === original.id);
+  assert.deepEqual([moved.x, moved.y, moved.facing], [124, 123, 'right']); assert.equal(moved.lanes[0].quantity, 2);
+});
+
+test('moving a group continues whole-block placement, supports rotation/cancel, and stops at the first insufficient type', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.belt = 7; f.state.stock.primitive = 4;
+  f.place('belt', 121, 121); f.place('belt', 122, 121); f.place('primitive', 123, 121);
+  const ui = boot(f.exportSave()), canvas = ui.ids.get('cargo');
+  box(ui, [121, 121], [123, 122]); ui.ids.get('moveGroup').emit('click'); ui.ids.get('rotateRight').emit('click');
+  canvas.emit('click', screenPoint(120, 124)); ui.frame(100);
+  assert.equal(ui.view().interaction.group.placing, true); assert.match(ui.ids.get('toolLabel').textContent, /Placing 3 machines/);
+  const moved = ui.state().machines, stock = ui.state().stock;
+  ui.ids.get('cancel').emit('click'); ui.frame(200);
+  assert.equal(ui.view().interaction.group, null); assert.deepEqual(ui.state().machines, moved); assert.deepEqual(ui.state().stock, stock);
+  ui.ids.get('moveGroup').emit('click'); canvas.emit('click', screenPoint(120, 124)); ui.frame(300);
+  const blocked = ui.state(); canvas.emit('click', screenPoint(120, 124)); assert.deepEqual(ui.state(), blocked);
+  ui.ids.get('rotateLeft').emit('click'); canvas.emit('click', screenPoint(121, 118)); ui.frame(400);
+  assert.equal(ui.state().machines.length, 6); assert.equal(ui.view().interaction.group.placing, true);
+  assert.deepEqual(ui.state().machines.slice(0, 3), moved);
+  assert.deepEqual(ui.state().machines.slice(3).map(m => [m.x, m.y, m.facing]), [[121, 118, 'right'], [122, 118, 'right'], [123, 118, 'right']]);
+  canvas.emit('click', screenPoint(121, 115)); ui.frame(500);
+  const state = ui.state(); assert.equal(state.machines.length, 9);
+  assert.equal(state.stock.belt, 1); assert.equal(state.stock.primitive, 1);
+  assert.equal(ui.view().interaction.group, null, 'one spare of each type cannot fill a block needing two belts');
+  assert.deepEqual(A.Factory.importSave(ui.storage.get(A.DATA.saveKey)).state, state);
+});
+
 function quickActionFixture(type = "basket") {
   const factory = new A.Factory(A.createState(1));
   const planter = factory.place("planter", 121, 121).machine;

@@ -51,6 +51,12 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Factory supports two-tap box selection and intentional dragging, including
   additive selection. Groups can move, rotate both ways, and be picked up. Invalid
   destinations change nothing; Cancel preserves the original layout and contents.
+- Completing a single/group move continues into placement of copies using owned
+  inventory. Copies retain relative layout, facing, modes and stack-size settings;
+  source cargo/jobs are never duplicated. Repeated groups require a complete set
+  of inventory machines, counting duplicate types, and validate the full footprint
+  and combined crew before consuming anything. The session stops when any type
+  cannot supply the next complete copy. Rotate and Cancel remain available.
 - Factory: 250x250, with 36 inexhaustible 3x3 trees at the fixed green-center
   positions from `Miners Starting Terrain.xlsx` (first 250 rows/columns).
   New saves share this layout. Loading/importing a different terrain picks up

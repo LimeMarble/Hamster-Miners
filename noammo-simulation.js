@@ -363,9 +363,9 @@
       if (!ignoreId && this.availableCrew() < (D.machines[type].crew ?? 0)) return "Not enough available hamsters.";
       return null;
     }
-    place(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right") {
+    place(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", configuration = null) {
       const storedIndex = this.state.storedMachines.findIndex((machine) => machine.type === type);
-      const error = this.placement(type, x, y, facing, null, this.state.storedMachines[storedIndex]?.mode);
+      const error = this.placement(type, x, y, facing, null, configuration?.mode ?? this.state.storedMachines[storedIndex]?.mode);
       if (error) return { error };
       if (!(this.state.stock[type] > 0)) return { error: "No owned machine to place." };
       this.state.stock[type]--;
@@ -375,6 +375,8 @@
         ...(D.machines[type].heatCapacity ? { heat: 0, outputCooldown: 0 } : {}),
         ...(D.machines[type].maxStackSize ? { stackSize: D.machines[type].defaultStackSize } : {}),
         ...(D.machines[type].defaultMode ? { mode: D.machines[type].defaultMode } : {}) }, { x, y, facing });
+      if (configuration?.mode !== undefined) machine.mode = configuration.mode;
+      if (configuration?.stackSize !== undefined) machine.stackSize = configuration.stackSize;
       this.state.machines.push(machine); this.rebuild();
       return { machine };
     }
@@ -393,7 +395,16 @@
       return this.state.machines.filter((machine) => cells(machine).some((cell) =>
         cell.x >= left && cell.x <= right && cell.y >= top && cell.y <= bottom)).map((machine) => machine.id);
     }
-    groupPlan(ids, x, y, turns = 0) {
+    hasGroupStock(ids) {
+      const needed = new Map();
+      for (const id of new Set(ids)) {
+        const machine = this.byId.get(id);
+        if (!machine) return false;
+        needed.set(machine.type, (needed.get(machine.type) ?? 0) + 1);
+      }
+      return needed.size > 0 && [...needed].every(([type, count]) => this.state.stock[type] >= count);
+    }
+    groupPlan(ids, x, y, turns = 0, placing = false) {
       const selected = new Set(ids), machines = [...selected].map((id) => this.byId.get(id));
       if (!machines.length || machines.some((machine) => !machine)
         || ![x, y, turns].every(Number.isInteger)) return { error: "Invalid group selection.", machines: [] };
@@ -409,12 +420,17 @@
           [width - dx - bounds.width, height - dy - bounds.height], [dy, width - dx - bounds.width],
         ][rotation];
         return { id: machine.id, type: machine.type, x: x + offsets[0], y: y + offsets[1], facing: turn(machine.facing, rotation),
-          ...(machine.mode ? { mode: machine.mode } : {}) };
+          ...(machine.mode ? { mode: machine.mode } : {}), ...(machine.stackSize !== undefined ? { stackSize: machine.stackSize } : {}) };
       });
       let error = null;
+      if (placing && !this.hasGroupStock(ids)) error = "Not enough owned machines for the whole group.";
+      if (placing && this.availableCrew() < machines.reduce((sum, machine) => sum + (D.machines[machine.type].crew ?? 0), 0)) {
+        error ||= "Not enough available hamsters for the whole group.";
+      }
       const occupied = new Map();
+      const ignored = placing ? new Set() : selected;
       for (const machine of planned) {
-        error ||= this.placement(machine.type, machine.x, machine.y, machine.facing, selected, machine.mode);
+        error ||= this.placement(machine.type, machine.x, machine.y, machine.facing, ignored, machine.mode);
         for (const cell of cells(machine)) {
           const position = key(cell.x, cell.y);
           const others = occupied.get(position) ?? [];
@@ -434,6 +450,12 @@
         Object.assign(machine, { x: entry.x, y: entry.y, facing: entry.facing });
       }
       this.rebuild(); return { machines: plan.machines.map((entry) => this.byId.get(entry.id)) };
+    }
+    placeGroup(ids, x, y, turns = 0) {
+      const plan = this.groupPlan(ids, x, y, turns, true);
+      if (plan.error) return { error: plan.error };
+      // The complete footprint, stock and crew requirements are checked first.
+      return { machines: plan.machines.map((entry) => this.place(entry.type, entry.x, entry.y, entry.facing, entry).machine) };
     }
     pickupGroup(ids) {
       const selected = [...new Set(ids)];

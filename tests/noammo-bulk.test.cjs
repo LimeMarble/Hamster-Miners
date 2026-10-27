@@ -72,6 +72,46 @@ test("invalid bulk placement changes no positions, buffers, Basket contents, cas
   assert.equal(factory.state.inventory.leek, 3, "successful moves follow the existing Basket collection rule");
 });
 
+test('repeat group placement consumes complete sets, keeps rotated settings and never copies source cargo', () => {
+  const f = new Factory(createState(1));
+  const first = place(f, 'primitiveStacker', 40, 40), second = place(f, 'primitiveStacker', 42, 40);
+  const overflow = place(f, 'manualOverflow', 44, 40); f.setStackSize(first.id, 2); f.setOverflowMode(overflow.id, 'down');
+  first.lanes[0] = { ...cargo('wood', 2), progress: 0.4 };
+  overflow.job = { input: cargo('clay'), remaining: 1 };
+  const stored = place(f, 'manualOverflow', 60, 40); f.pickup(stored.id);
+  const ids = [first.id, second.id, overflow.id];
+  f.moveGroup(ids, 80, 80, 1);
+  f.state.stock.primitiveStacker = 1; f.state.stock.manualOverflow = 2;
+  let before = f.exportSave(); assert.equal(f.hasGroupStock(ids), false);
+  assert.ok(f.placeGroup(ids, 80, 90).error); assert.equal(f.exportSave(), before);
+  f.state.stock.primitiveStacker = 5;
+  before = f.exportSave(); assert.ok(f.placeGroup(ids, 80, 80).error); assert.equal(f.exportSave(), before, 'copies cannot ignore the originals as move previews do');
+  const originals = JSON.stringify(ids.map(id => f.byId.get(id)));
+  const plan = f.groupPlan(ids, 80, 90, 1, true); assert.equal(plan.error, null);
+  const copied = f.placeGroup(ids, 80, 90, 1).machines; assert.equal(copied.length, 3);
+  assert.deepEqual(copied.map(m => [m.type, m.x, m.y, m.facing, m.mode, m.stackSize]), plan.machines.map(m => [m.type, m.x, m.y, m.facing, m.mode, m.stackSize]));
+  assert.equal(copied[2].id, stored.id); assert.equal(copied[2].mode, 'down', 'the copied setting overrides the stored instance setting');
+  for (const machine of copied) {
+    assert.equal(ids.includes(machine.id), false); assert.deepEqual(machine.lanes, {}); assert.equal(machine.job, null);
+  }
+  assert.equal(f.hasGroupStock(copied.map(m => m.id)), true);
+  const last = f.placeGroup(copied.map(m => m.id), 90, 90, -1).machines;
+  assert.equal(last.length, 3); assert.equal(f.state.stock.primitiveStacker, 1); assert.equal(f.hasGroupStock(last.map(m => m.id)), false);
+  before = f.exportSave(); assert.ok(f.placeGroup(last.map(m => m.id), 100, 90).error); assert.equal(f.exportSave(), before);
+  assert.equal(JSON.stringify(ids.map(id => f.byId.get(id))), originals);
+  assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+});
+
+test('repeat group placement checks combined crew before placing any member', () => {
+  const f = new Factory(createState(1)), a = place(f, 'fiber', 40, 40), b = place(f, 'fiber', 42, 40);
+  const extras = [];
+  for (let i = 0; i < 7; i++) extras.push(place(f, 'fiber', 44 + 2 * i, 40));
+  f.state.stock.fiber = 2; assert.equal(f.availableCrew(), 1);
+  const before = f.exportSave(); assert.match(f.placeGroup([a.id, b.id], 80, 80).error, /hamsters/);
+  assert.equal(f.exportSave(), before);
+  f.pickup(extras[0].id); assert.equal(f.placeGroup([a.id, b.id], 80, 80).machines.length, 2);
+});
+
 test("bulk pickup recovers all machine buffers and collector contents exactly once", () => {
   const factory = new Factory(createState(1));
   const fiber = place(factory, "fiber", 40, 40), basket = place(factory, "basket", 43, 42), belt = place(factory, "belt", 45, 42);

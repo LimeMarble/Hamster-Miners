@@ -224,7 +224,7 @@
       if (tree) { ctx.strokeStyle = "#e8e9ab"; ctx.lineWidth = 2; ctx.strokeRect(tree.x * TILE, tree.y * TILE, 96, 96); } }
     const previews = [];
     if (interaction.group && interaction.hover) {
-      const plan = factory.groupPlan(interaction.group.ids, interaction.hover.x, interaction.hover.y, interaction.group.turns);
+      const plan = factory.groupPlan(interaction.group.ids, interaction.hover.x, interaction.hover.y, interaction.group.turns, interaction.group.placing);
       for (const machine of plan.machines) previews.push({ machine, error: plan.error });
     } else if (interaction.tool && interaction.hover) {
       const machine = { ...interaction.tool, ...interaction.hover };

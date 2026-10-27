@@ -286,13 +286,20 @@
       return;
     }
     if (interaction.group) {
-      const { ids, turns } = interaction.group, response = factory.moveGroup(ids, point.x, point.y, turns);
+      const { ids, turns, placing } = interaction.group;
+      const response = placing ? factory.placeGroup(ids, point.x, point.y, turns) : factory.moveGroup(ids, point.x, point.y, turns);
       if (response.error) return notify(response.error);
-      interaction.group = null; select(ids);
+      const placedIds = response.machines.map((machine) => machine.id);
+      interaction.group = factory.hasGroupStock(placedIds) ? { ids: placedIds, turns: 0, placing: true } : null;
+      select(placedIds);
     } else if (tool) {
-      const response = tool.id ? factory.move(tool.id, point.x, point.y, tool.facing) : factory.place(tool.type, point.x, point.y, tool.facing);
+      const response = tool.id ? factory.move(tool.id, point.x, point.y, tool.facing)
+        : factory.place(tool.type, point.x, point.y, tool.facing, tool.repeat ? tool : null);
       if (response.error) return notify(response.error);
-      if (tool.id || !factory.state.stock[tool.type]) interaction.tool = null;
+      if (!factory.state.stock[tool.type]) interaction.tool = null;
+      else if (tool.id || tool.repeat) interaction.tool = { type: tool.type, facing: response.machine.facing, repeat: true,
+        ...(response.machine.mode !== undefined ? { mode: response.machine.mode } : {}),
+        ...(response.machine.stackSize !== undefined ? { stackSize: response.machine.stackSize } : {}) };
       else tool.mode = factory.state.storedMachines.find((machine) => machine.type === tool.type)?.mode ?? D.machines[tool.type].defaultMode;
       select([response.machine.id]);
     } else {
@@ -452,7 +459,7 @@
       } else {
         panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
-          element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
+          element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
         for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Build manual Clay Pits for $5 and 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Crude Gear Bench costs 25 Wood. Point a Logger directly into the Bench to carve gears before building conveyors.", "Primitive Conveyors cost 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Build a Wheel and Drive using materials, then buy Primitive Upgraders for $2 each. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
@@ -615,12 +622,14 @@
     }
     if (interaction.tool?.id && !factory.byId.has(interaction.tool.id)) interaction.tool = null;
     if (interaction.group?.ids.some((id) => !factory.byId.has(id))) interaction.group = null;
+    if (interaction.tool?.repeat && !factory.state.stock[interaction.tool.type]) interaction.tool = null;
+    if (interaction.group?.placing && !factory.hasGroupStock(interaction.group.ids)) interaction.group = null;
     text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${factory.totalCrew()}`);
     const hireCost = factory.crewHireCost();
     text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);
     $("hireCrew").disabled = !factory.canHireCrew();
     text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : interaction.box.contextual ? "Tap empty ground to box-select, or an object for its Shift action" : "Tap the first corner"
-      : interaction.group ? `Moving ${interaction.group.ids.length} machines · Q/E rotates the group`
+      : interaction.group ? `${interaction.group.placing ? "Placing" : "Moving"} ${interaction.group.ids.length} machines · Q/E rotates the group`
       : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
     $("cancel").disabled = !(interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);
     text($("cancel"), interaction.box ? "Cancel selection" : interaction.group || interaction.tool ? "Cancel" : "Clear selection");
