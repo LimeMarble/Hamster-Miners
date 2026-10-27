@@ -11,6 +11,9 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Help uses the same navigation as the other screens. Existing all-tab boot,
+  camera-preservation and crew-control tests include it. Manual review should
+  check expandable topics with pointer and keyboard and readable wrapped text.
 - Clay Shaping Bench has one finished-item buffer that can overlap one running
   job, without expanding its two-Clay pending intake. Real input/output conveyor
   tests sustain the stated Brick/Pot cadence without extra simulation ticks in

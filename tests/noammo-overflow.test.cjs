@@ -27,9 +27,9 @@ function block(m) { m.lanes[1] = { ...cargo('wood'), progress: 1 }; }
 
 test('Manual Overflow exact purchase price, one crew, atomic purchases and both modes reserve five cells', () => {
   const f = new Factory(A.createState(1)), d = D.machines.manualOverflow;
-  assert.deepEqual(d.cost, { cash: 2, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } });
+  assert.deepEqual(d.cost, { cash: 4, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } });
   assert.equal(d.crew, 1); assert.equal(d.manualTransferSeconds, 2);
-  f.state.cash = 4; Object.assign(f.state.inventory, { wood: 40, woodenGear: 4 }); f.state.stock.belt = 3;
+  f.state.cash = 8; Object.assign(f.state.inventory, { wood: 40, woodenGear: 4 }); f.state.stock.belt = 3;
   const before = f.exportSave(); assert.ok(f.buy('manualOverflow', 2).error); assert.equal(f.exportSave(), before);
   f.state.stock.belt++; assert.equal(f.buy('manualOverflow', 2).amount, 2);
   assert.equal(f.state.cash, 0); assert.equal(f.state.inventory.wood, 0); assert.equal(f.state.stock.belt, 0);

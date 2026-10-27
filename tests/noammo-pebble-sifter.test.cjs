@@ -32,18 +32,18 @@ function setup(facing = "right", collectors = true) {
 }
 
 test("Pebble Sifter cost, construction materials, six-cell footprint and material properties are exact", () => {
-  assert.deepEqual(D.machines.pebbleSifter.cost, { cash: 2100, materials: { wood: 150, brick: 30, leekFiber: 50 } });
+  assert.deepEqual(D.machines.pebbleSifter.cost, { cash: 1800, materials: { wood: 150, brick: 30, leekFiber: 50 } });
   assert.equal(D.materials.chert.value, 0.1); assert.equal(D.materials.soil.value, null);
   const factory = new Factory(createState(1));
   assert.equal(factory.state.stock.pebbleSifter, 0);
   const full = { wood: 150, brick: 30, leekFiber: 50 };
   for (const missing of ["cash", ...Object.keys(full)]) {
-    factory.state.cash = 2100; Object.assign(factory.state.inventory, full);
+    factory.state.cash = 1800; Object.assign(factory.state.inventory, full);
     if (missing === "cash") factory.state.cash--; else factory.state.inventory[missing]--;
     const before = factory.exportSave(); assert.ok(factory.buy("pebbleSifter").error);
     assert.equal(factory.exportSave(), before);
   }
-  factory.state.cash = 4200; Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100 });
+  factory.state.cash = 3600; Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100 });
   assert.equal(factory.buy("pebbleSifter", 2).amount, 2); assert.equal(factory.state.cash, 0);
   const sifter = factory.place("pebbleSifter", 40, 40).machine;
   assert.equal(A.cells(sifter).length, 6); assert.equal(factory.availableCrew(), 10);

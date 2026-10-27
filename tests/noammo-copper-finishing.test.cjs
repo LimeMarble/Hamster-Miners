@@ -19,7 +19,7 @@ function pass(f, m, item) {
 
 test('Molder and Chimes have agreed atomic purchase costs, staffing and footprints', () => {
   const costs = {
-    ingotMolder: { cash: 75000, materials: { brick: 40, clay: 20, leekFiber: 10 } },
+    ingotMolder: { cash: 128000, materials: { brick: 40, clay: 20, leekFiber: 10 } },
     copperChimes: { cash: 300000, materials: { leekFiber: 200, wood: 50, copperIngot: 10 }, machines: { belt: 1 } },
   };
   for (const [type, cost] of Object.entries(costs)) {

@@ -62,6 +62,12 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .costs { max-height: 40vh; overflow: auto; padding: 8px 0; }.cost-line { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid #ffffff0a; }.cost-line.insufficient { color: #f69a89; }
 .item-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }.item-card { background: #29362a; border: 1px solid var(--line); padding: 15px; border-radius: 6px; }.item-card strong { font-size: 24px; }.item-card button { display: block; margin-top: 12px; }
 .recipe { border-top: 1px solid var(--line); padding: 18px 0; }.recipe p { color: var(--muted); }
+.help-panel { max-width: 950px; margin: auto; }
+.help-panel > p { color: var(--muted); }
+.help-panel details { border-top: 1px solid var(--line); padding: 16px 0; }
+.help-panel summary { font-size: 16px; font-weight: 600; }
+.help-panel details p { max-width: 78ch; margin: 12px 0 0; }
+.help-panel summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .options-panel { max-width: 950px; margin: auto; }.options-panel details { margin: 22px 0; }.options-panel details p { margin-top: 12px; color: var(--muted); }
 .tree-chops { display: flex; gap: 5px; margin: 15px 0; }.tree-chops i { width: 26px; height: 10px; background: #46513c; border: 1px solid #7c8a62; }.tree-chops i.done { background: var(--accent); }
 @media (max-width: 1150px) { .factory-layout { grid-template-columns: minmax(0,1fr) 240px; }.topbar { gap: 10px; padding: 9px; }.brand strong { font-size: 16px; }.totals { gap: 10px; }.totals strong { font-size: 17px; }.inspector { padding: 10px; } }

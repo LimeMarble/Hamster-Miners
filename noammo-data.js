@@ -109,7 +109,7 @@
       copperDrill: {
         name: "Copper Drill", width: 3, height: 2, color: "#b18461", category: "Material",
         labelLines: ["Copper", "Drill"], labelCell: [0.5, 0.5],
-        cost: { cash: 225000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
+        cost: { cash: 80000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
         source: "nativeCopper", cycle: 15, outputLimit: 1, requiresKinetic: true, centeredOutput: true,
         ports: [
           { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
@@ -121,7 +121,7 @@
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Material",
         labelLines: ["Pebble", "Sifter"],
-        cost: { cash: 2100, materials: { wood: 150, brick: 30, leekFiber: 50 } },
+        cost: { cash: 1800, materials: { wood: 150, brick: 30, leekFiber: 50 } },
         cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.1, chert: 0.1 },
         ports: [
           { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
@@ -171,7 +171,7 @@
         name: "Grading Bench", width: 2, height: 2, color: "#b2a782", category: "Cash",
         crew: 1, secondsPerWeight: 1, inputWeightLimit: 5,
         labelLines: ["Grading", "Bench"], footprint: [[0, 0], [1, 0], [1, 1]],
-        cost: { cash: 3750, materials: { wood: 100, leekFiber: 50, chert: 10 } },
+        cost: { cash: 4000, materials: { wood: 100, leekFiber: 50, chert: 10 } },
         description: "Evaluates Clay products and stone, rolling once per ungraded stack. Takes one second per weight and uses one hamster.",
       },
       kiln: {
@@ -187,7 +187,7 @@
       primitiveFurnace: {
         name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,
         labelLines: ["Primitive", "Furnace"],
-        cost: { cash: 750000, materials: { brick: 200, granite: 100, clay: 50 } },
+        cost: { cash: 280000, materials: { brick: 200, granite: 100, clay: 50 } },
         heatCapacity: 1000000, heatPerSecond: 25000, outputSeconds: 2,
         manualRecipes: true, defaultMode: "charcoal",
         ports: [
@@ -204,7 +204,7 @@
       ingotMolder: {
         name: "Ingot Molder", width: 1, height: 2, color: "#b99472", category: "Material", crew: 1,
         labelLines: ["Ingot", "Molder"], labelCell: [0, 0],
-        cost: { cash: 75000, materials: { brick: 40, clay: 20, leekFiber: 10 } },
+        cost: { cash: 128000, materials: { brick: 40, clay: 20, leekFiber: 10 } },
         molder: true, inputLimit: 1, outputBuffer: 1, seconds: 1,
         ports: [
           { x: 0, y: 1, direction: "left", role: "input" },
@@ -233,7 +233,7 @@
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
-        cost: { cash: 460, materials: { brick: 35 }, machines: { belt: 1 } },
+        cost: { cash: 450, materials: { brick: 35 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
         cashEffect: { bonus: 1.25, useLimit: 9, upperLimit: 15, baseValueRequired: 0.5 },
         gradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
@@ -249,7 +249,7 @@
       leekInfuser: {
         name: "Leek Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
         labelCell: [0, 1], labelLines: ["Leek", "Infuser"], conveyors: [[0, 0]],
-        cost: { cash: 20, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } },
+        cost: { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } },
         cashEffect: { bonus: 0.4, upperLimit: 2 },
         description: "Infuses passing sellables with Leek essence to increase their value.",
       },
@@ -258,7 +258,7 @@
         labelCell: [1, 0], labelLines: ["Primitive Shack"],
         conveyors: [[0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
         upgradeCells: [[1, 1], [1, 2]],
-        cost: { cash: 15000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } },
+        cost: { cash: 10000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } },
         cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 2500, baseValueRequired: 1.2 },
         description: "Doubles the value of passing products. Two parallel conveyor paths run through the Shack.",
       },
@@ -285,7 +285,7 @@
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
         labelLines: ["Bridge"], conveyors: [[0, 0], [1, 0], [2, 0]], bridge: true,
-        cost: { cash: 10, materials: {}, machines: { belt: 4 } },
+        cost: { cash: 100, materials: {}, machines: { belt: 4 } },
         description: "Carries cargo over one ordinary conveyor. The entrance and exit must remain clear.",
       },
       primitiveStacker: {
@@ -304,7 +304,7 @@
       manualOverflow: {
         name: "Manual Overflow", width: 2, height: 3, color: "#a38e68", category: "Logistics", crew: 1,
         labelLines: ["Manual", "Overflow"], defaultMode: "up", manualTransferSeconds: 2,
-        cost: { cash: 2, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
+        cost: { cash: 4, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
         conveyors: [[0, 1], [1, 1]],
         modeFootprints: {
           up: [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]],

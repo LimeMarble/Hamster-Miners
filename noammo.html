@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=exceptional-40x-20261027">
+  <link rel="stylesheet" href="noammo.css?v=cash-shifts-20261027">
 </head>
 <body>
   <header class="topbar">
@@ -15,6 +15,7 @@
       <button data-tab="shop">Shop</button>
       <button data-tab="inventory">Inventory</button>
       <button data-tab="recipes">Recipes</button>
+      <button data-tab="help">Help</button>
       <button data-tab="options">Options</button>
     </nav>
     <div class="totals"><span><small>Cash</small><strong id="cash">$0</strong></span><span class="crew-total"><span><small>Available crew</small><strong id="crew">10 / 10</strong></span><button id="hireCrew" class="secondary" title="Hire one crew hamster">Hire · $5</button></span></div>
@@ -117,11 +118,71 @@
       <article class="recipe"><h2>Primitive Shack</h2><p>Multiplies value by 2 once, requiring at least $1.20 base value and incoming value below $2.5k. Two independent three-tile conveyor paths.</p></article>
       <article class="recipe"><h2>Granite Processor</h2><p>Multiplies value by 1.3, up to 6 uses. Requires at least $3.50 base value and incoming value below $500. Two parallel primitive conveyor lanes.</p></article>
       <article class="recipe"><h2>Copper Chimes</h2><p>Multiplies value by 1.25 once. Requires incoming value below $5k.</p><p>Three occupied tiles in a column, with a right-facing primitive conveyor in the middle. Requires kinetic power.</p></article>
-      <article class="recipe"><h2>Primitive Conveyor Bridge</h2><p>A three-tile span carrying one stream over an ordinary conveyor. Only its middle tile can overlap a ground conveyor; the entrance and exit need clear space.</p><p>Costs $10 and four unplaced Primitive Conveyors.</p></article>
+      <article class="recipe"><h2>Primitive Conveyor Bridge</h2><p>A three-tile span carrying one stream over an ordinary conveyor. Only its middle tile can overlap a ground conveyor; the entrance and exit need clear space.</p><p>Costs $100 and four unplaced Primitive Conveyors.</p></article>
       <article class="recipe"><h2>Primitive Stacker</h2><p>Combines matching items into stacks of the typed size (1–2). Accepts from three sides and outputs in its facing direction. Requires kinetic power and takes two seconds per outgoing stack.</p></article>
       <article class="recipe"><h2>Grading Bench</h2><p>Grades one stack in 1 second per total weight, using 1 crew.</p><p>Ordinary Clay products start with 20% Poor, 60% Standard and 20% Fine; stone starts at 100% Standard. Poor ×0.75, Standard ×1.5, Fine ×2.5, Remarkable ×8, Exceptional ×40.</p><p>Combining stacks averages actual unit values and pre-grading quality modifiers, keeps each upgrader's highest use count and combines its tags. If any input is graded, the whole stack is graded and cannot roll again. Splitting preserves these properties.</p></article>
       <article class="recipe"><h2>Leek Planter</h2><p>1 Leek every 8 seconds</p><p>Direct edge output, without an internal conveyor.</p></article>
       <article class="recipe"><h2>Fuel</h2><p>1 Wood = 30ku of heat. 1 Charcoal = 240ku of heat.</p><p>Furnaces accept whole fuel items only when their heat fits in the remaining capacity.</p></article>
+    </section>
+    <section id="help" class="screen panel help-panel" hidden>
+      <h1>Help</h1>
+      <p>How values, processing and factory connections work. Open a topic below; individual machine effects and recipes are listed in the Shop and Recipes.</p>
+      <details open>
+        <summary>Material changes renew cash-upgrader uses</summary>
+        <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. The value you built up is carried into the recipe and scaled by its effect; it does not simply return to base value.</p>
+        <p>For example, Primitive Shack can upgrade Native Copper, then upgrade the resulting Copper Ingot again. The new material must still meet the upgrader’s base-value and cash requirements.</p>
+        <p>Use limits are shared across all machines of the same kind. Passing through a different Granite Processor does not reset its uses. Moving, stacking or splitting cargo does not renew them either.</p>
+        <p>Quality follows separate rules: Brick Seal’s grade repairs carry through shaping and firing, and processing an already graded ingredient does not give the product another grading roll.</p>
+      </details>
+      <details>
+        <summary>Base value, current value and cash limits</summary>
+        <p><strong>Base value</strong> belongs to the material. Cash upgrades and grading change its <strong>current value</strong>, without raising that base value. Making a different material changes which base value is checked.</p>
+        <p>Upgrader requirements and cash effects apply per item, not to the whole stack. Two items worth $10 each have $20 total value, but each still counts as $10 for eligibility.</p>
+        <p>An Upper Limit checks the incoming current value; a successful final upgrade can exceed it. Base Value Required checks base value, while a Lower Bound checks current value. A Use Limit counts successful cash upgrades of that kind.</p>
+      </details>
+      <details>
+        <summary>Stacking different values and upgrade histories</summary>
+        <p>A stack behaves as one object. Only matching materials can stack together. Their quantities add, while their current unit values, grade repairs and quality chances are averaged by quantity. Total cash value is preserved.</p>
+        <p>For each cash upgrader, the combined stack keeps the highest use count found in its inputs, and retains their other upgrade tags. Uses are not averaged: combining an unused item with one that has exhausted an upgrader leaves the entire stack exhausted for that upgrader.</p>
+        <p>Splitting copies the same unit value, use counts and quality information into each portion. If any input is already graded, the whole combined stack becomes graded.</p>
+      </details>
+      <details>
+        <summary>Grading, repairs and finished value</summary>
+        <p>The Grading Bench makes one roll for the entire incoming stack and multiplies its current value. Already graded cargo cannot roll again, even after stacking or manufacturing.</p>
+        <p>Poor ×0.75 · Standard ×1.5 · Fine ×2.5 · Remarkable ×8 · Exceptional ×40.</p>
+        <p>Materials and processes can have different starting chances. Select a Grading Bench to see the chances for its cargo. Brick Seal moves Poor chance to Standard on clay products independently of its cash effect, so it can still repair eligible ungraded clay products after its cash upgrades stop.</p>
+        <p>Select an upgrader or Grading Bench, or Shift-hover over it, to see its last five outputs. The Grading Bench’s history includes the rolled grade.</p>
+      </details>
+      <details>
+        <summary>Conveyor capacity and centered outputs</summary>
+        <p>A Primitive Conveyor holds one cargo stack, up to 2 total weight. Stacking reduces the number of objects, not their total weight. Overweight stacks wait; they are not automatically split to fit a belt.</p>
+        <p>A centered two-tile outlet needs both receiving tiles covered by compatible conveyors, or a receiving machine spanning the outlet. A single conveyor is insufficient.</p>
+        <p>If one receiving conveyor feeds the other, the front conveyor gets priority. Otherwise both must face the same direction; the centered cargo occupies space across both belts. Opposing or mismatched directions block the outlet.</p>
+      </details>
+      <details>
+        <summary>Kinetic power and direct connections</summary>
+        <p>A Basic Hamster Wheel has two outputs, one at the center of each long edge. A kinetic intake must touch an output and face it. Nearby machines are not powered merely by being close to a Wheel.</p>
+        <p>A connected Conveyor Drive powers primitive conveyors within its highlighted area. Drills, Pebble Sifters and Pot Spinners need a direct Wheel connection instead. Either intake on a kinetic drill or Pot Spinner is sufficient; it does not need two Wheels.</p>
+        <p>Power loss pauses work. It does not build up a backlog of completed production cycles.</p>
+      </details>
+      <details>
+        <summary>Furnace batches, fuel and liquid metal</summary>
+        <p>Furnaces wait for a full recipe batch and enough stored heat, then spend the batch’s heat when work starts. Either ingredient input can accept fuel or ingredients. A whole fuel item must fit within the remaining heat capacity.</p>
+        <p>A finished batch can leave in smaller portions as the receiving belt clears. Seeing fewer than a full batch waiting at the outlet does not mean the furnace made less.</p>
+        <p>Molten metal does not travel on solid conveyors. Connect a Primitive Furnace’s outlet directly to an Ingot Molder’s intake.</p>
+      </details>
+      <details>
+        <summary>Collectors, inventory and dismantling</summary>
+        <p>Collectors hold factory cargo until collected. Collecting transfers material quantities into inventory; upgraded cash values, grades and upgrade histories are not retained there. Sell upgraded cargo through a Sell Tube to receive its current value.</p>
+        <p>Pick up a machine before dismantling it in Inventory. Dismantling returns its construction materials and component machines, with no cash refund. The two starter Planters, one Basket and one Sell Tube are protected when you have no extras.</p>
+      </details>
+      <details>
+        <summary>Selection, quick actions and controls</summary>
+        <p>Shift-click empty ground to start box selection, then tap the opposite corner. The Box select button can start on occupied ground too.</p>
+        <p>With no other building selected, Shift-click a collector to collect everything. With a building or group selected, Shift-click another building to add it to that selection instead.</p>
+        <p>Q/E or the Rotate buttons rotate placement and moves. Escape, right-click or Cancel ends the current action. After moving, placement continues with copies from inventory until another complete copy is unavailable or you cancel.</p>
+        <p>Hover near the factory edges to pan, use the mouse wheel or zoom buttons to zoom, and click Home to recenter. The Factory’s “Shortcuts &amp; controls” guide lists the controls while you build.</p>
+      </details>
     </section>
     <section id="options" class="screen panel options-panel" hidden>
       <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
@@ -131,9 +192,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=exceptional-40x-20261027"></script>
-  <script src="noammo-simulation.js?v=exceptional-40x-20261027"></script>
-  <script src="noammo-renderer.js?v=exceptional-40x-20261027"></script>
-  <script src="noammo-ui.js?v=exceptional-40x-20261027"></script>
+  <script src="noammo-data.js?v=cash-shifts-20261027"></script>
+  <script src="noammo-simulation.js?v=cash-shifts-20261027"></script>
+  <script src="noammo-renderer.js?v=cash-shifts-20261027"></script>
+  <script src="noammo-ui.js?v=cash-shifts-20261027"></script>
 </body>
 </html>
