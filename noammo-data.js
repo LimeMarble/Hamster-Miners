@@ -60,11 +60,13 @@
     machines: {
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
+        dismantleMinimum: 2,
         cost: { cash: 500, materials: { brick: 50, leekFiber: 100, soil: 200 } }, source: "leek", cycle: 8, outputLimit: 2,
         description: "Grows one Leek every 8 seconds. Outputs directly from its facing edge; no conveyor inside.",
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
+        dismantleMinimum: 1,
         quickAction: "collect", collectorCapacity: 100,
         cost: { cash: 0, materials: { leekFiber: 5 } },
         description: "Holds up to 100 items. Collect them into inventory. No manual deposits.",
@@ -304,6 +306,7 @@
         description: "One hamster redirects blocked cargo to the selected side in two seconds. The straight conveyor route has priority.",
       },
       sellTube: {
+        dismantleMinimum: 1,
         name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",
         cost: { cash: 250, materials: { brick: 200 } },
         description: "Sells eligible incoming cargo at its current value.",

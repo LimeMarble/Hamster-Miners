@@ -200,15 +200,20 @@ future pipe tiers) are not treated as current acceptance requirements.
   layout dimensions arrive late. Tab switches preserve pan/zoom, clear edge
   panning, and ignore hidden viewport sizes. A changed viewport preserves the
   viewed world centre; Home recentres without resetting zoom.
-- Opening Inventory has separate Machines/Items sub-screens, owned-only machine
+- Opening Inventory has separate Machines/Items sub-screens, unplaced-only machine
   cards, category filtering, stable selected details and a Place action returning
-  to the current camera. Machinery is not listed on the default Factory screen.
+  to the current camera. Placing the last unit hides its card and pickup restores
+  it; partially placed types stay visible and placed-only categories show an empty
+  state. Machinery is not listed on the default Factory screen.
 - Generic dismantling coverage checks every priced machine's current material
   and component-machine recipe, zero cash refunds, consumed stock, save/load and
   no refunds without an unplaced instance. Picked-up contents cannot refund twice,
   stored molten metal is discarded, and dismantled starter Planters do not trigger
   replenishment. UI tests check previews, stable controls, placed-only rejection,
   returned belt placement and no automatic retargeting when the last unit is gone.
+  Starter reserves block dismantling below two total Planters, one Basket and one
+  Sell Tube; mixed placed/stocked/stored ownership is counted once. Surplus units
+  refund normally until the reserve, with a disabled button and visible reason.
 - Shift-click (or tap Shift then click) on empty ground arms two-tap selection;
   occupied tiles collect Baskets or select normally. Another selected machine,
   Basket, tree or group suppresses the target's quick action, including when a

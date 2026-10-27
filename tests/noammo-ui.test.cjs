@@ -353,12 +353,15 @@ test("Inventory dismantling previews resources, returns components, excludes pla
     assert.equal(state.cash, 50); assert.equal(state.machines[0].id, placed.id);
   }
   assert.equal(button.disabled, true); assert.match(button.title, /Pick up/);
+  assert.equal(ui.ids.get('machineCards').children.find(card => card.dataset.machine === 'primitive').hidden, true);
+  assert.equal(ui.ids.get('machineDetail').hidden, true);
   const before = ui.state(); button.emit('click'); assert.deepEqual(ui.state(), before);
   const pickedUp = new A.Factory(before); pickedUp.pickup(placed.id);
   ui = boot(pickedUp.exportSave()); selectInventory(ui, 'primitive');
   ui.ids.get('dismantleMachine').emit('click');
   assert.equal(ui.ids.get('dismantleMachine').disabled, true);
   assert.equal(ui.ids.get('machineDetail').children[0].textContent, 'Primitive Upgrader');
+  assert.equal(ui.ids.get('machineDetail').hidden, true);
   assert.equal(ui.ids.get('machineCards').children.find(card => card.dataset.machine === 'primitive').hidden, true);
   const state = ui.state(); assert.equal(state.stock.belt, 6); assert.equal(state.stock.planter, 2);
   assert.equal(state.storedMachines.some(m => m.id === placed.id), false);
@@ -367,8 +370,26 @@ test("Inventory dismantling previews resources, returns components, excludes pla
   assert.equal(ui.state().machines[0].type, 'belt');
 });
 
+test('starter reserves disable dismantling visibly after the last surplus machine, including mixed placed/unplaced ownership', () => {
+  for (const [type, minimum] of [['planter', 2], ['basket', 1], ['sellTube', 1]]) for (const placed of [false, true]) {
+    const f = new A.Factory(A.createState(1)); f.state.stock[type] = minimum + 1;
+    if (placed) assert.ok(f.place(type, 121, 121).machine);
+    const ui = boot(f.exportSave()); ui.ids.get('openInventory').emit('click');
+    ui.ids.get('machineCards').children.find(card => card.dataset.machine === type).emit('click');
+    const button = ui.ids.get('dismantleMachine'); assert.equal(button.disabled, false);
+    button.emit('click');
+    assert.equal(button.disabled, true); assert.match(button.title, /Keep at least/);
+    assert.match(ui.ids.get('dismantleLimit').textContent, new RegExp(`Keep at least ${minimum}`));
+    const before = ui.state(); button.emit('click'); assert.deepEqual(ui.state(), before);
+    assert.equal(before.stock[type] + before.machines.filter(m => m.type === type).length, minimum);
+    assert.deepEqual(before.machines, f.state.machines);
+  }
+});
+
 test("machine cards filter, select stable details, and Place returns to the unchanged factory camera", () => {
   const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0;
+  factory.place('planter', 121, 121);
+  factory.state.stock.primitive = 1; factory.place('primitive', 125, 121);
   const ui = boot(factory.exportSave()); ui.frame(100);
   ui.ids.get("zoomIn").emit("click"); ui.frame(200);
   const before = ui.view().camera;
@@ -383,8 +404,16 @@ test("machine cards filter, select stable details, and Place returns to the unch
   place.emit("click"); ui.frame(900);
   assert.equal(ui.ids.get("factory").hidden, false); assert.deepEqual(ui.view().camera, before);
   assert.match(ui.ids.get("toolLabel").textContent, /Placing Leek Basket/);
-  ui.ids.get("cancel").emit("click");
+  ui.ids.get('cargo').emit('click', screenPoint(124, 122)); ui.frame(1000);
   ui.ids.get("openInventory").emit("click");
+  assert.equal(cards.find(card => card.dataset.machine === 'basket').hidden, true, 'placing the last unit hides its card');
+  assert.equal(ui.ids.get('machineEmpty').hidden, false); assert.equal(ui.ids.get('machineDetail').hidden, true);
+  ui.tabs.find(tab => tab.dataset.tab === 'factory').emit('click');
+  ui.ids.get('pickupMachine').emit('click'); ui.ids.get('openInventory').emit('click');
+  assert.equal(cards.find(card => card.dataset.machine === 'basket').hidden, false, 'pickup restores the card');
+  ui.inventoryCategories.find(button => button.dataset.inventoryCategory === 'All').emit('click');
+  assert.equal(cards.find(card => card.dataset.machine === 'planter').hidden, false, 'partially placed types remain available');
+  assert.equal(cards.find(card => card.dataset.machine === 'primitive').hidden, true);
   ui.inventoryCategories.find((button) => button.dataset.inventoryCategory === "Cash").emit("click");
   assert.equal(ui.ids.get("machineEmpty").hidden, false); assert.equal(ui.ids.get("machineDetail").hidden, true);
 });

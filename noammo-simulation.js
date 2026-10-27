@@ -500,10 +500,19 @@
       }
       this.state.stock[type] += amount; return { amount };
     }
+    dismantleError(type) {
+      const definition = D.machines[type];
+      if (!definition?.cost) return "This machine has no construction recipe to recover.";
+      const minimum = definition.dismantleMinimum ?? 0;
+      const owned = this.state.stock[type] + this.state.machines.filter((machine) => machine.type === type).length;
+      if (minimum && owned <= minimum) return `Keep at least ${minimum} ${definition.name}${minimum === 1 ? "" : "s"}.`;
+      if (!(this.state.stock[type] > 0)) return "Pick up an owned machine before dismantling it.";
+      return null;
+    }
     dismantle(type) {
-      const cost = D.machines[type]?.cost;
-      if (!cost) return { error: "This machine has no construction recipe to recover." };
-      if (!(this.state.stock[type] > 0)) return { error: "Pick up an owned machine before dismantling it." };
+      const error = this.dismantleError(type);
+      if (error) return { error };
+      const cost = D.machines[type].cost;
       const index = this.state.storedMachines.findIndex((machine) => machine.type === type);
       const materials = { ...cost.materials }, machines = { ...cost.machines };
       if (index >= 0) {

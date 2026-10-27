@@ -565,14 +565,14 @@
     const visible = [];
     for (const [type, entry] of machineCards) {
       const available = factory.state.stock[type], total = available + factory.state.machines.filter((machine) => machine.type === type).length;
-      entry.button.hidden = total === 0 || (inventoryCategory !== "All" && D.machines[type].category !== inventoryCategory);
+      entry.button.hidden = available === 0 || (inventoryCategory !== "All" && D.machines[type].category !== inventoryCategory);
       if (!entry.button.hidden) visible.push(type);
       text(entry.count, `Owned: ${number(total)} · available: ${number(available)}`);
     }
     if (!visible.includes(inventorySelection) && !(dismantledSelection && dismantledSelection === inventorySelection)) inventorySelection = visible[0] ?? null;
     for (const [type, entry] of machineCards) entry.button.classList.toggle("selected", type === inventorySelection);
     $("machineEmpty").hidden = visible.length > 0;
-    const panel = $("machineDetail"); panel.hidden = !inventorySelection;
+    const panel = $("machineDetail"); panel.hidden = !inventorySelection || factory.state.stock[inventorySelection] === 0;
     if (!inventorySelection) return;
     if (machineSignature !== inventorySelection) {
       machineSignature = inventorySelection;
@@ -595,13 +595,16 @@
       const refund = element("p", definition.cost ? `Dismantle returns: ${returns.join(", ") || "no resources"}. No cash refund.`
         : "No construction recipe to recover.", "muted"); refund.id = "dismantleReturns";
       const contents = element("p", "", "muted"); contents.id = "dismantleContents";
-      panel.append(owned, place, dismantle, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"), refund, contents);
+      const limit = element("p", "", "muted"); limit.id = "dismantleLimit";
+      panel.append(owned, place, dismantle, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"), refund, contents, limit);
     }
     const available = factory.state.stock[inventorySelection], placed = factory.state.machines.filter((machine) => machine.type === inventorySelection).length;
     text($("inventoryOwned"), `Owned: ${number(available + placed)} · available to place: ${number(available)}`);
     $("placeMachine").disabled = available < 1;
-    $("dismantleMachine").disabled = available < 1 || !D.machines[inventorySelection].cost;
-    $("dismantleMachine").title = available < 1 ? "Pick up a machine before dismantling it." : "Dismantle one unplaced machine using its current construction recipe.";
+    const dismantleError = factory.dismantleError(inventorySelection);
+    $("dismantleMachine").disabled = Boolean(dismantleError);
+    $("dismantleMachine").title = dismantleError ?? "Dismantle one unplaced machine using its current construction recipe.";
+    text($("dismantleLimit"), dismantleError ?? "");
     const stored = factory.state.storedMachines.find((machine) => machine.type === inventorySelection);
     text($("dismantleContents"), stored && [...stored.input, ...stored.output, ...(stored.job?.inputs ?? (stored.job?.input ? [stored.job.input] : []))]
       .some((item) => D.materials[item.material]?.fluid) ? "Stored molten metal will be discarded." : "");

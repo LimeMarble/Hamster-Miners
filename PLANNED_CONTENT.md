@@ -27,16 +27,19 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Save identity/key are separate; legacy mine saves cannot be imported here or
   overwritten. Prototype export/import and explicitly confirmed reset are available.
 - Plain labelled machine boxes and port markers; no cosmetic machine animation.
-- Inventory retains separate Machines and Items sub-screens. Owned machines use
+- Inventory retains separate Machines and Items sub-screens. Unplaced machines use
   category-filtered compact cards with details and Place beside them; the Factory
-  has no permanent machine list. Items hide unowned materials.
+  has no permanent machine list. Types with no unplaced stock are hidden even
+  when instances remain placed. Pickup makes them available again. Items hide unowned materials.
 - Machines inventory includes Dismantle for one unplaced machine at a time, with
   a visible refund preview. Refunds use the current construction recipe, including
-  component machines such as conveyors, and never return cash. This also applies
-  to free starter machinery. Stored instances are consumed once; liquid contents
+  component machines such as conveyors, and never return cash. Starter reserves
+  cannot be dismantled: keep two total Leek Planters, one Leek Basket and one
+  Sell Tube, counting placed machines plus stock without double-counting stored
+  instances. Surplus units can be dismantled. Stored instances are consumed once; liquid contents
   are discarded with a visible notice, while unrecovered solid contents return
   once. Placed machines require pickup first. The last selected machine remains
-  in the details panel with disabled controls so repeated clicks cannot destroy
+  selected with its details hidden and controls disabled so repeated clicks cannot destroy
   a different machine after stock runs out. No historical purchase data is kept.
 - Shift-click empty ground starts two-tap box selection; Shift can also be tapped
   before the first click for trackpad use. Occupied tiles use a defined quick

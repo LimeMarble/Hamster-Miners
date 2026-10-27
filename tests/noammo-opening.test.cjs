@@ -689,10 +689,27 @@ test("dismantling consumes one picked-up instance, cannot touch placed machines 
   const beforeCash = f.state.cash;
   f.dismantle('belt'); assert.equal(f.state.inventory.woodenGear, 4); assert.equal(f.state.cash, beforeCash);
   f.dismantle('planter'); f.dismantle('planter');
-  assert.equal(f.state.inventory.soil, 400, 'current recipes apply to free starter machines too');
+  assert.equal(f.state.inventory.soil, 0, 'starter Planters cannot be dismantled');
   const save = f.exportSave(); assert.ok(f.dismantle('missing').error); assert.equal(f.exportSave(), save);
   assert.deepEqual(Factory.importSave(save).state, f.state);
-  assert.equal(Factory.importSave(save).state.stock.planter, 0, 'starter migration cannot replenish dismantled Planters');
+  assert.equal(Factory.importSave(save).state.stock.planter, 2);
+});
+
+test('starter dismantling reserves count placed, stocked and stored machines once and allow only surplus units', () => {
+  for (const [type, minimum] of [['planter', 2], ['basket', 1], ['sellTube', 1]]) {
+    for (let placed = 0; placed <= minimum; placed++) for (let stored = 0; stored <= minimum - placed; stored++) {
+      const f = new Factory(createState(1)); f.state.stock[type] = minimum;
+      for (let i = 0; i < placed; i++) assert.ok(f.place(type, 40 + 4 * i, 40).machine);
+      for (let i = 0; i < stored; i++) f.pickup(f.place(type, 60 + 4 * i, 40).machine.id);
+      const before = f.exportSave(); assert.match(f.dismantle(type).error, /Keep at least/);
+      assert.equal(f.exportSave(), before);
+      f.state.stock[type]++;
+      assert.equal(f.dismantle(type).amount, 1);
+      assert.equal(f.state.stock[type] + f.state.machines.filter(m => m.type === type).length, minimum);
+      const after = f.exportSave(); assert.ok(f.dismantle(type).error); assert.equal(f.exportSave(), after);
+      assert.deepEqual(Factory.importSave(after).state, f.state);
+    }
+  }
 });
 
 test("Primitive test ceiling is incoming eligibility, not an output clamp, and blockage cannot reapply it", () => {
