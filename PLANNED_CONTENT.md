@@ -53,7 +53,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
 - Two free Leek Planters, one Basket and one Sell Tube are supplied to new games.
-  Existing saves keep their owned Planter counts. With clicking enabled,
+  Existing saves with fewer than two total owned Planters receive the missing
+  units once on load, counting placed machines plus stock (stored instances are
+  already included in stock). Saves with two or more keep their counts. With clicking enabled,
   no free Logger is needed. Additional Planters cost $500, 50 Bricks and
   100 Leek Fiber and 200 Soil; the starter remains free and existing owned machines are kept.
 - Planter: 3x3, no internal conveyors, one Leek/8 seconds, one centered facing-edge

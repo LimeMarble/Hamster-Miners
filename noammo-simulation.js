@@ -256,7 +256,7 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1, manualOverflowVersion: 1, beltCapacityVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -1416,6 +1416,12 @@
         ]);
         for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
         factory.state.openingEconomyVersion = 1;
+      }
+      if ((state.starterPlantersVersion ?? 0) < 1) {
+        // Stored instances already count toward stock; do not count them twice.
+        const owned = factory.state.stock.planter + factory.state.machines.filter((machine) => machine.type === "planter").length;
+        factory.state.stock.planter += Math.max(0, 2 - owned);
+        factory.state.starterPlantersVersion = 1;
       }
       factory.recoveredForPlanterResize = recovered.size;
       factory.reorientedForFiberResize = reorientedFiber;

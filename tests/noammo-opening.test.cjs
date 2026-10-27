@@ -50,6 +50,22 @@ test("opening has its own save identity, fixed permanent trees and two free Plan
   }
 });
 
+test("existing saves receive only the missing starter Planters, counting placed, stocked and picked-up instances once", () => {
+  for (const [stocked, placed, stored] of [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 2, 0], [0, 0, 2], [1, 1, 1]]) {
+    const f = new Factory(createState(1)); f.state.stock.planter = stocked + placed + stored;
+    for (let i = 0; i < placed; i++) assert.ok(f.place('planter', 40 + i * 4, 40).machine);
+    for (let i = 0; i < stored; i++) f.pickup(f.place('planter', 60 + i * 4, 40).machine.id);
+    const old = JSON.parse(f.exportSave()); delete old.state.starterPlantersVersion;
+    const loaded = Factory.importSave(JSON.stringify(old)), added = Math.max(0, 2 - stocked - placed - stored);
+    assert.equal(loaded.state.stock.planter, stocked + stored + added);
+    assert.deepEqual(loaded.state.machines, f.state.machines);
+    assert.deepEqual(loaded.state.storedMachines, f.state.storedMachines);
+    assert.deepEqual(loaded.state.inventory, f.state.inventory); assert.equal(loaded.state.cash, f.state.cash);
+    assert.equal(loaded.state.starterPlantersVersion, 1);
+    assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state, 'reload never grants another Planter');
+  }
+});
+
 test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.fiber.cost, { cash: 0, materials: { wood: 30, leek: 1 } });
   assert.deepEqual(D.machines.logger.cost, { cash: 0, materials: { wood: 50, leekFiber: 5 } });
@@ -573,11 +589,12 @@ test("Logger produces Wood every six seconds in all rotations and old saves reta
     advance(factory, 5.9); assert.equal(factory.total(basket, "contents"), 0);
     advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
     const old = JSON.parse(factory.exportSave()); delete old.state.loggerSpeedVersion;
+    delete old.state.starterPlantersVersion;
     old.state.machines.find(m => m.id === logger.id).timer = 9;
     old.state.stock.planter = 1;
     const loaded = Factory.importSave(JSON.stringify(old));
     assert.equal(loaded.byId.get(logger.id).timer, 4.5);
-    assert.equal(loaded.state.stock.planter, 1, 'existing saves keep their owned planter count');
+    assert.equal(loaded.state.stock.planter, 2, 'old saves also receive the missing second starter Planter');
     assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
     advance(loaded, 1.4); assert.equal(loaded.total(loaded.byId.get(basket.id), 'contents'), 1);
     advance(loaded, 0.1); assert.equal(loaded.total(loaded.byId.get(basket.id), 'contents'), 2);

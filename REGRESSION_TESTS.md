@@ -110,7 +110,9 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Planters produce one Leek per eight seconds. Two starters are free; repeat
   purchases enforce $500, 50 Bricks, 100 Fiber and 200 Soil per unit. Bulk buying
   requires and consumes the scaled Soil amount without charging failed purchases. Old free Planters
-  remain owned, without granting new free machines on reload.
+  remain owned. One-time starter migration tops older saves up to two total
+  Planters, counting placed/unplaced and stored instances correctly. Saves already
+  owning two or more gain nothing; repeated imports cannot grant duplicates.
 - Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
   halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
 - Manual Clay Pits cost $5 and 100 Wood and use one crew each. Their twelve-second
