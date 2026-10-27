@@ -51,7 +51,6 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .inspector p { color: var(--muted); font-size: 13px; }.inspector button { margin: 3px 2px 3px 0; }.inspector hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 .status { min-height: 45px; color: var(--accent) !important; }.row { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .basket-counts { display: grid; gap: 4px; padding: 8px 0; }.basket-counts div { display: flex; justify-content: space-between; }
-.route { border-top: 1px solid var(--line); padding: 8px 0; font-size: 12px; }.route button { padding: 3px 6px; }
 .shop-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 15px; max-width: 1400px; margin: auto; }
 .categories { display: flex; flex-wrap: wrap; gap: 5px; margin: 16px 0; }
 .shop-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 8px; }

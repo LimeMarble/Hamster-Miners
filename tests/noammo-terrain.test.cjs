@@ -77,13 +77,13 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   // Legal on the old map, directly underneath a tree on the replacement map.
   place(factory, "sellTube", 108, 39);
   place(factory, "logger", 3, 161, "left").output.push(cargo("wood"));
-  assert.equal(factory.addRoute(basket.id, fiber.id, "any").error, undefined);
-  Object.assign(state.routes[0], { phase: "loaded", item: cargo("wood"), remaining: 1, duration: 1 });
+  state.routes = [{ id: `route-${state.nextId++}`, source: basket.id, destination: fiber.id,
+    material: 'any', phase: 'loaded', item: cargo('wood'), remaining: 1, duration: 1 }];
   const owned = state.machines.map(({ id, type, facing }) => ({ id, type, facing }));
   const originalStock = { ...state.stock };
   const loaded = Factory.importSave(factory.exportSave());
   assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.pickedUpForTerrainReset, owned.length);
-  assert.deepEqual(loaded.state.machines, []); assert.deepEqual(loaded.state.routes, []);
+  assert.deepEqual(loaded.state.machines, []); assert.equal(loaded.state.routes, undefined);
   assert.deepEqual(loaded.state.inventory, { ...createState(1).inventory, leek: 20, leekFiber: 17, wood: 24, clay: 0, brick: 14 });
   assert.deepEqual(loaded.state.storedMachines.map(({ id, type, facing }) => ({ id, type, facing })), owned);
   for (const type of Object.keys(D.machines)) {
@@ -112,7 +112,7 @@ test("a saved map cannot bypass enforcement by keeping the current terrain versi
     const loaded = Factory.importSave(factory.exportSave());
     assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.state.machines.length, 0);
     assert.deepEqual(loaded.state.trees, createState().trees);
-    assert.equal(loaded.state.stock.planter, 2);
+    assert.equal(loaded.state.stock.planter, factory.state.stock.planter + 1);
   }
 });
 
@@ -129,7 +129,7 @@ test("terrain migration still rejects invalid cargo and hauling records without 
   for (const corrupt of [
     (factory) => { factory.state.machines[0].input.push(cargo("leek", 2)); },
     (factory) => { factory.state.machines[0].output.push({ material: "missing", quantity: 1, value: 0 }); },
-    (factory) => { factory.state.routes.push({ id: "route-100", source: "missing", destination: "missing" }); },
+    (factory) => { factory.state.routes = [{ id: "route-100", source: "missing", destination: "missing" }]; },
   ]) {
     const factory = legacyFactory(); place(factory, "fiber", 40, 40); corrupt(factory);
     const raw = factory.exportSave(); assert.throws(() => Factory.importSave(raw));

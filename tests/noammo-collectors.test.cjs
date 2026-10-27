@@ -88,31 +88,35 @@ test("all collectors share collection, fractional total capacity, per-instance c
   }
 });
 
-test("Brick Storage hauling uses real input ports, stale value and independent saved routes; pickup recovers carried cargo once", () => {
-  const factory = new Factory(createState(1));
-  const basket = place(factory, "basket"), storage = place(factory, "brickStorage", 44, 40);
-  receive(factory, basket, cargo("clay", 2, 10));
-  const inbound = factory.addRoute(basket.id, storage.id, "clay").route;
-  factory.update(0.1);
-  factory.update(inbound.duration + 0.1);
-  assert.equal(factory.total(storage, "contents"), 1);
-  assert.equal(storage.contents[0].value, D.materials.clay.value);
-  factory.removeRoute(inbound.id);
-  receive(factory, storage, cargo("wood", 3));
-  const outputBasket = place(factory, "basket", 48, 40);
-  const outbound = factory.addRoute(storage.id, outputBasket.id, "wood").route;
-  factory.update(0.1);
-  assert.equal(outbound.item.quantity, 1);
-  const loaded = Factory.importSave(factory.exportSave());
-  assert.deepEqual(loaded.state, factory.state);
-  loaded.update(outbound.duration + 0.1);
-  assert.equal(loaded.total(loaded.byId.get(outputBasket.id), "contents"), 1);
-  loaded.update(outbound.duration + 1);
-  loaded.pickup(storage.id);
-  assert.equal(loaded.state.routes.length, 0);
-  assert.equal(loaded.state.inventory.wood + loaded.total(loaded.byId.get(outputBasket.id), "contents"), 3);
-  assert.equal(loaded.state.inventory.clay, 1);
-  assert.equal(loaded.pickup(storage.id), false);
+test("removed hauling recovers old carried cargo once, releases crew and never resumes routes", () => {
+  for (const type of ['basket', 'brickStorage']) for (const phase of ['pickup', 'loaded', 'return']) {
+    const f = new Factory(createState(1)), source = place(f, type), target = place(f, 'basket', 46, 40);
+    source.contents.push(cargo('wood', 2));
+    assert.equal(f.state.routes, undefined);
+    assert.equal(f.addRoute, undefined); assert.equal(f.removeRoute, undefined); assert.equal(f.updateRoute, undefined);
+    const old = JSON.parse(f.exportSave());
+    old.state.routes = [{ id: `route-${old.state.nextId++}`, source: source.id, destination: target.id,
+      material: 'wood', phase, item: phase === 'loaded' ? cargo('wood', 0.4, 999) : null,
+      remaining: 1, duration: 1 }];
+    const raw = JSON.stringify(old), loaded = Factory.importSave(raw), recovered = phase === 'loaded' ? 0.4 : 0;
+    assert.equal(JSON.stringify(old), raw, 'migration must not mutate its source');
+    assert.equal(loaded.state.routes, undefined); assert.equal(loaded.availableCrew(), loaded.totalCrew());
+    assert.equal(loaded.state.inventory.wood, recovered); assert.equal(loaded.state.cash, 0);
+    assert.equal(loaded.byId.get(source.id).contents[0].quantity, 2);
+    loaded.update(60); assert.equal(loaded.total(loaded.byId.get(target.id), 'contents'), 0);
+    const again = Factory.importSave(loaded.exportSave()); assert.equal(again.state.inventory.wood, recovered);
+    again.pickup(source.id); assert.equal(again.state.inventory.wood, 2 + recovered);
+    assert.equal(again.pickup(source.id), false); assert.equal(again.state.inventory.wood, 2 + recovered);
+    if (phase === 'loaded') for (const corrupt of [
+      s => { s.routes = null; }, s => { s.routes[0].item.quantity = 2; },
+      s => { s.routes[0].item.material = 'missing'; }, s => { s.routes[0].item = cargo('moltenCopper'); },
+      s => { s.routes[0].phase = 'return'; }, s => { s.routes.push({ ...s.routes[0] }); },
+      s => { s.routes[0].source = 'missing'; }, s => { s.routes[0].remaining = -1; },
+    ]) {
+      const bad = JSON.parse(raw); corrupt(bad.state);
+      assert.throws(() => Factory.importSave(JSON.stringify(bad)));
+    }
+  }
 });
 
 test("older saves receive only the missing Brick Storage stock key; current malformed or overfull saves are rejected", () => {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=furnace-pickup-20261026">
+  <link rel="stylesheet" href="noammo.css?v=bootstrap-costs-20261027">
 </head>
 <body>
   <header class="topbar">
@@ -62,10 +62,10 @@
           </dl>
         </details>
       </section>
-      <aside id="inspector" class="panel inspector"><h2>Factory</h2><p>Select a building to move it, collect a Basket, or assign a hauling hamster.</p></aside>
+      <aside id="inspector" class="panel inspector"><h2>Factory</h2><p>Select a building to move it or collect stored resources.</p></aside>
     </section>
     <section id="shop" class="screen shop-layout" hidden>
-      <div class="panel"><h1>Shop</h1><p>Select a machine to view its cost and details. Your starter Planter, Basket and Sell Tube are supplied free.</p>
+      <div class="panel"><h1>Shop</h1><p>Select a machine to view its cost and details. Your two starter Planters, Basket and Sell Tube are supplied free.</p>
         <div class="categories" id="categories"><button data-category="All" class="active">All</button><button data-category="Cash">Cash</button><button data-category="Material">Material</button><button data-category="Logistics">Logistics</button></div>
         <div id="shopCards" class="shop-cards"></div>
       </div>
@@ -99,14 +99,14 @@
       <h1>Recipes</h1>
       <article class="recipe"><h2>Leek Fiber Extractor</h2><p>1 Leek → 2 Leek Fiber</p><p>Each Fiber retains the Leek’s incoming value. Hand-operated; no kinetic connection.</p></article>
       <article class="recipe"><h2>Crude Gear Bench</h2><p>2 Wood → 1 Wooden Gear in 12 seconds · 1 crew</p><p>Hand-operated. Input and output share the lower tile; the gear retains the combined value and weight of its Wood.</p></article>
-      <article class="recipe"><h2>Primitive Conveyor</h2><p>$1 + 10 Wood + 4 Wooden Gears per conveyor.</p><p>Carries up to 2 weight per stack. Machine outputs split into the largest whole-item portion that fits; individually heavier items cannot enter.</p><p>Machines with internal conveyors require purchased belts as construction components.</p></article>
-      <article class="recipe"><h2>Logger</h2><p>1 Wood every 12 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
+      <article class="recipe"><h2>Primitive Conveyor</h2><p>10 Wood + 4 Wooden Gears per conveyor.</p><p>Carries up to 2 weight per stack. Stacks must fit as a whole; overweight stacks wait without automatic splitting.</p><p>Machines with internal conveyors require purchased belts as construction components.</p></article>
+      <article class="recipe"><h2>Logger</h2><p>1 Wood every 6 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
       <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p><p>Centered output needs two compatible receiving conveyors or a machine covering its full width. If one conveyor feeds the other, the front conveyor receives the cargo; otherwise both must face the same direction.</p></article>
       <article class="recipe"><h2>Primitive Rock Drill</h2><p>2 Chert or 2 Granite every 5 seconds. Select the rock in the machine controls.</p><p>Uses the same centered-output rules as Clay Pit. Chert, Granite and Limestone have $0.10 base value; Corundum has $1 base value.</p></article>
       <article class="recipe"><h2>Copper Drill</h2><p>1 Native Copper every 15 seconds. Native Copper has $1.50 base value.</p><p>Requires a Hamster Wheel connected to the underside of the middle column. Uses the same centered two-tile output rules as Clay Pit.</p></article>
       <article class="recipe"><h2>Clay Shaping Bench</h2><p>1 Clay → 1 Unfired Brick in 2 seconds, retaining its value.</p><p>2 Clay → 1 Unfired Pot in 4 seconds, worth twice their combined value.</p><p>Hand-operated · 1 crew. Unfired Pots weigh 2; Unfired Bricks weigh 1.</p></article>
       <article class="recipe"><h2>Pot Spinner</h2><p>2 Clay → 1 Unfired Pot in 12 seconds, worth twice their combined value.</p><p>Requires a Hamster Wheel connected above or below its left edge. No operating crew beyond the Wheel.</p><p>Base chances: Poor 20%, Standard 10%, Fine 40%, Remarkable 25%, Exceptional 5%. Four Brick Seal repairs move Poor's 20 percentage points into Standard. Grade chances carry through firing; the Grading Bench makes the roll.</p></article>
-      <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots.</p><p>Full batches take 8 seconds and 40ku of heat. Each product retains four times its incoming value. Uses 2 crew.</p><p>Stores up to 250ku of heat. Both inputs accept fuel or unfired products.</p></article>
+      <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots.</p><p>Full batches take 8 seconds and 80ku of heat. Each product retains four times its incoming value. Uses 2 crew.</p><p>Stores up to 250ku of heat. Both inputs accept fuel or unfired products.</p></article>
       <article class="recipe"><h2>Primitive Furnace</h2><p>Charcoal: 4 Wood → 2 Charcoal in 12 seconds, without external heat. The combined incoming cash value is preserved.</p><p>Copper: 4 Native Copper → 4 Molten Copper in 20 seconds, consuming 500ku of heat. Copper retains four times the incoming ore value.</p><p>Uses 2 crew and holds up to 1Mu of heat. Select the recipe in the machine controls. Both inputs accept ingredients or fuel; in Charcoal mode, Wood is the ingredient.</p><p>Connect its output directly to an Ingot Molder. Molten metal is not solid conveyor cargo.</p></article>
       <article class="recipe"><h2>Ingot Molder</h2><p>1 Molten Copper → 1 Copper Ingot in 1 second, preserving value. Uses 1 crew and no consumables.</p><p>Input and output share the lower tile of its vertical two-tile footprint. Holds one waiting liquid unit and one finished ingot while molding the next.</p><p>Cast Iron requires a Refractory Caster.</p></article>
       <article class="recipe"><h2>Leek Infuser</h2><p>Adds $0.40 to sellables worth less than $2. Does not consume ingredients during operation.</p></article>
@@ -128,9 +128,9 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=furnace-pickup-20261026"></script>
-  <script src="noammo-simulation.js?v=furnace-pickup-20261026"></script>
-  <script src="noammo-renderer.js?v=furnace-pickup-20261026"></script>
-  <script src="noammo-ui.js?v=furnace-pickup-20261026"></script>
+  <script src="noammo-data.js?v=bootstrap-costs-20261027"></script>
+  <script src="noammo-simulation.js?v=bootstrap-costs-20261027"></script>
+  <script src="noammo-renderer.js?v=bootstrap-costs-20261027"></script>
+  <script src="noammo-ui.js?v=bootstrap-costs-20261027"></script>
 </body>
 </html>

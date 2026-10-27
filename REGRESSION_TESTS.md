@@ -26,8 +26,8 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Spun pottery carries the agreed 20/10/40/25/5 pre-roll profile through firing,
   with Exceptional at x25 and Seal repairs remaining independent. Tests cover
   both expected means (4.55/4.70), all five seeded grade outcomes, no early RNG,
-  no regrading, mixed ordinary/spun stacks, profile averaging, belt splitting,
-  stale hauling, collector separation and malformed metadata. An actual
+  no regrading, mixed ordinary/spun stacks, profile averaging, intact overweight stacks,
+  collector separation and malformed metadata. An actual
   Spinner/Kiln/belt/Grading Bench line checks value and timing end to end.
   Generic rendering lifecycle tests include Spinner placement/movement/pickup;
   real-script UI checks verify bulk costs, categories, repeated rotated
@@ -72,7 +72,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   flag persist, not categories or portions. Splitting preserves every property
   except quantity/derived totals, including fractional remainders. Shaping/firing
   preserve graded status and value, resetting cash tags on material change.
-  Tests cover hauling's base-cash reset with graded flag retained, independent
+  Tests cover separate graded/ungraded collector stacks, independent
   jobs, pickup recovery, migration of all cargo locations from portion saves,
   conservative upward rounding of legacy use counts, corrupt metadata rejection,
   stable UI chances and generic Graded labels.
@@ -88,9 +88,13 @@ future pipe tiers) are not treated as current acceptance requirements.
   Resource Storage: mixed/fractional capacity, blocked intake, preview purity,
   collection without selling, instance isolation, move/pickup recovery and saves.
   Brick Storage checks cover its $200/100 Bricks/15 Clay purchase, sole rotated
-  lower-left input, actual Clay Pit backpressure, hauling in both directions,
+  lower-left input, actual Clay Pit backpressure,
   old-save defaults, overcapacity rejection, Shop quantities and collection UI.
   The generic all-machine lifecycle/render test includes the new collector.
+- Hauling has no runtime API, controls, travel timers or crew allocation. Legacy
+  pickup/loaded/return routes are removed on import; only already-carried material
+  returns to inventory once, including fractional cargo. Tests preserve collector
+  contents, reject malformed/duplicate routes and verify no resumed deliveries.
 - Fixed-terrain checks compare all 36 green centers from the revised workbook,
   including one-based center to zero-based 3x3 origin conversion. Every seed
   shares the map; footprints and all four Logger outputs remain unobstructed.
@@ -100,16 +104,16 @@ future pipe tiers) are not treated as current acceptance requirements.
   Repeated imports/reloads cannot duplicate resources or pick up replacement
   machinery. Invalid cargo/routes still fail validation before migration.
   UI startup/import checks cover the notice, autosave and non-overwritten backup.
-- `tests/noammo-opening.test.cjs` runs the real opening from zero to the $22
-  powered setup using manual Wood, a cash-free Fiber Extractor, and four Clay
-  Pits funding the cash costs, then verifies a powered Fiber sale line.
-- Planters produce one Leek per eight seconds. One starter is free; repeat
+- `tests/noammo-opening.test.cjs` builds powered conveyors at zero cash using
+  manual Wood, a cash-free Fiber Extractor and Logger-fed Gear Bench. Selling
+  40 Wood funds two $2 Primitive Upgraders, followed by a real powered Fiber sale line.
+- Planters produce one Leek per eight seconds. Two starters are free; repeat
   purchases enforce $500, 50 Bricks, 100 Fiber and 200 Soil per unit. Bulk buying
   requires and consumes the scaled Soil amount without charging failed purchases. Old free Planters
   remain owned, without granting new free machines on reload.
 - Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
   halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
-- Manual Clay Pits cost 100 Wood and use one crew each. Their twelve-second
+- Manual Clay Pits cost $5 and 100 Wood and use one crew each. Their twelve-second
   cycle and $0.25 Clay work without power, through either half of the two-wide
   output in every rotation. Four pits feed one Tube for $5/minute. Blocked
   queues are bounded, independent, and conserved through moves/pickups/saves.
@@ -134,16 +138,18 @@ future pipe tiers) are not treated as current acceptance requirements.
   placement, move, pickup, replacement, save hydration and finite/read-only draws.
 - Clay Kiln coverage includes its exact price, 2 crew, all six occupied cells
   and two interchangeable inputs in all rotations. Full 4-Brick/2-Pot batches
-  require eight seconds and consume 40ku once at start, with Wood providing 30ku
+  require eight seconds and consume 80ku once at start, with Wood providing 30ku
   and a hard heat capacity of 250ku. Invalid sides, partial batches, overfull or
   incompatible inputs and fuel overflow reject safely; intake previews do not
   mutate heat. Each ingredient retains its own upgraded value through firing.
   Blocked output cannot drain unlimited materials, stall another kiln, bank
   bursts or prevent normal overlap between firing and unloading. Actual powered
   belt tests maintain paced output every two seconds, regardless of instance order.
-  Thermal and generic machine outputs use the receiving conveyor's weight limit:
-  four weight-1 products split into two stacks of two, weight-2 products leave
-  individually, and overweight individual items remain blocked. Coverage includes
+  Kilns and Furnaces unload one solid product at receiving-belt cadence, verified
+  with both faster and slower synthetic belts. Liquid transfer uses fluid input
+  capacity without applying solid-belt weight or unloading delays. Other output
+  stacks exceeding the receiving conveyor's weight limit wait intact, including
+  stacks whose individual items would fit separately. Coverage includes
   every rotation, internal machine belts, metadata/remainder conservation, save
   round trips and a synthetic heavier belt without adding a new gameplay item.
   Single/bulk moves and hydration preserve placed identity, heat, cooldowns,
@@ -163,7 +169,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   output blockage and saved mid-pass cargo cannot repeat an effect. Four repairs
   remove 20 absolute percentage points of Poor chance. Mixed repaired/untreated
   inputs, the quantity-blending helper's 4:1/9:1 arithmetic, partly consumed stacks and floating-point
-  caps preserve the modifiers through shaping, firing, hauling and save/load.
+  caps preserve the modifiers through shaping, firing and save/load.
   UI tests cover effect fields in Shop/Inventory, material-cost multiplication,
   repeat placement, independent identities and stable machine controls.
   Helper arithmetic does not establish mass/quantity weighting as a design rule
@@ -182,11 +188,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   status dimensions match the simulation.
 - Tests cover global click limits, saved partial chops, RNG harvest bounds,
   limited machine buffers, blocked outputs, independent instances, collector
-  capacity, real hauler timing, stale exports, and cash/material affordability.
+  capacity, old-save cargo recovery, and cash/material affordability.
 - `tests/noammo-ui.test.cjs` executes the actual four browser scripts against a
   small DOM contract harness. It covers every tab, purchase handlers, quantity
   limits, category filtering, owned feedback, tap placement/rotation, stable
-  hauling controls and preservation of corrupt saves. This is not a substitute
+  collection controls, absence of hauling controls and preservation of corrupt saves. This is not a substitute
   for live-browser visual verification.
 - Refresh starts at the factory grid's centre on both axes, including when
   layout dimensions arrive late. Tab switches preserve pan/zoom, clear edge
@@ -236,8 +242,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   controls/rows, stack totals, key release, pointer leave, blur, tab switching
   and placement suppression alongside existing Shift-selection shortcuts.
 - Baskets have no selling action or sale API. Holding or collecting sellables
-  gives no cash, while collection and hauling controls keep working.
-- Primitive Conveyors cost $1, 10 Wood and four Wooden Gears each. Normal and bulk
+  gives no cash, while collection controls keep working.
+- Primitive Conveyors cost 10 Wood and four Wooden Gears each, with no cash. Normal and bulk
   purchases require sufficient cash, Wood and Gears, show scaled costs, and cannot borrow free belts.
 - Gear Bench checks cover its 25 Wood price, one crew, two-cell body/working-tile
   footprint in all rotations, bounded two-Wood input, exact twelve-second jobs,
@@ -248,7 +254,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   conveyor-free plain boxes with centered outputs. The opening test actually
   routes Logger Wood into a Gear Bench before purchasing belts and Upgraders.
 - Crew hiring costs $5 × 1.1^paid hires, excluding the ten starting hamsters.
-  It deducts cash once, unlocks machine/hauler capacity and persists through
+  It deducts cash once, unlocks machine capacity and persists through
   placement, pickup and save/load. Old saves default to zero hires; invalid
   counts are rejected. The stable Hire button updates its price, affordability
   and available/total count on every screen, including after incoming sales.
@@ -652,8 +658,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   cannot falsely trigger overflow. Tests include adjacent Overflow chains,
   bounded blocked cargo, power removal, live Kiln delivery, instance isolation,
   pickup recovery, malformed saves, atomic component costs and stable UI controls.
-- Noammo two-weight conveyor capacity: whole-item splitting preserves fractional
-  remainders, value and grade/use metadata. Older five-weight saves split into
+- Noammo two-weight conveyor capacity: overweight stacks reject without splitting;
+  legal fractional quantities retain value and grade/use metadata. Older five-weight saves split into
   paced legal portions; reload, upgrades and pickup cannot lose or duplicate
   queued quantities. Legacy mining-game capacity remains unchanged.
 - Copper industry covers exact atomic purchases, crew assignment, all rotated

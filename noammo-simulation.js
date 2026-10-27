@@ -17,6 +17,7 @@
   const jobInputs = (job) => job?.inputs ?? (job?.input ? [job.input] : []);
   const collectorCapacity = (machine) => D.machines[machine?.type]?.collectorCapacity ?? 0;
   const conveyorWeightLimit = (machine) => D.machines[machine.type].beltWeight ?? D.config.beltWeight;
+  const conveyorSeconds = (machine) => D.machines[machine.type].beltSeconds ?? D.config.beltSeconds;
   function clearPickedUpFurnace(machine) {
     if (!D.machines[machine.type]?.heatCapacity) return;
     machine.heat = 0; machine.outputCooldown = 0; machine.timer = 0;
@@ -255,14 +256,14 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1, manualOverflowVersion: 1, beltCapacityVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
-      storedMachines: [], machines: [], routes: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
+      storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
       clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0, hiredCrew: 0,
       tuning: { primitiveBonus: 0.1, primitiveLimit: 1 },
     };
-    state.stock.planter = 1;
+    state.stock.planter = 2;
     state.stock.basket = 1;
     state.stock.sellTube = 1;
     return state;
@@ -339,7 +340,7 @@
     }
     availableCrew() {
       const used = this.state.machines.reduce((sum, machine) => sum + (D.machines[machine.type].crew ?? 0), 0);
-      return this.totalCrew() - used - this.state.routes.length;
+      return this.totalCrew() - used;
     }
     placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null, mode = undefined) {
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
@@ -452,8 +453,6 @@
       const machine = this.byId.get(id);
       if (!machine) return false;
       if (collectorCapacity(machine)) this.collect(id);
-      // A pickup ends linked haul jobs; carried resources are recovered once, never copied.
-      for (const route of this.state.routes.filter((route) => route.source === id || route.destination === id)) this.removeRoute(route.id);
       for (const item of [...machine.input, ...machine.output, ...Object.values(machine.lanes), ...Object.values(machine.beltRemainders ?? {})]) {
         if (validCargo(item) && !D.materials[item.material].fluid) this.state.inventory[item.material] += item.quantity;
       }
@@ -658,10 +657,13 @@
       if (machine.output.length && (D.materials[machine.output[0].material].fluid || machine.outputCooldown <= epsilon)) {
         const item = machine.output[0], output = ports(machine).find((point) => point.role === "output");
         const fluid = D.materials[item.material].fluid;
-        const sent = this.send(machine, item, output, fluid ? Infinity : 1);
+        const sent = this.send(machine, { ...item, quantity: fluid ? item.quantity : Math.min(1, item.quantity) }, output);
         if (sent > epsilon) {
           item.quantity -= sent;
-          if (!fluid) machine.outputCooldown = D.machines[machine.type].outputSeconds;
+          if (!fluid) {
+            const v = D.vectors[output.direction], receivingBelt = this.conveyorAt(output.x + v.x, output.y + v.y);
+            machine.outputCooldown = receivingBelt ? conveyorSeconds(receivingBelt.machine) : D.machines[machine.type].outputSeconds;
+          }
           if (item.quantity <= epsilon) machine.output.shift();
         }
       }
@@ -709,7 +711,7 @@
       }
       const capacity = stacking ? this.stackTarget(machine, item) - (existing?.quantity ?? 0)
         : Math.floor(conveyorWeightLimit(machine) / D.materials[item.material].weight);
-      const quantity = Math.max(0, Math.min(item.quantity, capacity));
+      const quantity = !stacking && item.quantity > capacity + epsilon ? 0 : Math.max(0, Math.min(item.quantity, capacity));
       if (consume && quantity > epsilon) {
         const received = { ...copy(item), quantity, progress: 0, fresh: true };
         delete received.lateral;
@@ -721,7 +723,7 @@
       }
       return quantity;
     }
-    receiveCentered(item, point, direction, consume = true, elevated = false, fromId = null, nonConveyorLimit = Infinity) {
+    receiveCentered(item, point, direction, consume = true, elevated = false, fromId = null) {
       const v = D.vectors[direction], perpendicular = { x: -v.y, y: v.x };
       const positions = [-0.5, 0.5].map((offset) => ({
         x: Math.round(point.x + perpendicular.x * offset), y: Math.round(point.y + perpendicular.y * offset),
@@ -748,10 +750,9 @@
       // A single wide machine can cover the complete outlet (for example Sell Tube).
       const targets = positions.map((cell) => this.at.get(key(cell.x, cell.y)));
       if (targets[0] && targets[0] === targets[1] && !D.machines[targets[0].type].conveyors) {
-        const offered = { ...item, quantity: Math.min(item.quantity, nonConveyorLimit) };
         for (const position of positions) {
-          if (this.receive(targets[0], offered, position.x, position.y, opposite(direction), false) > epsilon) {
-            return this.receive(targets[0], offered, position.x, position.y, opposite(direction), consume);
+          if (this.receive(targets[0], item, position.x, position.y, opposite(direction), false) > epsilon) {
+            return this.receive(targets[0], item, position.x, position.y, opposite(direction), consume);
           }
         }
       }
@@ -816,12 +817,12 @@
     laneIndex(machine, x, y) {
       return conveyorCells(machine).findIndex((point) => point.x === x && point.y === y);
     }
-    send(machine, item, output, nonConveyorLimit = Infinity) {
+    send(machine, item, output) {
       const v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
       if (output.span === 2 || item.lateral) {
         const lateral = item.lateral ?? 0;
         return this.receiveCentered(item, { x: x - v.y * lateral, y: y + v.x * lateral }, output.direction, true,
-          Boolean(D.machines[machine.type].bridge), machine.id, nonConveyorLimit);
+          Boolean(D.machines[machine.type].bridge), machine.id);
       }
       const internal = conveyorCells(machine).find((cell) => cell.x === x && cell.y === y);
       if (internal) return this.receiveConveyor(machine, item, internal, true);
@@ -829,59 +830,7 @@
         !D.machines[entry.type].bridge || ports(entry).some((point) => point.role === "input" && point.x === x && point.y === y
           && point.direction === opposite(output.direction)));
       if (!target || target.id === machine.id) return 0;
-      const offered = D.machines[target.type].conveyors ? item : { ...item, quantity: Math.min(item.quantity, nonConveyorLimit) };
-      return this.receive(target, offered, x, y, opposite(output.direction), true);
-    }
-    addRoute(sourceId, destinationId, material = "any") {
-      const source = this.byId.get(sourceId), destination = this.byId.get(destinationId);
-      if (!collectorCapacity(source) || !destination || sourceId === destinationId) return { error: "Choose a resource collector and a different destination." };
-      if (!ports(destination).some((point) => point.role === "input") && !["basket", "sellTube", "belt"].includes(destination.type)) return { error: "That machine cannot accept deliveries." };
-      if (this.availableCrew() < 1) return { error: "No hamster available for hauling." };
-      if (material !== "any" && !D.materials[material]) return { error: "Unknown hauling material." };
-      const route = { id: `route-${this.state.nextId++}`, source: sourceId, destination: destinationId,
-        material, phase: "pickup", remaining: 0, duration: 0, item: null };
-      this.state.routes.push(route); return { route };
-    }
-    removeRoute(id) {
-      const route = this.state.routes.find((entry) => entry.id === id);
-      if (!route) return;
-      if (route.item) this.state.inventory[route.item.material] += route.item.quantity;
-      this.state.routes = this.state.routes.filter((entry) => entry !== route);
-    }
-    routeDistance(source, destination) {
-      const a = size(source), b = size(destination);
-      return Math.max(1, Math.abs(source.x + a.width / 2 - destination.x - b.width / 2)
-        + Math.abs(source.y + a.height / 2 - destination.y - b.height / 2));
-    }
-    updateRoute(route, seconds) {
-      const source = this.byId.get(route.source), destination = this.byId.get(route.destination);
-      if (!source || !destination) { this.removeRoute(route.id); return; }
-      if (route.phase === "pickup") {
-        const entry = source.contents.find((item) => route.material === "any" || item.material === route.material);
-        if (!entry) return;
-        // A collector withdrawal is stale: fresh cash upgrades do not teleport through storage.
-        route.item = blendGradeRepairs(cargo(entry.material, Math.min(1, entry.quantity)), [entry]);
-        entry.quantity -= route.item.quantity;
-        source.contents = source.contents.filter((item) => item.quantity > epsilon);
-        route.duration = this.routeDistance(source, destination) * D.config.loadedSecondsPerTilePerWeight
-          * D.materials[route.item.material].weight * route.item.quantity;
-        route.remaining = route.duration; route.phase = "loaded";
-        return;
-      }
-      route.remaining = Math.max(0, route.remaining - seconds);
-      if (route.remaining > epsilon) return;
-      if (route.phase === "return") { route.phase = "pickup"; return; }
-      const inputs = ports(destination).filter((point) => point.role === "input");
-      const targets = inputs.length ? inputs : cells(destination);
-      for (const point of targets) {
-        const accepted = this.receive(destination, route.item, point.x, point.y, point.direction, true);
-        route.item.quantity -= accepted;
-        if (route.item.quantity <= epsilon) {
-          route.item = null; route.phase = "return";
-          route.duration = this.routeDistance(source, destination) * D.config.emptySecondsPerTile;
-          route.remaining = route.duration; return;
-        }
-      }
+      return this.receive(target, item, x, y, opposite(output.direction), true);
     }
     update(seconds) {
       if (!Number.isFinite(seconds) || seconds <= 0) return;
@@ -1015,7 +964,7 @@
           if (!partner || partner.tile.direction !== output.direction || !this.powered(partner.tile.x, partner.tile.y)) continue;
         }
         const before = item.progress;
-        item.progress = Math.min(1, item.progress + seconds / D.config.beltSeconds);
+        item.progress = Math.min(1, item.progress + seconds / conveyorSeconds(machine));
         if (machine.type === "primitive" && before + epsilon < 0.5 && item.progress + epsilon >= 0.5 && D.materials[item.material].value !== null) {
           const { primitiveBonus, primitiveLimit } = state.tuning;
           if (item.value + epsilon < primitiveLimit) {
@@ -1066,7 +1015,6 @@
         if (item.quantity <= epsilon) delete machine.beltRemainders[lane];
         if (!Object.keys(machine.beltRemainders).length) delete machine.beltRemainders;
       }
-      for (const route of [...state.routes]) this.updateRoute(route, seconds);
     }
     status(machine) {
       if (D.machines[machine.type].manualTransferSeconds) {
@@ -1208,8 +1156,16 @@
       if (!Number.isSafeInteger(state.hiredCrew) || state.hiredCrew < 0) throw new Error("Invalid hired crew count.");
       const legacyEconomy = (state.openingEconomyVersion ?? 0) < 1;
       if (legacyEconomy && state.inventory && !Object.hasOwn(state.inventory, "brick")) state.inventory.brick = 0;
-      if (!Array.isArray(state.machines) || !Array.isArray(state.trees) || !Array.isArray(state.routes)
+      const legacyRoutes = state.routes === undefined ? [] : state.routes;
+      if (!Array.isArray(state.machines) || !Array.isArray(state.trees) || !Array.isArray(legacyRoutes)
         || !Array.isArray(state.storedMachines)) throw new Error("Incomplete prototype save.");
+      delete state.routes;
+      if ((state.loggerSpeedVersion ?? 0) < 1) {
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          if (machine.type === "logger" && Number.isFinite(machine.timer)) machine.timer /= 2;
+        }
+        state.loggerSpeedVersion = 1;
+      }
       if ((state.heatScaleVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
           if (D.machines[machine.type]?.heatCapacity) machine.heat *= 1000;
@@ -1233,7 +1189,7 @@
           for (const item of [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
             ...Object.values(machine.lanes ?? {}), ...jobInputs(machine.job)]) migrateCargo(item);
         }
-        for (const route of state.routes) migrateCargo(route.item);
+        for (const route of legacyRoutes) migrateCargo(route.item);
         state.gradingVersion = 2;
       }
       if ((state.beltCapacityVersion ?? 0) < 1) {
@@ -1343,7 +1299,9 @@
           const outputRecipe = Object.values(definition.recipes).find((recipe) => recipe.output === machine.output[0]?.material);
           const jobRecipe = definition.recipes[machine.job?.recipe];
           if (!Number.isFinite(machine.heat) || machine.heat < 0 || machine.heat > definition.heatCapacity
-            || !Number.isFinite(machine.outputCooldown) || machine.outputCooldown < 0 || machine.outputCooldown > definition.outputSeconds
+            || !Number.isFinite(machine.outputCooldown) || machine.outputCooldown < 0
+            || machine.outputCooldown > Math.max(definition.outputSeconds, ...Object.values(D.machines)
+              .filter((entry) => entry.conveyors).map((entry) => entry.beltSeconds ?? D.config.beltSeconds))
             || (machine.input.length && (!inputRecipe || machine.input.some((item) => item.material !== (inputRecipe.material ?? machine.input[0].material) || !Number.isInteger(item.quantity))
               || machine.input.reduce((sum, item) => sum + item.quantity, 0) > inputRecipe.input))
             || (machine.output.length && (!outputRecipe || machine.output.some((item) => item.material !== machine.output[0].material || !Number.isInteger(item.quantity))
@@ -1406,7 +1364,7 @@
         }
       }
       const migrateFootprints = legacyFootprint || legacyHorizontalFiber;
-      const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 3, machines: [], routes: [] });
+      const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 3, machines: [] });
       const recovered = new Set();
       // Keep corrected machine footprints first. Only old layout collisions are
       // recovered with the normal pickup rules; inventory/cargo are not erased.
@@ -1418,35 +1376,31 @@
         const error = terrainUpdated ? null : factory.placement(machine.type, machine.x, machine.y, machine.facing, null, machine.mode);
         if (error && migrateFootprints && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
           factory.state.machines.push(machine); factory.rebuild(); factory.pickup(machine.id);
-          recovered.add(machine.id); continue;
+          recovered.add(machine.id);
+          continue;
         }
         if (error) throw new Error(error);
         factory.state.machines.push(machine); factory.rebuild();
       }
-      for (const route of state.routes) {
-        if (migrateFootprints && (recovered.has(route.source) || recovered.has(route.destination))) {
-          if (route.item) {
-            if (!validCargo(route.item) || route.item.quantity > 1) throw new Error("Invalid hauling cargo.");
-            factory.state.inventory[route.item.material] += route.item.quantity;
-          }
-          continue;
-        }
-        if (ids.has(route.id) || typeof route.id !== "string" || !collectorCapacity(factory.byId.get(route.source))
-          || !factory.byId.has(route.destination) || !["pickup", "loaded", "return"].includes(route.phase)
+      // Hauling has been removed. Recover only cargo already in transit from old saves.
+      const legacyMachines = new Map(state.machines.map((machine) => [machine.id, machine]));
+      for (const route of legacyRoutes) {
+        if (!route || ids.has(route.id) || typeof route.id !== "string" || !collectorCapacity(legacyMachines.get(route.source))
+          || !legacyMachines.has(route.destination) || !["pickup", "loaded", "return"].includes(route.phase)
           || !Number.isFinite(route.remaining) || route.remaining < 0 || !Number.isFinite(route.duration)
-          || route.duration < 0 || (route.item && !validCargo(route.item))
+          || route.duration < 0 || (route.item && (!validCargo(route.item) || D.materials[route.item.material].fluid))
           || (route.material !== "any" && !D.materials[route.material])
           || (route.phase === "loaded" && (!route.item || route.item.quantity > 1))
-          || (route.phase !== "loaded" && route.item) || route.source === route.destination
-          || factory.availableCrew() < 1) throw new Error("Invalid hauling route.");
-        ids.add(route.id); factory.state.routes.push(route);
+          || (route.phase !== "loaded" && route.item) || route.source === route.destination) throw new Error("Invalid legacy hauling route.");
+        ids.add(route.id);
+        if (route.item) factory.state.inventory[route.item.material] += route.item.quantity;
       }
       if ([...ids].some((id) => /^(machine|route)-\d+$/.test(id) && Number(id.split("-")[1]) >= state.nextId)) throw new Error("Invalid next identity.");
       factory.terrainUpdated = terrainUpdated;
       factory.pickedUpForTerrainReset = 0;
       if (terrainUpdated) {
         factory.pickedUpForTerrainReset = factory.state.machines.length;
-        // Normal pickup also recovers linked haulers, unfinished inputs, Basket
+        // Normal pickup also recovers unfinished inputs, Basket
         // contents and conveyor cargo, and retains each owned machine instance.
         factory.pickupGroup(factory.state.machines.map((machine) => machine.id));
         factory.state.trees = trees;
@@ -1459,7 +1413,7 @@
         const existingCargo = [...factory.state.machines, ...factory.state.storedMachines].flatMap((machine) => [
           ...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes),
           ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job),
-        ]).concat(factory.state.routes.map((route) => route.item));
+        ]);
         for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
         factory.state.openingEconomyVersion = 1;
       }

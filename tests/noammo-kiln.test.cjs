@@ -84,22 +84,25 @@ test("Fuel becomes heat immediately, has a 250ku capacity, accepts at 220ku and 
   }
 });
 
-test("Both firing recipes require full batches and 40ku, consume heat only at start, and finish after exactly eight seconds", () => {
+test("Both firing recipes require full batches and 80ku, consume heat only at start, and finish after exactly eight seconds", () => {
   for (const [material, recipe] of Object.entries(D.machines.kiln.recipes)) {
     const { factory, kiln } = setup();
     feed(factory, kiln, material, recipe.input - 1); feed(factory, kiln, "wood", 2);
     advance(factory, 60);
     assert.equal(kiln.job, null); assert.equal(kiln.heat, 60000); assert.equal(factory.total(kiln, "input"), recipe.input - 1);
     feed(factory, kiln, material); factory.update(0.1);
-    assert.equal(kiln.job.remaining, 8); assert.equal(kiln.heat, 20000); assert.equal(kiln.input.length, 0);
-    factory.update(7.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 20000);
+    assert.equal(kiln.job, null, 'two Wood supply only 60ku, below the new 80ku requirement');
+    assert.match(factory.status(kiln), /80k/);
+    feed(factory, kiln, 'wood'); factory.update(0.1);
+    assert.equal(kiln.job.remaining, 8); assert.equal(kiln.heat, 10000); assert.equal(kiln.input.length, 0);
+    factory.update(7.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 10000);
     factory.update(0.1);
     assert.equal(kiln.job, null); assert.equal(factory.total(kiln, "output"), recipe.input);
     assert.equal(kiln.output[0].material, recipe.output);
     assert.equal(kiln.output[0].value, D.materials[material].value * 4);
     assert.equal(D.materials[recipe.output].value, D.materials[material].value * 4);
     feed(factory, kiln, material, recipe.input); factory.update(0.1);
-    assert.equal(kiln.job, null, "20u cannot start a second firing");
+    assert.equal(kiln.job, null, "10ku cannot start a second firing");
     assert.match(factory.status(kiln), /Output waiting/);
   }
 });
@@ -108,7 +111,7 @@ test("Firing retains each upgraded input's own value, not an average or a base-v
   const { factory, kiln } = setup(), input = ports(kiln)[0];
   const upgraded = cargo("unfiredBrick", 1, 4.2); upgraded.upgrades.primitive = 4;
   factory.receive(kiln, upgraded, input.x, input.y, input.direction, true);
-  feed(factory, kiln, "unfiredBrick", 3, 1.05, 1); feed(factory, kiln, "wood", 2);
+  feed(factory, kiln, "unfiredBrick", 3, 1.05, 1); feed(factory, kiln, "wood", 3);
   factory.update(0.1); factory.update(8);
   assert.equal(kiln.output.length, 2);
   near(kiln.output[0].value, 16.8); assert.equal(kiln.output[0].quantity, 1);
@@ -123,7 +126,7 @@ test("Shared inputs stop at one pending batch, reject incompatible/fractional in
   assert.equal(feed(factory, kiln, "unfiredPot", 2, 1, 1), 0);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100, 0.25, 1), 1);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100), 0);
-  assert.equal(feed(factory, kiln, "wood", 2, 0.1, 1), 2);
+  assert.equal(feed(factory, kiln, "wood", 3, 0.1, 1), 3);
   factory.update(0.1);
   assert.equal(feed(factory, kiln, "unfiredPot", 100, 4.2, 1), 2);
   assert.equal(feed(factory, kiln, "unfiredPot", 1), 0);
@@ -138,13 +141,13 @@ test("Blocked output retains a finished batch, one in-process batch and one wait
   assert.equal(kiln.job.remaining, 8, "the next batch fires while the previous output waits");
   feed(factory, kiln, "unfiredBrick", 100, 2);
   advance(factory, 120);
-  assert.equal(kiln.job.remaining, 0); assert.equal(kiln.heat, 160000);
+  assert.equal(kiln.job.remaining, 0); assert.equal(kiln.heat, 80000);
   assert.equal(factory.total(kiln, "input"), 4); assert.equal(factory.total(kiln, "output"), 4);
   assert.equal(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100), 0);
   assert.equal(factory.status(kiln), "Output blocked");
   const other = place(factory, "kiln", 50, 40), basket = place(factory, "basket", 52, 41);
-  feed(factory, other, "wood", 2); feed(factory, other, "unfiredPot", 2, 4.2);
+  feed(factory, other, "wood", 3); feed(factory, other, "unfiredPot", 2, 4.2);
   factory.update(0.1); factory.update(10);
   assert.equal(factory.total(basket, "contents"), 2); near(basket.contents[0].value, 16.8);
   assert.equal(kiln.job.remaining, 0, "one blocked kiln cannot stall a separate instance");
@@ -176,6 +179,7 @@ test("Kiln sustains one brick every two seconds through an actual powered belt, 
     for (let cycle = 0; cycle < 3; cycle++) {
       assert.equal(feed(factory, kiln, "unfiredBrick", 4), 4);
       factory.update(8);
+      if (cycle === 0) assert.equal(feed(factory, kiln, 'wood', 3), 3);
       assert.ok(kiln.job, "firing continues while the last batch unloads");
     }
     factory.update(8);
@@ -195,11 +199,11 @@ test("Actual Clay Pit → shaping → firing → collection works through either
     require('./helpers/noammo-centered.cjs').attachPitFeed(factory, benchInput, facing);
     const output = ports(kiln).find((point) => point.role === "output");
     const basket = place(factory, "basket", output.x + v.x, output.y + v.y);
-    feed(factory, kiln, "wood", 4, 0.1, 1 - inputIndex);
+    feed(factory, kiln, "wood", 6, 0.1, 1 - inputIndex);
     advance(factory, 119);
     assert.equal(factory.total(basket, "contents"), 8);
     assert.equal(basket.contents[0].material, "brick"); assert.equal(basket.contents[0].value, 1);
-    assert.equal(kiln.heat, 40000);
+    assert.equal(kiln.heat, 20000);
     factory.collect(basket.id); assert.equal(factory.state.inventory.brick, 8);
     assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
   }
@@ -218,7 +222,7 @@ test("Heat, cooldown, mixed-value job and buffers follow their kiln through sing
   assert.deepEqual({ heat: kiln.heat, job: kiln.job, input: kiln.input, cooldown: kiln.outputCooldown }, snapshot);
   factory.update(5);
   near(kiln.output[0].value, 8); near(kiln.output[1].value, 4.2);
-  assert.equal(kiln.job.recipe, "unfiredPot"); assert.equal(kiln.heat, 160000);
+  assert.equal(kiln.job.recipe, "unfiredPot"); assert.equal(kiln.heat, 80000);
 });
 
 test("Pickup recovers solid ingredients/products once and resets furnace heat, buffers and timers", () => {
@@ -234,7 +238,7 @@ test("Pickup recovers solid ingredients/products once and resets furnace heat, b
   factory.state.stock.kiln++;
   const replacement = factory.place("kiln", 40, 40).machine;
   assert.equal(replacement.heat, 0); assert.equal(replacement.input.length, 0);
-  feed(factory, kiln, "wood", 2); feed(factory, kiln, "unfiredPot", 2); factory.update(0.1); factory.update(8);
+  feed(factory, kiln, "wood", 3); feed(factory, kiln, "unfiredPot", 2); factory.update(0.1); factory.update(8);
   factory.pickup(kiln.id); assert.equal(factory.state.inventory.pot, 2);
   factory = Factory.importSave(factory.exportSave());
   assert.equal(factory.state.inventory.pot, 2); assert.equal(factory.state.inventory.unfiredBrick, 4);
@@ -283,7 +287,7 @@ test("Terrain migration recovers a kiln's multi-input job once and clears heat w
 
 test("Fired products sell at actual process value, collectors reset only on withdrawal, and Bricks remain construction materials", () => {
   const { factory, kiln } = setup(), tube = place(factory, "sellTube", 42, 41);
-  feed(factory, kiln, "wood", 4); feed(factory, kiln, "unfiredPot", 2, 4.2);
+  feed(factory, kiln, "wood", 6); feed(factory, kiln, "unfiredPot", 2, 4.2);
   factory.update(0.1); factory.update(10);
   near(factory.state.cash, 33.6); assert.equal(factory.saleTexts.at(-1).amount, 16.8);
   assert.equal(factory.state.soldItems, 2);

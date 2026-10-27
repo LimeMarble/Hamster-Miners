@@ -153,7 +153,7 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   feed(f, m, { ...cargo('clay', 1, 2), gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9 } });
   feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(12);
   const pot = m.output[0]; near(pot.value, 10); near(pot.gradeRepairs.brickSeal, 2); assert.deepEqual(pot.upgrades, {});
-  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 40000;
+  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 80000;
   const input = ports(kiln).find(p => p.role === 'input');
   f.receive(kiln, pot, input.x, input.y, input.direction, true);
   f.receive(kiln, cargo('unfiredPot', 1, 1), input.x, input.y, input.direction, true);
@@ -163,7 +163,7 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   assert.equal(kiln.output[1].gradeProfile, undefined, 'ordinary pots do not inherit neighboring spun quality');
 });
 
-test('stacked profiles average with ordinary pots; splitting and hauling retain that distribution, and graded mixing cannot reroll', () => {
+test('stacked profiles average with ordinary pots; legal portions and saves retain that distribution, and graded mixing cannot reroll', () => {
   const a = { ...cargo('pot', 1, 10), gradeProfile: profile, gradeRepairs: { brickSeal: 4 }, upgrades: { A: 9 } };
   const b = { ...cargo('pot', 3, 2), upgrades: { B: 7 } };
   const mixed = A.combineCargo([a, b]);
@@ -172,13 +172,13 @@ test('stacked profiles average with ordinary pots; splitting and hauling retain 
   const graded = A.combineCargo([{ ...a, graded: true }, b]); assert.equal(graded.graded, true);
   const state = { random: 99 }; A.gradeStack(state, graded); assert.equal(state.random, 99);
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
-  const belt = place(f, 'belt', 40, 40); assert.equal(f.receive(belt, mixed, 40, 40, 'left', true), 1);
+  const belt = place(f, 'belt', 40, 40); assert.equal(f.receive(belt, mixed, 40, 40, 'left', true), 0);
+  assert.equal(f.receive(belt, { ...mixed, quantity: 1 }, 40, 40, 'left', true), 1);
   assert.deepEqual(belt.lanes[0].gradeProfile, mixed.gradeProfile); near(belt.lanes[0].value, 4);
-  const basket = place(f, 'basket', 43, 40), target = place(f, 'basket', 45, 40);
+  const basket = place(f, 'basket', 43, 40);
   f.receive(basket, a, 43, 40, 'left', true); f.receive(basket, { ...a, gradeProfile: undefined }, 43, 40, 'left', true);
   assert.equal(basket.contents.length, 2, 'different pre-roll profiles are not silently coalesced');
-  const route = f.addRoute(basket.id, target.id).route; f.update(0.1);
-  assert.deepEqual(route.item.gradeProfile, profile); near(route.item.value, D.materials.pot.value);
+  assert.deepEqual(basket.contents[0].gradeProfile, profile);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 

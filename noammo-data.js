@@ -19,10 +19,9 @@
     config: {
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 10,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
-      planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 12,
+      planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 6,
       basketCapacity: 100, beltSeconds: 2, beltWeight: 2,
       clicksPerSecond: 5, chopsPerHarvest: 5,
-      loadedSecondsPerTilePerWeight: 0.5, emptySecondsPerTile: 0.5,
       powerAreaReach: 7,
     },
     directions: ["right", "down", "left", "up"],
@@ -68,13 +67,13 @@
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
         quickAction: "collect", collectorCapacity: 100,
         cost: { cash: 0, materials: { leekFiber: 5 } },
-        description: "Holds up to 100 items. Collect them into inventory or assign a hauling hamster. No manual deposits.",
+        description: "Holds up to 100 items. Collect them into inventory. No manual deposits.",
       },
       brickStorage: {
         name: "Brick Resource Storage", width: 2, height: 2, color: "#b57355", category: "Logistics",
         labelLines: ["Brick Resource", "Storage"], quickAction: "collect", collectorCapacity: 600,
         cost: { cash: 200, materials: { brick: 100, clay: 15 } },
-        description: "Holds up to 600 resources. Collect them into inventory or assign a hauling hamster. No manual deposits.",
+        description: "Holds up to 600 resources. Collect them into inventory. No manual deposits.",
       },
       fiber: {
         name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
@@ -83,13 +82,13 @@
       },
       logger: {
         name: "Logger", width: 1, height: 1, color: "#a7784c", category: "Material", crew: 1,
-        source: "wood", cycle: 12,
+        source: "wood", cycle: 6,
         cost: { cash: 0, materials: { wood: 50, leekFiber: 5 } },
-        description: "Place inside the middle of a tree edge, pointing outward. One Wood every 12 seconds. Uses one hamster.",
+        description: "Place inside the middle of a tree edge, pointing outward. One Wood every 6 seconds. Uses one hamster.",
       },
       clayPit: {
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Material", crew: 1,
-        cost: { cash: 0, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
+        cost: { cash: 5, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
         description: "One Clay every 12 seconds. Manually operated by one hamster; no kinetic power required.",
       },
       primitiveRockDrill: {
@@ -170,7 +169,7 @@
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
         cost: { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
-        heatCapacity: 250000, heatPerSecond: 5000, outputSeconds: 2,
+        heatCapacity: 250000, heatPerSecond: 10000, outputSeconds: 2,
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4 },
           unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4 },
@@ -208,17 +207,17 @@
       wheel: {
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
         defaultFacing: "down",
-        cost: { cash: 8, materials: { wood: 100, leekFiber: 25 } },
+        cost: { cash: 0, materials: { wood: 100, leekFiber: 25 } },
         description: "Kinetic connections run along both long edges. Connect a Conveyor Drive directly to one of them.",
       },
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
-        cost: { cash: 4, materials: { wood: 75, leekFiber: 7.5 } },
+        cost: { cash: 0, materials: { wood: 75, leekFiber: 7.5 } },
         description: "Connect to a Hamster Wheel to power primitive conveyors up to seven tiles beyond the Drive’s footprint.",
       },
       primitive: {
         name: "Primitive Upgrader", width: 1, height: 2, color: "#a58b60", category: "Cash",
-        cost: { cash: 5, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } },
+        cost: { cash: 2, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } },
         cashEffect: null,
         conveyors: [[0, 0], [0, 1]],
         description: "Two parallel primitive conveyor lanes. Requires a powered Conveyor Drive.",
@@ -264,7 +263,7 @@
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
-        cost: { cash: 1, materials: { wood: 10, woodenGear: 4 } },
+        cost: { cash: 0, materials: { wood: 10, woodenGear: 4 } },
         conveyors: [[0, 0]],
         description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes two seconds per tile.",
       },

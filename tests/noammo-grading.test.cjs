@@ -154,14 +154,16 @@ test("fractional quantities average values and untreated quality modifiers witho
   near(A.combineCargo([repaired, A.cargo("clay", 3)]).gradeRepairs.brickSeal, 1);
 });
 
-test("integer-capacity belt splitting copies all stack properties and preserves the fractional remainder", () => {
+test("overweight stacks stay intact; explicitly separated legal portions retain all properties and fractional quantities", () => {
   const factory = new Factory(createState(1));
   place(factory, "wheel", 20, 20); place(factory, "drive", 21, 22, "up");
   const belt = place(factory, "belt", 23, 24);
   const source = { ...A.cargo("brick", 3.5, 12.75), graded: true,
     upgrades: { brickSeal: 9, primitive: 5, oneOff: true }, gradeRepairs: { brickSeal: 2.5 } };
   const before = A.copy(source);
-  const accepted = factory.receive(belt, source, belt.x, belt.y, "left", true);
+  assert.equal(factory.receive(belt, source, belt.x, belt.y, "left", true), 0);
+  assert.deepEqual(source, before); assert.equal(belt.lanes[0], undefined);
+  const accepted = factory.receive(belt, { ...source, quantity: 2 }, belt.x, belt.y, "left", true);
   assert.equal(accepted, 2); assert.deepEqual(source, before, "receive leaves source accounting to its caller");
   source.quantity -= accepted;
   const first = A.copy(belt.lanes[0]); delete belt.lanes[0];
@@ -230,15 +232,14 @@ test("grading work, RNG and quality follow independent instances through moves, 
   loaded.pickup(replacement.id); assert.equal(loaded.state.inventory.clay, 2);
 });
 
-test("hauling resets cash to base but preserves the graded flag; collector contents stay separate until deliberately stacked", () => {
-  const { factory, bench, basket } = setup();
+test("collector contents preserve separate graded and ungraded stacks through save/load", () => {
+  const { factory, basket } = setup();
   const fine = rolled(A.cargo("brick", 2, 10), 1500);
   factory.receive(basket, fine, basket.x, basket.y, "left", true);
   factory.receive(basket, A.cargo("brick", 1, 25), basket.x, basket.y, "left", true);
   assert.equal(basket.contents.length, 2);
-  const route = factory.addRoute(basket.id, bench.id, "brick").route; factory.update(0.1);
-  assert.equal(route.item.graded, true); near(route.item.value, D.materials.brick.value);
-  assert.deepEqual(rolled(route.item, 1500), route.item);
+  assert.equal(basket.contents[0].graded, true);
+  assert.deepEqual(rolled(basket.contents[0], 1500), basket.contents[0]);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
@@ -272,8 +273,8 @@ test("legacy graded portions migrate everywhere without changing cash, quantitie
   shaper.input.push(legacy("clay")); shaper.output.push(legacy("unfiredBrick"));
   kiln.job = { recipe: "unfiredBrick", inputs: [legacy("unfiredBrick", 4)], remaining: 5 };
   factory.state.storedMachines.find((machine) => machine.id === stored.id).contents.push(legacy("brick"));
-  const route = factory.addRoute(collector.id, bench.id, "brick").route;
-  route.item = legacy("brick"); route.phase = "loaded"; route.remaining = 1; route.duration = 1;
+  factory.state.routes = [{ id: `route-${factory.state.nextId++}`, source: collector.id, destination: bench.id,
+    material: 'brick', phase: 'loaded', item: legacy('brick'), remaining: 1, duration: 1 }];
   factory.state.gradingVersion = 1;
   const serialized = factory.exportSave(), loaded = Factory.importSave(serialized);
   assert.equal(factory.exportSave(), serialized, "import does not mutate its source");
@@ -282,7 +283,8 @@ test("legacy graded portions migrate everywhere without changing cash, quantitie
   const migrated = [loaded.byId.get(collector.id).contents[0], loaded.byId.get(bench.id).input[0],
     loaded.byId.get(bench.id).job.input, loaded.byId.get(belt.id).lanes[0], loaded.byId.get(shaper.id).input[0],
     loaded.byId.get(shaper.id).output[0], loaded.byId.get(kiln.id).job.inputs[0],
-    loaded.state.storedMachines.find((machine) => machine.id === stored.id).contents[0], loaded.state.routes[0].item];
+    loaded.state.storedMachines.find((machine) => machine.id === stored.id).contents[0]];
+  assert.equal(loaded.state.inventory.brick, 1); assert.equal(loaded.state.routes, undefined);
   for (const item of migrated) {
     assert.equal(item.graded, true); assert.equal(item.grading, undefined); assert.equal(item.value, 7);
     assert.deepEqual(item.upgrades, { brickSeal: 7, primitive: 3 });

@@ -140,7 +140,7 @@ test("Repair follows Clay through shaping and firing, but new material cash tags
   assert.deepEqual(unfired.upgrades, {});
   const sealed = pass(factory, seal, unfired); assert.equal(sealed.upgrades.brickSeal, 1);
   const kiln = place(factory, "kiln", 60, 50);
-  receive(factory, kiln, cargo("wood", 2)); receive(factory, kiln, { ...sealed, quantity: 2 });
+  receive(factory, kiln, cargo("wood", 3)); receive(factory, kiln, { ...sealed, quantity: 2 });
   factory.update(0.1); factory.update(8);
   const fired = kiln.output[0]; near(fired.value, (4.2 + 1.25) * 4);
   assert.equal(fired.gradeRepairs.brickSeal, 4); assert.deepEqual(fired.upgrades, {});
@@ -176,14 +176,12 @@ test("Quantity-blending helper computes 4:1 and 9:1 averages without using cash 
   }
 });
 
-test("Baskets keep differently repaired cargo separate, and hauling resets cash without erasing intrinsic repairs", () => {
-  const { factory, seal } = setup(), basket = place(factory, "basket", 50, 40), destination = place(factory, "basket", 51, 40);
+test("Baskets keep differently repaired cargo separate through save/load", () => {
+  const { factory, seal } = setup(), basket = place(factory, "basket", 50, 40);
   const a = repeat(factory, seal, cargo("clay"), 4), b = repeat(factory, seal, cargo("clay"), 2);
   factory.receive(basket, a, 50, 40, null, true); factory.receive(basket, b, 50, 40, null, true);
   assert.equal(basket.contents.length, 2, "same cash/material does not imply the same repair history");
-  const route = factory.addRoute(basket.id, destination.id, "clay").route;
-  factory.update(0.1); assert.equal(route.item.gradeRepairs.brickSeal, 4); assert.equal(route.item.value, 0.25);
-  factory.update(0.5); assert.equal(destination.contents[0].gradeRepairs.brickSeal, 4);
+  assert.deepEqual(Factory.importSave(factory.exportSave()).byId.get(basket.id).contents, basket.contents);
 });
 
 test("Saved/moved mid-pass cargo upgrades once, grade repair survives serialization, and replacement never inherits old cargo", () => {

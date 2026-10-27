@@ -3,7 +3,7 @@ yay hamsta 2
 
 The `noammo` opening prototype is in [noammo.html](noammo.html). It uses a
 separate local save and does not replace the existing mining game in `index.html`.
-It currently tests scarce Leeks/Fiber, manual Wood/Clay, Baskets/hauling, Loggers,
+It currently tests scarce Leeks/Fiber, manual Wood/Clay, resource collectors, Loggers,
 Brick/Pot shaping and fuelled firing, kinetic-powered upgrading, stone sifting,
 weight-timed product grading, selectable rock drilling, Infusers, Shacks,
 primitive conveyor bridges/Stackers, manual Wooden Gear carving and kinetic Pot Spinners.

@@ -129,7 +129,7 @@ test('overflow into a real Kiln respects its limited full-batch input and preser
   const kiln = place(f, 'kiln', 39, 38, 'up'); kiln.heat = 100000;
   for (let i = 0; i < 2; i++) { assert.equal(feed(f, m, cargo('unfiredBrick', 2)), 2); f.update(4.1); }
   f.update(0.1); assert.equal(kiln.job.recipe, 'unfiredBrick');
-  near(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4); near(kiln.heat, 60000);
+  near(kiln.job.inputs.reduce((sum, item) => sum + item.quantity, 0), 4); near(kiln.heat, 20000);
 });
 
 test('independent instances, carrying saves, mode changes and pickup recover each stack once', () => {

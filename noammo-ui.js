@@ -319,7 +319,7 @@
   window.addEventListener("blur", () => { shiftHeld = false; pointer = null; renderHoverHistory(); });
   function renderInspector() {
     const machine = factory.byId.get(interaction.selected), tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
-    const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${factory.state.routes.map((route) => route.id).join(",")}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
+    const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
     if (signature !== inspectorSignature) {
       inspectorSignature = signature; const panel = $("inspector"); panel.replaceChildren();
       if (interaction.selectedIds.length > 1) {
@@ -377,7 +377,7 @@
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
-            ? "Full batches only. Each firing consumes 40ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Either input accepts fuel or unfired products."
+            ? "Full batches only. Each firing consumes 80ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Either input accepts fuel or unfired products."
             : "Full batches only. Charcoal mode uses Wood as its ingredient, without external heat. Copper mode accepts fuel through either input and consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           if (definition.manualRecipes) {
             const label = element("label", "Furnace mode "), mode = element("select");
@@ -443,34 +443,18 @@
           const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
           const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
           collectButton.title = "Shift-click this collector to collect all, unless another object is selected.";
-          panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another object is selected, the first Shift-click only selects this collector.", "muted"), element("hr"), element("h3", "Hauling hamster"));
-          const destinations = element("select"); destinations.id = "haulDestination"; destinations.setAttribute("aria-label", "Hauling destination");
-          for (const destination of factory.state.machines.filter((entry) => entry.id !== machine.id
-            && (["basket", "sellTube", "belt"].includes(entry.type) || A.ports(entry).some((point) => point.role === "input")))) {
-            const option = element("option", `${D.machines[destination.type].name} · #${destination.id.split("-").pop()}`); option.value = destination.id; destinations.append(option);
-          }
-          const material = element("select"); material.id = "haulMaterial"; material.setAttribute("aria-label", "Hauling material");
-          for (const [id, label] of [["any", "Any material"], ...Object.entries(D.materials).map(([id, entry]) => [id, entry.name])]) {
-            const option = element("option", label); option.value = id; material.append(option);
-          }
-          const assign = action("Assign one hamster", () => result(factory.addRoute(machine.id, destinations.value, material.value)));
-          assign.disabled = !destinations.options.length;
-          panel.append(destinations, material, assign, element("p", "Carries one item. Loaded travel: 0.5s/tile/weight; return: 0.5s/tile. Withdrawn cargo is stale."));
-        }
-        for (const route of factory.state.routes.filter((entry) => entry.source === machine.id || entry.destination === machine.id)) {
-          const line = element("div", undefined, "route"), status = element("span"); status.id = `status-${route.id}`;
-          line.append(status, action("Unassign", () => { factory.removeRoute(route.id); refresh(); }, "secondary")); panel.append(line);
+          panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
         if (machine.type === "primitive") panel.append(
           element("p", `Cash effect: +${money(factory.state.tuning.primitiveBonus)}`, "machine-effect"),
           element("p", `Upper Limit: ${money(factory.state.tuning.primitiveLimit)}`, "machine-effect"));
       } else {
-        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your free Leek Planter, Basket and Sell Tube. Click trees to gather Wood."),
+        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Placement continues while you still own that machine. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket, or assign a Basket hauler.", "Build manual Clay Pits for 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Crude Gear Bench costs 25 Wood. Haul Wood from a Basket to carve gears before building conveyors.", "Primitive Conveyors cost $1, 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Save for a Wheel, Drive and Primitive Upgraders. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Build manual Clay Pits for $5 and 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Crude Gear Bench costs 25 Wood. Point a Logger directly into the Bench to carve gears before building conveyors.", "Primitive Conveyors cost 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Build a Wheel and Drive using materials, then buy Primitive Upgraders for $2 each. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -504,7 +488,6 @@
         }
         $("collectBasket").disabled = machine.contents.length === 0;
       }
-      for (const route of factory.state.routes) text($(`status-${route.id}`), `#${route.id.split("-").pop()}: ${route.phase === "pickup" ? "Waiting for cargo" : route.phase === "return" ? "Returning" : `Carrying ${D.materials[route.item.material].name}`} `);
     }
   }
   function renderShop() {
@@ -536,7 +519,7 @@
       }); buy.id = "buyMachine";
       panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"));
       if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a prototype test aid, not its actual recipe.", "muted"));
-      if (shopSelection === "planter") panel.append(element("p", "Your first Planter is supplied free. Additional Planters require the listed cost.", "muted"));
+      if (shopSelection === "planter") panel.append(element("p", "Your first two Planters are supplied free. Additional Planters require the listed cost.", "muted"));
     }
     const count = factory.state.stock[shopSelection], total = count + factory.state.machines.filter((machine) => machine.type === shopSelection).length;
     text($("shopOwned"), `Owned: ${number(total)} · available to place: ${number(count)}`);

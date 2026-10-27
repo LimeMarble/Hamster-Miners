@@ -72,18 +72,17 @@ test("invalid bulk placement changes no positions, buffers, Basket contents, cas
   assert.equal(factory.state.inventory.leek, 3, "successful moves follow the existing Basket collection rule");
 });
 
-test("bulk pickup uses normal recovery rules once, including cargo carried between selected machines", () => {
+test("bulk pickup recovers all machine buffers and collector contents exactly once", () => {
   const factory = new Factory(createState(1));
   const fiber = place(factory, "fiber", 40, 40), basket = place(factory, "basket", 43, 42), belt = place(factory, "belt", 45, 42);
   fiber.output.push(cargo("leekFiber", 2, 0.7)); fiber.input.push(cargo("leek"));
   basket.contents.push(cargo("leek", 3)); belt.lanes[0] = cargo("wood", 5);
-  factory.addRoute(basket.id, fiber.id, "leek"); factory.update(0.1);
-  assert.equal(factory.state.routes[0].phase, "loaded");
+  factory.update(0.1);
   const ids = [fiber.id, basket.id, belt.id];
   assert.equal(factory.pickupGroup([...ids, fiber.id]).amount, 3);
   assert.equal(factory.state.inventory.leek, 4);
   assert.equal(factory.state.inventory.leekFiber, 2); assert.equal(factory.state.inventory.wood, 5);
-  assert.equal(factory.state.routes.length, 0); assert.equal(factory.state.machines.length, 0);
+  assert.equal(factory.state.machines.length, 0);
   const saved = factory.exportSave(); assert.ok(factory.pickupGroup(ids).error); assert.equal(factory.exportSave(), saved);
   assert.deepEqual(Factory.importSave(saved).state, factory.state);
 });

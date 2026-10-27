@@ -52,19 +52,20 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Water is not implemented; groundwater pumps are a tentative later approach.
 - Wood collection: five accepted chops give 1-5 Wood, uniformly distributed.
   Five chops/second maximum, shared across trees; clicks cannot be banked while idle.
-- One free Leek Planter, Basket and Sell Tube are supplied. With clicking enabled,
+- Two free Leek Planters, one Basket and one Sell Tube are supplied to new games.
+  Existing saves keep their owned Planter counts. With clicking enabled,
   no free Logger is needed. Additional Planters cost $500, 50 Bricks and
   100 Leek Fiber and 200 Soil; the starter remains free and existing owned machines are kept.
 - Planter: 3x3, no internal conveyors, one Leek/8 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 5 Leek Fiber instead of raw Leeks.
   No direct selling or manual inventory deposits. Collection and movement empty
-  it into inventory; hauling remains available.
+  it into inventory.
 - Brick Resource Storage: implemented at $200, 100 Bricks and 15 Clay, with
   capacity for 600 total resources and no operating crew. Solid 2x2 footprint;
   its only input is on the lower-left cell, entering from the left in the
   default right-facing orientation. It has no conveyor or automatic output.
-  Collect-all, Shift-click, hauling and movement/pickup recovery share Basket
+  Collect-all, Shift-click and movement/pickup recovery share Basket
   behavior; contents and capacity remain independent per instance. Existing
   saves receive an empty stock entry, not a free machine.
 - Fiber Extractor: Ingot Molder-style footprint: 1 column x 2 rows facing right,
@@ -72,10 +73,11 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   rotatable. Costs 30 Wood and 1 Leek, with no cash requirement. One Leek yields two
   Fiber, each retaining the full input unit value. It is hand-operated, without
   a kinetic connection. It has one buffered Leek and at most two waiting Fiber.
-- Logger: 1x1, $0, 50 Wood, 5 Leek Fiber, one crew; one Wood/12 seconds.
+- Logger: 1x1, $0, 50 Wood, 5 Leek Fiber, one crew; one Wood/6 seconds.
+  Old twelve-second Logger progress migrates proportionally once on load.
   It must be inside a tree's middle edge tile, facing outward. Wood sells for
   $0.10 and provides 30 heat units as Kiln fuel.
-- Clay Pit: 2x2, $0 and 100 Wood, one crew. Manually produces one Clay every
+- Clay Pit: 2x2, $5 and 100 Wood, one crew. Manually produces one Clay every
   12 seconds without kinetic power. Its centered two-wide facing-edge output
   is one fractional-coordinate port, not two independent outlets. Both receiving
   conveyors must exist. If exactly one feeds the other, the front/downstream
@@ -139,29 +141,29 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   base value/weight are $4/2. New-material cash eligibility starts fresh.
   Fuel converts immediately to abstract heat, capacity 250ku; whole fuel items
   are accepted only if their heat fits. Wood provides 30ku, so it is accepted
-  at 220ku and rejected above 220ku. Starting a full batch consumes 5ku times the
-  recipe duration in heat (40ku), once, together with all ingredients.
+  at 220ku and rejected above 220ku. Starting a full batch consumes 10ku times the
+  recipe duration in heat (80ku), once, together with all ingredients.
   Each instance holds one pending input batch, one firing/ready job and one
-  finished output batch. Every two seconds, solid output releases the largest
-  whole-item portion fitting the receiving conveyor's weight capacity; an
-  individually overweight product stays blocked. Direct non-conveyor inputs
-  retain one-product unloading. Blocked time cannot bank bursts. Firing and
-  previous-batch unloading overlap.
+  finished output batch. Solid output releases one product at the receiving
+  conveyor's transit cadence (currently two seconds on primitive belts), rather
+  than a fixed furnace delay. Direct non-conveyor outputs retain two-second
+  pacing. An individually overweight product stays blocked. Blocked time cannot
+  bank bursts. Firing and unloading overlap.
   Heat, separate input values, remaining time, output and unloading cooldown
   survive movement/saves while placed. Pickup recovers solid inputs and products
   once, then clears heat, fluid contents, jobs and unloading timers. Spent fuel
   is not refunded. Loading also clears runtime contents in stored furnaces.
   Copper extraction and smelting are implemented by the Copper Drill and
   Primitive Furnace described below, with direct Ingot Molder connections.
-- Basic Hamster Wheel: 3x2, $8, 100 Wood, 25 Fiber, kinetic outputs on both long
+- Basic Hamster Wheel: 3x2, no cash, 100 Wood, 25 Fiber, kinetic outputs on both long
   edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
   its reference footprint; existing saved orientations are unchanged.
-  Conveyor Drive: 1x2 horizontal, $4, 75 Wood, 7.5 Fiber; its facing side
+  Conveyor Drive: 1x2 horizontal, no cash, 75 Wood, 7.5 Fiber; its facing side
   is the intake; it has no physical output port. Direct intake-to-Wheel
   connections work in all rotations. A powered Drive reaches seven tiles beyond
   each footprint edge: 15x16 when vertical, 16x15 when horizontal. Coverage is
   tile-aligned and rotates with the Drive; previews use the same bounds.
-- Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $5,
+- Primitive Upgrader: the existing 1-column/2-row, two-lane footprint; $2,
   10 Wood, 5 Fiber and two Primitive Conveyors. Its belts require Drive coverage. The new effect was
   not settled. The existing effect and saved values remain unchanged, but the
   debug balance editor and test-only UI copy have been removed from the prototype.
@@ -185,8 +187,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   components (especially Tiara gems) must not become irrelevant beside a heavy
   body. Mixed-material contribution weights, including solder's role, remain
   undecided and must be specified with the relevant recipe.
-  Differently repaired cargo remains separate in collector contents;
-  direct hauling preserves repair data while resetting cash to base value.
+  Differently repaired cargo remains separate in collector contents.
   Aggregate inventory collection/pickup still follows the opening prototype's
   material-count-only inventory model. Grade repairs modify the Grading Bench's
   first roll; they do not directly multiply cash or change an already rolled grade.
@@ -213,25 +214,21 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   it never refunds uses. If any ingredient is graded, the whole merged stack
   becomes graded, including any formerly ungraded quantity. No reroll follows.
   Splitting copies unit value, graded flag, modifiers and all upgrade history
-  unchanged; only quantity and derived total weight/value change. Belt capacity
-  still splits whole items and preserves any fractional remainder. Cash
+  unchanged; only quantity and derived total weight/value change. Overweight
+  stacks wait intact instead of automatically splitting to fit belts. Cash
   eligibility resets on a new material as before. This is not a new Stacker.
   Existing portion-based saves migrate without changing actual cash/quantity;
   any graded portion marks the whole stack graded, and old fractional cash-use
   counts round upward rather than refunding eligibility.
-  Direct hauling restores base cash while retaining the graded flag and repair
-  modifiers; no grade category exists to reconstruct a multiplier. Collecting
-  into aggregate inventory still retains counts only. Factory cargo and
+  Collecting into aggregate inventory still retains counts only. Factory cargo and
   collector details indicate Graded without assigning a persistent category.
 - The older Fiber construction costs above were halved exactly; the new
   Planter's explicitly supplied 100-Fiber cost is not halved again.
-- Baskets can assign hauling hamsters, each carrying one item. Loaded travel
-  takes 0.5 seconds/tile/weight and empty return 0.5 seconds/tile. The prototype
-  uses Manhattan centre distance; pathfinding is not implemented. Full
-  destinations retain the carried item. Collector withdrawals reset cash value
-  to base; in-process items retain their actual value. Crew is shared.
+- Hauling is removed. Collectors have no route assignment or automatic withdrawal.
+  Loading older saves removes routes and returns only their already-carried
+  materials to inventory, once. Their former crew becomes available immediately.
 - Crew starts at 10. Hiring beside the crew counter costs $5 × 1.1^previous
-  paid hires. Each hire adds one available hamster for machinery or hauling;
+  paid hires. Each hire adds one available hamster for machinery;
   both the count and the next price persist through save/load.
 - Sell Tube costs $250 and 200 Bricks after the free starter. Old saves with no
   tube receive one once; existing owned tubes count as their starter. Bricks are
@@ -239,7 +236,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Sell Tube sales show small green floating cash texts at the selling Tube,
   using actual upgraded stack proceeds and shared number notation. Feedback
   rises/fades, stays bounded, and is not part of saves or cash accounting.
-- Primitive Conveyor costs $1, 10 Wood and four Wooden Gears per tile. One object per belt tile,
+- Primitive Conveyor costs 10 Wood and four Wooden Gears per tile, with no cash. One object per belt tile,
   weight capacity 2 and two-second transit (speed 5). Primitive Upgrader and
   Brick Seal belts share this speed; no multi-cargo belt redesign.
 - Prototype assumptions, visibly disclosed in Options: Fiber takes 2 seconds
@@ -339,14 +336,13 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   bounded capacity, independently of the solid-output unloading timer.
 - Furnace heat capacity is two copper firings (1Mu). It holds one pending
   full input batch, one running/ready job and one finished batch. Solid output
-  unloads every two seconds in portions sized to the receiving conveyor, with
-  the same whole-item rule as the Kiln. Mode changes return only waiting inputs to
+  unloads one product at receiving-belt cadence, like the Kiln. Mode changes return only waiting inputs to
   inventory; the running recipe, heat and finished output remain intact.
   Moves and saves retain placed instance state. Pickup recovers solid
   ingredients/output once and clears remaining molten metal, heat, jobs and
   unloading timers. Replacing a picked-up furnace starts with empty buffers.
 - Thermal units are scaled by 1000 across the noammo prototype: Wood 30ku,
-  Clay Kiln 250ku capacity and 5ku/s. Existing fuel runtimes are unchanged.
+  Clay Kiln 250ku capacity and 10ku/s (80ku per eight-second firing).
   Old placed furnace heat migrates exactly once; stored furnace runtime contents
   are cleared. New machines/materials
   receive zero stock/counts. Legacy mining-game thermal values are unchanged.
@@ -419,7 +415,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - 2 Wood become 1 Wooden Gear in 12 seconds, preserving total incoming value
   and weight (base $0.20, weight 2). Two waiting Wood, one running recipe and
   one finished Gear maximum. A blocked output stops further jobs.
-- Primitive Conveyors require $1, 10 Wood and four Wooden Gears. Every existing
+- Primitive Conveyors require 10 Wood and four Wooden Gears, with no cash. Every existing
   belt-equipped machine requires one purchased conveyor per internal belt tile,
   subtracting 20 Wood per tile from its old raw Wood cost, down to zero.
   The Bridge retains its already-specified four-conveyor requirement (three
@@ -449,7 +445,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   4.70 (4.55 without repairs). The fifth tier is Exceptional at x25.
 - This is a carried pre-roll probability profile, not a rolled grade category
   or a new inventory material. The Grading Bench rolls once as usual. Firing,
-  moves, saves, splitting and direct hauling preserve the profile. Combining
+  moves, saves and splitting preserve the profile. Combining
   same-material cargo averages profiles by quantity, with ordinary cargo
   contributing its ordinary table. Already graded inputs remain graded and
   cannot roll again; cash-use tags reset at the normal material transformation.

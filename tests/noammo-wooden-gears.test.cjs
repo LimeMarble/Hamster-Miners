@@ -109,7 +109,7 @@ test('Every actual internal belt requires an owned conveyor and deducts old Wood
     const before = f.exportSave(); assert.ok(f.buy(type, 2).error); assert.equal(f.exportSave(), before);
     f.state.stock.belt++; assert.equal(f.buy(type, 2).amount, 2); assert.equal(f.state.stock.belt, 0);
   }
-  assert.deepEqual(D.machines.belt.cost, { cash: 1, materials: { wood: 10, woodenGear: 4 } });
+  assert.deepEqual(D.machines.belt.cost, { cash: 0, materials: { wood: 10, woodenGear: 4 } });
   assert.equal(D.machines.clayPit.cost.machines, undefined); assert.equal(D.machines.primitiveRockDrill.cost.machines, undefined);
   assert.equal(D.machines.crudeGearBench.cost.machines, undefined);
 });
