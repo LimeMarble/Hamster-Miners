@@ -51,7 +51,7 @@ test('Histories are per-instance, follow movement, clear on pickup/replacement a
 test('Grading logs each actual rolled grade and post-grade value without a second RNG roll or persistent grade category', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'gradingBench'), collector = place(f, 'basket', 42, 41);
   const expected = [];
-  for (const [seed, grade, multiplier] of [[2000, 'Poor', 0.75], [0, 'Standard', 1.5], [500, 'Fine', 2.5], [1500, 'Remarkable', 8], [1900, 'Exceptional', 25], [500, 'Fine', 2.5]]) {
+  for (const [seed, grade, multiplier] of [[2000, 'Poor', 0.75], [0, 'Standard', 1.5], [500, 'Fine', 2.5], [1500, 'Remarkable', 8], [1900, 'Exceptional', 40], [500, 'Fine', 2.5]]) {
     f.state.random = seed;
     const input = { ...cargo('pot', 2, 120), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] };
     const reference = { random: seed }; A.gradeStack(reference, input);
@@ -66,7 +66,7 @@ test('Blocked grading logs once; already-graded stacks retain value and explicit
   const f = new Factory(A.createState(1900)), m = place(f, 'gradingBench');
   const input = { ...cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] };
   feed(f, m, input); f.update(2.1); const history = f.recentOutputs(m.id);
-  assert.deepEqual(history, [{ value: 3000, quantity: 1, grade: 'Exceptional' }]);
+  assert.deepEqual(history, [{ value: 4800, quantity: 1, grade: 'Exceptional' }]);
   const random = f.state.random; f.update(60); assert.deepEqual(f.recentOutputs(m.id), history); assert.equal(f.state.random, random);
   m.output = []; feed(f, m, { ...cargo('pot', 1, 777), graded: true }); f.update(2.1);
   assert.deepEqual(f.recentOutputs(m.id)[0], { value: 777, quantity: 1, grade: 'Already graded' }); assert.equal(f.state.random, random);

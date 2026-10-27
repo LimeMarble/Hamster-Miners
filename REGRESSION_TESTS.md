@@ -24,8 +24,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   at one. Probes, partial inputs, oversized overflow, output blockage, moves,
   independent instances, pickup and reload preserve ingredients and progress.
 - Spun pottery carries the agreed 20/10/40/25/5 pre-roll profile through firing,
-  with Exceptional at x25 and Seal repairs remaining independent. Tests cover
-  both expected means (4.55/4.70), all five seeded grade outcomes, no early RNG,
+  with Exceptional at x40 and Seal repairs remaining independent. Tests cover
+  both expected means (5.30/5.45), all five seeded grade outcomes, no early RNG,
   no regrading, mixed ordinary/spun stacks, profile averaging, intact overweight stacks,
   collector separation and malformed metadata. An actual
   Spinner/Kiln/belt/Grading Bench line checks value and timing end to end.

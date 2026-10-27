@@ -119,12 +119,12 @@ test('spun profiles, independent Seal repairs and the Exceptional tier match the
   const { f, m } = setup(); const pot = product(f, m);
   assert.deepEqual(A.gradeProbabilities(pot), profile);
   const average = item => A.gradeProbabilities(item).reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0);
-  near(average(pot), 4.55);
+  near(average(pot), 5.3);
   pot.gradeRepairs = { brickSeal: 4 };
   const chances = A.gradeProbabilities(pot);
   for (const [i, expected] of [0, 0.3, 0.4, 0.25, 0.05].entries()) near(chances[i], expected);
-  near(average(pot), 4.7); assert.equal(D.grades[4].name, 'Exceptional'); assert.equal(D.grades[4].multiplier, 25);
-  for (const [seed, multiplier] of [[2000, 0.75], [0, 1.5], [500, 2.5], [1500, 8], [1900, 25]]) {
+  near(average(pot), 5.45); assert.equal(D.grades[4].name, 'Exceptional'); assert.equal(D.grades[4].multiplier, 40);
+  for (const [seed, multiplier] of [[2000, 0.75], [0, 1.5], [500, 2.5], [1500, 8], [1900, 40]]) {
     const input = { ...cargo('pot', 2, 10), gradeProfile: profile }, state = { random: seed };
     const graded = A.gradeStack(state, input); near(graded.value, 10 * multiplier);
     assert.equal(graded.graded, true); assert.equal(graded.quantity, 2);

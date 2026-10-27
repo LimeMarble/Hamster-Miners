@@ -1246,16 +1246,16 @@ test("selected upgrader and Shift-hover share live output history, preserve cont
   ui.tabs.find(b => b.dataset.tab === 'shop').emit('click'); assert.equal(ui.ids.get('historyTooltip').hidden, true);
 });
 
-test("Grading history shows the actual Exceptional roll and $3k value in both views without rerolling", () => {
+test("Grading history shows the actual Exceptional roll and $4.8k value in both views without rerolling", () => {
   const f = new A.Factory(A.createState(1900)); f.state.stock.gradingBench = 1;
   const m = f.place('gradingBench', 121, 121).machine;
   m.job = { input: { ...A.cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] }, remaining: 0.1 };
   const reference = { random: 1900 }; A.gradeStack(reference, m.job.input);
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const list = ui.ids.get('outputHistory'); ui.frame(100); ui.frame(200);
-  assert.equal(list.children[0].textContent, 'Exceptional · $3k'); assert.equal(ui.state().random, reference.random);
+  assert.equal(list.children[0].textContent, 'Exceptional · $4.8k'); assert.equal(ui.state().random, reference.random);
   ui.ids.get('cargo').emit('pointermove', { ...screenPoint(121, 121), shiftKey: true });
-  assert.equal(ui.ids.get('hoverOutputHistory').children[0].textContent, 'Exceptional · $3k');
+  assert.equal(ui.ids.get('hoverOutputHistory').children[0].textContent, 'Exceptional · $4.8k');
   assert.match(ui.ids.get('historyTooltipTitle').textContent, /Grading Bench/);
   const row = list.children[0]; for (let now = 300; now <= 3000; now += 100) ui.frame(now);
   assert.equal(list.children[0], row); assert.equal(ui.state().random, reference.random);

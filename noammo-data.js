@@ -54,7 +54,7 @@
       { name: "Standard", multiplier: 1.5, color: "#c5c8b0" },
       { name: "Fine", multiplier: 2.5, color: "#8bc799" },
       { name: "Remarkable", multiplier: 8, color: "#9eb3ec" },
-      { name: "Exceptional", multiplier: 25, color: "#d6b3e6" },
+      { name: "Exceptional", multiplier: 40, color: "#d6b3e6" },
     ],
     gradeTables: { clay: [0.2, 0.6, 0.2, 0, 0], stone: [0, 1, 0, 0, 0] },
     machines: {

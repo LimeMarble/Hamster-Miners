@@ -39,7 +39,7 @@ test("Grading Bench costs $3.75k, 100 Wood, 50 Fiber and 10 Chert without a free
 });
 
 test("grade tables, sale multipliers and independent Brick Seal repairs match the agreed chances", () => {
-  assert.deepEqual(D.grades.map(({ multiplier }) => multiplier), [0.75, 1.5, 2.5, 8, 25]);
+  assert.deepEqual(D.grades.map(({ multiplier }) => multiplier), [0.75, 1.5, 2.5, 8, 40]);
   for (const material of ["clay", "unfiredBrick", "unfiredPot", "brick", "pot"]) {
     const item = A.cargo(material);
     assert.deepEqual(A.gradeProbabilities(item), [0.2, 0.6, 0.2, 0, 0]);

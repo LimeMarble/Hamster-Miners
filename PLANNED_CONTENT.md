@@ -219,7 +219,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Stone (currently Chert) starts at 100% Standard. Other current materials,
   including Soil, have no table and are rejected rather than assigned one.
   Multipliers are Poor x0.75, Standard x1.5, Fine x2.5, Remarkable x8 and
-  Exceptional x25. Ordinary base tables cannot roll Remarkable or Exceptional;
+  Exceptional x40. Ordinary base tables cannot roll Remarkable or Exceptional;
   manufactured quality profiles such as spun pottery can. Grades multiply actual incoming value,
   never the material's declared base value.
   The Bench has one queued input stack (up to primitive-belt weight), one job
@@ -481,7 +481,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Before Brick Seal repairs, spun pots have 20% Poor / 10% Standard / 40% Fine /
   25% Remarkable / 5% Exceptional. Four repairs move 20 percentage points from
   Poor to Standard, yielding 0/30/40/25/5 and an average grading multiplier of
-  4.70 (4.55 without repairs). The fifth tier is Exceptional at x25.
+  5.45 (5.30 without repairs). The fifth tier is Exceptional at x40.
 - This is a carried pre-roll probability profile, not a rolled grade category
   or a new inventory material. The Grading Bench rolls once as usual. Firing,
   moves, saves and splitting preserve the profile. Combining
