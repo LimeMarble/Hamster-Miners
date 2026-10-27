@@ -73,7 +73,7 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.drive.cost, { cash: 0, materials: { wood: 75, leekFiber: 7.5 } });
   assert.deepEqual(D.machines.primitive.cost, { cash: 2, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } });
   assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
-  assert.deepEqual(D.machines.planter.cost, { cash: 5000, materials: { brick: 50, leekFiber: 100, soil: 200 } });
+  assert.deepEqual(D.machines.planter.cost, { cash: 1500, materials: { brick: 50, leekFiber: 100, soil: 200 } });
   assert.equal(D.config.planterSeconds, 8); assert.equal(D.machines.planter.cycle, 8);
   assert.equal(D.materials.wood.heat, 30000);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
@@ -87,7 +87,7 @@ test("slow starter Planter yields one Leek per eight seconds and additional Plan
   advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
   advance(factory, 52); assert.equal(factory.total(basket, "contents"), 7);
   assert.equal(planter.output.length, 0);
-  factory.state.cash = 10000; factory.state.inventory.brick = 100; factory.state.inventory.leekFiber = 199;
+  factory.state.cash = 3000; factory.state.inventory.brick = 100; factory.state.inventory.leekFiber = 199;
   factory.state.inventory.soil = 400;
   const before = factory.exportSave(); assert.ok(factory.buy("planter", 2).error); assert.equal(factory.exportSave(), before);
   factory.state.inventory.leekFiber = 200;
@@ -273,20 +273,20 @@ test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route
   assert.ok(Math.abs(factory.state.cash - 3.1) < 1e-8, "fresh upgraded Wood retains its actual value");
 });
 
-test("one Sell Tube is free; additional tubes require $2.5k and 200 Bricks each and cannot be borrowed", () => {
+test("one Sell Tube is free; additional tubes require $750 and 200 Bricks each and cannot be borrowed", () => {
   const factory = new Factory(createState(1));
   assert.equal(factory.state.stock.sellTube, 1);
-  assert.deepEqual(D.machines.sellTube.cost, { cash: 2500, materials: { brick: 200 } });
+  assert.deepEqual(D.machines.sellTube.cost, { cash: 750, materials: { brick: 200 } });
   assert.equal(factory.borrow("sellTube"), false);
-  factory.state.cash = 2499; factory.state.inventory.brick = 200;
+  factory.state.cash = 749; factory.state.inventory.brick = 200;
   assert.ok(factory.buy("sellTube").error);
-  factory.state.cash = 2500; factory.state.inventory.brick = 199;
+  factory.state.cash = 750; factory.state.inventory.brick = 199;
   assert.ok(factory.buy("sellTube").error);
   factory.state.inventory.brick = 200;
   assert.equal(factory.buy("sellTube").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
   assert.equal(factory.state.stock.sellTube, 2);
-  factory.state.cash = 5000; factory.state.inventory.brick = 400;
+  factory.state.cash = 1500; factory.state.inventory.brick = 400;
   assert.equal(factory.buy("sellTube", 2).amount, 2);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
   assert.equal(factory.state.stock.sellTube, 4);

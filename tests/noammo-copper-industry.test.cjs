@@ -27,8 +27,8 @@ function fixture(mode = 'charcoal', facing = 'right') {
 
 test('Copper industry purchases consume exact agreed costs atomically, with no free stock', () => {
   const costs = {
-    copperDrill: { cash: 750000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
-    primitiveFurnace: { cash: 2500000, materials: { brick: 200, granite: 100, clay: 50 } },
+    copperDrill: { cash: 225000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
+    primitiveFurnace: { cash: 750000, materials: { brick: 200, granite: 100, clay: 50 } },
   };
   for (const [type, cost] of Object.entries(costs)) {
     assert.deepEqual(D.machines[type].cost, cost);

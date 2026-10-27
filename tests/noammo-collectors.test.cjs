@@ -15,16 +15,16 @@ function receive(factory, machine, item, consume = true) {
 }
 
 test("Brick Resource Storage has the approved cost, no crew, and no free grant", () => {
-  assert.deepEqual(D.machines.brickStorage.cost, { cash: 2000, materials: { brick: 100, clay: 15 } });
+  assert.deepEqual(D.machines.brickStorage.cost, { cash: 500, materials: { brick: 100, clay: 15 } });
   const factory = new Factory(createState(1));
   assert.equal(factory.state.stock.brickStorage, 0);
-  factory.state.cash = 4000; factory.state.inventory.brick = 200; factory.state.inventory.clay = 29;
+  factory.state.cash = 1000; factory.state.inventory.brick = 200; factory.state.inventory.clay = 29;
   const before = factory.exportSave();
   assert.ok(factory.buy("brickStorage", 2).error);
   assert.equal(factory.exportSave(), before);
-  factory.state.inventory.clay = 30; factory.state.cash = 3999;
+  factory.state.inventory.clay = 30; factory.state.cash = 999;
   assert.ok(factory.buy("brickStorage", 2).error);
-  factory.state.cash = 4000;
+  factory.state.cash = 1000;
   assert.equal(factory.buy("brickStorage", 2).amount, 2);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
   assert.equal(factory.state.inventory.clay, 0); assert.equal(factory.state.stock.brickStorage, 2);

@@ -73,14 +73,14 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Existing saves with fewer than two total owned Planters receive the missing
   units once on load, counting placed machines plus stock (stored instances are
   already included in stock). Saves with two or more keep their counts. With clicking enabled,
-  no free Logger is needed. Additional Planters cost $5k, 50 Bricks and
+  no free Logger is needed. Additional Planters cost $1.5k, 50 Bricks and
   100 Leek Fiber and 200 Soil; the starter remains free and existing owned machines are kept.
 - Planter: 3x3, no internal conveyors, one Leek/8 seconds, one centered facing-edge
   output. Leeks have $0.1 base value. Blocked output has a bounded two-item queue.
 - Basket: 1x1, capacity 100, costs 5 Leek Fiber instead of raw Leeks.
   No direct selling or manual inventory deposits. Collection and movement empty
   it into inventory.
-- Brick Resource Storage: implemented at $2k, 100 Bricks and 15 Clay, with
+- Brick Resource Storage: implemented at $500, 100 Bricks and 15 Clay, with
   capacity for 600 total resources and no operating crew. Solid 2x2 footprint;
   its only input is on the lower-left cell, entering from the left in the
   default right-facing orientation. It has no conveyor or automatic output.
@@ -107,7 +107,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Clay has a $0.25 base value and weight 1. Four pits can sell directly into
   the four sides of the starter Sell Tube for $5/minute without conveyors.
 - Limestone extraction remains deferred; no Quarry is implemented yet.
-- Pebble Sifter: implemented at $7k, 150 Wood, 30 Bricks and 50 Leek Fiber.
+- Pebble Sifter: implemented at $2.1k, 150 Wood, 30 Bricks and 50 Leek Fiber.
   Solid 3x2 footprint, with Soil output at the upper-right cell and Chert output
   at the lower-right cell, both facing right by default. Its lower-middle cell
   has a downward-facing kinetic intake that must match a Hamster Wheel output;
@@ -186,7 +186,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   10 Wood, 5 Fiber and two Primitive Conveyors. Its belts require Drive coverage. The new effect was
   not settled. The existing effect and saved values remain unchanged, but the
   debug balance editor and test-only UI copy have been removed from the prototype.
-- Brick Seal: implemented at $1.15k, 35 fired Bricks and one Primitive Conveyor, with no crew. Exactly the
+- Brick Seal: implemented at $460, 35 fired Bricks and one Primitive Conveyor, with no crew. Exactly the
   old Rock Shack footprint: one column, two rows; upper cell is the sole
   conveyor/upgrade tile, lower cell is the body. Right-facing by default, speed
   5 (two seconds/tile), requires Conveyor Drive coverage like other primitive
@@ -210,7 +210,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Aggregate inventory collection/pickup still follows the opening prototype's
   material-count-only inventory model. Grade repairs modify the Grading Bench's
   first roll; they do not directly multiply cash or change an already rolled grade.
-- Grading Bench: implemented at $12.5k, 100 Wood, 50 Leek Fiber and 10 Chert.
+- Grading Bench: implemented at $3.75k, 100 Wood, 50 Leek Fiber and 10 Chert.
   Uses one crew, with exactly the Clay Shaping Bench's sparse footprint and
   lower-right input/output cell. Processing takes 1 second per total cargo
   weight, including fractional stacks; one incoming stack receives one roll.
@@ -249,7 +249,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Crew starts at 10. Hiring beside the crew counter costs $5 × 1.1^previous
   paid hires. Each hire adds one available hamster for machinery;
   both the count and the next price persist through save/load.
-- Sell Tube costs $2.5k and 200 Bricks after the free starter. Old saves with no
+- Sell Tube costs $750 and 200 Bricks after the free starter. Old saves with no
   tube receive one once; existing owned tubes count as their starter. Bricks are
   obtainable by firing and remain usable both for construction and cash.
 - Sell Tube sales show small green floating cash texts at the selling Tube,
@@ -270,7 +270,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Leek Infuser: implemented at $20, 20 Leeks, 15 Leek Fiber and one Primitive Conveyor. Same 1x2
   footprint as Brick Seal: upper conveyor and lower body. Adds $0.40 while
   incoming value is below $2, without ingredient consumption or a use cap.
-- Primitive Shack: implemented at $50k, 880 Wood, 200 Fiber, 50 Chert,
+- Primitive Shack: implemented at $15k, 880 Wood, 200 Fiber, 50 Chert,
   20 Fired Pots and six Primitive Conveyors. Solid 3x4: body row, two independent three-tile conveyor
   paths, body row. Multiplies actual unit value by 2 once per material stage,
   requiring base >=$1.20 and incoming value <$2.5k. Upgrade cells are the middle
@@ -281,7 +281,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   either order with its underlying belt. Upper and lower cargo are separate;
   moves, group rotation, pickup and saves retain that ownership. Shop multi-buy
   accounts for machine ingredients, including picked-up conveyor instances.
-- Primitive Rock Drill: implemented at $50k, 40 Chert and 50 Wood. Solid 3x2
+- Primitive Rock Drill: implemented at $15k, 40 Chert and 50 Wood. Solid 3x2
   reference footprint: six occupied cells with one centered front-edge output,
   following Clay Pit's shared geometry/rules. Neither pits nor drills have internal conveyors.
   Select Chert (default) or Granite; produces a stack of two every 5 seconds.
@@ -332,13 +332,13 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Copper Drill and Primitive Furnace (implemented, 2026-10-26)
 
-- Copper Drill: $750k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
+- Copper Drill: $225k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
   Solid 3x2 footprint, four rear cells and a centered two-cell outlet, without
   internal conveyors. Kinetic intake is below the middle column, as on Pebble
   Sifter. One Native Copper ($1.50 base, weight 1) every 15 seconds; no extra
   crew beyond the connected Wheel. Production pauses without kinetic power
   or when its single-item output is full; no banked cycles.
-- Primitive Furnace: $2.5M, 200 Bricks, 100 Granite and 50 Clay; two crew.
+- Primitive Furnace: $750k, 200 Bricks, 100 Granite and 50 Clay; two crew.
   Uses Clay Kiln's solid 2x3 footprint and ports: two left inputs at the top
   and middle rows, and one right output in the middle row. Both inputs work
   identically, with bounded whole-item feed/fuel acceptance.
@@ -368,7 +368,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Ingot Molder and Copper Chimes (implemented, 2026-10-26)
 
-- Ingot Molder: $250k, 40 Bricks, 20 Clay and 10 Leek Fiber. One crew;
+- Ingot Molder: $75k, 40 Bricks, 20 Clay and 10 Leek Fiber. One crew;
   same 1x2 vertical footprint and lower-tile left input/right output as Fiber
   Extractor. One liquid unit -> one ingot every second with no cash bonus,
   fuel or consumable Clay. Copper Ingot base value $6, weight 1.
@@ -382,7 +382,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   materials, including future Cast Iron, are excluded from basic molding.
   Pickup collects finished ingots once and retains liquid inputs/jobs with
   that owned Molder. Moves, group moves and saves retain work and values.
-- Copper Chimes: $1M, 200 Leek Fiber, 50 Wood, 10 Copper Ingots and its
+- Copper Chimes: $300k, 200 Leek Fiber, 50 Wood, 10 Copper Ingots and its
   standard one purchased Primitive Conveyor component. Zero crew. Three
   occupied cells in a vertical column with a right-facing middle conveyor;
   kinetic power and two-second transit, rotating normally.
@@ -396,7 +396,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Granite Processor (implemented, 2026-10-23)
 
-- Cost: $350k, 300 Granite, two owned Primitive Conveyors. Cash category,
+- Cost: $105k, 300 Granite, two owned Primitive Conveyors. Cash category,
   zero crew, the original 1-column/2-row footprint with two independent
   right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
   Drive coverage and uses two-second transit with normal belt capacity.
@@ -446,7 +446,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Pot Spinner (implemented, 2026-10-23)
 
-- Cost: $25,000, 150 Wood, 60 Bricks, 30 Granite and 15 Leek Fiber.
+- Cost: $7,500, 150 Wood, 60 Bricks, 30 Granite and 15 Leek Fiber.
 - Solid 2x3 right-facing footprint: middle-left material input from the left,
   middle-right output to the right, top-left kinetic intake facing up, and
   bottom-left kinetic intake facing down. Either intake accepts a directly
@@ -544,7 +544,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Cargo weight and Heavy Stacker
 
-- The noammo Primitive Stacker is implemented: $10,000, 80 Wood, 50 Chert,
+- The noammo Primitive Stacker is implemented: $3,000, 80 Wood, 50 Chert,
   80 Granite and one Primitive Conveyor. Uses the old Splitter's 1x1 footprint, with three input sides
   and an output in the facing direction. No crew; requires Conveyor Drive
   power and uses primitive conveyor timing (two seconds per outgoing stack).

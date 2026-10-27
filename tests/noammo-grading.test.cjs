@@ -20,18 +20,18 @@ function feed(factory, bench, item, consume = true) {
 }
 function rolled(item, seed) { return A.gradeStack({ random: seed }, item); }
 
-test("Grading Bench costs $12.5k, 100 Wood, 50 Fiber and 10 Chert without a free grant", () => {
-  assert.deepEqual(D.machines.gradingBench.cost, { cash: 12500, materials: { wood: 100, leekFiber: 50, chert: 10 } });
+test("Grading Bench costs $3.75k, 100 Wood, 50 Fiber and 10 Chert without a free grant", () => {
+  assert.deepEqual(D.machines.gradingBench.cost, { cash: 3750, materials: { wood: 100, leekFiber: 50, chert: 10 } });
   const factory = new Factory(createState(1));
   assert.equal(factory.state.stock.gradingBench, 0);
   const requirements = { wood: 100, leekFiber: 50, chert: 10 };
   for (const missing of ["cash", ...Object.keys(requirements)]) {
-    factory.state.cash = 12500; Object.assign(factory.state.inventory, requirements);
+    factory.state.cash = 3750; Object.assign(factory.state.inventory, requirements);
     if (missing === "cash") factory.state.cash--; else factory.state.inventory[missing]--;
     const before = factory.exportSave();
     assert.ok(factory.buy("gradingBench").error); assert.equal(factory.exportSave(), before);
   }
-  factory.state.cash = 25000; Object.assign(factory.state.inventory, { wood: 200, leekFiber: 100, chert: 20 });
+  factory.state.cash = 7500; Object.assign(factory.state.inventory, { wood: 200, leekFiber: 100, chert: 20 });
   assert.equal(factory.buy("gradingBench", 2).amount, 2);
   assert.equal(factory.state.stock.gradingBench, 2); assert.equal(factory.state.cash, 0);
   for (const material of Object.keys(requirements)) assert.equal(factory.state.inventory[material], 0);
