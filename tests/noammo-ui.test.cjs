@@ -1263,13 +1263,35 @@ test("Grading history shows the actual Exceptional roll and $3k value in both vi
   assert.equal(ui.ids.get('historyTooltip').hidden, true, 'placement suppresses hover tooltips');
 });
 
+test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and uncapped cash effect', () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 4000;
+  f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
+  const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
+  const card = shopCard(ui, 'pebblePile');
+  ui.categories.find(button => button.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
+  ui.categories.find(button => button.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
+  const effects = ['Cash effect: +$4', 'Use Limit: 5', 'Base Value Required: $0.5'];
+  assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
+  ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$4k / $4k', '40 / 40', '60 / 60', '2 / 2']);
+  ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.pebblePile, 2); assert.equal(ui.state().cash, 0);
+  assert.equal(ui.state().stock.belt, 0); assert.equal(ui.state().inventory.chert, 0); assert.equal(ui.state().inventory.leekFiber, 0);
+  chooseMachine(ui, 'pebblePile');
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121)); ui.ids.get('cargo').emit('click', screenPoint(124, 121)); ui.frame(100);
+  assert.equal(ui.view().interaction.tool, null);
+  const machines = ui.state().machines.filter(machine => machine.type === 'pebblePile'); assert.equal(machines.length, 2);
+  for (const machine of machines) assert.deepEqual(A.cells(machine), A.cells({ ...machine, type: 'brickSeal' }));
+  assert.deepEqual(ui.ids.get('inspector').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'noammo.html'), 'utf8'); assert.match(html, /<h2>Pebble Pile<\/h2>/);
+});
+
 test("Granite Processor Shop scales Granite and conveyor components, filters Cash and exposes all rules on selection", () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 210000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'graniteProcessor');
   ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(b => b.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const expected = ['Cash effect: ×1.3', 'Use Limit: 12', 'Upper Limit: $500', 'Base Value Required: $3.5'];
+  const expected = ['Cash effect: ×1.3', 'Use Limit: 6', 'Upper Limit: $500', 'Base Value Required: $3.5'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$210k / $210k', '600 / 600', '3 / 4']);

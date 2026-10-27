@@ -233,6 +233,13 @@
         gradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
         description: "Seals passing products to increase their value. Gradually fixes Poor clay products through four uses.",
       },
+      pebblePile: {
+        name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
+        labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
+        cost: { cash: 2000, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
+        cashEffect: { bonus: 4, useLimit: 5, baseValueRequired: 0.5 },
+        description: "Adds $4 to passing sellables up to five times. Requires kinetic power for its conveyor.",
+      },
       leekInfuser: {
         name: "Leek Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
         labelCell: [0, 1], labelLines: ["Leek", "Infuser"], conveyors: [[0, 0]],
@@ -253,7 +260,7 @@
         name: "Granite Processor", width: 1, height: 2, color: "#aa8077", category: "Cash",
         labelLines: ["Granite", "Processor"], conveyors: [[0, 0], [0, 1]],
         cost: { cash: 105000, materials: { granite: 300 }, machines: { belt: 2 } },
-        cashEffect: { multiplier: 1.3, useLimit: 12, upperLimit: 500, baseValueRequired: 3.5 },
+        cashEffect: { multiplier: 1.3, useLimit: 6, upperLimit: 500, baseValueRequired: 3.5 },
         description: "Processes passing products to increase their value. Two parallel primitive conveyor lanes.",
       },
       copperChimes: {

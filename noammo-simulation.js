@@ -255,7 +255,7 @@
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
-      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 1, manualOverflowVersion: 1, beltCapacityVersion: 1,
+      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
@@ -1127,6 +1127,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.pebblePileVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "pebblePile")) state.stock.pebblePile = 0;
+        state.pebblePileVersion = 1;
+      }
       if ((state.copperFinishingVersion ?? 0) < 1) {
         for (const type of ["ingotMolder", "copperChimes"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
         if (state.inventory && !Object.hasOwn(state.inventory, "copperIngot")) state.inventory.copperIngot = 0;
@@ -1241,6 +1245,20 @@
         }
         for (const route of legacyRoutes) migrateCargo(route.item);
         state.gradingVersion = 2;
+      }
+      if ((state.graniteProcessorVersion ?? 0) < 2) {
+        const migrateProcessorUses = (item) => {
+          const uses = item?.upgrades?.graniteProcessor;
+          if (uses === undefined) return;
+          if (!Number.isSafeInteger(uses) || uses < 0 || uses > 12) throw new Error("Invalid cargo Processor uses.");
+          item.upgrades.graniteProcessor = Math.min(uses, D.machines.graniteProcessor.cashEffect.useLimit);
+        };
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          for (const item of [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
+            ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)]) migrateProcessorUses(item);
+        }
+        for (const route of legacyRoutes) migrateProcessorUses(route?.item);
+        state.graniteProcessorVersion = 2;
       }
       if ((state.beltCapacityVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {

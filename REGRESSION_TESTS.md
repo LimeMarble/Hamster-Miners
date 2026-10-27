@@ -247,10 +247,17 @@ future pipe tiers) are not treated as current acceptance requirements.
   Rendering stays read-only and shared contour templates are cached by type/facing.
 - Granite Processor checks cover exact $105k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
-  per-unit base/cash eligibility without an incoming lower bound, twelve uses
+  per-unit base/cash eligibility without an incoming lower bound, six uses
   shared across instances, the $500 boundary and final-result overshoot,
   blockage, preserved quality/tags, move/save continuity, old-save migration,
   malformed-use rejection and Shop/Inventory/effect/history integration.
+- Pebble Pile checks cover exact cost and owned-conveyor consumption, atomic
+  bulk purchases, Brick Seal's footprint/ports in all rotations, powered
+  transit, per-unit +$4, five shared uses, $0.50 base eligibility with no cash
+  cap, blockage, preserved grade/tags, save round trips and Shop/Inventory
+  integration. Processor migration checks cover every cargo buffer and job,
+  retaining value while clamping old spent counts to six and rejecting
+  invalid counts. Existing saves receive zero Pebble Pile stock.
 - Output-history tests cover every upgrader's five-entry bound/newest-first
   order, actual post-effect unit cash/quantity, capped passes, blockage without
   duplicate entries, independent machine instances, move/pickup lifecycle and

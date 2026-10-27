@@ -394,13 +394,26 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Inventory, Recipes, stable machine controls and recent output history use
   the real definitions. Legacy mining-game machinery is unchanged.
 
+## Pebble Pile (implemented, 2026-10-27)
+
+- Cost: $2,000, 20 Chert, 30 Leek Fiber and one owned Primitive Conveyor.
+  Cash category, zero crew. Brick Seal's 1-column/2-row footprint: a conveyor
+  above a body tile, rotating normally. Requires kinetic conveyor power and
+  uses normal primitive belt speed and capacity.
+- Adds $4 per unit, up to five uses across instances, requiring at least
+  $0.50 base value. No cash cap. Ordinary cargo metadata and grade effects
+  remain intact; new-material transformations renew cash eligibility.
+- Existing saves gain zero Pebble Pile stock. Shared Shop, Inventory,
+  Recipes, output history and dismantling use the machine definition.
+
 ## Granite Processor (implemented, 2026-10-23)
 
 - Cost: $105k, 300 Granite, two owned Primitive Conveyors. Cash category,
   zero crew, the original 1-column/2-row footprint with two independent
   right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
   Drive coverage and uses two-second transit with normal belt capacity.
-- Cash effect: x1.3, up to 12 uses across all Processor instances. Declared
+- Cash effect: x1.3, up to 6 uses across all Processor instances (rebalanced
+  2026-10-27). Declared
   per-item base value must be at least $3.50; incoming per-item actual value
   must be below $500 (rebalanced 2026-10-26). No incoming lower bound. This is not a result clamp.
 - Uses travel with cargo through saves and moves, follow existing stack merge
@@ -409,6 +422,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Shop/Inventory effects, bulk costs, rotated previews, Recipes and output
   diagnostics use the shared systems. Older saves gain only zero Processor
   stock; no machine is awarded and no old mining-game balance changes.
+- Existing saves with seven to twelve recorded Processor uses load with six
+  uses, preserving their cash values and keeping that eligibility exhausted.
 
 ## Machine output diagnostics (implemented, 2026-10-23)
 
