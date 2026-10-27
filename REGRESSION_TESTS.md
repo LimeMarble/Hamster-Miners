@@ -87,7 +87,7 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Resource collector contracts cover the 100-item Basket and 600-item Brick
   Resource Storage: mixed/fractional capacity, blocked intake, preview purity,
   collection without selling, instance isolation, move/pickup recovery and saves.
-  Brick Storage checks cover its $200/100 Bricks/15 Clay purchase, sole rotated
+  Brick Storage checks cover its $2k/100 Bricks/15 Clay purchase, sole rotated
   lower-left input, actual Clay Pit backpressure,
   old-save defaults, overcapacity rejection, Shop quantities and collection UI.
   The generic all-machine lifecycle/render test includes the new collector.
@@ -108,7 +108,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   manual Wood, a cash-free Fiber Extractor and Logger-fed Gear Bench. Selling
   40 Wood funds two $2 Primitive Upgraders, followed by a real powered Fiber sale line.
 - Planters produce one Leek per eight seconds. Two starters are free; repeat
-  purchases enforce $500, 50 Bricks, 100 Fiber and 200 Soil per unit. Bulk buying
+  purchases enforce $5k, 50 Bricks, 100 Fiber and 200 Soil per unit. Bulk buying
   requires and consumes the scaled Soil amount without charging failed purchases. Old free Planters
   remain owned. One-time starter migration tops older saves up to two total
   Planters, counting placed/unplaced and stored instances correctly. Saves already
@@ -245,7 +245,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   join without seams, only the perimeter is outlined, holes stay empty and
   placement/group previews cover the full occupied tiles in one alpha fill.
   Rendering stays read-only and shared contour templates are cached by type/facing.
-- Granite Processor checks cover exact $35k/300 Granite/two-conveyor cost,
+- Granite Processor checks cover exact $350k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
   per-unit base/cash eligibility without an incoming lower bound, twelve uses
   shared across instances, the $500 boundary and final-result overshoot,
@@ -278,7 +278,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   and available/total count on every screen, including after incoming sales.
 - Wood sells for $0.10 through inventory and Sell Tube, retaining fresh
   upgraded cargo values and its 50 heat units. One starter Sell Tube is free;
-  extra tubes require $250 and 200 Bricks each, with normal bulk costs and no
+  extra tubes require $2.5k and 200 Bricks each, with normal bulk costs and no
   borrowing bypass. Old saves receive a missing starter once, keep any tubes
   already owned, and price previously unvalued Wood without losing cargo.
 

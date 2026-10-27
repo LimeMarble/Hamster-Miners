@@ -35,13 +35,13 @@ function product(f, m) {
 
 test('Pot Spinner has the approved exact cost, no additional crew, and atomic multi-buy', () => {
   const f = new Factory(A.createState(1)), cost = D.machines.potSpinner.cost;
-  assert.deepEqual(cost, { cash: 2500, materials: { wood: 150, brick: 60, granite: 30, leekFiber: 15 } });
+  assert.deepEqual(cost, { cash: 25000, materials: { wood: 150, brick: 60, granite: 30, leekFiber: 15 } });
   for (const missing of ['cash', ...Object.keys(cost.materials)]) {
-    f.state.cash = 7500; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
+    f.state.cash = 75000; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
     if (missing === 'cash') f.state.cash -= 0.01; else f.state.inventory[missing]--;
     const before = f.exportSave(); assert.ok(f.buy('potSpinner', 3).error); assert.equal(f.exportSave(), before);
   }
-  f.state.cash = 7500; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
+  f.state.cash = 75000; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
   assert.equal(f.buy('potSpinner', 3).amount, 3); near(f.state.cash, 0);
   for (const material of Object.keys(cost.materials)) near(f.state.inventory[material], 0);
   const m = f.place('potSpinner', 40, 40).machine;

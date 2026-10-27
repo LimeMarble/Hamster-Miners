@@ -20,9 +20,9 @@ function feed(f, m, item, side = 0, consume = true) {
 
 test('Primitive Stacker has the old 1×1 Splitter footprint, exact cost, zero crew and bounded typed size', () => {
   const f = setup(), d = D.machines.primitiveStacker;
-  assert.deepEqual(d.cost, { cash: 1000, materials: { wood: 80, chert: 50, granite: 80 }, machines: { belt: 1 } });
+  assert.deepEqual(d.cost, { cash: 10000, materials: { wood: 80, chert: 50, granite: 80 }, machines: { belt: 1 } });
   assert.equal(d.crew ?? 0, 0);
-  f.state.cash = 1000; Object.assign(f.state.inventory, d.cost.materials); f.state.stock.belt = 1;
+  f.state.cash = 10000; Object.assign(f.state.inventory, d.cost.materials); f.state.stock.belt = 1;
   f.state.inventory.granite--;
   const before = f.exportSave(); assert.ok(f.buy('primitiveStacker').error); assert.equal(f.exportSave(), before);
   f.state.inventory.granite++;

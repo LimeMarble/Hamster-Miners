@@ -40,12 +40,12 @@ test("Kiln is a plain labelled machine box, without crew tiles or labels, in eve
 });
 
 test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free unlock", () => {
-  assert.deepEqual(D.machines.kiln.cost, { cash: 30, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
+  assert.deepEqual(D.machines.kiln.cost, { cash: 300, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
   assert.equal(createState().stock.kiln, 0);
   const factory = new Factory(createState(1));
-  factory.state.cash = 30;
+  factory.state.cash = 300;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
-  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 30);
+  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 300);
   factory.state.inventory.leekFiber = 15;
   assert.equal(factory.buy("kiln").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.unfiredBrick, 0);
@@ -295,7 +295,7 @@ test("Fired products sell at actual process value, collectors reset only on with
   factory.update(0.1); factory.update(8); factory.pickup(kiln.id);
   assert.equal(factory.state.inventory.brick, 4);
   near(factory.sellInventory("brick", 4), 4, "stored Bricks sell at their $1 base, not their former $4.2 process value");
-  factory.state.cash = 250; factory.state.inventory.brick = 200;
+  factory.state.cash = 2500; factory.state.inventory.brick = 200;
   assert.equal(factory.buy("sellTube").amount, 1); assert.equal(factory.state.inventory.brick, 0);
 });
 
