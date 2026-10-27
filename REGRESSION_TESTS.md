@@ -47,6 +47,12 @@ future pipe tiers) are not treated as current acceptance requirements.
   atomic machine-ingredient purchases and bulk affordability. Shack's two rows
   have three real conveyor cells each, six-second transit, one upgrade per
   material stage and base-value eligibility. All rotations are exercised.
+- Rock Drill power checks match and mirror Pebble Sifter's rotated intake, reject area
+  power alone, pause and resume partial cycles, retain mode/timer on reload,
+  and stop production behind a full output buffer.
+- Every kinetic drill is tested on both sides of one Wheel in all rotations,
+  facing the same direction. Either intake independently powers production;
+  power loss pauses both timers and save/load preserves their partial cycles.
 - Centered source ports have fractional coordinates. Lone, incompatible,
   opposing and occupied receiver pairs block; front priority is directional.
   Parallel pairs hold one cargo object with a reserved second footprint and
@@ -180,8 +186,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   body above, input/output on the lower cell, without a conveyor. Real Planter
   feeds work in all rotations; the body rejects cargo. Earlier Fiber saves
   retain jobs, contents and (for version 2) occupied tiles through correction.
-- Every Wheel long-edge port accepts the correct Drive intake, while short
-  edges, gaps and wrong facing reject it. Losing the Wheel immediately stops power.
+- Both centered Wheel long-edge outputs accept the correct Drive intake in
+  every rotation, while former corner ports, short edges, gaps and wrong facing
+  reject it. Losing the Wheel immediately stops power.
   Drives have no physical output port in any rotation; their output is the
   tile-aligned powered area extending seven tiles beyond each footprint edge
   (15×16 or 16×15 depending on orientation), shared by previews and placed
@@ -245,7 +252,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   join without seams, only the perimeter is outlined, holes stay empty and
   placement/group previews cover the full occupied tiles in one alpha fill.
   Rendering stays read-only and shared contour templates are cached by type/facing.
-- Granite Processor checks cover exact $105k/300 Granite/two-conveyor cost,
+- Granite Processor checks cover exact $50k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
   per-unit base/cash eligibility without an incoming lower bound, six uses
   shared across instances, the $500 boundary and final-result overshoot,

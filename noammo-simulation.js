@@ -98,7 +98,7 @@
       case "kiln": add(0, 0, "left", "input"); add(0, 1, "left", "input"); add(1, 1, "right", "output"); break;
       case "drive": add(1, 0, "right", "kineticInput"); break;
       case "wheel":
-        for (let x = 0; x < 3; x++) { add(x, 0, "up", "kineticOutput"); add(x, 1, "down", "kineticOutput"); }
+        add(1, 0, "up", "kineticOutput"); add(1, 1, "down", "kineticOutput");
         break;
     }
     return result;
@@ -1093,11 +1093,12 @@
         : !this.kineticHasWheel(machine) ? "Waiting for kinetic power" : `Extracting Native Copper · ${formatNumber(D.machines.copperDrill.cycle - machine.timer)}s`;
       if (machine.type === "clayPit") return machine.output.length ? "Output blocked" : `Digging Clay · ${Math.max(0, D.machines.clayPit.cycle - machine.timer).toFixed(1)}s`;
       if (D.machines[machine.type].sourceModes) return machine.output.length ? "Output blocked"
+        : D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine) ? "Waiting for kinetic power"
         : `Extracting ${D.materials[machine.mode].name} · ${Math.max(0, D.machines[machine.type].cycle - machine.timer).toFixed(1)}s`;
-      if (machine.type === "wheel") return "Kinetic source · connections on both long edges";
+      if (machine.type === "wheel") return "Kinetic source · two outputs at long-edge centers";
       if (machine.type === "drive") {
         const area = this.powerArea(machine);
-        return this.driveHasWheel(machine) ? `Powered · ${area.width}×${area.height} coverage` : "Connect its facing intake to a wheel’s long edge";
+        return this.driveHasWheel(machine) ? `Powered · ${area.width}×${area.height} coverage` : "Connect its facing intake to a wheel output";
       }
       if (collectorCapacity(machine)) return `${formatNumber(this.total(machine, "contents"))} / ${collectorCapacity(machine)} items`;
       if (D.machines[machine.type].conveyors) return conveyorCells(machine)

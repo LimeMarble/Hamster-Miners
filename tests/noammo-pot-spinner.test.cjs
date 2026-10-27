@@ -184,7 +184,7 @@ test('stacked profiles average with ordinary pots; legal portions and saves reta
 
 test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades spun pots without early RNG or extra cash', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'potSpinner', 40, 40);
-  place(f, 'wheel', 39, 43); place(f, 'drive', 39, 45, 'up');
+  place(f, 'wheel', 39, 43); place(f, 'drive', 40, 45, 'up');
   const kiln = place(f, 'kiln', 42, 41); kiln.heat = 240000;
   place(f, 'belt', 44, 42); place(f, 'gradingBench', 44, 41);
   const basket = place(f, 'basket', 46, 42);

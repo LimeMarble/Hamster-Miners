@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
+const { attachKineticWheel } = require('./helpers/noammo-centered.cjs');
 const { Factory, cargo, DATA: D, ports } = A;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ≈ ${b}`);
 function place(f, type, x, y, facing = 'right') {
@@ -121,7 +122,8 @@ test('occupied Stacker chains maintain belt cadence in either construction order
 });
 
 test('centered Rock Drill output can merge onto a Stacker in the front-priority position', () => {
-  const f = setup(), drill = place(f, 'primitiveRockDrill', 38, 39);
+  const f = new Factory(A.createState(1)), drill = place(f, 'primitiveRockDrill', 38, 39);
+  attachKineticWheel(f, drill); place(f, 'drive', 39, 43, 'up');
   const back = place(f, 'belt', 41, 39, 'down'), m = place(f, 'primitiveStacker', 41, 40);
   const basket = place(f, 'basket', 42, 40); f.setStackSize(m.id, 2);
   f.update(6.9); assert.equal(basket.contents.length, 0); assert.equal(back.lanes[0], undefined);

@@ -174,8 +174,9 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   is not refunded. Loading also clears runtime contents in stored furnaces.
   Copper extraction and smelting are implemented by the Copper Drill and
   Primitive Furnace described below, with direct Ingot Molder connections.
-- Basic Hamster Wheel: 3x2, no cash, 100 Wood, 25 Fiber, kinetic outputs on both long
-  edges. New placement defaults to down (2 wide x 3 tall), a quarter-turn from
+- Basic Hamster Wheel: 3x2, no cash, 100 Wood, 25 Fiber, exactly two kinetic
+  outputs, one at the center of each long edge. New placement defaults to down
+  (2 wide x 3 tall), a quarter-turn from
   its reference footprint; existing saved orientations are unchanged.
   Conveyor Drive: 1x2 horizontal, no cash, 75 Wood, 7.5 Fiber; its facing side
   is the intake; it has no physical output port. Direct intake-to-Wheel
@@ -285,6 +286,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   reference footprint: six occupied cells with one centered front-edge output,
   following Clay Pit's shared geometry/rules. Neither pits nor drills have internal conveyors.
   Select Chert (default) or Granite; produces a stack of two every 5 seconds.
+  Requires a directly connected Hamster Wheel above or below the middle
+  column, using Pebble Sifter's intake plus its mirrored counterpart. Either
+  intake suffices. Area power is insufficient;
+  losing the connection pauses progress without banking production.
   One waiting batch, no accumulated blocked cycles. Mode and contents survive
   moves and saves; changing mode does not rewrite existing output.
 - All new machines use zero crew. Primitive conveyors retain two-second tile
@@ -334,8 +339,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 - Copper Drill: $225k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
   Solid 3x2 footprint, four rear cells and a centered two-cell outlet, without
-  internal conveyors. Kinetic intake is below the middle column, as on Pebble
-  Sifter. One Native Copper ($1.50 base, weight 1) every 15 seconds; no extra
+  internal conveyors. Kinetic intakes are above and below the middle column;
+  either accepts a Wheel connection. One Native Copper ($1.50 base, weight 1) every 15 seconds; no extra
   crew beyond the connected Wheel. Production pauses without kinetic power
   or when its single-item output is full; no banked cycles.
 - Primitive Furnace: $750k, 200 Bricks, 100 Granite and 50 Clay; two crew.
@@ -408,7 +413,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Granite Processor (implemented, 2026-10-23)
 
-- Cost: $105k, 300 Granite, two owned Primitive Conveyors. Cash category,
+- Cost: $50k, 300 Granite, two owned Primitive Conveyors. Cash category,
   zero crew, the original 1-column/2-row footprint with two independent
   right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
   Drive coverage and uses two-second transit with normal belt capacity.

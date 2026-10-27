@@ -98,8 +98,13 @@
         labelLines: ["Primitive", "Rock Drill"], labelCell: [0.5, 0.5],
         cost: { cash: 15000, materials: { chert: 40, wood: 50 } },
         sourceModes: { chert: "Chert", granite: "Granite" }, defaultMode: "chert",
-        cycle: 5, sourceQuantity: 2, outputLimit: 2, centeredOutput: true,
-        description: "Extracts two Chert or Granite every five seconds.",
+        cycle: 5, sourceQuantity: 2, outputLimit: 2, centeredOutput: true, requiresKinetic: true,
+        ports: [
+          { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
+          { x: 1, y: 1, direction: "down", role: "kineticInput" },
+          { x: 1, y: 0, direction: "up", role: "kineticInput" },
+        ],
+        description: "Extracts two Chert or Granite every five seconds. Connect a Hamster Wheel to either kinetic intake.",
       },
       copperDrill: {
         name: "Copper Drill", width: 3, height: 2, color: "#b18461", category: "Material",
@@ -109,8 +114,9 @@
         ports: [
           { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
           { x: 1, y: 1, direction: "down", role: "kineticInput" },
+          { x: 1, y: 0, direction: "up", role: "kineticInput" },
         ],
-        description: "Extracts one Native Copper every fifteen seconds. Requires a connected Hamster Wheel and uses a centered two-tile output.",
+        description: "Extracts one Native Copper every fifteen seconds. Connect a Hamster Wheel to either kinetic intake. Uses a centered two-tile output.",
       },
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Material",
@@ -210,7 +216,7 @@
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
         defaultFacing: "down",
         cost: { cash: 0, materials: { wood: 100, leekFiber: 25 } },
-        description: "Kinetic connections run along both long edges. Connect a Conveyor Drive directly to one of them.",
+        description: "One kinetic output at the center of each long edge. Connect a Conveyor Drive or kinetic machine directly to an output.",
       },
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
@@ -259,7 +265,7 @@
       graniteProcessor: {
         name: "Granite Processor", width: 1, height: 2, color: "#aa8077", category: "Cash",
         labelLines: ["Granite", "Processor"], conveyors: [[0, 0], [0, 1]],
-        cost: { cash: 105000, materials: { granite: 300 }, machines: { belt: 2 } },
+        cost: { cash: 50000, materials: { granite: 300 }, machines: { belt: 2 } },
         cashEffect: { multiplier: 1.3, useLimit: 6, upperLimit: 500, baseValueRequired: 3.5 },
         description: "Processes passing products to increase their value. Two parallel primitive conveyor lanes.",
       },

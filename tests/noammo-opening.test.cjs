@@ -343,7 +343,10 @@ for (const facing of D.directions) {
     assert.equal(ports(drive).some((port) => port.role === "kineticOutput"), false);
     const wheel = { type: "wheel", x: 20, y: 20, facing };
     const outputs = ports(wheel);
-    assert.equal(outputs.length, 6);
+    assert.equal(outputs.length, 2);
+    assert.deepEqual(outputs, [[1, 0, 'up'], [1, 1, 'down']].map(([x, y, direction]) => ({
+      ...A.rotatePoint(x, y, 3, 2, facing), direction: A.turn(direction, D.directions.indexOf(facing)), role: 'kineticOutput',
+    })).map(point => ({ ...point, x: point.x + 20, y: point.y + 20 })));
     const expected = facing === "right" || facing === "left" ? ["up", "down"] : ["left", "right"];
     assert.ok(outputs.every((point) => expected.includes(point.direction)));
     assert.equal(cells(wheel).length, 6);
@@ -367,7 +370,7 @@ test("Wheel defaults to a quarter-turn without changing saved orientations or it
   assert.deepEqual(loaded.state, factory.state);
 });
 
-test("all six long-edge Wheel connections accept correctly facing Drives in every rotation", () => {
+test("both centered long-edge Wheel connections accept correctly facing Drives in every rotation", () => {
   for (const facing of D.directions) {
     const wheel = { type: "wheel", x: 40, y: 40, facing };
     for (const point of ports(wheel)) {
@@ -398,13 +401,21 @@ test("all six long-edge Wheel connections accept correctly facing Drives in ever
   }
 });
 
-test("Drive intake rejects the Wheel's short edge, wrong facing and a missing direct connection", () => {
+test("Drive intake rejects the Wheel's short edge, removed corner outputs and a missing direct connection", () => {
   const factory = new Factory(createState(1));
   place(factory, "wheel", 40, 40);
   const wrongSide = place(factory, "drive", 43, 40, "left");
   assert.equal(factory.driveHasWheel(wrongSide), false);
   const gap = place(factory, "drive", 41, 44, "up");
   assert.equal(factory.driveHasWheel(gap), false);
+  for (const facing of D.directions) for (const [x, y, direction] of [[0, 0, 'up'], [2, 0, 'up'], [0, 1, 'down'], [2, 1, 'down']]) {
+    const f = new Factory(createState(1)); place(f, 'wheel', 40, 40, facing);
+    const point = A.rotatePoint(x, y, 3, 2, facing), outward = A.turn(direction, D.directions.indexOf(facing));
+    const driveFacing = A.opposite(outward), local = ports({ type: 'drive', x: 0, y: 0, facing: driveFacing })[0];
+    const v = D.vectors[outward], drive = place(f, 'drive', 40 + point.x + v.x - local.x, 40 + point.y + v.y - local.y, driveFacing);
+    assert.equal(f.driveHasWheel(drive), false);
+    assert.equal(f.poweredDrives.length, 0);
+  }
 });
 
 test("Planter has no internal conveyor and sends from its facing edge in every orientation", () => {

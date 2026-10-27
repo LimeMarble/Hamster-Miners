@@ -1286,7 +1286,7 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
 });
 
 test("Granite Processor Shop scales Granite and conveyor components, filters Cash and exposes all rules on selection", () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 210000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
+  const f = new A.Factory(A.createState(1)); f.state.cash = 100000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'graniteProcessor');
   ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
@@ -1294,7 +1294,7 @@ test("Granite Processor Shop scales Granite and conveyor components, filters Cas
   const expected = ['Cash effect: ×1.3', 'Use Limit: 6', 'Upper Limit: $500', 'Base Value Required: $3.5'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$210k / $210k', '600 / 600', '3 / 4']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$100k / $100k', '600 / 600', '3 / 4']);
   assert.equal(ui.ids.get('buyMachine').disabled, true);
   ui.ids.get('quantity').value = '1'; ui.ids.get('quantity').emit('input'); ui.ids.get('buyMachine').emit('click');
   assert.equal(ui.state().stock.belt, 1); assert.equal(ui.state().stock.graniteProcessor, 1);

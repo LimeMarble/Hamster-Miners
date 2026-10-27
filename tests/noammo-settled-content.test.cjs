@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
+const { attachKineticWheel } = require('./helpers/noammo-centered.cjs');
 const { DATA: D, Factory, cargo, ports, conveyorCells } = A;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ≈ ${b}`);
 function place(f, type, x, y, facing = 'right') {
@@ -119,7 +120,7 @@ test('Shack doubles values below $2.5k without clamping the result, and rejects 
 for (const facing of D.directions) for (const type of ['clayPit', 'primitiveRockDrill']) {
   test(`${type} ${facing}: true midpoint and strict single/mismatched/opposing conveyor blockage`, () => {
     const f = powered(), source = place(f, type, 40, 38, facing), out = ports(source)[0];
-    assert.equal(ports(source).length, 1); assert.equal(out.span, 2);
+    assert.equal(ports(source).filter(point => point.role === 'output').length, 1); assert.equal(out.span, 2);
     assert.equal(Number.isInteger(out.x) !== Number.isInteger(out.y), true);
     const belts = pair(f, source); source.output.push(cargo(type === 'clayPit' ? 'clay' : 'chert'));
     f.pickup(belts[1].id); f.update(0.1); assert.equal(source.output.length, 1);
@@ -168,7 +169,8 @@ test('centered probes are read-only, blocked secondary lanes stop intake, and mi
 
 test('Rock Drill selection, five-second batches, bounded blockage and timers survive independent moves and reloads', () => {
   let f = powered(), drill = place(f, 'primitiveRockDrill', 40, 38), other = place(f, 'primitiveRockDrill', 45, 38);
-  assert.equal(A.cells(drill).length, 6); assert.equal(drill.mode, 'chert'); assert.equal(ports(drill).length, 1);
+  assert.equal(A.cells(drill).length, 6); assert.equal(drill.mode, 'chert'); assert.equal(ports(drill).length, 3);
+  attachKineticWheel(f, drill); attachKineticWheel(f, other);
   f.update(4.9); assert.equal(drill.output.length, 0); f.update(0.1);
   assert.equal(drill.output[0].quantity, 2); assert.equal(drill.output[0].material, 'chert');
   f.update(60); assert.equal(f.total(drill, 'output'), 2); near(drill.timer, 0);
@@ -178,6 +180,51 @@ test('Rock Drill selection, five-second batches, bounded blockage and timers sur
   assert.equal(drill.output[0].material, 'chert', 'mode changes do not rewrite waiting products');
   f.pickup(drill.id); assert.equal(f.state.inventory.chert, 2); drill = f.place('primitiveRockDrill', 40, 38).machine;
   assert.equal(drill.mode, 'granite'); f.update(5); assert.equal(drill.output[0].material, 'granite');
+});
+
+for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter intake, direct power, paused progress and save continuity`, () => {
+  const f = powered(), drill = place(f, 'primitiveRockDrill', 40, 38, facing);
+  const intake = ports(drill).filter(point => point.role === 'kineticInput');
+  assert.equal(intake.length, 2);
+  assert.deepEqual(intake.slice(0, 1), ports({ ...drill, type: 'pebbleSifter' }).filter(point => point.role === 'kineticInput'));
+  assert.equal(f.powered(drill.x, drill.y), true);
+  f.update(60); near(drill.timer, 0); assert.equal(drill.output.length, 0);
+  assert.match(f.status(drill), /Waiting for kinetic power/);
+  const wheel = attachKineticWheel(f, drill); assert.equal(f.kineticHasWheel(drill), true);
+  f.update(2); near(drill.timer, 2); f.pickup(wheel.id); f.update(60); near(drill.timer, 2);
+  const loaded = Factory.importSave(f.exportSave()), restored = loaded.byId.get(drill.id);
+  near(restored.timer, 2); assert.equal(loaded.kineticHasWheel(restored), false);
+  loaded.setSourceMode(restored.id, 'granite'); attachKineticWheel(loaded, restored);
+  loaded.update(3); assert.equal(restored.output[0].material, 'granite'); assert.equal(restored.output[0].quantity, 2);
+  loaded.update(60); assert.equal(loaded.total(restored, 'output'), 2); near(restored.timer, 0);
+});
+
+test('every kinetic drill can share both Wheel outputs while facing the same direction, with either intake independently sufficient', () => {
+  const types = Object.keys(D.machines).filter(type => D.machines[type].requiresKinetic && D.machines[type].centeredOutput);
+  assert.deepEqual(types, ['primitiveRockDrill', 'copperDrill']);
+  for (const type of types) for (const facing of D.directions) {
+    const f = new Factory(A.createState(1)), wheel = place(f, 'wheel', 40, 40, facing);
+    const drills = ports(wheel).map(output => {
+      const inputs = ports({ type, x: 0, y: 0, facing }).filter(point => point.role === 'kineticInput');
+      assert.equal(inputs.length, 2);
+      const input = inputs.find(point => point.direction === A.opposite(output.direction)), v = D.vectors[output.direction];
+      const drill = place(f, type, output.x + v.x - input.x, output.y + v.y - input.y, facing);
+      assert.equal(f.kineticHasWheel(drill), true);
+      assert.equal(ports(drill).find(point => point.role === 'output').direction, facing);
+      return drill;
+    });
+    f.update(2); for (const drill of drills) near(drill.timer, 2);
+    f.pickup(wheel.id); f.update(60); for (const drill of drills) near(drill.timer, 2);
+    const loaded = Factory.importSave(f.exportSave());
+    assert.equal(loaded.place('wheel', wheel.x, wheel.y, facing).error, undefined);
+    loaded.update(D.machines[type].cycle - 2);
+    for (const drill of drills) {
+      const restored = loaded.byId.get(drill.id);
+      assert.equal(loaded.kineticHasWheel(restored), true);
+      assert.equal(loaded.total(restored, 'output'), D.machines[type].sourceQuantity ?? 1);
+    }
+    assert.equal(loaded.availableCrew(), 9, 'one Wheel powers both drills');
+  }
 });
 
 for (const facing of D.directions) test(`Bridge ${facing}: independent crossing cargo, six-second upper transit and save/group lifecycle`, () => {
