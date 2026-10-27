@@ -30,6 +30,14 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Inventory retains separate Machines and Items sub-screens. Owned machines use
   category-filtered compact cards with details and Place beside them; the Factory
   has no permanent machine list. Items hide unowned materials.
+- Machines inventory includes Dismantle for one unplaced machine at a time, with
+  a visible refund preview. Refunds use the current construction recipe, including
+  component machines such as conveyors, and never return cash. This also applies
+  to free starter machinery. Stored instances are consumed once; liquid contents
+  are discarded with a visible notice, while unrecovered solid contents return
+  once. Placed machines require pickup first. The last selected machine remains
+  in the details panel with disabled controls so repeated clicks cannot destroy
+  a different machine after stock runs out. No historical purchase data is kept.
 - Shift-click empty ground starts two-tap box selection; Shift can also be tapped
   before the first click for trackpad use. Occupied tiles use a defined quick
   action (Basket: collect all), or select normally if no action exists. Shift-click

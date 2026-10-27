@@ -19,6 +19,7 @@
   const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
+  let dismantledSelection = null;
   let gesture = null, suppressClick = false, shiftHeld = false;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
   let overlaySignature = "";
@@ -182,7 +183,7 @@
     refresh();
   }
   for (const [type, definition] of Object.entries(D.machines)) {
-    const count = element("span", "0"), button = action("", () => { inventorySelection = type; renderInventory(); }, "shop-card");
+    const count = element("span", "0"), button = action("", () => { inventorySelection = type; dismantledSelection = null; renderInventory(); }, "shop-card");
     const inventorySwatch = element("i", undefined, "machine-swatch"); inventorySwatch.style.backgroundColor = definition.color;
     button.dataset.machine = type;
     button.append(inventorySwatch, element("strong", definition.name), count); $("machineCards").append(button); machineCards.set(type, { button, count });
@@ -201,7 +202,7 @@
     inventoryTab = button.dataset.inventoryTab; renderInventory();
   });
   for (const button of document.querySelectorAll("[data-inventory-category]")) button.addEventListener("click", () => {
-    inventoryCategory = button.dataset.inventoryCategory; renderInventory();
+    inventoryCategory = button.dataset.inventoryCategory; dismantledSelection = null; renderInventory();
   });
   for (const button of document.querySelectorAll("[data-category]")) button.addEventListener("click", () => {
     category = button.dataset.category;
@@ -568,7 +569,7 @@
       if (!entry.button.hidden) visible.push(type);
       text(entry.count, `Owned: ${number(total)} · available: ${number(available)}`);
     }
-    if (!visible.includes(inventorySelection)) inventorySelection = visible[0] ?? null;
+    if (!visible.includes(inventorySelection) && !(dismantledSelection && dismantledSelection === inventorySelection)) inventorySelection = visible[0] ?? null;
     for (const [type, entry] of machineCards) entry.button.classList.toggle("selected", type === inventorySelection);
     $("machineEmpty").hidden = visible.length > 0;
     const panel = $("machineDetail"); panel.hidden = !inventorySelection;
@@ -580,11 +581,30 @@
       appendMachineEffects(panel, definition);
       const owned = element("p"); owned.id = "inventoryOwned";
       const place = action("Place", () => build(inventorySelection)); place.id = "placeMachine";
-      panel.append(owned, place, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"));
+      const type = inventorySelection;
+      const dismantle = action("Dismantle", () => {
+        const response = factory.dismantle(type);
+        if (response.error) return notify(response.error);
+        dismantledSelection = type;
+        save(); refresh(); notify(`Dismantled ${definition.name}. Resources returned; no cash refunded.`);
+      }, "secondary"); dismantle.id = "dismantleMachine";
+      const returns = definition.cost ? [
+        ...Object.entries(definition.cost.materials ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.materials[id].name}`),
+        ...Object.entries(definition.cost.machines ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.machines[id].name}`),
+      ] : [];
+      const refund = element("p", definition.cost ? `Dismantle returns: ${returns.join(", ") || "no resources"}. No cash refund.`
+        : "No construction recipe to recover.", "muted"); refund.id = "dismantleReturns";
+      const contents = element("p", "", "muted"); contents.id = "dismantleContents";
+      panel.append(owned, place, dismantle, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"), refund, contents);
     }
     const available = factory.state.stock[inventorySelection], placed = factory.state.machines.filter((machine) => machine.type === inventorySelection).length;
     text($("inventoryOwned"), `Owned: ${number(available + placed)} · available to place: ${number(available)}`);
     $("placeMachine").disabled = available < 1;
+    $("dismantleMachine").disabled = available < 1 || !D.machines[inventorySelection].cost;
+    $("dismantleMachine").title = available < 1 ? "Pick up a machine before dismantling it." : "Dismantle one unplaced machine using its current construction recipe.";
+    const stored = factory.state.storedMachines.find((machine) => machine.type === inventorySelection);
+    text($("dismantleContents"), stored && [...stored.input, ...stored.output, ...(stored.job?.inputs ?? (stored.job?.input ? [stored.job.input] : []))]
+      .some((item) => D.materials[item.material]?.fluid) ? "Stored molten metal will be discarded." : "");
   }
   function refresh() {
     if (interaction.selectedIds.some((id) => !factory.byId.has(id))) {
@@ -611,6 +631,7 @@
     try { const replacement = A.Factory.importSave($("saveText").value); backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
+      dismantledSelection = null;
       save(); refresh(); notify(factory.terrainUpdated ? terrainNotice() : factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
         : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Prototype save imported.");
@@ -620,6 +641,7 @@
     if (!window.confirm("Reset only this opening prototype? Existing mining saves will not be changed.")) return;
     factory = new A.Factory(); storageFailed = false; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
     inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
+    dismantledSelection = null;
     home(); save(); refresh();
   });
   window.addEventListener("resize", resize); window.addEventListener("beforeunload", save);

@@ -203,6 +203,12 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Opening Inventory has separate Machines/Items sub-screens, owned-only machine
   cards, category filtering, stable selected details and a Place action returning
   to the current camera. Machinery is not listed on the default Factory screen.
+- Generic dismantling coverage checks every priced machine's current material
+  and component-machine recipe, zero cash refunds, consumed stock, save/load and
+  no refunds without an unplaced instance. Picked-up contents cannot refund twice,
+  stored molten metal is discarded, and dismantled starter Planters do not trigger
+  replenishment. UI tests check previews, stable controls, placed-only rejection,
+  returned belt placement and no automatic retargeting when the last unit is gone.
 - Shift-click (or tap Shift then click) on empty ground arms two-tap selection;
   occupied tiles collect Baskets or select normally. Another selected machine,
   Basket, tree or group suppresses the target's quick action, including when a

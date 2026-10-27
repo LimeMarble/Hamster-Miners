@@ -332,6 +332,41 @@ test("Inventory separates Machines and Items, with no default machine list on th
   assert.equal(ui.ids.get("itemInventory").hidden, false, "the chosen sub-screen is retained");
 });
 
+test("Inventory dismantling previews resources, returns components, excludes placed machines and never retargets the last button", () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.primitive = 3; f.state.cash = 50;
+  const placed = f.place('primitive', 121, 121).machine;
+  let ui = boot(f.exportSave());
+  const selectInventory = (view, type) => {
+    view.ids.get('openInventory').emit('click');
+    view.ids.get('machineCards').children.find(card => card.dataset.machine === type).emit('click');
+  };
+  selectInventory(ui, 'primitive');
+  assert.match(ui.ids.get('dismantleReturns').textContent, /10 Wood, 5 Leek Fiber, 2 Primitive Conveyor/);
+  assert.match(ui.ids.get('dismantleReturns').textContent, /No cash refund/);
+  const button = ui.ids.get('dismantleMachine'); ui.frame(100); ui.frame(300);
+  assert.equal(ui.ids.get('dismantleMachine'), button);
+  for (let count = 1; count <= 2; count++) {
+    button.emit('click');
+    const state = ui.state();
+    assert.equal(state.stock.primitive, 2 - count); assert.equal(state.stock.belt, 2 * count);
+    assert.equal(state.inventory.wood, 10 * count); assert.equal(state.inventory.leekFiber, 5 * count);
+    assert.equal(state.cash, 50); assert.equal(state.machines[0].id, placed.id);
+  }
+  assert.equal(button.disabled, true); assert.match(button.title, /Pick up/);
+  const before = ui.state(); button.emit('click'); assert.deepEqual(ui.state(), before);
+  const pickedUp = new A.Factory(before); pickedUp.pickup(placed.id);
+  ui = boot(pickedUp.exportSave()); selectInventory(ui, 'primitive');
+  ui.ids.get('dismantleMachine').emit('click');
+  assert.equal(ui.ids.get('dismantleMachine').disabled, true);
+  assert.equal(ui.ids.get('machineDetail').children[0].textContent, 'Primitive Upgrader');
+  assert.equal(ui.ids.get('machineCards').children.find(card => card.dataset.machine === 'primitive').hidden, true);
+  const state = ui.state(); assert.equal(state.stock.belt, 6); assert.equal(state.stock.planter, 2);
+  assert.equal(state.storedMachines.some(m => m.id === placed.id), false);
+  assert.deepEqual(A.Factory.importSave(ui.storage.get(A.DATA.saveKey)).state, state);
+  chooseMachine(ui, 'belt'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  assert.equal(ui.state().machines[0].type, 'belt');
+});
+
 test("machine cards filter, select stable details, and Place returns to the unchanged factory camera", () => {
   const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0;
   const ui = boot(factory.exportSave()); ui.frame(100);

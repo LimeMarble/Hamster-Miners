@@ -652,6 +652,49 @@ test("purchasing checks cash AND materials, including gears and Wood per conveyo
   assert.ok(factory.buy("planter", 1.5).error); assert.ok(factory.buy("planter", 10000).error);
 });
 
+test("dismantling every priced machine returns its current materials and component machines, never cash", () => {
+  for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost)) {
+    const f = new Factory(createState(1)), cost = definition.cost;
+    f.state.cash = cost.cash + 123;
+    Object.assign(f.state.inventory, cost.materials); Object.assign(f.state.stock, cost.machines ?? {});
+    const originalStock = A.copy(f.state.stock), originalInventory = A.copy(f.state.inventory);
+    assert.equal(f.buy(type).amount, 1);
+    const afterPurchaseCash = f.state.cash;
+    assert.equal(f.dismantle(type).amount, 1, type);
+    assert.deepEqual(f.state.inventory, originalInventory, type); assert.deepEqual(f.state.stock, originalStock, type);
+    assert.equal(f.state.cash, afterPurchaseCash, type);
+    assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+    f.state.stock[type] = 0;
+    const before = f.exportSave(); assert.ok(f.dismantle(type).error); assert.equal(f.exportSave(), before);
+  }
+});
+
+test("dismantling consumes one picked-up instance, cannot touch placed machines and refunds no buffered cargo twice", () => {
+  const f = new Factory(createState(1)), furnace = place(f, 'primitiveFurnace', 40, 40);
+  furnace.input.push(cargo('wood', 4)); furnace.output.push(cargo('charcoal', 2));
+  const placed = f.exportSave(); assert.ok(f.dismantle('primitiveFurnace').error); assert.equal(f.exportSave(), placed);
+  f.pickup(furnace.id);
+  assert.equal(f.state.inventory.wood, 4); assert.equal(f.state.inventory.charcoal, 2);
+  assert.equal(f.dismantle('primitiveFurnace').amount, 1);
+  assert.equal(f.state.inventory.wood, 4); assert.equal(f.state.inventory.charcoal, 2);
+  assert.equal(f.state.inventory.brick, 200); assert.equal(f.state.inventory.granite, 100); assert.equal(f.state.inventory.clay, 50);
+  assert.equal(f.state.storedMachines.some(m => m.id === furnace.id), false);
+  const molder = place(f, 'ingotMolder', 45, 40);
+  molder.input.push(cargo('moltenCopper')); f.update(0.1); f.pickup(molder.id);
+  assert.ok(f.state.storedMachines.find(m => m.id === molder.id).job);
+  f.dismantle('ingotMolder'); assert.equal(f.state.inventory.moltenCopper, 0);
+  assert.equal(f.state.storedMachines.some(m => m.id === molder.id), false);
+  const next = place(f, 'ingotMolder', 45, 40); assert.equal(next.job, null); assert.equal(next.input.length, 0);
+  f.state.stock.belt = 1;
+  const beforeCash = f.state.cash;
+  f.dismantle('belt'); assert.equal(f.state.inventory.woodenGear, 4); assert.equal(f.state.cash, beforeCash);
+  f.dismantle('planter'); f.dismantle('planter');
+  assert.equal(f.state.inventory.soil, 400, 'current recipes apply to free starter machines too');
+  const save = f.exportSave(); assert.ok(f.dismantle('missing').error); assert.equal(f.exportSave(), save);
+  assert.deepEqual(Factory.importSave(save).state, f.state);
+  assert.equal(Factory.importSave(save).state.stock.planter, 0, 'starter migration cannot replenish dismantled Planters');
+});
+
 test("Primitive test ceiling is incoming eligibility, not an output clamp, and blockage cannot reapply it", () => {
   const { factory } = poweredFactory();
   const primitive = place(factory, "primitive", 23, 24);

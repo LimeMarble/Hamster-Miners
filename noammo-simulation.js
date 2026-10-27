@@ -500,6 +500,25 @@
       }
       this.state.stock[type] += amount; return { amount };
     }
+    dismantle(type) {
+      const cost = D.machines[type]?.cost;
+      if (!cost) return { error: "This machine has no construction recipe to recover." };
+      if (!(this.state.stock[type] > 0)) return { error: "Pick up an owned machine before dismantling it." };
+      const index = this.state.storedMachines.findIndex((machine) => machine.type === type);
+      const materials = { ...cost.materials }, machines = { ...cost.machines };
+      if (index >= 0) {
+        const stored = this.state.storedMachines.splice(index, 1)[0];
+        for (const item of [...stored.input, ...stored.output, ...stored.contents, ...Object.values(stored.lanes),
+          ...Object.values(stored.beltRemainders ?? {}), ...jobInputs(stored.job)]) {
+          if (validCargo(item) && !D.materials[item.material].fluid) materials[item.material] = (materials[item.material] ?? 0) + item.quantity;
+        }
+        this.outputHistories.delete(stored.id);
+      }
+      this.state.stock[type]--;
+      for (const [material, quantity] of Object.entries(materials)) this.state.inventory[material] += quantity;
+      for (const [machine, quantity] of Object.entries(machines)) this.state.stock[machine] += quantity;
+      return { amount: 1, materials, machines };
+    }
     borrow(type, amount = 1) {
       if (!D.machines[type] || D.machines[type].cost || !Number.isInteger(amount) || amount < 1 || amount > 100) return false;
       this.state.stock[type] += amount; return true;
