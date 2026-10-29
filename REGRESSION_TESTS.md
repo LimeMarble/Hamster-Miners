@@ -11,6 +11,15 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Metal Press and Heavy Wheel checks cover construction/dismantling, rotated
+  ports and real inlet/working/outlet transport; dedicated Basic Wheels,
+  shared-Wheel rejection independent of placement order, adjacent-pair speed,
+  and the two-times speed ceiling. Consecutive Plates combine without losing
+  value, quality or material history; bounded queues, mode changes, moves,
+  pickup and saves preserve or recover cargo exactly once. Material mappings
+  also exercise a future heavier metal, and malformed saves are rejected.
+  Inspector mode controls remain mounted during production.
+
 - Leek Duster tests cover the exact atomic cost, both direct kinetic intakes
   in all rotations, six-second transit, independent cash/grade material history,
   quality treatment outside cash range and stack-history unions. Real shaping,

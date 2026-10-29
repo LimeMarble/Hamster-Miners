@@ -24,7 +24,7 @@
     machine.input = []; machine.output = []; machine.job = null;
   }
   const supportsOutputHistory = (type) => type === "primitive" || type === "gradingBench" || Boolean(D.machines[type]?.cashEffect);
-  const isCrafter = (definition) => Boolean(definition.craftInput || definition.molder);
+  const isCrafter = (definition) => Boolean(definition.craftInput || definition.molder || definition.pressModes);
   function moldingProduct(material) {
     const source = D.materials[material], product = D.materials[source?.moldsTo];
     return source?.fluid && !source.requiresRefractoryCaster && product && !product.fluid && !product.requiresRefractoryCaster
@@ -312,7 +312,7 @@
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -347,6 +347,32 @@
         occupants.push(machine); this.occupantsAt.set(position, occupants);
         if (!this.at.has(position) || !D.machines[machine.type].bridge) this.at.set(position, machine);
       }
+      // Connections depend only on layout, never on tick order or cargo. Cache
+      // both ends so a shared Basic Wheel is rejected by every connected Press.
+      this.kineticConnections = new Map();
+      const consumers = new Map();
+      for (const machine of this.state.machines) {
+        const connections = [];
+        for (const intake of ports(machine).filter((point) => point.role === "kineticInput")) {
+          const v = D.vectors[intake.direction], wheel = this.at.get(key(intake.x + v.x, intake.y + v.y));
+          if (!D.machines[wheel?.type]?.kineticSource) continue;
+          const output = ports(wheel).find((point) => point.role === "kineticOutput"
+            && point.x === intake.x + v.x && point.y === intake.y + v.y && point.direction === opposite(intake.direction));
+          if (!output) continue;
+          connections.push({ wheel, intake });
+          if (!consumers.has(wheel.id)) consumers.set(wheel.id, new Set());
+          consumers.get(wheel.id).add(machine.id);
+        }
+        this.kineticConnections.set(machine.id, connections);
+      }
+      this.pressPowers = new Map();
+      for (const machine of this.state.machines) if (D.machines[machine.type].pressModes) {
+        const connections = this.kineticConnections.get(machine.id).filter(({ wheel }) =>
+          !D.machines[wheel.type].dedicatedPressSource || consumers.get(wheel.id).size === 1);
+        const paired = connections.some(({ intake: a }, i) => connections.slice(i + 1).some(({ intake: b }) =>
+          a.direction === b.direction && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1));
+        this.pressPowers.set(machine.id, { connections: connections.length, speed: connections.length < 2 ? 0 : paired ? 2 : 1 });
+      }
       this.poweredDrives = this.state.machines.filter((machine) => machine.type === "drive" && this.driveHasWheel(machine));
       this.layoutVersion++;
     }
@@ -362,13 +388,10 @@
       return this.kineticHasWheel(drive);
     }
     kineticHasWheel(machine) {
-      return ports(machine).filter((point) => point.role === "kineticInput").some((intake) => {
-        const v = D.vectors[intake.direction], wheel = this.at.get(key(intake.x + v.x, intake.y + v.y));
-        return wheel?.type === "wheel" && ports(wheel).some((point) => point.role === "kineticOutput"
-          && point.x === intake.x + v.x && point.y === intake.y + v.y
-          && point.direction === opposite(intake.direction));
-      });
+      if (D.machines[machine.type].pressModes) return this.pressPower(machine).speed > 0;
+      return (this.kineticConnections.get(machine.id)?.length ?? 0) > 0;
     }
+    pressPower(machine) { return this.pressPowers.get(machine.id) ?? { connections: 0, speed: 0 }; }
     powerArea(drive) {
       const bounds = size(drive), reach = D.config.powerAreaReach;
       return { x: drive.x - reach, y: drive.y - reach,
@@ -674,6 +697,19 @@
       machine.mode = mode;
       return { machine };
     }
+    setPressMode(id, mode) {
+      const machine = this.byId.get(id), definition = D.machines[machine?.type];
+      if (!definition?.pressModes || !Object.hasOwn(definition.pressModes, mode)) return { error: "Invalid Press mode." };
+      if (machine.mode !== mode) {
+        for (const item of [...machine.input, ...[machine.lanes[0], machine.beltRemainders?.[0]].filter(Boolean)]) {
+          this.state.inventory[item.material] += item.quantity;
+        }
+        delete machine.lanes[0];
+        if (machine.beltRemainders) delete machine.beltRemainders[0];
+        machine.input = []; machine.mode = mode;
+      }
+      return { machine };
+    }
     setSourceMode(id, mode) {
       const machine = this.byId.get(id), modes = D.machines[machine?.type]?.sourceModes;
       if (!modes || !Object.hasOwn(modes, mode)) return { error: "Invalid extraction mode." };
@@ -681,6 +717,12 @@
     }
     craftRecipe(machine, input = machine.input[0], mode = machine.mode) {
       const definition = D.machines[machine.type];
+      if (definition.pressModes) {
+        const recipe = definition.pressModes[mode], source = D.materials[input?.material];
+        const output = source?.[recipe?.materialProperty];
+        if (!recipe || !output || !D.materials[output] || source.fluid || D.materials[output].fluid) return null;
+        return { ...recipe, output, seconds: definition.seconds };
+      }
       if (!definition.molder) return definition.recipes[mode];
       const output = moldingProduct(input?.material);
       return output ? { input: 1, output, seconds: definition.seconds, valueMultiplier: 1 } : null;
@@ -712,8 +754,10 @@
     }
     unloadShaping(machine) {
       if (machine.output.length) {
-        const item = machine.output[0], output = ports(machine).find((point) => point.role === "output");
-        item.quantity -= this.send(machine, item, output);
+        const item = machine.output[0], definition = D.machines[machine.type];
+        item.quantity -= definition.pressModes
+          ? this.receiveConveyor(machine, item, conveyorCells(machine)[definition.processingCell], true)
+          : this.send(machine, item, ports(machine).find((point) => point.role === "output"));
         if (item.quantity <= epsilon) machine.output.shift();
       }
       this.finishShaping(machine);
@@ -926,6 +970,7 @@
         }
       } else if (D.machines[machine.type].conveyors && (machine.type === "belt" || input)) {
         if (incomingSide === machine.facing) return 0;
+        if (D.machines[machine.type].pressModes && !this.craftRecipe(machine, item)) return 0;
         const tile = conveyorCells(machine).find((cell) => cell.x === x && cell.y === y);
         if (tile) quantity = this.receiveConveyor(machine, item, tile, consume);
       }
@@ -933,6 +978,17 @@
     }
     laneIndex(machine, x, y) {
       return conveyorCells(machine).findIndex((point) => point.x === x && point.y === y);
+    }
+    receivePressInput(machine, item, consume = false) {
+      const definition = D.machines[machine.type];
+      if (!this.craftRecipe(machine, item) || machine.input.some((entry) => entry.material !== item.material)) return 0;
+      const quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), definition.inputLimit - this.total(machine, "input")));
+      if (consume && quantity > epsilon) {
+        const received = { ...copy(item), quantity, progress: 0 };
+        delete received.lateral;
+        machine.input.push(received);
+      }
+      return quantity;
     }
     send(machine, item, output) {
       const v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
@@ -942,7 +998,8 @@
           Boolean(D.machines[machine.type].bridge), machine.id);
       }
       const internal = conveyorCells(machine).find((cell) => cell.x === x && cell.y === y);
-      if (internal) return this.receiveConveyor(machine, item, internal, true);
+      if (internal) return D.machines[machine.type].pressModes && internal.index === D.machines[machine.type].processingCell
+        ? this.receivePressInput(machine, item, true) : this.receiveConveyor(machine, item, internal, true);
       const target = (this.occupantsAt.get(key(x, y)) ?? []).find((entry) =>
         !D.machines[entry.type].bridge || ports(entry).some((point) => point.role === "input" && point.x === x && point.y === y
           && point.direction === opposite(output.direction)));
@@ -1005,7 +1062,8 @@
             machine.job = { input: machine.input.shift(), remaining: D.config.fiberSeconds };
           }
         } else if (isCrafter(definition) && machine.job) {
-          if (!definition.requiresKinetic || this.kineticHasWheel(machine)) machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
+          const speed = definition.pressModes ? this.pressPower(machine).speed : 1;
+          if (!definition.requiresKinetic || this.kineticHasWheel(machine)) machine.job.remaining = Math.max(0, machine.job.remaining - seconds * speed);
           this.finishShaping(machine);
         } else if (machine.type === "gradingBench" && machine.job) {
           machine.job.remaining = Math.max(0, machine.job.remaining - seconds);
@@ -1134,6 +1192,15 @@
       }
     }
     status(machine) {
+      if (D.machines[machine.type].pressModes) {
+        const power = this.pressPower(machine), mode = D.machines[machine.type].pressModes[machine.mode];
+        if (!power.speed) return `Waiting for two kinetic connections · ${power.connections} / 2 · Basic Wheels must be dedicated`;
+        const speed = power.speed === 2 ? "Adjacent pair · 2× speed" : "2 kinetic connections · normal speed";
+        if (machine.job) return machine.job.remaining <= epsilon ? `Output blocked · ${speed}`
+          : `Pressing · ${formatNumber(machine.job.remaining / power.speed)}s · ${speed}`;
+        if (machine.output.length) return `Output blocked · ${speed}`;
+        return `Waiting for ${mode.name === "Plates" ? "ingots" : "two matching Plates"} · ${speed}`;
+      }
       if (D.machines[machine.type].manualTransferSeconds) {
         if (machine.job) return machine.job.remaining <= epsilon ? "Overflow output blocked"
           : `Redirecting cargo · ${formatNumber(machine.job.remaining)}s`;
@@ -1163,6 +1230,7 @@
         : D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine) ? "Waiting for kinetic power"
         : `Extracting ${D.materials[machine.mode].name} · ${Math.max(0, D.machines[machine.type].cycle - machine.timer).toFixed(1)}s`;
       if (machine.type === "wheel") return "Kinetic source · two outputs at long-edge centers";
+      if (machine.type === "heavyWheel") return "Kinetic source · two pairs of outputs · 2 crew";
       if (machine.type === "drive") {
         const area = this.powerArea(machine);
         return this.driveHasWheel(machine) ? `Powered · ${area.width}×${area.height} coverage` : "Connect its facing intake to a wheel output";
@@ -1195,6 +1263,11 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.metalPressVersion ?? 0) < 1) {
+        for (const type of ["metalPress", "heavyWheel"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
+        for (const material of ["copperPlate", "copperGear"]) if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        state.metalPressVersion = 1;
+      }
       if ((state.leekDusterVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "leekDuster")) state.stock.leekDuster = 0;
         state.leekDusterVersion = 1;
@@ -1444,6 +1517,24 @@
             || (machine.job && (!recipe || machine.job.input.material !== definition.craftInput || machine.job.input.quantity !== recipe.input
               || machine.job.remaining < 0 || machine.job.remaining > recipe.seconds
               || machine.output.length > (definition.outputBuffer ?? 0)))) throw new Error(`Invalid ${definition.name} buffer or mode.`);
+        }
+        if (D.machines[machine.type].pressModes) {
+          const definition = D.machines[machine.type];
+          const product = (item, mode) => D.materials[item?.material]?.[definition.pressModes[mode]?.materialProperty];
+          const validInput = (item, mode) => Boolean(D.materials[product(item, mode)]) && Number.isInteger(item.quantity)
+            && !D.materials[item.material].fluid && !D.materials[product(item, mode)].fluid;
+          const outputs = new Set(Object.values(D.materials).flatMap((material) => Object.values(definition.pressModes)
+            .map((mode) => material[mode.materialProperty]).filter(Boolean)));
+          if (!Object.hasOwn(definition.pressModes, machine.mode)
+            || machine.input.some((item) => !validInput(item, machine.mode) || item.material !== machine.input[0].material)
+            || machine.input.reduce((sum, item) => sum + item.quantity, 0) > definition.inputLimit
+            || machine.output.length > definition.outputBuffer
+            || machine.output.some((item) => !outputs.has(item.material) || item.quantity !== 1)
+            || (machine.lanes[0] && !validInput(machine.lanes[0], machine.mode))
+            || Object.entries(machine.lanes).some(([lane, item]) => Number(lane) > 0 && !outputs.has(item.material))
+            || (machine.job && (!validInput(machine.job.input, machine.job.mode)
+              || machine.job.input.quantity !== definition.pressModes[machine.job.mode].input
+              || machine.job.remaining < 0 || machine.job.remaining > definition.seconds))) throw new Error("Invalid Metal Press mode, job or buffers.");
         }
         if (D.machines[machine.type].molder) {
           const definition = D.machines[machine.type], pending = machine.input.reduce((sum, item) => sum + item.quantity, 0);

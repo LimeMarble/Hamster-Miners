@@ -121,7 +121,7 @@
       const displayedBelts = API.conveyorCells(machine);
       if (displayedBelts.length) {
         for (const point of displayedBelts) {
-          ctx.fillStyle = factory.powered(point.x, point.y) ? "#455d4a" : "#423c31";
+          ctx.fillStyle = factory.conveyorPowered(machine, point.x, point.y) ? "#455d4a" : "#423c31";
           if (!definition.bridge || point.index !== 1) ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
           arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.8);
         }
@@ -148,7 +148,7 @@
           labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
       if ((definition.conveyors && !API.conveyorCells(machine)
-        .every((cell) => factory.powered(cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
+        .every((cell) => factory.conveyorPowered(machine, cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
         const marker = cells(machine)[0];
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(marker.x * TILE + 3, marker.y * TILE + 3, 4, 4);
       }

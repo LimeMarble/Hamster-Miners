@@ -96,7 +96,7 @@ test('Older saves gain only zero Gear stock/inventory; malformed current fields,
 });
 
 test('Every actual internal belt requires an owned conveyor and deducts old Wood without negative costs', () => {
-  const oldWood = { primitive: 50, brickSeal: 0, leekInfuser: 0, primitiveShack: 1000, primitiveBridge: 50, primitiveStacker: 100, graniteProcessor: 0 };
+  const oldWood = { primitive: 50, brickSeal: 0, leekInfuser: 0, primitiveShack: 1000, primitiveBridge: 50, primitiveStacker: 100 };
   for (const [type, d] of Object.entries(D.machines)) {
     if (!d.conveyors || type === 'belt') continue;
     const count = type === 'primitiveBridge' ? 4 : d.conveyors.length;

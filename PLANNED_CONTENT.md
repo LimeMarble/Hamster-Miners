@@ -18,6 +18,45 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   contribution beyond this benchmark to keep inflating the Tiara chain.
   This is a balancing constraint, not a runtime clamp or a new implemented recipe.
 
+## noammo Metal Press and Heavy Hamster Wheel (implemented)
+
+- Metal Press: $500k, 100 Wood, 500 Granite, 50 Copper Ingots, 40 Wooden
+  Gears and 3 unplaced Primitive Conveyors. Full 3x3 footprint:
+  ```text
+  KineticInput KineticInput .
+  ->           X->          ->
+  KineticInput KineticInput .
+  ```
+- Plate mode is the default. One ingot is pressed per cycle, even when input
+  arrives stacked. Copper Ingot -> Copper Plate multiplies value by 1.5.
+- Gear mode combines two consecutive matching Plates into one normal Gear,
+  preserving their combined cash value. A Copper Gear weighs one Copper unit,
+  as does a Plate; the normal-Gear conversion retains half the input weight.
+  Fine Gears belong to later equipment, not this Press.
+- Base processing time is four seconds. Two valid kinetic inputs are required;
+  adjacent inputs on the same edge double speed to one cycle per two seconds.
+  Four connected inputs still give only double speed. Basic Wheels connected
+  to any other machine contribute nothing to this Press; a Basic Wheel shared
+  by two Presses contributes to neither. Heavy Wheels have no such restriction.
+- Pending ingredients are capped at two units. One finished output may wait
+  while the next job runs. Inputs travel through the first conveyor to the
+  center working tile; processed cargo continues through the two remaining
+  conveyors. Whole solid stacks must still fit their receiving belt.
+- Changing mode returns waiting ingredients, including inlet-belt cargo, to
+  inventory. A running job keeps its original recipe. Moves and saves retain
+  configuration and progress; pickup recovers solid contents once.
+- Press recipes use material mappings rather than Copper-specific simulation.
+  Pressing preserves grade chances and baked graded value without rerolling;
+  the new material renews ordinary cash-upgrader uses and retains Duster history.
+- Heavy Hamster Wheel: $600k, 800 Wood, 200 Chert, 50 Copper Plates and
+  15 Copper Gears. Full 4x3 footprint with two adjacent kinetic outputs on
+  each long edge; takes two crew. Can power a Press on each side, or supply
+  existing kinetic machines and Conveyor Drives.
+- Granite Processor construction changed to $25k, 160 Granite, 80 Leek Fiber,
+  20 Wood and 2 Primitive Conveyors. Its upgrade rules remain unchanged.
+- Existing saves gain empty inventories for both machines and both Copper
+  products, without granting machines or changing existing progress.
+
 ## noammo opening prototype (2026-10-18)
 
 - Entry: `noammo.html`, linked from the existing game. This is a separate playable
@@ -420,7 +459,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Granite Processor (implemented, 2026-10-23)
 
-- Cost: $25k, 300 Granite, two owned Primitive Conveyors. Cash category,
+- Cost: $25k, 160 Granite, 80 Leek Fiber, 20 Wood and two owned Primitive Conveyors. Cash category,
   zero crew, the original 1-column/2-row footprint with two independent
   right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
   Drive coverage and uses two-second transit with normal belt capacity.

@@ -103,6 +103,28 @@ function boot(saved, { width = 900, height = 600 } = {}) {
     state() { windowEvents.get("beforeunload")(); return JSON.parse(storage.get(A.DATA.saveKey)).state; } };
 }
 
+test('Press mode controls stay mounted through production and safely change the next recipe', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.metalPress = 1; f.state.stock.heavyWheel = 1;
+  const m = f.place('metalPress', 121, 121).machine;
+  assert.ok(f.place('heavyWheel', 120, 118).machine);
+  const input = A.ports(m).find(p => p.role === 'input');
+  assert.equal(f.receive(m, A.cargo('copperIngot', 2, 100), input.x, input.y, input.direction, true), 2);
+  f.update(2); assert.equal(m.job.input.quantity, 1); assert.equal(f.total(m, 'input'), 1);
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const mode = ui.ids.get('pressMode'), buffers = ui.ids.get('pressBuffers');
+  assert.deepEqual(mode.options.map(option => option.value), ['plate', 'gear']);
+  for (let now = 100; now <= 1000; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get('pressMode'), mode); assert.equal(ui.ids.get('pressBuffers'), buffers);
+  mode.value = 'gear'; mode.emit('change');
+  const state = ui.state(), restored = state.machines.find(p => p.id === m.id);
+  assert.equal(restored.mode, 'gear'); assert.equal(restored.job.mode, 'plate');
+  assert.equal(restored.input.length, 0); assert.equal(state.inventory.copperIngot, 1);
+  assert.equal(ui.ids.get('pressMode'), mode);
+  const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state }));
+  reloaded.ids.get('cargo').emit('click', screenPoint(121, 121));
+  assert.equal(reloaded.ids.get('pressMode').value, 'gear');
+});
+
 function screenPoint(x, y) {
   return { clientX: (x - A.DATA.config.columns / 2) * 32 + 452,
     clientY: (y - A.DATA.config.rows / 2) * 32 + 302 };
@@ -1305,8 +1327,9 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
   const html = fs.readFileSync(path.join(__dirname, '..', 'noammo.html'), 'utf8'); assert.match(html, /<h2>Pebble Pile<\/h2>/);
 });
 
-test("Granite Processor Shop scales Granite and conveyor components, filters Cash and exposes all rules on selection", () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
+test("Granite Processor Shop scales materials and conveyor components, filters Cash and exposes all rules on selection", () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 320;
+  f.state.inventory.leekFiber = 160; f.state.inventory.wood = 40; f.state.stock.belt = 3;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'graniteProcessor');
   ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
@@ -1314,7 +1337,7 @@ test("Granite Processor Shop scales Granite and conveyor components, filters Cas
   const expected = ['Cash effect: ×1.3', 'Use Limit: 6', 'Upper Limit: $500', 'Base Value Required: $3.5'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$50k / $50k', '600 / 600', '3 / 4']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$50k / $50k', '320 / 320', '160 / 160', '40 / 40', '3 / 4']);
   assert.equal(ui.ids.get('buyMachine').disabled, true);
   ui.ids.get('quantity').value = '1'; ui.ids.get('quantity').emit('input'); ui.ids.get('buyMachine').emit('click');
   assert.equal(ui.state().stock.belt, 1); assert.equal(ui.state().stock.graniteProcessor, 1);

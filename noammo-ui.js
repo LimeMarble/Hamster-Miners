@@ -410,6 +410,23 @@
         if (machine.type === "crudeGearBench") {
           const buffers = element("p"); buffers.id = "gearBuffers"; panel.append(buffers);
         }
+        if (definition.pressModes) {
+          const label = element("label", "Press mode "), mode = element("select");
+          mode.id = "pressMode"; mode.setAttribute("aria-label", "Press mode");
+          for (const [id, recipe] of Object.entries(definition.pressModes)) {
+            const option = element("option", recipe.name); option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => {
+            const response = factory.setPressMode(machine.id, mode.value);
+            if (response.error) mode.value = machine.mode;
+            else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
+            result(response);
+          });
+          const buffers = element("p"); buffers.id = "pressBuffers";
+          label.append(mode); panel.append(label, buffers,
+            element("p", "Cycles take 4 seconds, or 2 seconds with an adjacent kinetic pair. Changing mode returns waiting ingredients to inventory; the current job finishes normally.", "muted"));
+        }
         if (definition.molder) {
           const buffers = element("p"); buffers.id = "molderBuffers";
           panel.append(buffers, element("p", "One ingot per second, preserving the liquid metal's value. No Clay or other consumables. Cast Iron requires a Refractory Caster.", "muted"));
@@ -487,6 +504,7 @@
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
       if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
+      if (D.machines[machine.type].pressModes) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit)} · Finished output: ${number(factory.total(machine, "output"))} / 1`);
       if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / 1 · Finished ingots: ${number(factory.total(machine, "output"))} / 1`);
       if (A.collectorCapacity(machine)) {
         const totals = new Map();

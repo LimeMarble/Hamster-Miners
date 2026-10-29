@@ -20,19 +20,25 @@ function pass(f, m, item) {
 
 test('Granite Processor exact construction cost, rules and atomic bulk purchases consume owned belts', () => {
   const cost = D.machines.graniteProcessor.cost;
-  assert.deepEqual(cost, { cash: 25000, materials: { granite: 300 }, machines: { belt: 2 } });
+  assert.deepEqual(cost, { cash: 25000, materials: { granite: 160, leekFiber: 80, wood: 20 }, machines: { belt: 2 } });
   assert.deepEqual(D.machines.graniteProcessor.cashEffect, { multiplier: 1.3, useLimit: 6, upperLimit: 500, baseValueRequired: 3.5 });
   assert.equal(D.machines.graniteProcessor.crew ?? 0, 0);
-  for (const missing of ['cash', 'granite', 'belt']) {
-    const f = new Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
+  function funded() {
+    const f = new Factory(A.createState(1)); f.state.cash = cost.cash * 2; f.state.stock.belt = 4;
+    for (const [material, amount] of Object.entries(cost.materials)) f.state.inventory[material] = amount * 2;
+    return f;
+  }
+  for (const missing of ['cash', ...Object.keys(cost.materials), 'belt']) {
+    const f = funded();
     if (missing === 'cash') f.state.cash -= 0.01;
-    if (missing === 'granite') f.state.inventory.granite--;
-    if (missing === 'belt') f.state.stock.belt--;
+    else if (missing === 'belt') f.state.stock.belt--;
+    else f.state.inventory[missing]--;
     const before = f.exportSave(); assert.ok(f.buy('graniteProcessor', 2).error); assert.equal(f.exportSave(), before);
   }
-  const f = new Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
+  const f = funded();
   assert.equal(f.buy('graniteProcessor', 2).amount, 2);
-  assert.equal(f.state.cash, 0); assert.equal(f.state.inventory.granite, 0); assert.equal(f.state.stock.belt, 0);
+  assert.equal(f.state.cash, 0); assert.equal(f.state.stock.belt, 0);
+  for (const material of Object.keys(cost.materials)) assert.equal(f.state.inventory[material], 0);
 });
 
 for (const facing of D.directions) test(`Granite Processor ${facing}: two independent primitive lanes, kinetic coverage and two-second transit`, () => {
