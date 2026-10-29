@@ -44,19 +44,23 @@
       granite: { name: "Granite", value: 0.1, weight: 1, color: "#b27a72", family: "stone" },
       limestone: { name: "Limestone", value: 0.1, weight: 1, color: "#c6bea0", family: "stone" },
       corundum: { name: "Corundum", value: 1, weight: 1, color: "#9b899d", family: "stone" },
-      nativeCopper: { name: "Native Copper", value: 1.5, weight: 1, color: "#c58b58" },
-      moltenCopper: { name: "Molten Copper", value: 6, weight: 1, color: "#ef9958", fluid: true, moldsTo: "copperIngot" },
-      copperIngot: { name: "Copper Ingot", value: 6, weight: 1, color: "#d29a69", family: "metal" },
+      nativeCopper: { name: "Native Copper", value: 1.5, weight: 1, color: "#c58b58", gradeTable: "copper" },
+      moltenCopper: { name: "Molten Copper", value: 6, weight: 1, color: "#ef9958", fluid: true, moldsTo: "copperIngot", gradeTable: "copperMetal" },
+      copperIngot: { name: "Copper Ingot", value: 6, weight: 1, color: "#d29a69", family: "metal", gradeTable: "copperMetal" },
       soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
     },
     grades: [
       { name: "Poor", multiplier: 0.75, color: "#ba7b65" },
+      { name: "Unremarkable", multiplier: 1, color: "#b3b3a5" },
       { name: "Standard", multiplier: 1.5, color: "#c5c8b0" },
       { name: "Fine", multiplier: 2.5, color: "#8bc799" },
       { name: "Remarkable", multiplier: 8, color: "#9eb3ec" },
       { name: "Exceptional", multiplier: 40, color: "#d6b3e6" },
     ],
-    gradeTables: { clay: [0.2, 0.6, 0.2, 0, 0], stone: [0, 1, 0, 0, 0] },
+    gradeTables: {
+      clay: [0.2, 0.6, 0.2, 0, 0, 0], stone: [0, 1, 0, 0, 0, 0],
+      copper: [0.3, 0.4, 0.3, 0, 0, 0], copperMetal: [0, 0.3, 0.4, 0.3, 0, 0],
+    },
     machines: {
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Material",
@@ -109,7 +113,7 @@
       copperDrill: {
         name: "Copper Drill", width: 3, height: 2, color: "#b18461", category: "Material",
         labelLines: ["Copper", "Drill"], labelCell: [0.5, 0.5],
-        cost: { cash: 80000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
+        cost: { cash: 60000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
         source: "nativeCopper", cycle: 15, outputLimit: 1, requiresKinetic: true, centeredOutput: true,
         ports: [
           { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
@@ -162,32 +166,32 @@
           { x: 0, y: 2, direction: "down", role: "kineticInput" },
         ],
         recipes: {
-          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 12, valueMultiplier: 2,
-            gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] },
+          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 8, valueMultiplier: 2,
+            gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05, 0] },
         },
-        description: "Carefully shapes two Clay into one unfired Pot in twelve seconds, improving its grade chances. Connect a Hamster Wheel to either kinetic intake.",
+        description: "Carefully shapes two Clay into one unfired Pot in eight seconds, improving its grade chances. Connect a Hamster Wheel to either kinetic intake.",
       },
       gradingBench: {
         name: "Grading Bench", width: 2, height: 2, color: "#b2a782", category: "Cash",
         crew: 1, secondsPerWeight: 1, inputWeightLimit: 5,
         labelLines: ["Grading", "Bench"], footprint: [[0, 0], [1, 0], [1, 1]],
         cost: { cash: 4000, materials: { wood: 100, leekFiber: 50, chert: 10 } },
-        description: "Evaluates Clay products and stone, rolling once per ungraded stack. Takes one second per weight and uses one hamster.",
+        description: "Evaluates Clay products, stone and copper, rolling once per ungraded stack. Takes one second per weight and uses one hamster.",
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
         cost: { cash: 300, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 10000, outputSeconds: 2,
         recipes: {
-          unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4 },
-          unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4 },
+          unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
+          unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
         },
         description: "Fires four unfired Bricks or two unfired Pots in eight seconds, multiplying their value by four. Either input accepts fuel or unfired products. Uses two hamsters.",
       },
       primitiveFurnace: {
         name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,
         labelLines: ["Primitive", "Furnace"],
-        cost: { cash: 280000, materials: { brick: 200, granite: 100, clay: 50 } },
+        cost: { cash: 190000, materials: { brick: 200, granite: 100, clay: 50 } },
         heatCapacity: 1000000, heatPerSecond: 25000, outputSeconds: 2,
         manualRecipes: true, defaultMode: "charcoal",
         ports: [
@@ -197,7 +201,7 @@
         ],
         recipes: {
           charcoal: { name: "Charcoal", material: "wood", input: 4, output: "charcoal", outputQuantity: 2, seconds: 12, heatPerSecond: 0, valueMultiplier: 1 },
-          copper: { name: "Copper smelting", material: "nativeCopper", input: 4, output: "moltenCopper", outputQuantity: 4, seconds: 20, valueMultiplier: 4 },
+          copper: { name: "Copper smelting", material: "nativeCopper", input: 4, output: "moltenCopper", outputQuantity: 4, seconds: 20, valueMultiplier: 4, gradePromotion: 1 },
         },
         description: "Makes two Charcoal from four Wood in twelve seconds without external heat, or smelts four Native Copper in twenty seconds using 500ku of heat. Feeds molten Copper directly into an Ingot Molder. Uses two hamsters.",
       },
@@ -253,6 +257,22 @@
         cashEffect: { bonus: 0.4, upperLimit: 2 },
         description: "Infuses passing sellables with Leek essence to increase their value.",
       },
+      leekDuster: {
+        name: "Leek Duster", width: 3, height: 1, color: "#a4b779", category: "Cash",
+        labelLines: ["Leek Duster"], labelCell: [1, 0],
+        conveyors: [[0, 0], [1, 0], [2, 0]], upgradeCells: [[1, 0]], requiresKinetic: true,
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "input" },
+          { x: 2, y: 0, direction: "right", role: "output" },
+          { x: 1, y: 0, direction: "up", role: "kineticInput" },
+          { x: 1, y: 0, direction: "down", role: "kineticInput" },
+        ],
+        cost: { cash: 1200, materials: { wood: 120, woodenGear: 12, leekFiber: 50, leek: 16 }, machines: { belt: 3 } },
+        cashEffect: { multiplier: 1.65, upperLimit: 200, useLimit: 1 },
+        gradeEffect: { promotionRates: [1, 0.5, 0.25, 0, 0, 0], useLimit: 1 },
+        remembersMaterials: true,
+        description: "Dusts products with Leek to improve value and grade chances. Either kinetic intake can power its conveyors. Remembers each treated material.",
+      },
       primitiveShack: {
         name: "Primitive Shack", width: 3, height: 4, color: "#9e815c", category: "Cash",
         labelCell: [1, 0], labelLines: ["Primitive Shack"],
@@ -265,7 +285,7 @@
       graniteProcessor: {
         name: "Granite Processor", width: 1, height: 2, color: "#aa8077", category: "Cash",
         labelLines: ["Granite", "Processor"], conveyors: [[0, 0], [0, 1]],
-        cost: { cash: 50000, materials: { granite: 300 }, machines: { belt: 2 } },
+        cost: { cash: 25000, materials: { granite: 300 }, machines: { belt: 2 } },
         cashEffect: { multiplier: 1.3, useLimit: 6, upperLimit: 500, baseValueRequired: 3.5 },
         description: "Processes passing products to increase their value. Two parallel primitive conveyor lanes.",
       },

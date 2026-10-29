@@ -11,6 +11,13 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- Leek Duster tests cover the exact atomic cost, both direct kinetic intakes
+  in all rotations, six-second transit, independent cash/grade material history,
+  quality treatment outside cash range and stack-history unions. Real shaping,
+  smelting, molding and firing reproduce agreed chance tables without extra RNG.
+  Save tests preserve old graded cash and migrate ungraded profiles once,
+  rejecting malformed probabilities, treatment matrices and material histories.
+
 - Help uses the same navigation as the other screens. Existing all-tab boot,
   camera-preservation and crew-control tests include it. Manual review should
   check expandable topics with pointer and keyboard and readable wrapped text.
@@ -22,13 +29,13 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Pot Spinner checks cover the exact cash/material price, six occupied cells,
   every rotated material/kinetic port and either Wheel connection. One Wheel
   can power two opposite-facing intake sides without blocking material input.
-  Drive coverage, gaps and short Wheel edges cannot power it. Twelve-second
+  Drive coverage, gaps and short Wheel edges cannot power it. Eight-second
   jobs pause on power loss; pending Clay is capped at two and finished output
   at one. Probes, partial inputs, oversized overflow, output blockage, moves,
   independent instances, pickup and reload preserve ingredients and progress.
-- Spun pottery carries the agreed 20/10/40/25/5 pre-roll profile through firing,
+- Spun pottery carries the agreed 20/10/40/25/5/0 pre-roll profile and 40% firing promotion,
   with Exceptional at x40 and Seal repairs remaining independent. Tests cover
-  both expected means (5.30/5.45), all five seeded grade outcomes, no early RNG,
+  pre-firing means (1.875/1.925), all six seeded grade outcomes, no early RNG,
   no regrading, mixed ordinary/spun stacks, profile averaging, intact overweight stacks,
   collector separation and malformed metadata. An actual
   Spinner/Kiln/belt/Grading Bench line checks value and timing end to end.
@@ -69,8 +76,8 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Grading Bench contracts cover its approved cost, one crew, exact sparse
   Clay Shaping footprint, all rotated real source/input/output paths, and one
   second per total weight (including fractional Chert and Pot stacks).
-  Tables and actual-value multipliers cover Poor/Standard/Fine and zero base
-  Remarkable chance; Brick Seal changes Poor into Standard before the roll.
+  Tables and actual-value multipliers cover Poor/Unremarkable/Standard and zero base
+  Remarkable chance; Brick Seal changes Poor into Unremarkable before the roll.
   Intake and output are bounded; previews, blocked outputs, already graded
   cargo and reloads cannot reroll or multiply the same grade twice.
   Same-material stack formation sums quantities and conserves cash by averaging
@@ -255,7 +262,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   join without seams, only the perimeter is outlined, holes stay empty and
   placement/group previews cover the full occupied tiles in one alpha fill.
   Rendering stays read-only and shared contour templates are cached by type/facing.
-- Granite Processor checks cover exact $50k/300 Granite/two-conveyor cost,
+- Granite Processor checks cover exact $25k/300 Granite/two-conveyor cost,
   atomic bulk affordability, four rotations/two independent powered lanes,
   per-unit base/cash eligibility without an incoming lower bound, six uses
   shared across instances, the $500 boundary and final-result overshoot,
@@ -271,7 +278,7 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Output-history tests cover every upgrader's five-entry bound/newest-first
   order, actual post-effect unit cash/quantity, capped passes, blockage without
   duplicate entries, independent machine instances, move/pickup lifecycle and
-  session-only snapshots. Grading records all five actual grades without any
+  session-only snapshots. Grading records all six actual grades without any
   extra RNG draws or persistent cargo grade categories; already-graded items
   cannot reroll. DOM checks exercise selected and Shift-hover views, stable
   controls/rows, stack totals, key release, pointer leave, blur, tab switching

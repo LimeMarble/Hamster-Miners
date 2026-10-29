@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
 const { DATA: D, Factory, cargo, ports } = A;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ≈ ${b}`);
-const profile = [0.2, 0.1, 0.4, 0.25, 0.05];
+const profile = [0.2, 0.1, 0.4, 0.25, 0.05, 0];
 function place(f, type, x, y, facing = 'right') {
   f.state.stock[type]++;
   const result = f.place(type, x, y, facing); assert.equal(result.error, undefined, result.error);
@@ -29,7 +29,7 @@ function setup(facing = 'right', side = 0) {
   const wheel = wheelFor(f, m, side); return { f, m, wheel };
 }
 function product(f, m) {
-  feed(f, m, cargo('clay', 2)); f.update(0.1); f.update(12);
+  feed(f, m, cargo('clay', 2)); f.update(0.1); f.update(8);
   return m.output[0];
 }
 
@@ -48,7 +48,7 @@ test('Pot Spinner has the approved exact cost, no additional crew, and atomic mu
   assert.equal(f.availableCrew(), 10); wheelFor(f, m); assert.equal(f.availableCrew(), 9);
 });
 
-for (const facing of D.directions) for (const side of [0, 1]) test(`Spinner ${facing}, kinetic intake ${side}: solid footprint, correct real ports and twelve-second production`, () => {
+for (const facing of D.directions) for (const side of [0, 1]) test(`Spinner ${facing}, kinetic intake ${side}: solid footprint, correct real ports and eight-second production`, () => {
   const { f, m } = setup(facing, side);
   assert.equal(A.cells(m).length, 6);
   assert.deepEqual(A.size(m), ['right', 'left'].includes(facing) ? { width: 2, height: 3 } : { width: 3, height: 2 });
@@ -62,8 +62,8 @@ for (const facing of D.directions) for (const side of [0, 1]) test(`Spinner ${fa
   const basket = place(f, 'basket', out.x + v.x, out.y + v.y);
   for (const p of ports(m).filter(p => p.role !== 'input')) assert.equal(f.receive(m, cargo('clay'), p.x, p.y, p.direction, true), 0);
   feed(f, m, cargo('clay', 1, 1.05)); f.update(5); assert.equal(m.job, null);
-  feed(f, m, cargo('clay', 1, 2)); f.update(0.1); near(m.job.remaining, 12);
-  const random = f.state.random; f.update(11.9); assert.equal(basket.contents.length, 0);
+  feed(f, m, cargo('clay', 1, 2)); f.update(0.1); near(m.job.remaining, 8);
+  const random = f.state.random; f.update(7.9); assert.equal(basket.contents.length, 0);
   f.update(0.1); const result = basket.contents[0];
   assert.equal(result.material, 'unfiredPot'); near(result.value, 6.1); assert.equal(result.quantity, 1);
   assert.deepEqual(result.gradeProfile, profile); assert.deepEqual(result.upgrades, {});
@@ -78,7 +78,7 @@ test('one Wheel powers two Spinners from opposite edges without blocking their m
     const input = ports(m).find(p => p.role === 'input'); assert.equal(f.at.has(A.key(input.x - 1, input.y)), false);
     feed(f, m, cargo('clay', 2));
   }
-  f.update(0.1); f.update(12); assert.ok(top.output[0]); assert.ok(bottom.output[0]);
+  f.update(0.1); f.update(8); assert.ok(top.output[0]); assert.ok(bottom.output[0]);
   assert.equal(f.availableCrew(), 9);
   f.pickup(wheel.id); assert.equal(f.kineticHasWheel(top), false); assert.equal(f.kineticHasWheel(bottom), false);
 });
@@ -94,7 +94,7 @@ test('Drive coverage, short Wheel edges, gaps and wrong-facing connections do no
   assert.equal(f.kineticHasWheel(m), false); f.pickup(wrong.id);
   const gap = place(f, 'wheel', intake.x, intake.y - 3);
   assert.equal(f.kineticHasWheel(m), false); f.pickup(gap.id);
-  wheelFor(f, m); f.update(0.1); near(m.job.remaining, 12);
+  wheelFor(f, m); f.update(0.1); near(m.job.remaining, 8);
 });
 
 test('power loss pauses work and bounded Clay intake preserves oversized overflow, including behind blocked output', () => {
@@ -111,20 +111,20 @@ test('power loss pauses work and bounded Clay intake preserves oversized overflo
   assert.equal(m.output.length, 1); assert.equal(m.job, null); assert.equal(m.input[0].quantity, 2);
   f.update(60); assert.equal(m.output.length, 1); assert.equal(feed(f, m, input), 0);
   const basket = place(f, 'basket', 42, 41); f.update(0.1);
-  assert.equal(basket.contents[0].quantity, 1); near(m.job.remaining, 12);
-  f.update(11.9); assert.equal(basket.contents[0].quantity, 1); f.update(0.1); near(basket.contents[0].quantity, 2);
+  assert.equal(basket.contents[0].quantity, 1); near(m.job.remaining, 8);
+  f.update(7.9); assert.equal(basket.contents[0].quantity, 1); f.update(0.1); near(basket.contents[0].quantity, 2);
 });
 
 test('spun profiles, independent Seal repairs and the Exceptional tier match their agreed probabilities and means', () => {
   const { f, m } = setup(); const pot = product(f, m);
   assert.deepEqual(A.gradeProbabilities(pot), profile);
   const average = item => A.gradeProbabilities(item).reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0);
-  near(average(pot), 5.3);
+  near(average(pot), 1.875);
   pot.gradeRepairs = { brickSeal: 4 };
   const chances = A.gradeProbabilities(pot);
-  for (const [i, expected] of [0, 0.3, 0.4, 0.25, 0.05].entries()) near(chances[i], expected);
-  near(average(pot), 5.45); assert.equal(D.grades[4].name, 'Exceptional'); assert.equal(D.grades[4].multiplier, 40);
-  for (const [seed, multiplier] of [[2000, 0.75], [0, 1.5], [500, 2.5], [1500, 8], [1900, 40]]) {
+  for (const [i, expected] of [0, 0.3, 0.4, 0.25, 0.05, 0].entries()) near(chances[i], expected);
+  near(average(pot), 1.925); assert.equal(D.grades[5].name, 'Exceptional'); assert.equal(D.grades[5].multiplier, 40);
+  for (const [seed, multiplier] of [[2000, 0.75], [0, 1], [500, 1.5], [1500, 2.5], [1900, 8]]) {
     const input = { ...cargo('pot', 2, 10), gradeProfile: profile }, state = { random: seed };
     const graded = A.gradeStack(state, input); near(graded.value, 10 * multiplier);
     assert.equal(graded.graded, true); assert.equal(graded.quantity, 2);
@@ -132,26 +132,26 @@ test('spun profiles, independent Seal repairs and the Exceptional tier match the
   }
 });
 
-test('three continuously fed Spinners produce thirty pots in two minutes, matching one Kiln firing cycle per eight seconds', () => {
+test('two continuously fed Spinners produce thirty pots in two minutes, matching one Kiln firing cycle per eight seconds', () => {
   const f = new Factory(A.createState(1)), machines = [], baskets = [];
-  for (const x of [40, 50, 60]) {
+  for (const x of [40, 50]) {
     const m = place(f, 'potSpinner', x, 40); wheelFor(f, m);
     machines.push(m); baskets.push(place(f, 'basket', x + 2, 41));
   }
   for (let tick = 0; tick < 1201; tick++) {
     for (const m of machines) feed(f, m, cargo('clay', 2));
     f.update(0.1);
-    if (tick === 119) for (const basket of baskets) near(f.total(basket, 'contents'), 0);
-    if (tick === 120) for (const basket of baskets) near(f.total(basket, 'contents'), 1);
+    if (tick === 79) for (const basket of baskets) near(f.total(basket, 'contents'), 0);
+    if (tick === 80) for (const basket of baskets) near(f.total(basket, 'contents'), 1);
   }
-  for (const basket of baskets) near(f.total(basket, 'contents'), 10);
+  for (const basket of baskets) near(f.total(basket, 'contents'), 15);
   near(baskets.reduce((sum, b) => sum + f.total(b, 'contents'), 0) / 120, 2 / D.machines.kiln.recipes.unfiredPot.seconds);
 });
 
 test('Seal treatment before spinning is averaged across the two Clay inputs and survives firing', () => {
   const { f, m } = setup();
   feed(f, m, { ...cargo('clay', 1, 2), gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9 } });
-  feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(12);
+  feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(8);
   const pot = m.output[0]; near(pot.value, 10); near(pot.gradeRepairs.brickSeal, 2); assert.deepEqual(pot.upgrades, {});
   const kiln = place(f, 'kiln', 50, 40); kiln.heat = 80000;
   const input = ports(kiln).find(p => p.role === 'input');
@@ -159,8 +159,9 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   f.receive(kiln, cargo('unfiredPot', 1, 1), input.x, input.y, input.direction, true);
   f.update(0.1); f.update(8);
   assert.equal(kiln.output[0].material, 'pot'); near(kiln.output[0].value, 40);
-  assert.deepEqual(kiln.output[0].gradeProfile, profile); near(kiln.output[0].gradeRepairs.brickSeal, 2);
-  assert.equal(kiln.output[1].gradeProfile, undefined, 'ordinary pots do not inherit neighboring spun quality');
+  for (const [i, expected] of [0.06, 0.16, 0.32, 0.31, 0.15, 0].entries()) near(A.gradeProbabilities(kiln.output[0])[i], expected);
+  near(kiln.output[0].gradeRepairs.brickSeal, 2);
+  for (const [i, expected] of [0.12, 0.44, 0.36, 0.08, 0, 0].entries()) near(A.gradeProbabilities(kiln.output[1])[i], expected);
 });
 
 test('stacked profiles average with ordinary pots; legal portions and saves retain that distribution, and graded mixing cannot reroll', () => {
@@ -168,7 +169,7 @@ test('stacked profiles average with ordinary pots; legal portions and saves reta
   const b = { ...cargo('pot', 3, 2), upgrades: { B: 7 } };
   const mixed = A.combineCargo([a, b]);
   near(mixed.value, 4); assert.deepEqual(mixed.upgrades, { A: 9, B: 7 }); near(mixed.gradeRepairs.brickSeal, 1);
-  for (const [i, expected] of [0.2, 0.475, 0.25, 0.0625, 0.0125].entries()) near(mixed.gradeProfile[i], expected);
+  for (const [i, expected] of [0.15, 0.525, 0.25, 0.0625, 0.0125, 0].entries()) near(mixed.gradeProfile[i], expected);
   const graded = A.combineCargo([{ ...a, graded: true }, b]); assert.equal(graded.graded, true);
   const state = { random: 99 }; A.gradeStack(state, graded); assert.equal(state.random, 99);
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
@@ -188,9 +189,12 @@ test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades 
   const kiln = place(f, 'kiln', 42, 41); kiln.heat = 240000;
   place(f, 'belt', 44, 42); place(f, 'gradingBench', 44, 41);
   const basket = place(f, 'basket', 46, 42);
-  for (let i = 0; i < 450; i++) { feed(f, m, cargo('clay', 2, 2)); f.update(0.1); if (i < 300) assert.equal(f.state.random, 1); }
-  near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 48); near(basket.contents[1].value, 80);
-  for (const item of basket.contents) { assert.equal(item.graded, true); assert.deepEqual(item.gradeProfile, profile); }
+  for (let i = 0; i < 350; i++) { feed(f, m, cargo('clay', 2, 2)); f.update(0.1); if (i < 240) assert.equal(f.state.random, 1); }
+  near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 32); near(basket.contents[1].value, 48);
+  for (const item of basket.contents) {
+    assert.equal(item.graded, true);
+    for (const [i, expected] of [0.12, 0.14, 0.28, 0.31, 0.15, 0].entries()) near(item.gradeProfile[i], expected);
+  }
   assert.equal(f.state.cash, 0); assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
@@ -213,6 +217,11 @@ test('Spinner stock migration is one-time and invalid profiles or overfull buffe
   const loaded = Factory.importSave(JSON.stringify(old)); assert.equal(loaded.state.stock.potSpinner, 0);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
   const m = place(f, 'potSpinner', 40, 40);
+  const legacy = JSON.parse(f.exportSave()); legacy.state.potSpinnerVersion = 1;
+  legacy.state.machines[0].job = { input: cargo('clay', 2), mode: 'pot', remaining: 9 };
+  const migrated = Factory.importSave(JSON.stringify(legacy));
+  near(migrated.byId.get(m.id).job.remaining, 6);
+  near(Factory.importSave(migrated.exportSave()).byId.get(m.id).job.remaining, 6);
   for (const invalid of [[1], [0.2, 0.1, 0.4, 0.25, 0.5], [0.2, -0.1, 0.6, 0.25, 0.05], 'Fine', null]) {
     m.output = [{ ...cargo('unfiredPot'), gradeProfile: invalid }];
     assert.throws(() => Factory.importSave(f.exportSave()), /Invalid cargo/);

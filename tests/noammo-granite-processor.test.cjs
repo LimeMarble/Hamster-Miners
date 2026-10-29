@@ -20,17 +20,17 @@ function pass(f, m, item) {
 
 test('Granite Processor exact construction cost, rules and atomic bulk purchases consume owned belts', () => {
   const cost = D.machines.graniteProcessor.cost;
-  assert.deepEqual(cost, { cash: 50000, materials: { granite: 300 }, machines: { belt: 2 } });
+  assert.deepEqual(cost, { cash: 25000, materials: { granite: 300 }, machines: { belt: 2 } });
   assert.deepEqual(D.machines.graniteProcessor.cashEffect, { multiplier: 1.3, useLimit: 6, upperLimit: 500, baseValueRequired: 3.5 });
   assert.equal(D.machines.graniteProcessor.crew ?? 0, 0);
   for (const missing of ['cash', 'granite', 'belt']) {
-    const f = new Factory(A.createState(1)); f.state.cash = 100000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
+    const f = new Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
     if (missing === 'cash') f.state.cash -= 0.01;
     if (missing === 'granite') f.state.inventory.granite--;
     if (missing === 'belt') f.state.stock.belt--;
     const before = f.exportSave(); assert.ok(f.buy('graniteProcessor', 2).error); assert.equal(f.exportSave(), before);
   }
-  const f = new Factory(A.createState(1)); f.state.cash = 100000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
+  const f = new Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 4;
   assert.equal(f.buy('graniteProcessor', 2).amount, 2);
   assert.equal(f.state.cash, 0); assert.equal(f.state.inventory.granite, 0); assert.equal(f.state.stock.belt, 0);
 });

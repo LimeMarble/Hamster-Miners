@@ -129,6 +129,15 @@
       && Object.entries(item.upgrades).every(([type, uses]) => D.machines[type]?.cashEffect?.useLimit === undefined
         || (Number.isSafeInteger(uses) && uses >= 0 && uses <= D.machines[type].cashEffect.useLimit))
       && item.grading === undefined && (item.graded === undefined || typeof item.graded === "boolean")
+      && (item.materialHistory === undefined || (item.materialHistory && typeof item.materialHistory === "object" && !Array.isArray(item.materialHistory)
+        && Object.entries(item.materialHistory).every(([key, value]) => {
+          const [type, material, channel, extra] = key.split(":");
+          return value === true && !extra && D.machines[type]?.remembersMaterials && Object.hasOwn(D.materials, material) && ["cash", "grade"].includes(channel);
+        })))
+      && (item.gradeTreatment === undefined || (gradeTable(item.material) && Array.isArray(item.gradeTreatment)
+        && item.gradeTreatment.length === D.grades.length && item.gradeTreatment.every(validChances)))
+      && (item.gradeRepairApplied === undefined || (item.gradeProfile && Number.isFinite(item.gradeRepairApplied)
+        && item.gradeRepairApplied >= 0 && item.gradeRepairApplied <= (item.gradeRepairs?.brickSeal ?? 0) + epsilon))
       && (item.gradeProfile === undefined || (D.gradeTables[D.materials[item.material].gradeTable ?? D.materials[item.material].family]
         && Array.isArray(item.gradeProfile) && item.gradeProfile.length === D.grades.length
         && item.gradeProfile.every((chance) => Number.isFinite(chance) && chance >= 0 && chance <= 1)
@@ -136,20 +145,23 @@
       && (item.lateral === undefined || item.lateral === -0.5 || item.lateral === 0.5)
       && (item.gradeRepairs === undefined || (item.gradeRepairs && typeof item.gradeRepairs === "object" && !Array.isArray(item.gradeRepairs)
         && Object.entries(item.gradeRepairs).every(([type, count]) => Object.hasOwn(D.machines, type)
-          && D.machines[type].gradeEffect && Number.isFinite(count) && count >= 0 && count <= D.machines[type].gradeEffect.useLimit)));
+          && Number.isFinite(D.machines[type].gradeEffect?.poorToStandardPerUse) && Number.isFinite(count) && count >= 0 && count <= D.machines[type].gradeEffect.useLimit)));
   }
   function sameCargo(a, b) {
     return a.material === b.material && Math.abs(a.value - b.value) < epsilon
       && JSON.stringify(a.upgrades) === JSON.stringify(b.upgrades)
       && JSON.stringify(a.gradeRepairs ?? {}) === JSON.stringify(b.gradeRepairs ?? {})
       && JSON.stringify(a.gradeProfile ?? null) === JSON.stringify(b.gradeProfile ?? null)
+      && JSON.stringify(a.gradeTreatment ?? null) === JSON.stringify(b.gradeTreatment ?? null)
+      && JSON.stringify(a.materialHistory ?? {}) === JSON.stringify(b.materialHistory ?? {})
+      && (a.gradeRepairApplied ?? 0) === (b.gradeRepairApplied ?? 0)
       && Boolean(a.graded) === Boolean(b.graded);
   }
   // Import-only validation for saves from the previous portion-based model.
   function validLegacyGrading(item) {
     if (item.grading === undefined) return true;
     const { shares, values } = item.grading ?? {};
-    return Array.isArray(shares) && Array.isArray(values) && [5, D.grades.length + 1].includes(shares.length)
+    return Array.isArray(shares) && Array.isArray(values) && [5, 6, D.grades.length + 1].includes(shares.length)
       && values.length === shares.length && shares.every((value) => Number.isFinite(value) && value >= 0 && value <= 1)
       && values.every((value, index) => Number.isFinite(value) && value >= 0 && (shares[index] > 0 || value === 0))
       && Math.abs(shares.reduce((sum, value) => sum + value, 0) - 1) < epsilon
@@ -158,6 +170,30 @@
   function gradeLabel(item) {
     return item.graded ? "Graded" : "";
   }
+  const gradeTable = (material) => D.gradeTables[D.materials[material]?.gradeTable ?? D.materials[material]?.family];
+  const validChances = (chances) => Array.isArray(chances) && chances.length === D.grades.length
+    && chances.every((chance) => Number.isFinite(chance) && chance >= 0 && chance <= 1)
+    && Math.abs(chances.reduce((sum, chance) => sum + chance, 0) - 1) < epsilon;
+  const identityTreatment = () => D.grades.map((_, i) => D.grades.map((_, j) => Number(i === j)));
+  const promotionTreatment = (rates) => D.grades.map((_, i) => D.grades.map((_, j) => {
+    const rate = i < D.grades.length - 1 ? (rates[i] ?? 0) : 0;
+    return (j === i ? 1 - rate : 0) + (j === i + 1 ? rate : 0);
+  }));
+  const treatChances = (chances, treatment) => D.grades.map((_, j) => chances.reduce((sum, chance, i) => sum + chance * treatment[i][j], 0));
+  function commitQuality(item) {
+    const chances = gradeProbabilities(item);
+    if (!chances) return null;
+    item.gradeProfile = chances;
+    if (item.gradeRepairs?.brickSeal) item.gradeRepairApplied = item.gradeRepairs.brickSeal;
+    else delete item.gradeRepairApplied;
+    return chances;
+  }
+  function applyGradeTreatment(item, treatment) {
+    if (item.graded || !commitQuality(item)) return;
+    item.gradeProfile = treatChances(item.gradeProfile, treatment);
+    const previous = item.gradeTreatment ?? identityTreatment();
+    item.gradeTreatment = previous.map((row) => treatChances(row, treatment));
+  }
   function gradeProbabilities(item) {
     const material = D.materials[item.material], table = D.gradeTables[material?.gradeTable ?? material?.family];
     if (!table) return null;
@@ -165,7 +201,7 @@
     for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
       const effect = D.machines[type]?.gradeEffect;
       if (effect?.family !== material.family) continue;
-      const repaired = Math.min(result[0], count * effect.poorToStandardPerUse);
+      const repaired = Math.min(result[0], Math.max(0, count - (item.gradeRepairApplied ?? 0)) * effect.poorToStandardPerUse);
       result[0] -= repaired; result[1] += repaired;
     }
     return result;
@@ -175,14 +211,20 @@
   }
   function blendQuality(output, inputs) {
     if (inputs.some((item) => item.graded)) output.graded = true;
-    // A manufactured quality profile is a pre-roll distribution, not a rolled
-    // grade/category. Ordinary ingredients contribute their ordinary base table.
-    if (inputs.some((item) => item.gradeProfile)) {
+    for (const input of inputs) if (input.materialHistory) output.materialHistory = { ...output.materialHistory, ...input.materialHistory };
+    // Average actual chances separately from the bounded treatment matrix.
+    // This keeps stacks one object and lets a recipe's new quality profile
+    // inherit the averaged treatments without keeping individual ingredients.
+    if (gradeTable(output.material) && inputs.every((item) => gradeTable(item.material)) && inputs.some((item) =>
+      item.gradeProfile || item.gradeRepairs || item.gradeTreatment || gradeTable(item.material) !== gradeTable(output.material))) {
       const total = inputs.reduce((sum, item) => sum + item.quantity, 0);
-      output.gradeProfile = D.grades.map((_, index) => inputs.reduce((sum, item) => {
-        const material = D.materials[item.material], table = item.gradeProfile ?? D.gradeTables[material.gradeTable ?? material.family];
-        return sum + table[index] * item.quantity / total;
-      }, 0));
+      const chances = inputs.map(gradeProbabilities);
+      output.gradeProfile = D.grades.map((_, index) => inputs.reduce((sum, item, i) => sum + chances[i][index] * item.quantity / total, 0));
+      if (output.gradeRepairs?.brickSeal) output.gradeRepairApplied = output.gradeRepairs.brickSeal;
+      if (inputs.some((item) => item.gradeTreatment)) {
+        const treatments = inputs.map((item) => item.gradeTreatment ?? identityTreatment());
+        output.gradeTreatment = D.grades.map((_, i) => D.grades.map((_, j) => inputs.reduce((sum, item, k) => sum + treatments[k][i][j] * item.quantity / total, 0)));
+      }
     }
     return output;
   }
@@ -236,6 +278,19 @@
   }
   function applyCashEffect(item, type) {
     if (type === "brickSeal") return applyBrickSeal(item);
+    if (D.machines[type].remembersMaterials) {
+      const cashKey = `${type}:${item.material}:cash`, gradeKey = `${type}:${item.material}:grade`;
+      const { cashEffect, gradeEffect } = D.machines[type];
+      if (!item.materialHistory?.[cashKey] && D.materials[item.material].value !== null && item.value + epsilon < cashEffect.upperLimit) {
+        item.value *= cashEffect.multiplier; item.upgrades[type] = 1;
+        item.materialHistory = { ...item.materialHistory, [cashKey]: true };
+      }
+      if (!item.graded && gradeTable(item.material) && !item.materialHistory?.[gradeKey]) {
+        applyGradeTreatment(item, promotionTreatment(gradeEffect.promotionRates));
+        item.materialHistory = { ...item.materialHistory, [gradeKey]: true };
+      }
+      return;
+    }
     const effect = D.machines[type].cashEffect, base = D.materials[item.material].value;
     const uses = item.upgrades[type] ?? 0;
     if (!effect || base === null || base < (effect.baseValueRequired ?? 0)
@@ -255,8 +310,9 @@
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
-      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 1, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
+      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -324,6 +380,9 @@
         return x + 0.5 >= area.x && x + 0.5 < area.x + area.width
           && y + 0.5 >= area.y && y + 0.5 < area.y + area.height;
       });
+    }
+    conveyorPowered(machine, x, y) {
+      return D.machines[machine.type].requiresKinetic ? this.kineticHasWheel(machine) : this.powered(x, y);
     }
     totalCrew() { return D.config.startingCrew + this.state.hiredCrew; }
     crewHireCost() { return D.config.crewHireBaseCost * D.config.crewHireCostMultiplier ** this.state.hiredCrew; }
@@ -644,7 +703,11 @@
       if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
       const recipe = this.craftRecipe(machine, machine.job.input, machine.job.mode);
       const product = blendGradeRepairs(cargo(recipe.output, 1, machine.job.input.value * recipe.input * recipe.valueMultiplier), [machine.job.input]);
-      if (recipe.gradeProfile) product.gradeProfile = [...recipe.gradeProfile];
+      if (recipe.gradeProfile) {
+        product.gradeProfile = [...recipe.gradeProfile]; delete product.gradeRepairApplied;
+        commitQuality(product);
+        if (product.gradeTreatment) product.gradeProfile = treatChances(product.gradeProfile, product.gradeTreatment);
+      }
       machine.output.push(product); machine.job = null;
     }
     unloadShaping(machine) {
@@ -701,6 +764,10 @@
         machine.output.push(blendGradeRepairs(cargo(recipe.output, recipe.outputQuantity,
           input.value * input.quantity * recipe.valueMultiplier / recipe.outputQuantity), [input]));
       } else for (const item of machine.job.inputs) machine.output.push(blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier), [item]));
+      if (recipe.gradePromotion) for (const item of machine.output) {
+        const ceiling = recipe.gradePromotionCeiling ?? D.grades.length - 1;
+        applyGradeTreatment(item, promotionTreatment(D.grades.map((_, i) => i < ceiling ? recipe.gradePromotion : 0)));
+      }
       machine.job = null;
     }
     unloadKiln(machine) {
@@ -752,11 +819,11 @@
       const elevated = Boolean(D.machines[machine.type].bridge);
       const stacking = Boolean(D.machines[machine.type].maxStackSize), existing = machine.lanes[tile.index];
       if (stacking && existing && (existing.material !== item.material || (existing.lateral ?? null) !== lateral)) return 0;
-      if (!this.powered(tile.x, tile.y) || this.slotBusy(tile.x, tile.y, elevated, stacking ? existing : item)) return 0;
+      if (!this.conveyorPowered(machine, tile.x, tile.y) || this.slotBusy(tile.x, tile.y, elevated, stacking ? existing : item)) return 0;
       if (lateral) {
         const v = D.vectors[tile.direction], sign = Math.sign(lateral);
         const partner = this.conveyorAt(tile.x - v.y * sign, tile.y + v.x * sign, elevated);
-        if (!partner || partner.tile.direction !== tile.direction || !this.powered(partner.tile.x, partner.tile.y)
+        if (!partner || partner.tile.direction !== tile.direction || !this.conveyorPowered(partner.machine, partner.tile.x, partner.tile.y)
           || this.slotBusy(partner.tile.x, partner.tile.y, elevated, stacking ? existing : item)) return 0;
       }
       const capacity = stacking ? this.stackTarget(machine, item) - (existing?.quantity ?? 0)
@@ -1007,11 +1074,11 @@
         if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
         if (!ready) continue;
         const output = conveyorCells(machine)[Number(lane)];
-        if (!output || !this.powered(output.x, output.y)) continue;
+        if (!output || !this.conveyorPowered(machine, output.x, output.y)) continue;
         if (item.lateral) {
           const v = D.vectors[output.direction], sign = Math.sign(item.lateral);
           const partner = this.conveyorAt(output.x - v.y * sign, output.y + v.x * sign, Boolean(D.machines[machine.type].bridge));
-          if (!partner || partner.tile.direction !== output.direction || !this.powered(partner.tile.x, partner.tile.y)) continue;
+          if (!partner || partner.tile.direction !== output.direction || !this.conveyorPowered(partner.machine, partner.tile.x, partner.tile.y)) continue;
         }
         const before = item.progress;
         item.progress = Math.min(1, item.progress + seconds / conveyorSeconds(machine));
@@ -1082,7 +1149,7 @@
       if (machine.type === "gradingBench") {
         if (machine.job) return `Grading · ${formatNumber(machine.job.remaining)}s`;
         if (machine.output.length) return `Output blocked · ${gradeLabel(machine.output[0])}`;
-        return "Waiting for Clay products or stone · 1s per weight";
+        return "Waiting for Clay products, stone or copper · 1s per weight";
       }
       if (D.machines[machine.type].batchOutputs) {
         if (machine.output.length) return "Output blocked";
@@ -1102,7 +1169,7 @@
       }
       if (collectorCapacity(machine)) return `${formatNumber(this.total(machine, "contents"))} / ${collectorCapacity(machine)} items`;
       if (D.machines[machine.type].conveyors) return conveyorCells(machine)
-        .every((point) => this.powered(point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
+        .every((point) => this.conveyorPowered(machine, point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
       if (D.machines[machine.type].heatCapacity) {
         if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked" : `Firing · ${formatNumber(machine.job.remaining)}s`;
         if (machine.output.length) return D.materials[machine.output[0].material].fluid
@@ -1128,6 +1195,10 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.leekDusterVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "leekDuster")) state.stock.leekDuster = 0;
+        state.leekDusterVersion = 1;
+      }
       if ((state.pebblePileVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "pebblePile")) state.stock.pebblePile = 0;
         state.pebblePileVersion = 1;
@@ -1221,6 +1292,12 @@
         }
         state.loggerSpeedVersion = 1;
       }
+      if ((state.potSpinnerVersion ?? 0) < 2) {
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          if (machine.type === "potSpinner" && machine.job && Number.isFinite(machine.job.remaining)) machine.job.remaining *= 8 / 12;
+        }
+        state.potSpinnerVersion = 2;
+      }
       if ((state.heatScaleVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
           if (D.machines[machine.type]?.heatCapacity) machine.heat *= 1000;
@@ -1260,6 +1337,22 @@
         }
         for (const route of legacyRoutes) migrateProcessorUses(route?.item);
         state.graniteProcessorVersion = 2;
+      }
+      if ((state.gradeEvolutionVersion ?? 0) < 1) {
+        const migrateQuality = (item) => {
+          if (!item || typeof item !== "object") return;
+          if (Array.isArray(item.gradeProfile) && item.gradeProfile.length === 5) item.gradeProfile.push(0);
+          if (!validCargo(item)) throw new Error("Invalid cargo grading data.");
+          if (!item.graded && ["brick", "pot"].includes(item.material)) {
+            applyGradeTreatment(item, promotionTreatment(D.grades.map((_, i) => i < 4 ? 0.4 : 0)));
+          }
+        };
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          for (const item of [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
+            ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)]) migrateQuality(item);
+        }
+        for (const route of legacyRoutes) migrateQuality(route?.item);
+        state.gradeEvolutionVersion = 1;
       }
       if ((state.beltCapacityVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {

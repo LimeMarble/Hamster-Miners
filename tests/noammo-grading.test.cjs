@@ -39,21 +39,21 @@ test("Grading Bench costs $4k, 100 Wood, 50 Fiber and 10 Chert without a free gr
 });
 
 test("grade tables, sale multipliers and independent Brick Seal repairs match the agreed chances", () => {
-  assert.deepEqual(D.grades.map(({ multiplier }) => multiplier), [0.75, 1.5, 2.5, 8, 40]);
+  assert.deepEqual(D.grades.map(({ multiplier }) => multiplier), [0.75, 1, 1.5, 2.5, 8, 40]);
   for (const material of ["clay", "unfiredBrick", "unfiredPot", "brick", "pot"]) {
     const item = A.cargo(material);
-    assert.deepEqual(A.gradeProbabilities(item), [0.2, 0.6, 0.2, 0, 0]);
+    assert.deepEqual(A.gradeProbabilities(item), [0.2, 0.6, 0.2, 0, 0, 0]);
     item.gradeRepairs = { brickSeal: 4 };
     const chances = A.gradeProbabilities(item);
     near(chances[0], 0); near(chances[1], 0.8); near(chances[2], 0.2);
-    near(chances.reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0), 1.7);
+    near(chances.reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0), 1.1);
   }
-  assert.deepEqual(A.gradeProbabilities(A.cargo("chert")), [0, 1, 0, 0, 0]);
+  assert.deepEqual(A.gradeProbabilities(A.cargo("chert")), [0, 1, 0, 0, 0, 0]);
   for (const material of ["soil", "wood", "leek", "leekFiber"]) assert.equal(A.gradeProbabilities(A.cargo(material)), null);
 });
 
 test("one roll grades the entire incoming stack, modifies actual rather than base value, and never rolls Remarkable unaided", () => {
-  for (const [seed, multiplier] of [[2000, 0.75], [0, 1.5], [1500, 2.5]]) {
+  for (const [seed, multiplier] of [[2000, 0.75], [0, 1], [1500, 1.5]]) {
     const input = A.cargo("brick", 5, 7), before = A.copy(input), state = { random: seed };
     const result = A.gradeStack(state, input);
     assert.equal(result.graded, true); assert.equal(A.gradeLabel(result), "Graded");
@@ -65,8 +65,8 @@ test("one roll grades the entire incoming stack, modifies actual rather than bas
     assert.deepEqual(A.gradeStack(state, result), result); assert.equal(state.random, random);
   }
   const repaired = A.cargo("brick"); repaired.gradeRepairs = { brickSeal: 4 };
-  near(rolled(repaired, 2000).value, repaired.value * 1.5);
-  for (let seed = 0; seed < 3000; seed += 17) assert.ok(rolled(A.cargo("clay"), seed).value <= 0.25 * 2.5);
+  near(rolled(repaired, 2000).value, repaired.value);
+  for (let seed = 0; seed < 3000; seed += 17) assert.ok(rolled(A.cargo("clay"), seed).value <= 0.25 * 1.5);
 });
 
 test("real Clay Pit → Grading Bench → Basket works through the sparse working cell in every rotation", () => {
@@ -77,7 +77,7 @@ test("real Clay Pit → Grading Bench → Basket works through the sparse workin
     factory.update(17.1);
     near(factory.total(basket, "contents"), 1);
     assert.equal(basket.contents[0].material, "clay"); assert.equal(basket.contents[0].graded, true);
-    near(basket.contents[0].value, 0.375);
+    near(basket.contents[0].value, 0.25);
   }
 });
 
@@ -106,7 +106,7 @@ test("combining stacks sums quantities, averages actual value and repairs, and k
   poor.gradeRepairs = { brickSeal: 0 }; fine.gradeRepairs = { brickSeal: 4 };
   poor.upgrades.brickSeal = 0; fine.upgrades.brickSeal = 9;
   const before = JSON.stringify([poor, fine]), combined = A.combineCargo([poor, fine]);
-  assert.equal(combined.quantity, 4); near(combined.value, (7.5 + 25 * 3) / 4);
+  assert.equal(combined.quantity, 4); near(combined.value, (7.5 + 15 * 3) / 4);
   near(combined.gradeRepairs.brickSeal, 3); assert.equal(combined.upgrades.brickSeal, 9);
   assert.equal(combined.graded, true); assert.equal(Object.hasOwn(combined, "grading"), false);
   near(combined.value * combined.quantity, poor.value * poor.quantity + fine.value * fine.quantity);
@@ -206,13 +206,13 @@ test("graded Clay retains its averaged quality and value through actual shaping 
   const poor = rolled(A.cargo("clay", 1, 10), 2000), fine = rolled(A.cargo("clay", 1, 10), 1500);
   factory.receive(shaper, poor, input.x, input.y, input.direction, true);
   factory.receive(shaper, fine, input.x, input.y, input.direction, true);
-  factory.update(4.1); near(shaper.output[0].value, (7.5 + 25) * 2);
+  factory.update(4.1); near(shaper.output[0].value, (7.5 + 15) * 2);
   assert.equal(shaper.output[0].graded, true); assert.deepEqual(shaper.output[0].upgrades, {});
   const kiln = place(factory, "kiln", 50, 40), intake = A.ports(kiln)[0];
   factory.receive(kiln, A.cargo("wood", 8), intake.x, intake.y, intake.direction, true);
   factory.receive(kiln, { ...A.copy(shaper.output[0]), quantity: 2 }, intake.x, intake.y, intake.direction, true);
-  factory.update(8.1); near(kiln.output[0].value, 260); assert.equal(kiln.output[0].graded, true);
-  near(rolled(kiln.output[0], 1500).value, 260);
+  factory.update(8.1); near(kiln.output[0].value, 180); assert.equal(kiln.output[0].graded, true);
+  near(rolled(kiln.output[0], 1500).value, 180);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
@@ -300,7 +300,7 @@ test("legacy wholly ungraded cargo stays rollable and corrupt legacy grading is 
   factory.state.gradingVersion = 1;
   bench.input.push({ ...A.cargo("brick"), grading: { shares: [1, 0, 0, 0, 0], values: [1, 0, 0, 0, 0] } });
   const loaded = Factory.importSave(factory.exportSave()), input = loaded.byId.get(bench.id).input[0];
-  assert.equal(Boolean(input.graded), false); near(rolled(input, 1500).value, 2.5);
+  assert.equal(Boolean(input.graded), false); near(rolled(input, 1500).value, 1.5);
   for (const grading of [null, {}, { shares: [1], values: [1] },
     { shares: [0, 0, 2, 0, 0], values: [0, 0, 1, 0, 0] },
     { shares: [0, 0, 1, 0, 0], values: [0, 0, 99, 0, 0] }]) {

@@ -31,13 +31,18 @@
     for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradeProfile) {
       panel.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
     }
+    for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradePromotion) {
+      panel.append(element("p", `Grade Effects: moves ${number(recipe.gradePromotion * 100)}% of each tier's chance up one tier${recipe.gradePromotionCeiling === undefined ? "" : `, stopping at ${D.grades[recipe.gradePromotionCeiling].name}`}.`, "machine-effect"));
+    }
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
     const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
     if (effect.useLimit !== undefined) lines.push(`Use Limit: ${number(effect.useLimit)}`);
     if (effect.upperLimit !== undefined) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
-    if (definition.gradeEffect) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Standard per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
+    if (definition.gradeEffect?.poorToStandardPerUse) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Unremarkable per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
+    if (definition.gradeEffect?.promotionRates) lines.push(`Grade Effects: moves ${definition.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% of ${D.grades[i].name} to ${D.grades[i + 1].name}` : "").filter(Boolean).join("; ")}. Applies outside the cash limit.`);
+    if (definition.remembersMaterials) lines.push("Cash and grade effects each apply once per material, remembered through processing.");
     for (const line of lines) panel.append(element("p", line, "machine-effect"));
   }
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }

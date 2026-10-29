@@ -221,12 +221,12 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
 });
 
 test('Copper industry Shop costs and furnace mode, heat and buffers stay current without remounting controls', () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 360000;
+  const f = new A.Factory(A.createState(1)); f.state.cash = 250000;
   Object.assign(f.state.inventory, { granite: 200, chert: 50, woodenGear: 20, wood: 40, brick: 200, clay: 50 });
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   for (const [type, expected] of [
-    ['copperDrill', ['$360k / $80k', '200 / 100', '50 / 50', '20 / 20', '40 / 40']],
-    ['primitiveFurnace', ['$280k / $280k', '200 / 200', '100 / 100', '50 / 50']],
+    ['copperDrill', ['$250k / $60k', '200 / 100', '50 / 50', '20 / 20', '40 / 40']],
+    ['primitiveFurnace', ['$190k / $190k', '200 / 200', '100 / 100', '50 / 50']],
   ]) {
     shopCard(ui, type).emit('click');
     assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), expected);
@@ -845,7 +845,7 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
   ui.ids.get("buyMachine").emit("click"); chooseMachine(ui, "gradingBench");
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   ui.ids.get("cancel").emit("click"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
-  assert.match(ui.ids.get("gradingChances").textContent, /Clay: Poor 20%.*Standard 60%.*Fine 20%/);
+  assert.match(ui.ids.get("gradingChances").textContent, /Clay: Poor 20%.*Unremarkable 60%.*Standard 20%/);
   const chance = ui.ids.get("gradingChances"); ui.frame(100); ui.frame(400);
   assert.equal(ui.ids.get("gradingChances"), chance);
   assert.match(ui.ids.get("machineStatus").textContent, /Waiting for Clay/);
@@ -1104,7 +1104,7 @@ test("Pot Spinner purchase exposes chances and exact scaled costs, filters corre
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   const card = shopCard(ui, 'potSpinner');
   ui.categories.find(b => b.dataset.category === "Material").emit("click"); assert.equal(card.hidden, false); card.emit("click");
-  assert.ok(ui.ids.get("shopDetail").children.some(n => /Poor 20%.*Standard 10%.*Fine 40%.*Remarkable 25%.*Exceptional 5%/.test(n.textContent)));
+  assert.ok(ui.ids.get("shopDetail").children.some(n => /Poor 20%.*Unremarkable 10%.*Standard 40%.*Fine 25%.*Remarkable 5%/.test(n.textContent)));
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
   assert.deepEqual(ui.ids.get("costs").children.map(r => r.children[1].textContent), ["$15k / $15k", "300 / 300", "120 / 120", "60 / 60", "30 / 30"]);
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.potSpinner, 2); assert.equal(ui.state().cash, 0);
@@ -1129,7 +1129,7 @@ test("Pot Spinner live controls stay mounted throughout a job and reflect bounde
   assert.equal(ui.ids.get("machineStatus"), status); assert.equal(ui.ids.get("spinnerBuffers"), buffers); assert.equal(ui.ids.get("moveMachine"), move);
   assert.match(status.textContent, /Waiting for 2 Clay/);
   const pot = ui.state().machines.find(m => m.type === "basket").contents[0];
-  assert.deepEqual(pot.gradeProfile, [0.2, 0.1, 0.4, 0.25, 0.05]);
+  assert.deepEqual(pot.gradeProfile, [0.2, 0.1, 0.4, 0.25, 0.05, 0]);
   assert.equal(ui.state().random, 1);
 });
 
@@ -1249,7 +1249,7 @@ test("selected upgrader and Shift-hover share live output history, preserve cont
 test("Grading history shows the actual Exceptional roll and $4.8k value in both views without rerolling", () => {
   const f = new A.Factory(A.createState(1900)); f.state.stock.gradingBench = 1;
   const m = f.place('gradingBench', 121, 121).machine;
-  m.job = { input: { ...A.cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] }, remaining: 0.1 };
+  m.job = { input: { ...A.cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] }, remaining: 0.1 };
   const reference = { random: 1900 }; A.gradeStack(reference, m.job.input);
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const list = ui.ids.get('outputHistory'); ui.frame(100); ui.frame(200);
@@ -1261,6 +1261,26 @@ test("Grading history shows the actual Exceptional roll and $4.8k value in both 
   assert.equal(list.children[0], row); assert.equal(ui.state().random, reference.random);
   ui.ids.get('cancel').emit('click'); ui.ids.get('moveMachine').emit('click');
   assert.equal(ui.ids.get('historyTooltip').hidden, true, 'placement suppresses hover tooltips');
+});
+
+test('Leek Duster Shop, inventory and repeat placement expose independent cash and grade effects', () => {
+  const f = new A.Factory(A.createState(1)); f.state.cash = 2400;
+  Object.assign(f.state.inventory, { wood: 240, woodenGear: 24, leekFiber: 100, leek: 32 }); f.state.stock.belt = 6;
+  const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
+  const card = shopCard(ui, 'leekDuster'); card.emit('click');
+  const effects = ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent);
+  assert.ok(effects.includes('Cash effect: ×1.65')); assert.ok(effects.includes('Upper Limit: $200'));
+  assert.ok(effects.some(line => /100% of Poor to Unremarkable.*50% of Unremarkable to Standard.*25% of Standard to Fine/.test(line)));
+  assert.ok(effects.some(line => /outside the cash limit/.test(line))); assert.ok(effects.some(line => /once per material/.test(line)));
+  assert.ok(effects.every(line => !/NaN|undefined/.test(line)));
+  ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$2.4k / $2.4k', '240 / 240', '24 / 24', '100 / 100', '32 / 32', '6 / 6']);
+  ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.leekDuster, 2); assert.equal(ui.state().cash, 0);
+  chooseMachine(ui, 'leekDuster'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  ui.ids.get('rotateRight').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(125, 121)); ui.frame(100);
+  const machines = ui.state().machines.filter(machine => machine.type === 'leekDuster');
+  assert.equal(machines.length, 2); assert.deepEqual(A.size(machines[0]), { width: 3, height: 1 }); assert.deepEqual(A.size(machines[1]), { width: 1, height: 3 });
+  assert.equal(ui.view().interaction.tool, null); assert.match(ui.ids.get('machineStatus').textContent, /Waiting for kinetic power/);
 });
 
 test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and uncapped cash effect', () => {
@@ -1286,7 +1306,7 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
 });
 
 test("Granite Processor Shop scales Granite and conveyor components, filters Cash and exposes all rules on selection", () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 100000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
+  const f = new A.Factory(A.createState(1)); f.state.cash = 50000; f.state.inventory.granite = 600; f.state.stock.belt = 3;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'graniteProcessor');
   ui.categories.find(b => b.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
@@ -1294,7 +1314,7 @@ test("Granite Processor Shop scales Granite and conveyor components, filters Cas
   const expected = ['Cash effect: ×1.3', 'Use Limit: 6', 'Upper Limit: $500', 'Base Value Required: $3.5'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$100k / $100k', '600 / 600', '3 / 4']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$50k / $50k', '600 / 600', '3 / 4']);
   assert.equal(ui.ids.get('buyMachine').disabled, true);
   ui.ids.get('quantity').value = '1'; ui.ids.get('quantity').emit('input'); ui.ids.get('buyMachine').emit('click');
   assert.equal(ui.state().stock.belt, 1); assert.equal(ui.state().stock.graniteProcessor, 1);

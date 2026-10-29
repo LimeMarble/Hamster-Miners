@@ -203,7 +203,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   not clay-only, not hardcoded ore/ingot distinctions. The last eligible use may
   cross $15; never clamp a product's value down to the limit.
   On clay products, each grade-repair pass converts 5 percentage points of Poor
-  chance to Standard, capped at four repair passes / 20 percentage points.
+  chance to Unremarkable, capped at four repair passes / 20 percentage points.
   Grade repair is separate from cash-use counts and still applies when cash
   eligibility fails. Clay, unfired/fired Bricks and Pots share the clay family.
   Repairs carry through shaping/firing while cash-use tags reset on material
@@ -222,10 +222,10 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   Uses one crew, with exactly the Clay Shaping Bench's sparse footprint and
   lower-right input/output cell. Processing takes 1 second per total cargo
   weight, including fractional stacks; one incoming stack receives one roll.
-  Clay and its unfired/fired products start at 20% Poor / 60% Standard / 20% Fine.
-  Stone (currently Chert) starts at 100% Standard. Other current materials,
+  Clay and its unfired/fired products start at 20% Poor / 60% Unremarkable / 20% Standard.
+  Stone (currently Chert) starts at 100% Unremarkable. Other current materials,
   including Soil, have no table and are rejected rather than assigned one.
-  Multipliers are Poor x0.75, Standard x1.5, Fine x2.5, Remarkable x8 and
+  Multipliers are Poor x0.75, Unremarkable x1, Standard x1.5, Fine x2.5, Remarkable x8 and
   Exceptional x40. Ordinary base tables cannot roll Remarkable or Exceptional;
   manufactured quality profiles such as spun pottery can. Grades multiply actual incoming value,
   never the material's declared base value.
@@ -344,13 +344,13 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Copper Drill and Primitive Furnace (implemented, 2026-10-26)
 
-- Copper Drill: $80k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
+- Copper Drill: $60k, 100 Granite, 50 Chert, 20 Wooden Gears and 40 Wood.
   Solid 3x2 footprint, four rear cells and a centered two-cell outlet, without
   internal conveyors. Kinetic intakes are above and below the middle column;
   either accepts a Wheel connection. One Native Copper ($1.50 base, weight 1) every 15 seconds; no extra
   crew beyond the connected Wheel. Production pauses without kinetic power
   or when its single-item output is full; no banked cycles.
-- Primitive Furnace: $280k, 200 Bricks, 100 Granite and 50 Clay; two crew.
+- Primitive Furnace: $190k, 200 Bricks, 100 Granite and 50 Clay; two crew.
   Uses Clay Kiln's solid 2x3 footprint and ports: two left inputs at the top
   and middle rows, and one right output in the middle row. Both inputs work
   identically, with bounded whole-item feed/fuel acceptance.
@@ -420,7 +420,7 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 
 ## Granite Processor (implemented, 2026-10-23)
 
-- Cost: $50k, 300 Granite, two owned Primitive Conveyors. Cash category,
+- Cost: $25k, 300 Granite, two owned Primitive Conveyors. Cash category,
   zero crew, the original 1-column/2-row footprint with two independent
   right-facing primitive conveyor lanes. Rotates normally, requires Conveyor
   Drive coverage and uses two-second transit with normal belt capacity.
@@ -471,6 +471,28 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Existing machines are not picked up or charged retroactively. Older saves
   gain only zero-valued Wooden Gear inventory and Gear Bench stock keys.
 
+## Grading update and Leek Duster (implemented, 2026-10-28)
+
+- Six tiers: Poor (0) x0.75, Unremarkable (1) x1, Standard (2) x1.5,
+  Fine (3) x2.5, Remarkable (4) x8, Exceptional (5) x40. Existing probability
+  positions shift down a named tier; existing graded cash is never recalculated.
+- Copper starts at 30/40/30 in tiers 0/1/2. Ore smelting promotes one full tier;
+  molding preserves the resulting chances. Clay firing promotes 40% from each
+  tier below Remarkable, simultaneously. Fired ceramic is not a valid firing input.
+- Leek Duster costs $1.2k, 120 Wood, 12 Wooden Gears, 50 Leek Fiber, 16 Leek
+  and three owned Primitive Conveyors. Three horizontal conveyor cells, cargo
+  from left to right, kinetic intakes above/below the middle cell. Either direct
+  Wheel connection powers all internal belts. Six-second transit, zero extra crew.
+- Cash x1.65 below $200; grade promotion rates 100%/50%/25% from tiers 0/1/2.
+  Grade effects ignore cash limits and never roll RNG. Cash and grade effects
+  each retain once-per-material history through transformations and stack merges.
+- Stacks average current probabilities and carried quality treatments, with
+  no per-item portions. Recipe quality profiles inherit averaged treatments.
+  Splits preserve metadata; a graded ingredient prevents another grading roll.
+- Older saves gain zero Duster stock, pad old profiles to six tiers and update
+  ungraded fired ceramics once. Existing cash and completed grades are preserved.
+  Spinner jobs migrate from 12 to 8 seconds proportionally once.
+
 ## Pot Spinner (implemented, 2026-10-23)
 
 - Cost: $7,500, 150 Wood, 60 Bricks, 30 Granite and 15 Leek Fiber.
@@ -480,23 +502,23 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   adjacent long-edge Hamster Wheel output. Area power alone is insufficient.
   The complete footprint and all ports rotate together. No extra operating
   crew beyond the Wheel; no cosmetic animation.
-- Two Clay -> one Unfired Pot in 12 powered seconds, preserving the shaping
+- Two Clay -> one Unfired Pot in 8 powered seconds, preserving the shaping
   bench's pot recipe/value: twice the combined actual Clay value. Firing still
   takes place in the Kiln. Power loss pauses the same job without consuming
   more ingredients. One pending batch of 2 Clay, one job and one finished Pot
   bound intake/production; a blocked output does not bank cycles.
-- Before Brick Seal repairs, spun pots have 20% Poor / 10% Standard / 40% Fine /
-  25% Remarkable / 5% Exceptional. Four repairs move 20 percentage points from
-  Poor to Standard, yielding 0/30/40/25/5 and an average grading multiplier of
-  5.45 (5.30 without repairs). The fifth tier is Exceptional at x40.
+- Before Brick Seal repairs, spun pots have 20% Poor / 10% Unremarkable / 40% Standard /
+  25% Fine / 5% Remarkable. Four repairs move 20 percentage points from
+  Poor to Unremarkable, yielding 0/30/40/25/5/0 and an average pre-firing
+  multiplier of 1.925 (1.875 without repairs). Exceptional remains tier 5 at x40.
 - This is a carried pre-roll probability profile, not a rolled grade category
   or a new inventory material. The Grading Bench rolls once as usual. Firing,
   moves, saves and splitting preserve the profile. Combining
   same-material cargo averages profiles by quantity, with ordinary cargo
   contributing its ordinary table. Already graded inputs remain graded and
   cannot roll again; cash-use tags reset at the normal material transformation.
-  Profiles and Seal repair modifiers are independent. Inventory collection
-  retains counts only, as before. Ordinary pot/brick/stone chances are unchanged.
+  Firing applies its 40% promotion once. Seal repairs retain their own count and are not applied twice after probability averaging. Inventory collection
+  retains counts only, as before. Clay products gain the firing promotion; stone starts entirely Unremarkable.
 - Shop/Inventory show base chances, the inspector updates input/output counts
   without remounting controls, and Recipes documents the same real recipe.
   Older saves gain only a zero Pot Spinner stock entry, not a free machine.
