@@ -47,9 +47,10 @@ for (const facing of D.directions) test(`Stacker ${facing}: three inputs, facing
   for (let side = 0; side < 3; side++) {
     assert.equal(feed(f, m, cargo('clay'), side), 1);
     assert.equal(feed(f, m, cargo('wood'), side), 0);
-    const before = f.exportSave(); assert.equal(feed(f, m, cargo('clay', 5), side, false), 1);
+    const before = f.exportSave(); assert.equal(feed(f, m, cargo('clay', 5), side, false), 0);
     assert.equal(f.exportSave(), before, 'probes are read-only');
-    assert.equal(feed(f, m, cargo('clay', 5), side), 1);
+    assert.equal(feed(f, m, cargo('clay', 5), side), 0, 'do not split an overflowing stack into the last free place');
+    assert.equal(feed(f, m, cargo('clay'), side), 1);
     f.update(20); assert.equal(m.lanes[0].quantity, 2);
     assert.equal(feed(f, m, cargo('clay'), side), 0);
     delete m.lanes[0];
@@ -119,6 +120,71 @@ test('occupied Stacker chains maintain belt cadence in either construction order
       if (i >= 2) near(basket.contents[0].quantity, i - 1);
     }
   }
+});
+
+test('an incoming pair combines and dispatches as one transfer, retaining one item at full belt cadence', () => {
+  for (const facing of D.directions) for (const reverse of [false, true]) {
+    const f = setup(), v = D.vectors[facing];
+    const entries = [
+      ['belt', 41 - v.x, 40 - v.y], ['primitiveStacker', 41, 40], ['belt', 41 + v.x, 40 + v.y],
+    ];
+    const machines = (reverse ? [...entries].reverse() : entries).map(([type, x, y]) => place(f, type, x, y, facing));
+    const m = machines.find(p => p.type === 'primitiveStacker');
+    const input = machines.find(p => p.x === 41 - v.x && p.y === 40 - v.y);
+    const output = machines.find(p => p.x === 41 + v.x && p.y === 40 + v.y);
+    const basket = place(f, 'basket', 41 + v.x * 2, 40 + v.y * 2);
+    f.setStackSize(m.id, 2); feed(f, m, cargo('clay')); f.update(2);
+    for (let cycle = 0; cycle < 12; cycle++) {
+      assert.equal(f.receive(input, cargo('clay', 2), input.x, input.y, A.opposite(facing), true), 2);
+      f.update(1.9); assert.equal(input.lanes[0].quantity, 2); near(m.lanes[0].quantity, 1);
+      f.update(0.1);
+      assert.equal(input.lanes[0], undefined, 'the complete arriving pair leaves the input');
+      near(m.lanes[0].quantity, 1); near(output.lanes[0].quantity, 2);
+      near(f.total(basket, 'contents'), cycle * 2);
+    }
+    assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+  }
+});
+
+test('combine-and-dispatch preserves averaged stack properties, probes and blocked limits without banking bursts', () => {
+  const f = setup(), m = place(f, 'primitiveStacker', 40, 40), belt = place(f, 'belt', 41, 40);
+  f.setStackSize(m.id, 2);
+  const a = { ...cargo('clay', 1, 10), graded: true, upgrades: { brickSeal: 9 }, gradeRepairs: { brickSeal: 4 } };
+  const b = { ...cargo('clay', 2, 4), upgrades: { primitiveShack: 1 }, materialHistory: { 'leekDuster:clay:cash': true } };
+  feed(f, m, a); f.update(1.9);
+  const beforeReady = f.exportSave(); assert.equal(feed(f, m, b), 0); assert.equal(f.exportSave(), beforeReady);
+  f.update(0.1);
+  const expected = A.combineCargo([a, b]), before = f.exportSave();
+  assert.equal(feed(f, m, b, 0, false), 2); assert.equal(f.exportSave(), before);
+  assert.equal(feed(f, m, b), 2); near(m.lanes[0].quantity, 1); near(belt.lanes[0].quantity, 2);
+  for (const item of [m.lanes[0], belt.lanes[0]]) for (const field of ['value', 'graded', 'upgrades', 'gradeRepairs', 'gradeProfile', 'materialHistory']) {
+    assert.deepEqual(item[field], expected[field], field);
+  }
+  near(m.lanes[0].value + belt.lanes[0].value * 2, 18);
+  f.update(20); const blocked = f.exportSave(); assert.equal(feed(f, m, b), 0); assert.equal(f.exportSave(), blocked);
+  near(m.lanes[0].quantity, 1); near(belt.lanes[0].quantity, 2);
+  const basket = place(f, 'basket', 42, 40); f.update(0.1); near(f.total(basket, 'contents'), 2);
+  assert.equal(feed(f, m, b), 2); near(m.lanes[0].quantity, 1); near(belt.lanes[0].quantity, 2);
+  assert.equal(feed(f, m, b), 0); f.update(1.9); assert.equal(feed(f, m, b), 0);
+  f.update(0.1); assert.equal(feed(f, m, b), 2);
+  assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+
+  // A smaller downstream Stacker can accept a legal portion without deadlocking
+  // the upstream partial stack or leaving half an incoming pair on its belt.
+  const g = setup(), first = place(g, 'primitiveStacker', 40, 40), second = place(g, 'primitiveStacker', 41, 40);
+  g.setStackSize(first.id, 2); const out = place(g, 'basket', 42, 40);
+  feed(g, first, cargo('clay')); g.update(2); assert.equal(feed(g, first, cargo('clay', 2)), 2);
+  near(first.lanes[0].quantity, 2); near(second.lanes[0].quantity, 1);
+  g.update(4); near(g.total(out, 'contents'), 2); near(first.lanes[0].quantity, 1);
+
+  const closed = setup();
+  const loop = [[40, 40, 'right'], [41, 40, 'down'], [41, 41, 'left'], [40, 41, 'up']]
+    .map(([x, y, facing]) => place(closed, 'primitiveStacker', x, y, facing));
+  for (const stacker of loop) { closed.setStackSize(stacker.id, 2); feed(closed, stacker, cargo('clay')); }
+  closed.update(2); const stopped = closed.exportSave();
+  assert.equal(feed(closed, loop[0], cargo('clay', 2), 0, false), 0);
+  assert.equal(feed(closed, loop[0], cargo('clay', 2)), 0);
+  assert.equal(closed.exportSave(), stopped, 'a closed loop cannot recursively dispatch into itself');
 });
 
 test('centered Rock Drill output can merge onto a Stacker in the front-priority position', () => {

@@ -374,7 +374,47 @@
         this.pressPowers.set(machine.id, { connections: connections.length, speed: connections.length < 2 ? 0 : paired ? 2 : 1 });
       }
       this.poweredDrives = this.state.machines.filter((machine) => machine.type === "drive" && this.driveHasWheel(machine));
+      this.transportOrder = this.orderConveyors();
       this.layoutVersion++;
+    }
+    orderConveyors() {
+      const slots = this.state.machines.flatMap((machine) => conveyorCells(machine).map((tile) => ({
+        machine, lane: String(tile.index), tile,
+      })));
+      const bySlot = new Map(slots.map((slot) => [`${slot.machine.id}:${slot.lane}`, slot]));
+      const targets = new Map();
+      for (const slot of slots) {
+        const outputs = [slot.tile];
+        if (D.machines[slot.machine.type].manualTransferSeconds && slot.lane === "0") {
+          outputs.push(...ports(slot.machine).filter((point) => point.role === "output" && point.mode));
+        }
+        const downstream = [];
+        for (const output of outputs) {
+          const v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
+          const internal = conveyorCells(slot.machine).find((cell) => cell.x === x && cell.y === y);
+          const target = internal ? slot.machine : (this.occupantsAt.get(key(x, y)) ?? []).find((machine) =>
+            !D.machines[machine.type].bridge || ports(machine).some((point) => point.role === "input"
+              && point.x === x && point.y === y && point.direction === opposite(output.direction)));
+          const tile = target && (internal ?? conveyorCells(target).find((cell) => cell.x === x && cell.y === y));
+          if (tile) downstream.push(bySlot.get(`${target.id}:${tile.index}`));
+        }
+        targets.set(slot, downstream);
+      }
+      // One order for belts, Stackers and machine conveyors. Mixing types must
+      // not make an upstream transfer see cargo that departs later in this tick.
+      // This graph is layout-only, so build it once rather than every frame.
+      const visited = new Set(), ordered = [];
+      for (const slot of slots) {
+        const pending = [[slot, false]];
+        while (pending.length) {
+          const [entry, closing] = pending.pop();
+          if (closing) { ordered.push(entry); continue; }
+          if (visited.has(entry)) continue;
+          visited.add(entry); pending.push([entry, true]);
+          for (const target of targets.get(entry)) if (!visited.has(target)) pending.push([target, false]);
+        }
+      }
+      return ordered;
     }
     recentOutputs(id) { return copy(this.outputHistories.get(id) ?? []); }
     recordOutput(machine, item, grade = null) {
@@ -872,6 +912,9 @@
       }
       const capacity = stacking ? this.stackTarget(machine, item) - (existing?.quantity ?? 0)
         : Math.floor(conveyorWeightLimit(machine) / D.materials[item.material].weight);
+      if (stacking && existing && item.quantity > capacity + epsilon) {
+        return this.receiveStackerBatch(machine, item, tile, consume);
+      }
       const quantity = !stacking && item.quantity > capacity + epsilon ? 0 : Math.max(0, Math.min(item.quantity, capacity));
       if (consume && quantity > epsilon) {
         const received = { ...copy(item), quantity, progress: 0, fresh: true };
@@ -883,6 +926,31 @@
         } else machine.lanes[tile.index] = received;
       }
       return quantity;
+    }
+    receiveStackerBatch(machine, item, tile, consume) {
+      const existing = machine.lanes[tile.index], target = this.stackTarget(machine, item);
+      // A ready Stacker can combine and dispatch a full batch atomically. It
+      // never parks more than its target inside, or splits an incoming pair
+      // just to fill the last free place in a partial stack.
+      if (existing.progress < 1 - epsilon || target <= 0 || existing.quantity > target + epsilon
+        || this.activeStackTransfers?.has(machine.id)) return 0;
+      const quantity = Math.min(item.quantity, target);
+      const combined = combineCargo([existing, { ...item, quantity }]);
+      if (combined.quantity + epsilon < target) return 0;
+      const outgoing = { ...copy(combined), quantity: target, progress: 0 };
+      if (existing.lateral) outgoing.lateral = existing.lateral;
+      this.activeStackTransfers ??= new Set();
+      this.activeStackTransfers.add(machine.id);
+      try {
+        const accepted = this.send(machine, outgoing, tile, false);
+        if (accepted <= epsilon || combined.quantity - accepted > target + epsilon) return 0;
+        if (consume) {
+          this.send(machine, outgoing, tile, true);
+          machine.lanes[tile.index] = { ...combined, quantity: combined.quantity - accepted, progress: 0, fresh: true };
+          if (existing.lateral) machine.lanes[tile.index].lateral = existing.lateral;
+        }
+        return quantity;
+      } finally { this.activeStackTransfers.delete(machine.id); }
     }
     receiveCentered(item, point, direction, consume = true, elevated = false, fromId = null) {
       const v = D.vectors[direction], perpendicular = { x: -v.y, y: v.x };
@@ -990,21 +1058,21 @@
       }
       return quantity;
     }
-    send(machine, item, output) {
+    send(machine, item, output, consume = true) {
       const v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
       if (output.span === 2 || item.lateral) {
         const lateral = item.lateral ?? 0;
-        return this.receiveCentered(item, { x: x - v.y * lateral, y: y + v.x * lateral }, output.direction, true,
+        return this.receiveCentered(item, { x: x - v.y * lateral, y: y + v.x * lateral }, output.direction, consume,
           Boolean(D.machines[machine.type].bridge), machine.id);
       }
       const internal = conveyorCells(machine).find((cell) => cell.x === x && cell.y === y);
       if (internal) return D.machines[machine.type].pressModes && internal.index === D.machines[machine.type].processingCell
-        ? this.receivePressInput(machine, item, true) : this.receiveConveyor(machine, item, internal, true);
+        ? this.receivePressInput(machine, item, consume) : this.receiveConveyor(machine, item, internal, consume);
       const target = (this.occupantsAt.get(key(x, y)) ?? []).find((entry) =>
         !D.machines[entry.type].bridge || ports(entry).some((point) => point.role === "input" && point.x === x && point.y === y
           && point.direction === opposite(output.direction)));
       if (!target || target.id === machine.id) return 0;
-      return this.receive(target, item, x, y, opposite(output.direction), true);
+      return this.receive(target, item, x, y, opposite(output.direction), consume);
     }
     update(seconds) {
       if (!Number.isFinite(seconds) || seconds <= 0) return;
@@ -1021,12 +1089,9 @@
       if (this.saleTexts.length) this.saleTexts = this.saleTexts.filter((entry) => state.seconds - entry.created < 1.2);
       state.clickTokens = Math.min(1, state.clickTokens + seconds * D.config.clicksPerSecond);
       // Arrivals cannot traverse a second belt during the same simulation step.
-      const oldLanes = state.machines.flatMap((machine) => {
-        const entries = Object.entries(machine.lanes);
-        // Release the straight outlet before deciding whether its inlet is blocked.
-        if (D.machines[machine.type].manualTransferSeconds) entries.reverse();
-        return entries.map(([lane, item]) => ({ machine, lane, item,
-          ready: !D.machines[machine.type].maxStackSize || item.quantity + epsilon >= this.stackTarget(machine, item) }));
+      const oldLanes = this.transportOrder.flatMap(({ machine, lane }) => {
+        const item = machine.lanes[lane];
+        return item ? [{ machine, lane, item }] : [];
       });
       for (const machine of state.machines) {
         const definition = D.machines[machine.type];
@@ -1091,46 +1156,9 @@
         }
         if (isCrafter(definition)) this.startShaping(machine);
       }
-      // Downstream belts release first, so a Stacker does not see its own
-      // departing output as a blockage. New arrivals still wait for the next step.
-      const stackers = new Map(oldLanes.filter(({ machine }) => D.machines[machine.type].maxStackSize)
-        .map((entry) => [entry.machine.id, entry]));
-      const orderedLanes = oldLanes.filter(({ machine }) => !D.machines[machine.type].maxStackSize
-        && !D.machines[machine.type].manualTransferSeconds), visited = new Set();
-      // Resolve occupied Stacker chains downstream first, independent of placement
-      // order. Mark before following links so a closed loop cannot recurse forever.
-      for (const entry of stackers.values()) {
-        const chain = []; let next = entry;
-        while (next && !visited.has(next.machine.id)) {
-          visited.add(next.machine.id); chain.push(next);
-          const output = ports(next.machine).find((point) => point.role === "output"), v = D.vectors[output.direction];
-          const target = this.at.get(key(output.x + v.x, output.y + v.y));
-          next = stackers.get(target?.id);
-        }
-        while (chain.length) orderedLanes.push(chain.pop());
-      }
-      // Check overflow only after downstream belts/Stackers have released. A
-      // departing normal output must never trigger a spurious hand transfer.
-      const overflows = new Map();
-      for (const entry of oldLanes) if (D.machines[entry.machine.type].manualTransferSeconds) {
-        if (!overflows.has(entry.machine.id)) overflows.set(entry.machine.id, []);
-        overflows.get(entry.machine.id).push(entry);
-      }
-      const overflowVisited = new Set();
-      for (const entries of overflows.values()) {
-        const chain = []; let next = entries;
-        while (next && !overflowVisited.has(next[0].machine.id)) {
-          const machine = next[0].machine;
-          overflowVisited.add(machine.id); chain.push(next);
-          const output = ports(machine).find((point) => point.role === "output" && !point.mode), v = D.vectors[output.direction];
-          next = overflows.get(this.at.get(key(output.x + v.x, output.y + v.y))?.id);
-        }
-        while (chain.length) orderedLanes.push(...chain.pop());
-      }
-      for (const { machine, lane, item, ready } of orderedLanes) {
+      for (const { machine, lane, item } of oldLanes) {
         if (machine.lanes[lane] !== item) continue;
         if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
-        if (!ready) continue;
         const output = conveyorCells(machine)[Number(lane)];
         if (!output || !this.conveyorPowered(machine, output.x, output.y)) continue;
         if (item.lateral) {
@@ -1149,7 +1177,8 @@
         }
         if (output.upgrade && before + epsilon < 0.5 && item.progress + epsilon >= 0.5) applyCashEffect(item, machine.type);
         if ((machine.type === "primitive" || output.upgrade) && before + epsilon < 0.5 && item.progress + epsilon >= 0.5) this.recordOutput(machine, item);
-        if (item.progress >= 1 - epsilon) {
+        if (item.progress >= 1 - epsilon && (!D.machines[machine.type].maxStackSize
+          || item.quantity + epsilon >= this.stackTarget(machine, item))) {
           const stacking = Boolean(D.machines[machine.type].maxStackSize);
           const outgoing = stacking ? { ...copy(item), quantity: Math.min(item.quantity, this.stackTarget(machine, item)) } : item;
           const accepted = this.send(machine, outgoing, output);

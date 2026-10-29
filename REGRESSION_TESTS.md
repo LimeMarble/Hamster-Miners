@@ -60,6 +60,13 @@ future pipe tiers) are not treated as current acceptance requirements.
   self-blockage or banked bursts. Moves, setting reductions, saves, pickup and
   old-save stock migration preserve resources. UI typing stays mounted across
   ticks and invalid edits; generic placement/render lifecycle tests include it.
+  A ready partial stack of one accepts an arriving pair by releasing two and
+  retaining one, with all three items' properties combined before splitting.
+  Unready or blocked outlets keep the incoming pair intact upstream. Mixed
+  conveyor/Stacker lines sustain the two-second cadence in both construction
+  orders; closed loops and read-only probes cannot recurse or duplicate cargo.
+  Empty Grading Benches show a waiting hint instead of a fabricated Clay table;
+  real cargo supplies the displayed probabilities until the bench empties.
 
 - Settled-content tests cover exact Infuser/Shack/Bridge/Rock Drill prices,
   optional effect fields, no ingredient consumption, new material base values,

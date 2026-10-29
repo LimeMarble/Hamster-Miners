@@ -57,6 +57,24 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Existing saves gain empty inventories for both machines and both Copper
   products, without granting machines or changing existing progress.
 
+## noammo Stacker handoffs and grading display (implemented, 2026-10-29)
+
+- A partial stack's conveyor timer advances while it fills. Once ready, an
+  incoming stack can combine and release a target-sized output in one transfer,
+  leaving the remainder inside. For target two: one waiting plus two incoming
+  becomes two outgoing plus one waiting, without splitting the arriving pair
+  across extra transfers. The retained amount remains bounded by the target.
+- Value, grade probabilities, graded state and upgrade/material histories are
+  combined over the full quantity before the outgoing/remainder split. Every
+  successful dispatch resets the remaining stack's timer; blocked time grants
+  only one ready dispatch, never a burst. Read-only probes and closed loops
+  preserve cargo. Smaller receiving buffers can accept legal portions.
+- One cached downstream-first conveyor order covers ordinary belts, Stackers
+  and internal machine conveyors, eliminating extra ticks from mixed lines.
+  The order is rebuilt only when the layout changes.
+- Empty Grading Benches show a waiting hint. Grade chances are displayed only
+  for actual input, a running job or waiting finished cargo.
+
 ## noammo opening prototype (2026-10-18)
 
 - Entry: `noammo.html`, linked from the existing game. This is a separate playable

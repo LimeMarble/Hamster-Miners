@@ -495,9 +495,11 @@
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit)} · Finished items: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "gradingBench") {
-        const item = machine.job?.input ?? machine.input[0] ?? machine.output[0] ?? A.cargo("clay");
-        const probabilities = A.gradeProbabilities(item);
-        text($("gradingChances"), `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`);
+        const item = machine.job?.input ?? machine.input[0] ?? machine.output[0];
+        const probabilities = item && A.gradeProbabilities(item);
+        text($("gradingChances"), probabilities
+          ? `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`
+          : "Waiting for an item to show its grade chances.");
       }
       if (D.machines[machine.type].heatCapacity) {
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines[machine.type].heatCapacity)}u`);
