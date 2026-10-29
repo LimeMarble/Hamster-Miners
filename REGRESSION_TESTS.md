@@ -725,10 +725,15 @@ future pipe tiers) are not treated as current acceptance requirements.
   bounded blocked production. A real front-priority belt merge feeds a Furnace.
   Charcoal requires four Wood and exactly twelve seconds without fuel; Copper
   requires four ores, twenty seconds and 500ku. Tests cover weighted input cash,
-  fresh tags, blocked batch bounds, output pacing, mode changes/refunds, move,
+  fresh tags, blocked batch bounds, output pacing, automatic recipe changes, move,
   pickup, retained molten output, instance isolation and corrupt-save rejection.
   Legacy heat rescales once without fuel refunds; UI controls stay mounted and
-  Shop costs, selected mode and heat displays reflect current data.
+  Shop costs, automatic recipe and heat displays reflect current data.
+  Both thermal machines use upper-rear fuel and middle-rear material intakes
+  in every rotation. Wood through each channel has a distinct role; invalid
+  channels reject inputs without burning feed or replacing queued materials.
+  Next-recipe arrival preserves the active job, and old manual-selection saves
+  migrate once without losing their heat, jobs, pending feed or finished output.
 - Copper finishing covers one-second direct molding in all facings and both
   construction orders; fractional liquid input, bounded pending/working/output
   buffers, no consumable Clay, value preservation, retained liquid on pickup,

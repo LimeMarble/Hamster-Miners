@@ -45,7 +45,7 @@ test('Molder and Chimes have agreed atomic purchase costs, staffing and footprin
 for (const facing of D.directions) test(`Furnace → Molder ${facing}: direct liquid feed sustains 1 ingot/s in either construction order`, () => {
   for (const reversed of [false, true]) {
     const f = new Factory(A.createState(1)), furnace = place(f, 'primitiveFurnace', 40, 40, facing);
-    f.setFurnaceMode(furnace.id, 'copper'); furnace.output = [cargo('moltenCopper', 4, 108.4)]; furnace.outputCooldown = 2;
+    furnace.output = [cargo('moltenCopper', 4, 108.4)]; furnace.outputCooldown = 2;
     const output = ports(furnace).find(p => p.role === 'output'), v = D.vectors[output.direction];
     const local = ports({ type: 'ingotMolder', x: 0, y: 0, facing }).find(p => p.role === 'input');
     const m = place(f, 'ingotMolder', output.x + v.x - local.x, output.y + v.y - local.y, facing);
@@ -114,14 +114,14 @@ test('Molding uses declared material mappings and excludes refractory-only Cast 
   assert.equal(other.Factory.importSave(f.exportSave()).state.machines[0].output[0].material, 'testIngot');
 });
 
-test('Copper Chimes has one shared 1.25 use, an incoming $5k cap, per-item eligibility and no output clamp', () => {
+test('Copper Chimes has one shared 1.25 use, an incoming $25k cap, per-item eligibility and no output clamp', () => {
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
   const m = place(f, 'copperChimes', 40, 40), other = place(f, 'copperChimes', 43, 40);
-  assert.deepEqual(D.machines.copperChimes.cashEffect, { multiplier: 1.25, useLimit: 1, upperLimit: 5000 });
-  for (const [value, expected] of [[1600, 2000], [4000, 5000], [4999, 6248.75], [5000, 5000], [6000, 6000]]) {
+  assert.deepEqual(D.machines.copperChimes.cashEffect, { multiplier: 1.25, useLimit: 1, upperLimit: 2.5e4 });
+  for (const [value, expected] of [[1600, 2000], [4000, 5000], [4999, 6248.75], [5000, 6250], [6000, 7500], [24999, 31248.75], [25000, 25000], [26000, 26000]]) {
     let item = { ...cargo('copperIngot', 2, value), upgrades: { primitiveShack: 1 }, graded: true };
     item = pass(f, m, item); near(item.value, expected); assert.equal(item.quantity, 2); assert.equal(item.graded, true);
-    assert.equal(item.upgrades.primitiveShack, 1); assert.equal(item.upgrades.copperChimes, value < 5000 ? 1 : undefined);
+    assert.equal(item.upgrades.primitiveShack, 1); assert.equal(item.upgrades.copperChimes, value < 2.5e4 ? 1 : undefined);
     item = pass(f, other, item); near(item.value, expected);
   }
   const unpowered = place(f, 'copperChimes', 80, 80); assert.equal(feed(f, unpowered, cargo('copperIngot')), 0);
@@ -131,10 +131,12 @@ test('Copper Chimes has one shared 1.25 use, an incoming $5k cap, per-item eligi
 
 test('Actual copper smelting → molding → powered Chimes → collection preserves value and yields usable construction ingots', () => {
   const f = new Factory(A.createState(1)), furnace = place(f, 'primitiveFurnace', 40, 40);
-  f.setFurnaceMode(furnace.id, 'copper'); place(f, 'ingotMolder', 42, 40);
+  place(f, 'ingotMolder', 42, 40);
   place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down'); place(f, 'copperChimes', 43, 40);
   const basket = place(f, 'basket', 44, 41); f.state.inventory.clay = 100;
-  feed(f, furnace, cargo('wood', 17)); feed(f, furnace, { ...cargo('nativeCopper', 4, 27.1), upgrades: { primitiveShack: 1, brickSeal: 9 } });
+  const fuel = ports(furnace).find(p => p.channel === 'fuel'), material = ports(furnace).find(p => p.channel === 'material');
+  f.receive(furnace, cargo('wood', 17), fuel.x, fuel.y, fuel.direction, true);
+  f.receive(furnace, { ...cargo('nativeCopper', 4, 27.1), upgrades: { primitiveShack: 1, brickSeal: 9 } }, material.x, material.y, material.direction, true);
   // Chimes' primitive conveyor releases one ingot every two seconds.
   f.update(0.1); f.update(30);
   assert.equal(f.total(basket, 'contents'), 4); near(basket.contents[0].value, 135.5);

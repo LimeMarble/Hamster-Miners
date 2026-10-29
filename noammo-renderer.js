@@ -132,7 +132,7 @@
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
         } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
-          D.materials[point.material]?.color);
+          point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
       overflowMarkers(ctx, machine);
       if (machine.type !== "belt") {
@@ -238,7 +238,7 @@
         arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.65, "#f1edbd");
       }
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
-        point.role === "kineticInput" ? "#a8d6e2" : "#f1edbd");
+        point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
       overflowMarkers(ctx, preview);
     }
     const box = interaction.marquee ?? interaction.box;

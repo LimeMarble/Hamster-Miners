@@ -10,8 +10,9 @@ function place(factory, type, x, y, facing = "right") {
   assert.equal(result.error, undefined, result.error);
   return result.machine;
 }
-function feed(factory, kiln, material, quantity = 1, value = D.materials[material].value, inputIndex = 0, consume = true) {
-  const point = ports(kiln).filter((entry) => entry.role === "input")[inputIndex];
+function feed(factory, kiln, material, quantity = 1, value = D.materials[material].value, inputIndex = undefined, consume = true) {
+  const point = inputIndex === undefined ? ports(kiln).find(entry => entry.channel === (D.materials[material].heat ? 'fuel' : 'material'))
+    : ports(kiln).filter((entry) => entry.role === "input")[inputIndex];
   return factory.receive(kiln, cargo(material, quantity, value), point.x, point.y, point.direction, consume);
 }
 function advance(factory, seconds) {
@@ -53,8 +54,8 @@ test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free un
   const kiln = factory.place("kiln", 40, 40).machine;
   assert.deepEqual(A.size(kiln), { width: 2, height: 3 }); assert.equal(cells(kiln).length, 6);
   assert.deepEqual(ports(kiln), [
-    { x: 40, y: 40, direction: "left", role: "input" },
-    { x: 40, y: 41, direction: "left", role: "input" },
+    { x: 40, y: 40, direction: "left", role: "input", channel: "fuel" },
+    { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
     { x: 41, y: 41, direction: "right", role: "output" },
   ]);
   assert.equal(factory.availableCrew(), 8); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 10);
@@ -62,8 +63,8 @@ test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free un
   assert.match(factory.place("kiln", 40, 40).error, /hamsters/);
 });
 
-test("Fuel becomes heat immediately, has a 250ku capacity, accepts at 220ku and rejects above it on either input", () => {
-  for (const index of [0, 1]) {
+test("Only the fuel intake burns Wood, capped at 250ku; material and output ports reject fuel", () => {
+  for (const index of [0]) {
     const { factory, kiln } = setup();
     assert.equal(D.materials.wood.heat, 30000);
     const before = factory.exportSave();
@@ -79,6 +80,8 @@ test("Fuel becomes heat immediately, has a 250ku capacity, accepts at 220ku and 
     kiln.heat = 0;
     assert.equal(feed(factory, kiln, "wood", 0.5, 0.1, index), 0);
     assert.equal(feed(factory, kiln, "clay", 1, 0.25, index), 0);
+    assert.equal(feed(factory, kiln, "wood", 1, 0.1, 1), 0);
+    assert.equal(feed(factory, kiln, "unfiredBrick", 4, 0.25, index), 0);
     const output = ports(kiln).find((entry) => entry.role === "output");
     assert.equal(factory.receive(kiln, cargo("wood"), output.x, output.y, "right", true), 0);
   }
@@ -108,7 +111,7 @@ test("Both firing recipes require full batches and 80ku, consume heat only at st
 });
 
 test("Firing retains each upgraded input's own value, not an average or a base-value reset", () => {
-  const { factory, kiln } = setup(), input = ports(kiln)[0];
+  const { factory, kiln } = setup(), input = ports(kiln).find(p => p.channel === 'material');
   const upgraded = cargo("unfiredBrick", 1, 4.2); upgraded.upgrades.primitive = 4;
   factory.receive(kiln, upgraded, input.x, input.y, input.direction, true);
   feed(factory, kiln, "unfiredBrick", 3, 1.05, 1); feed(factory, kiln, "wood", 3);
@@ -120,13 +123,13 @@ test("Firing retains each upgraded input's own value, not an average or a base-v
   near(kiln.output.reduce((sum, item) => sum + item.value * item.quantity, 0), (4.2 + 3 * 1.05) * 4);
 });
 
-test("Shared inputs stop at one pending batch, reject incompatible/fractional ingredients, and reopen after consumption", () => {
+test("Material intake stops at one pending batch, rejects incompatible/fractional ingredients, and reopens after consumption", () => {
   const { factory, kiln } = setup();
   assert.equal(feed(factory, kiln, "unfiredBrick", 3), 3);
   assert.equal(feed(factory, kiln, "unfiredPot", 2, 1, 1), 0);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100, 0.25, 1), 1);
   assert.equal(feed(factory, kiln, "unfiredBrick", 100), 0);
-  assert.equal(feed(factory, kiln, "wood", 3, 0.1, 1), 3);
+  assert.equal(feed(factory, kiln, "wood", 3, 0.1), 3);
   factory.update(0.1);
   assert.equal(feed(factory, kiln, "unfiredPot", 100, 4.2, 1), 2);
   assert.equal(feed(factory, kiln, "unfiredPot", 1), 0);
@@ -189,17 +192,17 @@ test("Kiln sustains one brick every two seconds through an actual powered belt, 
   }
 });
 
-test("Actual Clay Pit → shaping → firing → collection works through either kiln input in every rotation", () => {
-  for (const facing of D.directions) for (const inputIndex of [0, 1]) {
+test("Actual Clay Pit → shaping → firing → collection works through the material intake in every rotation", () => {
+  for (const facing of D.directions) {
     const factory = new Factory(createState(1)), kiln = place(factory, "kiln", 40, 40, facing);
-    const input = ports(kiln)[inputIndex], v = D.vectors[facing];
+    const input = ports(kiln).find(p => p.channel === 'material'), v = D.vectors[facing];
     const benchOffset = ports({ type: "clayShaper", x: 0, y: 0, facing }).find((point) => point.role === "output");
     const bench = place(factory, "clayShaper", input.x - v.x - benchOffset.x, input.y - v.y - benchOffset.y, facing);
     const benchInput = ports(bench)[0];
     require('./helpers/noammo-centered.cjs').attachPitFeed(factory, benchInput, facing);
     const output = ports(kiln).find((point) => point.role === "output");
     const basket = place(factory, "basket", output.x + v.x, output.y + v.y);
-    feed(factory, kiln, "wood", 6, 0.1, 1 - inputIndex);
+    feed(factory, kiln, "wood", 6, 0.1);
     advance(factory, 119);
     assert.equal(factory.total(basket, "contents"), 8);
     assert.equal(basket.contents[0].material, "brick"); assert.equal(basket.contents[0].value, 1);

@@ -10,7 +10,7 @@ function place(f, type, x = 40, y = 40, facing = 'right') {
   f.state.stock[type]++; const result = f.place(type, x, y, facing); assert.equal(result.error, undefined, result.error); return result.machine;
 }
 function feed(f, m, item) {
-  const p = ports(m).find(p => p.role === 'input'); return f.receive(m, item, p.x, p.y, p.direction, true);
+  const p = ports(m).find(p => p.role === 'input' && (!p.channel || p.channel === 'material')); return f.receive(m, item, p.x, p.y, p.direction, true);
 }
 function setup(facing = 'right', side = 0) {
   const f = new Factory(A.createState(1)), m = place(f, 'leekDuster', 40, 40, facing);
@@ -24,9 +24,8 @@ function dust(f, m, item) {
   for (let i = 0; i < 60; i++) f.update(0.1);
   const result = A.copy(m.lanes[2]); assert.ok(result); delete m.lanes[2]; return result;
 }
-function fire(f, item, type = 'kiln', mode) {
+function fire(f, item, type = 'kiln') {
   const m = place(f, type, 60, 40);
-  if (mode) f.setFurnaceMode(m.id, mode);
   m.heat = D.machines[type].heatCapacity;
   assert.equal(feed(f, m, item), item.quantity); f.update(0.1);
   assert.ok(m.job); f.update(type === 'kiln' ? 8 : 20);

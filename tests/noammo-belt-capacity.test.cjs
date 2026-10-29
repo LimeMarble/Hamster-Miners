@@ -106,7 +106,7 @@ test('thermal solid unloading follows receiving conveyor speed, while molten out
     f.update(3 * seconds); assert.equal(f.total(basket, 'contents'), 4);
     assert.equal(kiln.output.length, 0); assert.equal(basket.contents[0].value, 17);
     const furnace = place(f, 'primitiveFurnace', 50, 40), molder = place(f, 'ingotMolder', 52, 40);
-    furnace.mode = 'copper'; furnace.output.push(api.cargo('moltenCopper', 4)); furnace.outputCooldown = 2;
+    furnace.output.push(api.cargo('moltenCopper', 4)); furnace.outputCooldown = 2;
     f.update(0.1);
     assert.equal(f.total(furnace, 'output'), 3);
     assert.equal(molder.job.input.quantity, 1, 'fluid transfer bypasses solid unloading cooldowns and belt limits');

@@ -25,6 +25,8 @@
   }
   const supportsOutputHistory = (type) => type === "primitive" || type === "gradingBench" || Boolean(D.machines[type]?.cashEffect);
   const isCrafter = (definition) => Boolean(definition.craftInput || definition.molder || definition.pressModes);
+  const thermalRecipeEntry = (definition, material) => Object.entries(definition.recipes)
+    .find(([id, recipe]) => (recipe.material ?? id) === material);
   function moldingProduct(material) {
     const source = D.materials[material], product = D.materials[source?.moldsTo];
     return source?.fluid && !source.requiresRefractoryCaster && product && !product.fluid && !product.requiresRefractoryCaster
@@ -75,6 +77,7 @@
       ...(point.material ? { material: point.material } : {}),
       ...(point.mode ? { mode: point.mode } : {}),
       ...(point.span ? { span: point.span } : {}),
+      ...(point.channel ? { channel: point.channel } : {}),
     }));
     if (D.machines[machine.type].centeredOutput) {
       const definition = D.machines[machine.type];
@@ -312,7 +315,7 @@
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -817,27 +820,17 @@
       this.startGrading(machine);
     }
     furnaceRecipe(machine) {
-      const definition = D.machines[machine.type];
-      return definition.recipes[definition.manualRecipes ? machine.mode : machine.input[0]?.material];
-    }
-    setFurnaceMode(id, mode) {
-      const machine = this.byId.get(id), definition = D.machines[machine?.type];
-      if (!definition?.manualRecipes || !Object.hasOwn(definition.recipes, mode)) return { error: "Invalid furnace mode." };
-      if (machine.mode !== mode) {
-        for (const item of machine.input) this.state.inventory[item.material] += item.quantity;
-        machine.input = []; machine.mode = mode;
-      }
-      return { machine };
+      return thermalRecipeEntry(D.machines[machine.type], machine.input[0]?.material)?.[1];
     }
     startKiln(machine) {
-      const definition = D.machines[machine.type], recipe = this.furnaceRecipe(machine);
+      const definition = D.machines[machine.type], entry = thermalRecipeEntry(definition, machine.input[0]?.material), recipe = entry?.[1];
       if (machine.job || !recipe || this.total(machine, "input") + epsilon < recipe.input) return;
       const heat = (recipe.heatPerSecond ?? definition.heatPerSecond) * recipe.seconds;
       if (machine.heat + epsilon < heat) return;
       // Full batches and their heat are committed together. Preserve each input's
       // value separately rather than averaging differently upgraded products.
       machine.heat = Math.max(0, machine.heat - heat);
-      machine.job = { recipe: definition.manualRecipes ? machine.mode : machine.input[0].material,
+      machine.job = { recipe: entry[0],
         inputs: machine.input.splice(0), remaining: recipe.seconds };
     }
     finishKiln(machine) {
@@ -1024,15 +1017,13 @@
           if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
         }
       } else if (D.machines[machine.type].heatCapacity && input) {
-        const definition = D.machines[machine.type], recipe = this.furnaceRecipe(machine);
-        const recipeKey = definition.manualRecipes ? recipe?.material : item.material;
-        const feedRecipe = definition.manualRecipes ? recipe : definition.recipes[item.material];
-        const isIngredient = feedRecipe && recipeKey === item.material;
+        const definition = D.machines[machine.type];
+        const feedRecipe = thermalRecipeEntry(definition, item.material)?.[1];
         const fuelHeat = D.materials[item.material].heat;
-        if (isIngredient && machine.input.every((entry) => entry.material === item.material)) {
+        if (input.channel === "material" && feedRecipe && machine.input.every((entry) => entry.material === item.material)) {
           quantity = Math.max(0, Math.min(Math.floor(item.quantity), feedRecipe.input - this.total(machine, "input")));
           if (consume && quantity > 0) machine.input.push({ ...copy(item), quantity, progress: 0 });
-        } else if (!isIngredient && Number.isFinite(fuelHeat) && fuelHeat > 0) {
+        } else if (input.channel === "fuel" && Number.isFinite(fuelHeat) && fuelHeat > 0) {
           quantity = Math.min(Math.floor(item.quantity), Math.floor((definition.heatCapacity - machine.heat + epsilon) / fuelHeat));
           if (consume && quantity > 0) machine.heat += quantity * fuelHeat;
         }
@@ -1272,7 +1263,7 @@
         if (machine.output.length) return D.materials[machine.output[0].material].fluid
           ? `${D.materials[machine.output[0].material].name} waiting for molding` : "Output waiting";
         const recipe = this.furnaceRecipe(machine);
-        if (!recipe) return "Waiting for unfired Bricks or Pots";
+        if (!recipe) return "Waiting for material";
         if (this.total(machine, "input") < recipe.input) return `Waiting for a full batch · ${this.total(machine, "input")} / ${recipe.input}`;
         return `Waiting for heat · ${formatNumber(recipe.seconds * (recipe.heatPerSecond ?? D.machines[machine.type].heatPerSecond))}u required`;
       }
@@ -1387,6 +1378,15 @@
       const legacyRoutes = state.routes === undefined ? [] : state.routes;
       if (!Array.isArray(state.machines) || !Array.isArray(state.trees) || !Array.isArray(legacyRoutes)
         || !Array.isArray(state.storedMachines)) throw new Error("Incomplete prototype save.");
+      if ((state.thermalAutoVersion ?? 0) < 1) {
+        for (const machine of [...state.machines, ...state.storedMachines]) {
+          const definition = D.machines[machine.type];
+          if (!definition?.automaticRecipes || machine.mode === undefined) continue;
+          if (!Object.hasOwn(definition.recipes, machine.mode)) throw new Error("Invalid legacy furnace mode.");
+          delete machine.mode;
+        }
+        state.thermalAutoVersion = 1;
+      }
       delete state.routes;
       if ((state.loggerSpeedVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
@@ -1576,8 +1576,8 @@
         }
         if (D.machines[machine.type].heatCapacity) {
           const definition = D.machines[machine.type];
-          if (definition.manualRecipes && !Object.hasOwn(definition.recipes, machine.mode)) throw new Error("Invalid furnace mode.");
-          const inputRecipe = definition.recipes[definition.manualRecipes ? machine.mode : machine.input[0]?.material];
+          if (definition.automaticRecipes && machine.mode !== undefined) throw new Error("Invalid furnace recipe selection.");
+          const inputRecipe = thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
           const outputRecipe = Object.values(definition.recipes).find((recipe) => recipe.output === machine.output[0]?.material);
           const jobRecipe = definition.recipes[machine.job?.recipe];
           if (!Number.isFinite(machine.heat) || machine.heat < 0 || machine.heat > definition.heatCapacity

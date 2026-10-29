@@ -192,12 +192,12 @@ test('Copper finishing Shop prices, effects and molder production controls use s
     shopCard(ui, type).emit('click');
     assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), expected);
     if (type === 'copperChimes') assert.deepEqual(ui.ids.get('shopDetail').children.filter(n => n.className === 'machine-effect').map(n => n.textContent),
-      ['Cash effect: ×1.25', 'Use Limit: 1', 'Upper Limit: $5k']);
+      ['Cash effect: ×1.25', 'Use Limit: 1', 'Upper Limit: $25k']);
     ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock[type], 1);
   }
   f.state.stock.primitiveFurnace = 1; f.state.stock.ingotMolder = 1; f.state.stock.basket++;
   const furnace = f.place('primitiveFurnace', 121, 121).machine;
-  f.setFurnaceMode(furnace.id, 'copper'); furnace.output = [A.cargo('moltenCopper', 4, 108.4)];
+  furnace.output = [A.cargo('moltenCopper', 4, 108.4)];
   f.place('ingotMolder', 123, 121); const basket = f.place('basket', 124, 122).machine;
   ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(123, 121));
   const buffers = ui.ids.get('molderBuffers'), move = ui.ids.get('moveMachine');
@@ -216,14 +216,13 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
     furnace.heat = 240000; furnace.outputCooldown = 1.5;
     furnace.input.push(A.cargo(type === 'kiln' ? 'unfiredBrick' : 'nativeCopper'));
     furnace.output.push(A.cargo(type === 'kiln' ? 'pot' : 'moltenCopper', type === 'kiln' ? 2 : 4));
-    if (type !== 'kiln') furnace.mode = 'copper';
     f.place('basket', 124, 122);
     const ui = boot(f.exportSave()), canvas = ui.ids.get('cargo'), panel = ui.ids.get('inspector');
     canvas.emit('click', screenPoint(121, 121)); ui.frame(100);
     assert.ok(descendants(panel).some(node => node.id === 'kilnHeat'));
     if (group) box(ui, [120, 120], [125, 123]);
     const pickup = ui.ids.get(group ? 'pickupGroup' : 'pickupMachine'); pickup.emit('click');
-    for (const id of ['machineStatus', 'kilnHeat', 'kilnBuffers', 'furnaceMode', 'pickupMachine', 'pickupGroup']) {
+    for (const id of ['machineStatus', 'kilnHeat', 'kilnBuffers', 'furnaceRecipe', 'furnaceMode', 'pickupMachine', 'pickupGroup']) {
       assert.equal(descendants(panel).some(node => node.id === id), false, `${type}: ${id} must leave the panel immediately`);
     }
     ui.frame(200);
@@ -242,10 +241,10 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
   }
 });
 
-test('Copper industry Shop costs and furnace mode, heat and buffers stay current without remounting controls', () => {
+test('Copper industry Shop costs and automatic furnace recipe, heat and buffers stay current without remounting controls', () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 250000;
   Object.assign(f.state.inventory, { granite: 200, chert: 50, woodenGear: 20, wood: 40, brick: 200, clay: 50 });
-  const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  let ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   for (const [type, expected] of [
     ['copperDrill', ['$250k / $60k', '200 / 100', '50 / 50', '20 / 20', '40 / 40']],
     ['primitiveFurnace', ['$190k / $190k', '200 / 200', '100 / 100', '50 / 50']],
@@ -256,15 +255,20 @@ test('Copper industry Shop costs and furnace mode, heat and buffers stay current
   }
   chooseMachine(ui, 'primitiveFurnace'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
-  const mode = ui.ids.get('furnaceMode'), heat = ui.ids.get('kilnHeat'), move = ui.ids.get('moveMachine');
-  assert.deepEqual(mode.children.map(o => [o.value, o.textContent]), [['charcoal', 'Charcoal · 12s'], ['copper', 'Copper smelting · 20s']]);
+  assert.equal(ui.ids.get('furnaceMode'), undefined);
+  assert.equal(ui.ids.get('furnaceRecipe').textContent, 'Recipe: waiting for material');
+  const live = A.Factory.importSave(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: ui.state() }));
+  const furnace = live.state.machines.find(m => m.type === 'primitiveFurnace'), material = A.ports(furnace).find(p => p.channel === 'material');
+  live.receive(furnace, A.cargo('nativeCopper', 4), material.x, material.y, material.direction, true);
+  ui = boot(live.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const recipe = ui.ids.get('furnaceRecipe'), heat = ui.ids.get('kilnHeat'), move = ui.ids.get('moveMachine');
+  assert.equal(recipe.textContent, 'Recipe: Copper smelting · 20s');
   assert.equal(heat.textContent, 'Heat: 0 / 1Mu');
-  mode.value = 'copper'; mode.emit('change');
   for (let n = 1; n <= 30; n++) ui.frame(n * 100);
-  assert.equal(ui.ids.get('furnaceMode'), mode); assert.equal(ui.ids.get('kilnHeat'), heat); assert.equal(ui.ids.get('moveMachine'), move);
-  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').mode, 'copper');
+  assert.equal(ui.ids.get('furnaceRecipe'), recipe); assert.equal(ui.ids.get('kilnHeat'), heat); assert.equal(ui.ids.get('moveMachine'), move);
+  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').mode, undefined);
   move.emit('click'); ui.ids.get('rotateRight').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(125, 121));
-  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').mode, 'copper');
+  assert.equal(ui.state().machines.find(m => m.type === 'primitiveFurnace').input[0].material, 'nativeCopper');
 });
 
 function viewCenter(view) {
@@ -1044,8 +1048,8 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   factory.state.inventory.leekFiber = 15;
   assert.equal(factory.buy("kiln").amount, 1);
   const kiln = factory.place("kiln", 121, 121).machine;
-  const [input] = A.ports(kiln);
-  factory.receive(kiln, A.cargo("wood", 3), input.x, input.y, input.direction, true);
+  const input = A.ports(kiln).find(p => p.channel === 'material'), fuel = A.ports(kiln).find(p => p.channel === 'fuel');
+  factory.receive(kiln, A.cargo("wood", 3), fuel.x, fuel.y, fuel.direction, true);
   factory.receive(kiln, A.cargo("unfiredBrick", 4, 1.05), input.x, input.y, input.direction, true);
   ui = boot(factory.exportSave());
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));

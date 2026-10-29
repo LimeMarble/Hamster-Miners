@@ -33,7 +33,8 @@ function repeat(factory, seal, item, count) {
 }
 function near(actual, expected) { assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} ≈ ${expected}`); }
 function receive(factory, machine, item) {
-  const input = ports(machine).find((point) => point.role === "input");
+  const input = ports(machine).find((point) => point.role === "input"
+    && (!point.channel || point.channel === (D.materials[item.material].heat ? "fuel" : "material")));
   return factory.receive(machine, item, input.x, input.y, input.direction, true);
 }
 

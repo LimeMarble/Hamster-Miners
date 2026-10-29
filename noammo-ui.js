@@ -390,18 +390,9 @@
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
-            ? "Full batches only. Each firing consumes 80ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Either input accepts fuel or unfired products."
-            : "Full batches only. Charcoal mode uses Wood as its ingredient, without external heat. Copper mode accepts fuel through either input and consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
-          if (definition.manualRecipes) {
-            const label = element("label", "Furnace mode "), mode = element("select");
-            mode.id = "furnaceMode"; mode.setAttribute("aria-label", "Furnace mode");
-            for (const [id, recipe] of Object.entries(definition.recipes)) {
-              const option = element("option", `${recipe.name} · ${recipe.seconds}s`); option.value = id; mode.append(option);
-            }
-            mode.value = machine.mode;
-            mode.addEventListener("change", () => result(factory.setFurnaceMode(machine.id, mode.value)));
-            label.append(mode); panel.append(label, element("p", "Changing mode returns waiting ingredients to inventory. The current batch finishes normally, and finished output stays in the furnace.", "muted"));
-          }
+            ? "Full batches only. Each firing consumes 80ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Amber arrow: Fuel. Pale arrow: Feed."
+            : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
+          const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
         }
         if (machine.type === "potSpinner") {
           const buffers = element("p"); buffers.id = "spinnerBuffers";
@@ -502,6 +493,12 @@
           : "Waiting for an item to show its grade chances.");
       }
       if (D.machines[machine.type].heatCapacity) {
+        const definition = D.machines[machine.type];
+        const recipe = definition.recipes[machine.job?.recipe] ?? factory.furnaceRecipe(machine)
+          ?? Object.values(definition.recipes).find(entry => entry.output === machine.output[0]?.material);
+        text($("furnaceRecipe"), recipe
+          ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${number(recipe.seconds)}s`
+          : "Recipe: waiting for material");
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines[machine.type].heatCapacity)}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }

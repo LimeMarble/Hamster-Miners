@@ -208,8 +208,9 @@ test("graded Clay retains its averaged quality and value through actual shaping 
   factory.receive(shaper, fine, input.x, input.y, input.direction, true);
   factory.update(4.1); near(shaper.output[0].value, (7.5 + 15) * 2);
   assert.equal(shaper.output[0].graded, true); assert.deepEqual(shaper.output[0].upgrades, {});
-  const kiln = place(factory, "kiln", 50, 40), intake = A.ports(kiln)[0];
-  factory.receive(kiln, A.cargo("wood", 8), intake.x, intake.y, intake.direction, true);
+  const kiln = place(factory, "kiln", 50, 40), intake = A.ports(kiln).find(p => p.channel === 'material');
+  const fuel = A.ports(kiln).find(p => p.channel === 'fuel');
+  factory.receive(kiln, A.cargo("wood", 8), fuel.x, fuel.y, fuel.direction, true);
   factory.receive(kiln, { ...A.copy(shaper.output[0]), quantity: 2 }, intake.x, intake.y, intake.direction, true);
   factory.update(8.1); near(kiln.output[0].value, 180); assert.equal(kiln.output[0].graded, true);
   near(rolled(kiln.output[0], 1500).value, 180);

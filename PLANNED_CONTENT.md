@@ -75,6 +75,23 @@ Implemented entries are marked below; the remaining decisions are not yet conten
 - Empty Grading Benches show a waiting hint. Grade chances are displayed only
   for actual input, a running job or waiting finished cargo.
 
+## Thermal recipe families (2026-10-29)
+
+- Implemented: the operating hamsters choose the Clay Kiln and Primitive
+  Furnace recipes from the material intake and manage transfers. In the right-facing footprint, the top-left
+  input is fuel (amber) and the middle-left input is material (pale), beside
+  the output. Fuel never becomes feed and feed never burns as fuel.
+- The inspector shows the active or pending recipe, with no manual
+  recipe selector. Running jobs retain their recipe when different material
+  is queued for the next batch; pending intake still holds one homogeneous
+  full batch at most. Existing saves retain jobs, heat, input and output while
+  their obsolete manual Furnace mode is removed once.
+- Planned, not implemented: Crucible Furnace has explicit one-input and
+  two-input recipe-family modes. Within each family the exact recipe follows
+  the incoming materials, chosen by the operating hamsters. Two-input mode must not single-smelt
+  incoming Copper while it is waiting for Tin for Bronze. These are input-count
+  modes, not separate manual selections for every alloy or metal.
+
 ## noammo opening prototype (2026-10-18)
 
 - Entry: `noammo.html`, linked from the existing game. This is a separate playable
@@ -217,7 +234,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   ```
 
   The upper four cells are the Kiln; the lower two are the operating hamsters.
-  Both left inputs accept either fuel or unfired products. Full batches only:
+  The upper-left input accepts fuel; the middle-left input accepts material,
+  with the operating hamsters choosing the recipe and handling transfers. Full batches only:
   4 Unfired Bricks -> 4 Bricks or 2 Unfired Pots -> 2 Fired Pots in 8 seconds.
   Each product keeps its own incoming value multiplied by 4, without averaging
   different input values. Fired Brick base value/weight are $1/1; Fired Pot
@@ -408,14 +426,14 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   crew beyond the connected Wheel. Production pauses without kinetic power
   or when its single-item output is full; no banked cycles.
 - Primitive Furnace: $190k, 200 Bricks, 100 Granite and 50 Clay; two crew.
-  Uses Clay Kiln's solid 2x3 footprint and ports: two left inputs at the top
-  and middle rows, and one right output in the middle row. Both inputs work
-  identically, with bounded whole-item feed/fuel acceptance.
-- Selected Charcoal mode: 4 Wood -> 2 Charcoal in 12 seconds, requiring zero
-  external heat. Wood is recipe feed in this mode, never accidentally burned
-  as fuel. Total incoming cash value is preserved ($0.20 base per Charcoal).
+  Uses Clay Kiln's solid 2x3 footprint and ports: upper-left fuel intake,
+  middle-left material intake and middle-right output, rotating together.
+  Fuel and material have separate bounded whole-item acceptance.
+- Charcoal recipe: 4 Wood -> 2 Charcoal in 12 seconds, requiring zero
+  external heat. Wood through the material intake is recipe feed; Wood through
+  the fuel intake adds heat. Total incoming cash value is preserved ($0.20 base per Charcoal).
   Charcoal weighs 1 and provides 240ku of heat.
-- Selected Copper mode: 4 Native Copper -> 4 Molten Copper in 20 seconds,
+- Copper recipe: 4 Native Copper -> 4 Molten Copper in 20 seconds,
   consuming 500ku once at start (25ku/s). The finished batch averages its
   input values and multiplies by 4; new-material cash-use tags reset.
   Molten Copper has $6 nominal base value and weight 1; it is a fluid, not
@@ -456,8 +474,8 @@ Implemented entries are marked below; the remaining decisions are not yet conten
   occupied cells in a vertical column with a right-facing middle conveyor;
   kinetic power and two-second transit, rotating normally.
 - Cash effect: x1.25 once across all Chimes instances, incoming value strictly
-  below $5k, no base-value minimum. Eligibility is per item, and the final
-  result can exceed $5k. New-material transformations renew cash eligibility.
+  below $25k, no base-value minimum. Eligibility is per item, and the final
+  result can exceed $25k. New-material transformations renew cash eligibility.
   Uses and other cargo metadata persist through ordinary moves and saves.
 - Older noammo saves gain zero stock/counts for these additions. Shop,
   Inventory, Recipes, stable machine controls and recent output history use

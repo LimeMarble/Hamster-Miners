@@ -183,29 +183,34 @@
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
         cost: { cash: 300, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
-        heatCapacity: 250000, heatPerSecond: 10000, outputSeconds: 2,
+        heatCapacity: 250000, heatPerSecond: 10000, outputSeconds: 2, automaticRecipes: true,
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
+          { x: 1, y: 1, direction: "right", role: "output" },
+        ],
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 8, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
           unfiredPot: { input: 2, output: "pot", seconds: 8, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
         },
-        description: "Fires four unfired Bricks or two unfired Pots in eight seconds, multiplying their value by four. Either input accepts fuel or unfired products. Uses two hamsters.",
+        description: "Fires four unfired Bricks or two unfired Pots in eight seconds, multiplying their value by four. Two operating hamsters choose the recipe and handle transfers. Separate material and fuel intakes.",
       },
       primitiveFurnace: {
         name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,
         labelLines: ["Primitive", "Furnace"],
         cost: { cash: 190000, materials: { brick: 200, granite: 100, clay: 50 } },
         heatCapacity: 1000000, heatPerSecond: 25000, outputSeconds: 2,
-        manualRecipes: true, defaultMode: "charcoal",
+        automaticRecipes: true,
         ports: [
-          { x: 0, y: 0, direction: "left", role: "input" },
-          { x: 0, y: 1, direction: "left", role: "input" },
+          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
           { x: 1, y: 1, direction: "right", role: "output" },
         ],
         recipes: {
           charcoal: { name: "Charcoal", material: "wood", input: 4, output: "charcoal", outputQuantity: 2, seconds: 12, heatPerSecond: 0, valueMultiplier: 1 },
           copper: { name: "Copper smelting", material: "nativeCopper", input: 4, output: "moltenCopper", outputQuantity: 4, seconds: 20, valueMultiplier: 4, gradePromotion: 1 },
         },
-        description: "Makes two Charcoal from four Wood in twelve seconds without external heat, or smelts four Native Copper in twenty seconds using 500ku of heat. Feeds molten Copper directly into an Ingot Molder. Uses two hamsters.",
+        description: "Makes two Charcoal from four Wood in twelve seconds without external heat, or smelts four Native Copper in twenty seconds using 500ku of heat. Two operating hamsters choose the recipe and handle transfers. Separate material and fuel intakes. Feeds molten Copper directly into an Ingot Molder.",
       },
       ingotMolder: {
         name: "Ingot Molder", width: 1, height: 2, color: "#b99472", category: "Material", crew: 1,
@@ -328,7 +333,7 @@
         name: "Copper Chimes", width: 1, height: 3, color: "#c58a5a", category: "Cash",
         labelLines: ["Copper", "Chimes"], labelCell: [0, 0], conveyors: [[0, 1]],
         cost: { cash: 300000, materials: { leekFiber: 200, wood: 50, copperIngot: 10 }, machines: { belt: 1 } },
-        cashEffect: { multiplier: 1.25, useLimit: 1, upperLimit: 5000 },
+        cashEffect: { multiplier: 1.25, useLimit: 1, upperLimit: 2.5e4 },
         description: "Increases the value of passing sellables by 25% once. Requires kinetic power for its conveyor.",
       },
       belt: {

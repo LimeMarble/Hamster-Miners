@@ -7,8 +7,8 @@ function place(f, type, x, y, facing = 'right') {
   f.state.stock[type]++;
   const result = f.place(type, x, y, facing); assert.equal(result.error, undefined, result.error); return result.machine;
 }
-function feed(f, m, material, quantity, index = 0, value = D.materials[material].value, consume = true) {
-  const p = ports(m).filter(p => p.role === 'input')[index];
+function feed(f, m, material, quantity, channel = 'material', value = D.materials[material].value, consume = true) {
+  const p = ports(m).find(p => p.role === 'input' && p.channel === channel);
   return f.receive(m, cargo(material, quantity, value), p.x, p.y, p.direction, consume);
 }
 function wheelFor(f, m) {
@@ -20,9 +20,9 @@ function wheelFor(f, m) {
   }
   assert.fail('No room for wheel');
 }
-function fixture(mode = 'charcoal', facing = 'right') {
+function fixture(facing = 'right') {
   const f = new Factory(A.createState(1)), m = place(f, 'primitiveFurnace', 40, 40, facing);
-  assert.equal(f.setFurnaceMode(m.id, mode).error, undefined); return { f, m };
+  return { f, m };
 }
 
 test('Copper industry purchases consume exact agreed costs atomically, with no free stock', () => {
@@ -69,10 +69,10 @@ for (const facing of D.directions) test(`Copper Drill ${facing}: direct kinetic 
 });
 
 for (const facing of D.directions) test(`Primitive Furnace ${facing}: 4 Wood → 2 Charcoal in exactly 12 seconds, zero external heat`, () => {
-  const { f, m } = fixture('charcoal', facing);
-  const before = f.exportSave(); assert.equal(feed(f, m, 'wood', 100, 0, 0.1, false), 4); assert.equal(f.exportSave(), before);
+  const { f, m } = fixture(facing);
+  const before = f.exportSave(); assert.equal(feed(f, m, 'wood', 100, 'material', 0.1, false), 4); assert.equal(f.exportSave(), before);
   assert.equal(feed(f, m, 'wood', 3), 3); f.update(30); assert.equal(m.job, null);
-  assert.equal(feed(f, m, 'wood', 100, 1), 1); assert.equal(feed(f, m, 'wood', 1), 0);
+  assert.equal(feed(f, m, 'wood', 100), 1); assert.equal(feed(f, m, 'wood', 1), 0);
   f.update(0.1); assert.equal(m.job.remaining, 12); assert.equal(m.heat, 0);
   f.update(11.9); assert.equal(m.output.length, 0); f.update(0.1);
   assert.equal(f.total(m, 'output'), 2); near(m.output[0].value, 0.2); assert.equal(m.heat, 0);
@@ -84,12 +84,12 @@ for (const facing of D.directions) test(`Primitive Furnace ${facing}: 4 Wood →
 });
 
 test('Copper smelting needs a full batch and 500ku; output conserves upgraded values and resets cash tags', () => {
-  const { f, m } = fixture('copper'), input = ports(m)[0];
+  const { f, m } = fixture(), input = ports(m).find(p => p.channel === 'material');
   const upgraded = { ...cargo('nativeCopper', 1, 27.1), upgrades: { primitiveShack: 1, brickSeal: 9 } };
   assert.equal(f.receive(m, upgraded, input.x, input.y, input.direction, true), 1);
-  assert.equal(feed(f, m, 'nativeCopper', 3, 1), 3);
-  assert.equal(feed(f, m, 'charcoal', 2), 2); f.update(30); assert.equal(m.job, null); near(m.heat, 480000);
-  assert.equal(feed(f, m, 'wood', 1, 1), 1); f.update(0.1); near(m.heat, 10000); assert.equal(m.job.remaining, 20);
+  assert.equal(feed(f, m, 'nativeCopper', 3), 3);
+  assert.equal(feed(f, m, 'charcoal', 2, 'fuel'), 2); f.update(30); assert.equal(m.job, null); near(m.heat, 480000);
+  assert.equal(feed(f, m, 'wood', 1, 'fuel'), 1); f.update(0.1); near(m.heat, 10000); assert.equal(m.job.remaining, 20);
   f.update(19.9); assert.equal(m.output.length, 0); f.update(0.1);
   assert.equal(f.total(m, 'output'), 4); assert.equal(m.output[0].material, 'moltenCopper');
   near(m.output[0].value, 31.6); assert.deepEqual(m.output[0].upgrades, {});
@@ -99,26 +99,64 @@ test('Copper smelting needs a full batch and 500ku; output conserves upgraded va
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('Blocked smelting is bounded to finished, active and pending batches; mode changes preserve work and refund pending ingredients once', () => {
-  const { f, m } = fixture('copper');
-  feed(f, m, 'wood', 33); near(m.heat, 990000); assert.equal(feed(f, m, 'wood', 1), 0);
-  feed(f, m, 'nativeCopper', 4); f.update(0.1); feed(f, m, 'wood', 17); near(m.heat, 1000000);
+test('Blocked automatic smelting is bounded to finished, active and pending batches; moving and pickup conserve work', () => {
+  const { f, m } = fixture();
+  feed(f, m, 'wood', 33, 'fuel'); near(m.heat, 990000); assert.equal(feed(f, m, 'wood', 1, 'fuel'), 0);
+  feed(f, m, 'nativeCopper', 4); f.update(0.1); feed(f, m, 'wood', 17, 'fuel'); near(m.heat, 1000000);
   feed(f, m, 'nativeCopper', 4); f.update(20); feed(f, m, 'nativeCopper', 4); f.update(60);
   assert.equal(m.job.remaining, 0); assert.equal(f.total(m, 'output'), 4); assert.equal(f.total(m, 'input'), 4);
   const snapshot = f.exportSave(); assert.equal(feed(f, m, 'nativeCopper', 100), 0); assert.equal(f.exportSave(), snapshot);
-  const heat = m.heat; f.setFurnaceMode(m.id, 'charcoal');
-  assert.equal(f.state.inventory.nativeCopper, 4); assert.equal(m.job.recipe, 'copper'); near(m.heat, heat);
-  feed(f, m, 'wood', 4); f.setFurnaceMode(m.id, 'copper'); assert.equal(f.state.inventory.wood, 4);
-  f.setFurnaceMode(m.id, 'copper'); assert.equal(f.state.inventory.wood, 4);
+  const heat = m.heat; assert.equal(feed(f, m, 'wood', 4), 0);
+  assert.equal(f.state.inventory.nativeCopper, 0); assert.equal(m.job.recipe, 'copper'); near(m.heat, heat);
   assert.equal(f.move(m.id, 50, 40, 'down').error, undefined);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
   const id = m.id; f.pickup(id); assert.equal(f.state.inventory.nativeCopper, 8);
   assert.equal(f.state.inventory.moltenCopper, 0); assert.equal(f.state.storedMachines[0].output.length, 0);
   const restored = f.place('primitiveFurnace', 60, 40).machine; assert.equal(restored.id, id);
-  assert.equal(restored.mode, 'copper'); assert.equal(restored.output.length, 0); near(restored.heat, 0);
+  assert.equal(restored.mode, undefined); assert.equal(restored.output.length, 0); near(restored.heat, 0);
   assert.equal(restored.input.length, 0); assert.equal(restored.job, null); assert.equal(restored.outputCooldown, 0);
   const fresh = place(f, 'primitiveFurnace', 50, 40); assert.equal(fresh.heat, 0); assert.equal(fresh.output.length, 0);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+});
+
+test('automatic thermal machines distinguish fuel from feed, select the incoming recipe and preserve active jobs in every rotation', () => {
+  for (const type of ['kiln', 'primitiveFurnace']) for (const facing of D.directions) {
+    const f = new Factory(A.createState(1)), m = place(f, type, 40, 40, facing), def = D.machines[type];
+    const fuel = ports(m).find(p => p.channel === 'fuel'), material = ports(m).find(p => p.channel === 'material');
+    assert.ok(fuel); assert.ok(material); assert.notDeepEqual(fuel, material); assert.equal(m.mode, undefined);
+    const fuelCell = A.rotatePoint(0, 0, 2, 3, facing), materialCell = A.rotatePoint(0, 1, 2, 3, facing);
+    assert.deepEqual([fuel.x, fuel.y], [m.x + fuelCell.x, m.y + fuelCell.y]);
+    assert.deepEqual([material.x, material.y], [m.x + materialCell.x, m.y + materialCell.y]);
+    const amount = type === 'kiln' ? 8 : 17;
+    const before = f.exportSave(); assert.equal(feed(f, m, 'wood', amount, 'fuel', 0.1, false), amount); assert.equal(f.exportSave(), before);
+    assert.equal(feed(f, m, 'wood', amount, 'fuel'), amount); near(m.heat, amount * D.materials.wood.heat);
+    assert.deepEqual(m.input, []); assert.equal(feed(f, m, 'charcoal', 1), 0);
+    const [[firstId, first], [secondId, second]] = Object.entries(def.recipes);
+    const firstMaterial = first.material ?? firstId, secondMaterial = second.material ?? secondId;
+    if (!D.materials[firstMaterial].heat) assert.equal(feed(f, m, firstMaterial, first.input, 'fuel'), 0);
+    assert.equal(feed(f, m, firstMaterial, first.input), first.input);
+    assert.equal(feed(f, m, secondMaterial, second.input), 0, 'a pending batch is not silently replaced or mixed');
+    f.update(0.1); assert.equal(m.job.recipe, firstId);
+    const job = A.copy(m.job);
+    assert.equal(feed(f, m, secondMaterial, second.input), second.input); assert.deepEqual(m.job, job);
+    f.update(first.seconds); assert.equal(m.output[0].material, first.output); assert.equal(m.job.recipe, secondId);
+    assert.equal(f.total(m, 'input'), 0); assert.equal(m.mode, undefined);
+    assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
+  }
+});
+
+test('legacy manual furnace selection is removed once without losing heat, mixed-stage jobs, pending feed or finished liquid', () => {
+  const { f, m } = fixture(); m.heat = 220000;
+  m.input = [cargo('nativeCopper', 2, 12)]; m.output = [cargo('moltenCopper', 4, 48)];
+  m.job = { recipe: 'charcoal', inputs: [cargo('wood', 4, 2)], remaining: 5 };
+  const stored = place(f, 'primitiveFurnace', 50, 40); f.pickup(stored.id);
+  const old = JSON.parse(f.exportSave()); delete old.state.thermalAutoVersion;
+  old.state.machines.find(p => p.id === m.id).mode = 'copper'; old.state.storedMachines[0].mode = 'charcoal';
+  const loaded = Factory.importSave(JSON.stringify(old)), restored = loaded.byId.get(m.id);
+  near(restored.heat, m.heat); assert.deepEqual(restored.input, m.input); assert.deepEqual(restored.output, m.output);
+  assert.deepEqual(restored.job, m.job); assert.equal(restored.mode, undefined); assert.equal(loaded.state.storedMachines[0].mode, undefined);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+  old.state.machines[0].mode = 'bogus'; assert.throws(() => Factory.importSave(JSON.stringify(old)), /legacy furnace mode/);
 });
 
 test('Legacy heat rescales once, new content defaults to zero, and malformed furnace states reject', () => {
@@ -138,11 +176,11 @@ test('Legacy heat rescales once, new content defaults to zero, and malformed fur
     assert.deepEqual(machine.output, []); assert.deepEqual(machine.input, []); assert.equal(machine.job, null);
   }
   assert.deepEqual(Factory.importSave(migrated.exportSave()).state, migrated.state);
-  const { f: other, m } = fixture('copper');
+  const { f: other, m } = fixture();
   for (const mutate of [
     s => { s.machines[0].mode = 'bogus'; }, s => { s.machines[0].heat = 1000001; },
     s => { s.machines[0].input = [cargo('nativeCopper', 5)]; },
-    s => { s.machines[0].input = [cargo('wood', 4)]; },
+    s => { s.machines[0].input = [cargo('wood', 2), cargo('nativeCopper', 2)]; },
     s => { s.machines[0].output = [cargo('moltenCopper', 5)]; },
     s => { s.inventory.moltenCopper = 1; },
     s => { s.machines[0].job = { recipe: 'copper', inputs: [cargo('wood', 4)], remaining: 20 }; },
@@ -156,7 +194,7 @@ test('Real Copper Drill → centered front-priority belts → Primitive Furnace 
   const f = new Factory(A.createState(1)), drill = place(f, 'copperDrill', 40, 40);
   const wheel = wheelFor(f, drill);
   place(f, 'belt', 43, 40, 'down'); place(f, 'belt', 43, 41);
-  const m = place(f, 'primitiveFurnace', 44, 40); f.setFurnaceMode(m.id, 'copper');
+  const m = place(f, 'primitiveFurnace', 44, 40);
   let drive;
   for (const p of ports(wheel).filter(p => p.role === 'kineticOutput')) {
     const facing = A.opposite(p.direction), v = D.vectors[p.direction];
@@ -165,7 +203,7 @@ test('Real Copper Drill → centered front-priority belts → Primitive Furnace 
     if (!f.placement('drive', x, y, facing)) { drive = place(f, 'drive', x, y, facing); break; }
   }
   assert.ok(drive); assert.equal(f.powered(43, 40), true); assert.equal(f.powered(43, 41), true);
-  feed(f, m, 'charcoal', 3); f.update(60); f.update(30);
+  feed(f, m, 'charcoal', 3, 'fuel'); f.update(60); f.update(30);
   assert.equal(f.total(m, 'output'), 4); near(m.output[0].value, 6); near(m.heat, 220000);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
