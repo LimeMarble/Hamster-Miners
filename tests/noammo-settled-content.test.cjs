@@ -199,8 +199,9 @@ for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter i
   loaded.update(60); assert.equal(loaded.total(restored, 'output'), 2); near(restored.timer, 0);
 });
 
-test('every kinetic drill can share both Wheel outputs while facing the same direction, with either intake independently sufficient', () => {
-  const types = Object.keys(D.machines).filter(type => D.machines[type].requiresKinetic && D.machines[type].centeredOutput);
+test('single-connection kinetic drills share both Basic Wheel outputs while facing the same direction, with either intake sufficient', () => {
+  const types = Object.keys(D.machines).filter(type => D.machines[type].requiresKinetic && D.machines[type].centeredOutput
+    && (D.machines[type].kineticInputsRequired ?? 1) === 1);
   assert.deepEqual(types, ['primitiveRockDrill', 'copperDrill']);
   for (const type of types) for (const facing of D.directions) {
     const f = new Factory(A.createState(1)), wheel = place(f, 'wheel', 40, 40, facing);

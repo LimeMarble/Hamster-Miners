@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=leek-duster-20261028">
+  <link rel="stylesheet" href="noammo.css?v=recipe-browser-20261101">
 </head>
 <body>
   <header class="topbar">
@@ -98,41 +98,28 @@
         <div id="itemCards" class="item-cards"></div>
       </div>
     </section>
-    <section id="recipes" class="screen panel" hidden>
-      <h1>Recipes</h1>
-      <article class="recipe"><h2>Leek Fiber Extractor</h2><p>1 Leek → 2 Leek Fiber</p><p>Each Fiber retains the Leek’s incoming value. Hand-operated; no kinetic connection.</p></article>
-      <article class="recipe"><h2>Crude Gear Bench</h2><p>2 Wood → 1 Wooden Gear in 12 seconds · 1 crew</p><p>Hand-operated. Input and output share the lower tile; the gear retains the combined value and weight of its Wood.</p></article>
-      <article class="recipe"><h2>Primitive Conveyor</h2><p>10 Wood + 4 Wooden Gears per conveyor.</p><p>Carries up to 2 weight per stack. Stacks must fit as a whole; overweight stacks wait without automatic splitting.</p><p>Machines with internal conveyors require purchased belts as construction components.</p></article>
-      <article class="recipe"><h2>Logger</h2><p>1 Wood every 6 seconds · 1 crew</p><p>Place inside one of a tree’s four middle edge tiles, facing outward. Trees are inexhaustible.</p></article>
-      <article class="recipe"><h2>Clay Pit</h2><p>1 Clay every 12 seconds · 1 crew</p><p>Manual extraction, without kinetic power. Clay has a base sale value of $0.25.</p><p>Centered output needs two compatible receiving conveyors or a machine covering its full width. If one conveyor feeds the other, the front conveyor receives the cargo; otherwise both must face the same direction.</p></article>
-      <article class="recipe"><h2>Primitive Rock Drill</h2><p>2 Chert or 2 Granite every 5 seconds. Select the rock in the machine controls. Connect a Hamster Wheel above or below the middle column.</p><p>Uses the same centered-output rules as Clay Pit. Chert, Granite and Limestone have $0.10 base value; Corundum has $1 base value.</p></article>
-      <article class="recipe"><h2>Copper Drill</h2><p>1 Native Copper every 15 seconds. Native Copper has $1.50 base value.</p><p>Connect a Hamster Wheel above or below the middle column. Uses the same centered two-tile output rules as Clay Pit.</p></article>
-      <article class="recipe"><h2>Clay Shaping Bench</h2><p>1 Clay → 1 Unfired Brick in 2 seconds, retaining its value.</p><p>2 Clay → 1 Unfired Pot in 4 seconds, worth twice their combined value.</p><p>Hand-operated · 1 crew. Unfired Pots weigh 2; Unfired Bricks weigh 1.</p></article>
-      <article class="recipe"><h2>Pot Spinner</h2><p>2 Clay → 1 Unfired Pot in 8 seconds, worth twice their combined value.</p><p>Requires a Hamster Wheel connected above or below its left edge. No operating crew beyond the Wheel.</p><p>Base chances: Poor 20%, Unremarkable 10%, Standard 40%, Fine 25%, Remarkable 5%. Four Brick Seal repairs move Poor's 20 percentage points into Unremarkable. Firing promotes 40% of each tier’s chance, stopping at Remarkable. The Grading Bench makes the roll.</p></article>
-      <article class="recipe"><h2>Clay Kiln</h2><p>4 Unfired Bricks → 4 Bricks, or 2 Unfired Pots → 2 Fired Pots. The operating hamsters choose the recipe and handle transfers.</p><p>Full batches take 8 seconds and 80ku of heat. Each product retains four times its incoming value. Firing promotes 40% of each tier’s chance, stopping at Remarkable. Uses 2 crew.</p><p>Stores up to 250ku of heat. In the right-facing layout, fuel enters at the top-left amber arrow and unfired products enter at the middle-left pale arrow.</p></article>
-      <article class="recipe"><h2>Primitive Furnace</h2><p>Charcoal: 4 Wood → 2 Charcoal in 12 seconds, without external heat. The combined incoming cash value is preserved.</p><p>Copper: 4 Native Copper → 4 Molten Copper in 20 seconds, consuming 500ku of heat. Copper retains four times the incoming ore value and promotes its grade chances by one tier. Molding preserves those chances.</p><p>Uses 2 crew and holds up to 1Mu of heat. The operating hamsters choose the recipe and handle transfers. In the right-facing layout, fuel enters at the top-left amber arrow and ingredients enter at the middle-left pale arrow. Wood supplied as fuel adds heat; Wood supplied as material becomes Charcoal.</p><p>Connect its output directly to an Ingot Molder. Molten metal is not solid conveyor cargo.</p></article>
-      <article class="recipe"><h2>Ingot Molder</h2><p>1 Molten Copper → 1 Copper Ingot in 1 second, preserving value. Uses 1 crew and no consumables.</p><p>Input and output share the lower tile of its vertical two-tile footprint. Holds one waiting liquid unit and one finished ingot while molding the next.</p><p>Cast Iron requires a Refractory Caster.</p></article>
-      <article class="recipe"><h2>Metal Press</h2><p>Plate mode: 1 Copper Ingot → 1 Copper Plate, multiplying its incoming value by 1.5.</p><p>Gear mode: 2 matching Copper Plates → 1 Copper Gear, preserving their combined value. Plates can arrive separately. A Plate and a Gear each weigh one Copper unit.</p><p>One recipe cycle takes 4 seconds. Requires two kinetic connections; an adjacent pair reduces the time to 2 seconds. Additional pairs give no further speed increase. A Basic Wheel connected to any other machine cannot power the Press.</p><p>Three primitive conveyors cross the middle row of its 3×3 footprint. Pressing preserves grade chances and does not perform another grading roll.</p></article>
-      <article class="recipe"><h2>Heavy Hamster Wheel</h2><p>Uses 2 crew. Two adjacent kinetic outputs on each long edge can power a Press on either side.</p><p>Occupies 4×3 tiles. Its output pairs also connect to other kinetic machinery.</p></article>
-      <article class="recipe"><h2>Leek Infuser</h2><p>Adds $0.40 to sellables worth less than $2. Does not consume ingredients during operation.</p></article>
-      <article class="recipe"><h2>Leek Duster</h2><p>Multiplies incoming value below $200 by 1.65. Separately promotes 100% of Poor chance to Unremarkable, 50% of Unremarkable to Standard and 25% of Standard to Fine, using the incoming chances simultaneously.</p><p>Its grade effect applies outside the cash limit. Each effect remembers every material treated and cannot repeat on that material, even after processing. Requires a Wheel connected above or below its middle conveyor; transit takes 6 seconds.</p></article>
-      <article class="recipe"><h2>Pebble Pile</h2><p>Adds $4 per use, up to 5 uses. Requires a base value of at least $0.50.</p></article>
-      <article class="recipe"><h2>Brick Seal</h2><p>Adds $1.25, up to 9 uses. Requires a base value of at least $0.50 and an incoming value below $15.</p><p>Each of four grade-repair uses converts 5 percentage points of Poor chance to Unremarkable on clay products before grading. Repairs carry through shaping and firing; a Pot averages the repairs of its two Clay inputs.</p></article>
-      <article class="recipe"><h2>Primitive Shack</h2><p>Multiplies value by 2 once, requiring at least $1.20 base value and incoming value below $2.5k. Two independent three-tile conveyor paths.</p></article>
-      <article class="recipe"><h2>Granite Processor</h2><p>Multiplies value by 1.3, up to 6 uses. Requires at least $3.50 base value and incoming value below $500. Two parallel primitive conveyor lanes.</p></article>
-      <article class="recipe"><h2>Copper Chimes</h2><p>Multiplies value by 1.25 once. Requires incoming value below $25k.</p><p>Three occupied tiles in a column, with a right-facing primitive conveyor in the middle. Requires kinetic power.</p></article>
-      <article class="recipe"><h2>Primitive Conveyor Bridge</h2><p>A three-tile span carrying one stream over an ordinary conveyor. Only its middle tile can overlap a ground conveyor; the entrance and exit need clear space.</p><p>Costs $100 and four unplaced Primitive Conveyors.</p></article>
-      <article class="recipe"><h2>Primitive Stacker</h2><p>Combines matching items into stacks of the typed size (1–2). Accepts from three sides and outputs in its facing direction. Requires kinetic power and takes two seconds per outgoing stack.</p></article>
-      <article class="recipe"><h2>Grading Bench</h2><p>Grades one stack in 1 second per total weight, using 1 crew.</p><p>Ordinary Clay products start with 20% Poor, 60% Unremarkable and 20% Standard; stone starts at 100% Unremarkable. Native Copper starts at 30% Poor, 40% Unremarkable and 30% Standard. Poor ×0.75, Unremarkable ×1, Standard ×1.5, Fine ×2.5, Remarkable ×8, Exceptional ×40.</p><p>Combining stacks averages actual unit values and pre-grading quality modifiers, keeps each upgrader's highest use count and combines its tags. If any input is graded, the whole stack is graded and cannot roll again. Splitting preserves these properties.</p></article>
-      <article class="recipe"><h2>Leek Planter</h2><p>1 Leek every 8 seconds</p><p>Direct edge output, without an internal conveyor.</p></article>
-      <article class="recipe"><h2>Fuel</h2><p>1 Wood = 30ku of heat. 1 Charcoal = 240ku of heat.</p><p>Furnaces accept whole fuel items only when their heat fits in the remaining capacity.</p></article>
+    <section id="recipes" class="screen panel recipe-book" hidden>
+      <div class="recipe-book-header">
+        <div><h1>Recipes</h1><p class="muted">Explore items, their sources and uses. Select any ingredient or machine to follow the chain.</p></div>
+        <div class="recipe-history"><button id="recipeBack" class="secondary" aria-label="Previous recipe entry">← Back</button><button id="recipeForward" class="secondary" aria-label="Next recipe entry">Forward →</button></div>
+      </div>
+      <div class="recipe-toolbar">
+        <label for="recipeSearch">Search<input id="recipeSearch" type="search" placeholder="Search items or machines…" autocomplete="off"></label>
+        <label for="recipeKind">Show<select id="recipeKind"></select></label>
+        <label for="recipeMachine">Related machine<select id="recipeMachine"></select></label>
+        <button id="recipeClear" class="secondary">Clear filters</button>
+      </div>
+      <div class="recipe-browser">
+        <aside class="recipe-index"><p id="recipeCount" class="muted" role="status"></p><div id="recipeEntries" class="recipe-entries" aria-label="Items and machines"></div></aside>
+        <article id="recipeDetail" class="recipe-detail" aria-label="Recipe details"></article>
+      </div>
     </section>
     <section id="help" class="screen panel help-panel" hidden>
       <h1>Help</h1>
       <p>How values, processing and factory connections work. Open a topic below; individual machine effects and recipes are listed in the Shop and Recipes.</p>
       <details open>
         <summary>Material changes renew cash-upgrader uses</summary>
-        <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. Leek Duster is an exception: it remembers each material it has treated, even through later transformations. The value you built up is carried into the recipe and scaled by its effect; it does not simply return to base value.</p>
+        <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. Leek Duster is an exception: its effects stay spent through all later transformations. The value you built up is carried into the recipe and scaled by its effect; it does not simply return to base value.</p>
         <p>For example, Primitive Shack can upgrade Native Copper, then upgrade the resulting Copper Ingot again. The new material must still meet the upgrader’s base-value and cash requirements.</p>
         <p>Use limits are shared across all machines of the same kind. Passing through a different Granite Processor does not reset its uses. Moving, stacking or splitting cargo does not renew them either.</p>
         <p>Quality follows separate rules: Brick Seal’s grade repairs carry through shaping and firing, and processing an already graded ingredient does not give the product another grading roll.</p>
@@ -196,9 +183,10 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=leek-duster-20261028"></script>
-  <script src="noammo-simulation.js?v=leek-duster-20261028"></script>
+  <script src="noammo-data.js?v=wire-industry-20261031"></script>
+  <script src="noammo-simulation.js?v=wire-industry-20261031"></script>
   <script src="noammo-renderer.js?v=leek-duster-20261028"></script>
-  <script src="noammo-ui.js?v=leek-duster-20261028"></script>
+  <script src="noammo-recipes.js?v=recipe-browser-20261101"></script>
+  <script src="noammo-ui.js?v=recipe-browser-20261101"></script>
 </body>
 </html>

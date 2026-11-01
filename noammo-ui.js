@@ -27,6 +27,14 @@
   const machineCards = new Map(), cards = new Map();
   const number = A.formatNumber;
   const money = (value) => `$${number(value)}`;
+  const recipeBook = window.NoAmmoRecipes.mount({ document, data: D, formatNumber: number,
+    primitiveEffect: () => factory.state.tuning,
+    openShop: (type) => {
+      shopSelection = type; shopSignature = ""; category = "All";
+      for (const button of document.querySelectorAll("[data-category]")) button.classList.toggle("active", button.dataset.category === "All");
+      setTab("shop");
+    } });
+  function viewRecipes(type) { recipeBook.open(`machine:${type}`); setTab("recipes"); }
   function appendMachineEffects(panel, definition) {
     for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradeProfile) {
       panel.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
@@ -42,7 +50,7 @@
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
     if (definition.gradeEffect?.poorToStandardPerUse) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Unremarkable per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
     if (definition.gradeEffect?.promotionRates) lines.push(`Grade Effects: moves ${definition.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% of ${D.grades[i].name} to ${D.grades[i + 1].name}` : "").filter(Boolean).join("; ")}. Applies outside the cash limit.`);
-    if (definition.remembersMaterials) lines.push("Cash and grade effects each apply once per material, remembered through processing.");
+    if (definition.persistentEffects) lines.push("Cash and grade effects each apply only once across the entire processing chain.");
     for (const line of lines) panel.append(element("p", line, "machine-effect"));
   }
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }
@@ -97,6 +105,7 @@
     pointer = null; interaction.hover = null;
     gesture = null; interaction.marquee = null; interaction.box = null; suppressClick = false;
     if (tab === "factory") { resize(); floorSignature = ""; }
+    if (tab === "recipes") recipeBook.refresh();
     refresh();
   }
   function bounds() {
@@ -368,7 +377,7 @@
         const pickup = action("Pick up", () => {
           factory.pickup(machine.id); select([]); interaction.tool = null; interaction.box = null; interaction.marquee = null; gesture = null; refresh();
         }, "secondary"); pickup.id = "pickupMachine";
-        controls.append(move, pickup);
+        controls.append(move, pickup, action("Recipes", () => viewRecipes(machine.type), "secondary"));
         panel.append(controls);
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
         if (definition.manualTransferSeconds) {
@@ -421,6 +430,26 @@
         if (definition.molder) {
           const buffers = element("p"); buffers.id = "molderBuffers";
           panel.append(buffers, element("p", "One ingot per second, preserving the liquid metal's value. No Clay or other consumables. Cast Iron requires a Refractory Caster.", "muted"));
+        }
+        if (definition.formingModes) {
+          if (Object.keys(definition.formingModes).length > 1) {
+            const label = element("label", "Spool mode "), mode = element("select");
+            mode.id = "formingMode"; mode.setAttribute("aria-label", "Spool mode");
+            for (const [id, recipe] of Object.entries(definition.formingModes)) {
+              const option = element("option", `${recipe.name} · ${recipe.input} Wire · ${recipe.seconds}s`);
+              option.value = id; mode.append(option);
+            }
+            mode.value = machine.mode;
+            mode.addEventListener("change", () => {
+              const response = factory.setFormingMode(machine.id, mode.value);
+              if (response.error) mode.value = machine.mode;
+              else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
+              result(response);
+            });
+            label.append(mode); panel.append(label,
+              element("p", "Changing mode returns waiting Wire to inventory; the current job finishes normally.", "muted"));
+          }
+          const buffers = element("p"); buffers.id = "formingBuffers"; panel.append(buffers);
         }
         if (definition.maxStackSize) {
           const label = element("label", "Stack size "), input = element("input");
@@ -505,6 +534,10 @@
       if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
       if (D.machines[machine.type].pressModes) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit)} · Finished output: ${number(factory.total(machine, "output"))} / 1`);
       if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / 1 · Finished ingots: ${number(factory.total(machine, "output"))} / 1`);
+      if (D.machines[machine.type].formingModes) {
+        const recipe = D.machines[machine.type].formingModes[machine.mode];
+        text($("formingBuffers"), `Waiting ${D.machines[machine.type].fluidInput ? "liquid" : "Wire"}: ${number(factory.total(machine, "input"))} / ${recipe.input} · Finished output: ${number(factory.total(machine, "output"))}`);
+      }
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
         for (const item of machine.contents) {
@@ -547,7 +580,8 @@
           else { notify("Borrowed unpriced prototype equipment; no game price assigned."); refresh(); }
         }
       }); buy.id = "buyMachine";
-      panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"));
+      panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"),
+        action("Recipes & uses", () => viewRecipes(shopSelection), "secondary"));
       if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a prototype test aid, not its actual recipe.", "muted"));
       if (shopSelection === "planter") panel.append(element("p", "Your first two Planters are supplied free. Additional Planters require the listed cost.", "muted"));
     }

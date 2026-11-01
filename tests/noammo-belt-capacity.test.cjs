@@ -17,10 +17,17 @@ test('primitive belts reject overweight stacks intact and accept legal fractiona
   const f = new A.Factory(A.createState(1));
   place(f, 'wheel', 38, 44); f.state.stock.drive++; f.place('drive', 39, 42, 'down');
   const m = place(f, 'belt', 40, 40);
-  for (const [material, offered, expected] of [['clay', 5, 0], ['pot', 2, 0], ['clay', 2, 2], ['pot', 1, 1], ['chert', 0.1, 0.1]]) {
+  for (const [material, offered, expected] of [['clay', 5, 0], ['pot', 2, 0], ['clay', 2, 2], ['pot', 1, 1], ['chert', 0.1, 0.1], ['leek', 11, 0], ['leek', 10, 10]]) {
     assert.equal(f.receive(m, A.cargo(material, offered), 40, 40, 'left', true), expected);
+    if (material === 'leek' && expected) {
+      assert.equal(m.lanes[0].value, 0.1);
+      assert.equal(f.sell([m.lanes[0]]), 1, 'lighter cargo still sells by quantity and unit cash');
+      assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
+    }
     assert.equal(m.lanes[0]?.quantity ?? 0, expected); delete m.lanes[0];
   }
+  assert.equal(f.receive(m, A.cargo('leek', 10, 7.3), 40, 40, 'left', true), 10);
+  assert.equal(f.sell([m.lanes[0]]), 73, 'weight does not scale upgraded cash either');
 });
 
 test('thermal outputs retain one-product unloading every two seconds in every orientation', () => {

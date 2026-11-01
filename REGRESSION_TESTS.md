@@ -11,6 +11,13 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ### Separate noammo opening
 
+- The recipe browser derives production and construction links from current
+  machine/material definitions. Generic checks compare every crafting and
+  thermal entry with the production resolvers, including fractional co-products,
+  material-mapped forming, fuel heat and refractory exclusions. UI navigation
+  covers substring search, item/machine filters, ingredient links, separate
+  construction uses, empty results, Shop shortcuts, Back/Forward and scroll
+  restoration. Simulation ticks must not rebuild the book or reset controls.
 - Metal Press and Heavy Wheel checks cover construction/dismantling, rotated
   ports and real inlet/working/outlet transport; dedicated Basic Wheels,
   shared-Wheel rejection independent of placement order, adjacent-pair speed,
@@ -21,7 +28,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   Inspector mode controls remain mounted during production.
 
 - Leek Duster tests cover the exact atomic cost, both direct kinetic intakes
-  in all rotations, six-second transit, independent cash/grade material history,
+  in all rotations, six-second transit, independent cash/grade history that
+  prevents reuse across the entire processing chain (including older saves),
   quality treatment outside cash range and stack-history unions. Real shaping,
   smelting, molding and firing reproduce agreed chance tables without extra RNG.
   Save tests preserve old graded cash and migrate ungraded profiles once,
@@ -743,3 +751,13 @@ future pipe tiers) are not treated as current acceptance requirements.
   the per-unit $5k boundary/overshoot, one shared use, grade/tag preservation
   and stable UI. A full smelting-to-molding-to-Chimes-to-collection scenario
   verifies actual cash, fresh eligibility and useful construction inventory.
+- Graphite Drill, Extruder and Winding Spool cover agreed purchases, all
+  rotated ports, paired kinetic requirements, power loss and shared Heavy
+  Wheel placement. Checks exercise 40-second centered Graphite extraction,
+  direct Furnace-to-Extruder liquid delivery in either construction order,
+  eight-second value-preserving Wire batches, three-second Coils and
+  eight-second Windings. Bounded inputs, partial output batches, mixed-value
+  Wire, quality/history inheritance, safe mode changes, pickup isolation,
+  older saves and malformed production buffers are covered. Spool controls
+  stay mounted during updates; the generic building lifecycle/render contract
+  automatically includes all three machines.

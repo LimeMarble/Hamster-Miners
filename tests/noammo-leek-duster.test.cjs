@@ -66,7 +66,7 @@ test('Duster uses both rotated center intakes, needs direct power and has a sing
   }
 });
 
-test('Duster cash and grade effects independently remember every material through processing and stack unions', () => {
+test('Duster cash and grade effects each stay spent across material changes, stack unions, splits and old saves', () => {
   const { f, m } = setup();
   let item = dust(f, m, { ...cargo('clay', 1, 200), upgrades: { primitive: 3 } });
   near(item.value, 200); chances(item, [0, 0.5, 0.45, 0.05, 0, 0]);
@@ -75,12 +75,27 @@ test('Duster cash and grade effects independently remember every material throug
   near(item.value, 165); assert.deepEqual(A.gradeProbabilities(item), before);
   const again = dust(f, m, item); near(again.value, 165); assert.deepEqual(again.materialHistory, item.materialHistory);
   const changed = { ...item, material: 'unfiredBrick', value: 10, upgrades: {} };
-  const treated = dust(f, m, changed); near(treated.value, 16.5);
+  const treated = dust(f, m, changed); near(treated.value, 10);
+  assert.deepEqual(A.gradeProbabilities(treated), before, 'changing material does not renew the grade effect');
   const returned = dust(f, m, { ...treated, material: 'clay', value: 10, upgrades: {} }); near(returned.value, 10);
   const mixed = A.combineCargo([item, cargo('clay', 1, 10)]);
   const actual = A.gradeProbabilities(item), ordinary = D.gradeTables.clay;
   chances(mixed, actual.map((value, i) => (value + ordinary[i]) / 2));
   const mixedAgain = dust(f, m, mixed); near(mixedAgain.value, mixed.value); assert.deepEqual(A.gradeProbabilities(mixedAgain), A.gradeProbabilities(mixed));
+  for (const part of [0, 1]) {
+    const split = { ...A.copy(mixed), quantity: 1, material: 'unfiredBrick' };
+    const output = dust(f, m, split);
+    near(output.value, split.value); assert.deepEqual(A.gradeProbabilities(output), A.gradeProbabilities(split));
+  }
+  // Existing saves record the material where each effect was spent. Neither
+  // an ordinary upgrader reset nor a different current material renews it.
+  m.lanes[0] = { ...cargo('copperPlate', 1, 10), materialHistory: {
+    'leekDuster:nativeCopper:cash': true, 'leekDuster:moltenCopper:grade': true,
+  } };
+  const loaded = Factory.importSave(f.exportSave()), loadedDuster = loaded.byId.get(m.id);
+  const legacy = A.copy(loadedDuster.lanes[0]); delete loadedDuster.lanes[0];
+  const legacyOutput = dust(loaded, loadedDuster, legacy);
+  near(legacyOutput.value, 10); assert.deepEqual(A.gradeProbabilities(legacyOutput), A.gradeProbabilities(legacy));
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
@@ -93,6 +108,8 @@ test('pre-dusted copper smelts one tier higher, keeps history through molding an
   const ingot = molder.output[0]; assert.ok(ingot); chances(ingot, A.gradeProbabilities(result));
   assert.equal(ingot.materialHistory['leekDuster:nativeCopper:grade'], true);
   assert.equal(ingot.value, result.value); assert.equal(furnace.output[0].material, 'moltenCopper');
+  const dustedAgain = dust(f, m, { ...A.copy(ingot), quantity: 1 });
+  near(dustedAgain.value, ingot.value); chances(dustedAgain, A.gradeProbabilities(ingot));
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
@@ -107,6 +124,8 @@ test('Duster treatments survive shaping and Spinner profiles; firing promotes 40
     const { result, m: kiln } = fire(f, { ...unfired, quantity: 2 });
     chances(result, spun ? [0, 0.09, 0.33, 0.39, 0.19, 0] : [0, 0.24, 0.49, 0.25, 0.02, 0]);
     near(mean(result), spun ? 3.08 : 1.76); assert.equal(f.state.random, 1, 'quality treatment never rolls RNG');
+    const dustedAgain = dust(f, m, { ...A.copy(result), quantity: 1 });
+    near(dustedAgain.value, result.value); chances(dustedAgain, A.gradeProbabilities(result));
     assert.equal(feed(f, kiln, result), 0, 'fired ceramic cannot be fired again');
     const graded = A.gradeStack({ random: 1900 }, result); const random = { random: 99 };
     assert.deepEqual(A.gradeStack(random, graded), graded); assert.equal(random.random, 99);

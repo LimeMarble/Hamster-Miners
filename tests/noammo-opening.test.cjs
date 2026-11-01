@@ -621,11 +621,11 @@ test("unpowered belts reject cargo; powered lanes have one object, weight 2 and 
   const distant = place(factory, "belt", 60, 60);
   assert.equal(factory.receive(distant, cargo("leek", 1), 60, 60, "left", true), 0);
   assert.equal(factory.receive(first, cargo("leek", 20), 21, 26, "left", true), 0);
-  assert.equal(factory.receive(first, cargo("leek", 2), 21, 26, "left", true), 2);
+  assert.equal(factory.receive(first, cargo("leek", 10), 21, 26, "left", true), 10);
   assert.equal(factory.receive(first, cargo("leek", 1), 21, 26, "left", true), 0);
   advance(factory, D.config.beltSeconds);
   assert.equal(first.lanes[0], undefined);
-  assert.equal(second.lanes[0].quantity, 2);
+  assert.equal(second.lanes[0].quantity, 10);
   assert.equal(second.lanes[0].progress, 0);
 });
 
@@ -901,7 +901,7 @@ for (const [type] of Object.entries(D.machines)) {
 test("prototype uses separate ordered scripts, local assets and no cosmetic machine animation", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
   const names = [...html.matchAll(/<script src="([^"?]+)/g)].map((match) => match[1]);
-  assert.deepEqual(names, ["noammo-data.js", "noammo-simulation.js", "noammo-renderer.js", "noammo-ui.js"]);
+  assert.deepEqual(names, ["noammo-data.js", "noammo-simulation.js", "noammo-renderer.js", "noammo-recipes.js", "noammo-ui.js"]);
   assert.ok(!html.includes("phaser"));
   const renderer = fs.readFileSync(path.join(__dirname, "..", "noammo-renderer.js"), "utf8");
   assert.ok(!renderer.includes("Math.cos")); assert.ok(!renderer.includes("Math.sin"));

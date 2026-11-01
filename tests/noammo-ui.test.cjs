@@ -78,7 +78,7 @@ function boot(saved, { width = 900, height = 600 } = {}) {
   };
   context.window = context;
   vm.createContext(context);
-  for (const name of ["noammo-data.js", "noammo-simulation.js", "noammo-renderer.js", "noammo-ui.js"]) {
+  for (const name of [...html.matchAll(/<script src="([^"?]+)/g)].map(match => match[1])) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", name), "utf8"), context, { filename: name });
     if (name === "noammo-renderer.js") for (const layer of ["drawFloor", "drawOverlay"]) {
       const draw = context.NoAmmoRenderer[layer];
@@ -123,6 +123,28 @@ test('Press mode controls stay mounted through production and safely change the 
   const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state }));
   reloaded.ids.get('cargo').emit('click', screenPoint(121, 121));
   assert.equal(reloaded.ids.get('pressMode').value, 'gear');
+});
+
+test('Spool mode and buffer controls remain mounted, persist selection and keep the active recipe', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.windingSpool = 1; f.state.stock.heavyWheel = 1;
+  const m = f.place('windingSpool', 121, 121).machine;
+  assert.ok(f.place('heavyWheel', 120, 118).machine);
+  const input = A.ports(m).find(p => p.role === 'input');
+  f.receive(m, A.cargo('copperWire'), input.x, input.y, input.direction, true); f.update(0.1);
+  f.receive(m, A.cargo('copperWire'), input.x, input.y, input.direction, true);
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const mode = ui.ids.get('formingMode'), buffers = ui.ids.get('formingBuffers');
+  assert.deepEqual(mode.options.map(option => option.value), ['coil', 'winding']);
+  for (let now = 100; now <= 1000; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get('formingMode'), mode); assert.equal(ui.ids.get('formingBuffers'), buffers);
+  mode.value = 'winding'; mode.emit('change');
+  const state = ui.state(), restored = state.machines.find(p => p.id === m.id);
+  assert.equal(restored.mode, 'winding'); assert.equal(restored.job.mode, 'coil');
+  assert.equal(restored.input.length, 0); assert.equal(state.inventory.copperWire, 1);
+  assert.equal(ui.ids.get('formingMode'), mode);
+  const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state }));
+  reloaded.ids.get('cargo').emit('click', screenPoint(121, 121));
+  assert.equal(reloaded.ids.get('formingMode').value, 'winding');
 });
 
 function screenPoint(x, y) {
@@ -888,7 +910,7 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
   const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
   assert.doesNotMatch(html, /Grades and their sale multipliers will only apply once grading is introduced/);
   assert.doesNotMatch(html, /Previously graded portions/);
-  assert.match(html, /If any input is graded, the whole stack is graded and cannot roll again/);
+  assert.match(html, /If any input is already graded, the whole combined stack becomes graded/);
 });
 
 test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
@@ -1304,7 +1326,8 @@ test('Leek Duster Shop, inventory and repeat placement expose independent cash a
   const effects = ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent);
   assert.ok(effects.includes('Cash effect: ×1.65')); assert.ok(effects.includes('Upper Limit: $200'));
   assert.ok(effects.some(line => /100% of Poor to Unremarkable.*50% of Unremarkable to Standard.*25% of Standard to Fine/.test(line)));
-  assert.ok(effects.some(line => /outside the cash limit/.test(line))); assert.ok(effects.some(line => /once per material/.test(line)));
+  assert.ok(effects.some(line => /outside the cash limit/.test(line))); assert.ok(effects.some(line => /only once across the entire processing chain/.test(line)));
+  assert.ok(effects.every(line => !/once per material/.test(line)));
   assert.ok(effects.every(line => !/NaN|undefined/.test(line)));
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$2.4k / $2.4k', '240 / 240', '24 / 24', '100 / 100', '32 / 32', '6 / 6']);
@@ -1335,7 +1358,9 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
   const machines = ui.state().machines.filter(machine => machine.type === 'pebblePile'); assert.equal(machines.length, 2);
   for (const machine of machines) assert.deepEqual(A.cells(machine), A.cells({ ...machine, type: 'brickSeal' }));
   assert.deepEqual(ui.ids.get('inspector').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
-  const html = fs.readFileSync(path.join(__dirname, '..', 'noammo.html'), 'utf8'); assert.match(html, /<h2>Pebble Pile<\/h2>/);
+  ui.tabs.find(b => b.dataset.tab === 'recipes').emit('click');
+  ui.ids.get('recipeEntries').children.find(node => node.dataset.entry === 'machine:pebblePile').emit('click');
+  assert.equal(ui.ids.get('recipeTitle').textContent, 'Pebble Pile');
 });
 
 test("Granite Processor Shop scales materials and conveyor components, filters Cash and exposes all rules on selection", () => {
@@ -1356,6 +1381,57 @@ test("Granite Processor Shop scales materials and conveyor components, filters C
   ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   assert.deepEqual(ui.ids.get('inspector').children.filter(n => n.className === 'machine-effect').map(n => n.textContent), expected);
   assert.equal(ui.ids.get('outputHistory').children[0].textContent, 'No processed output yet.');
+});
+
+test('recipe browsing follows ingredients and machines, restores filtered history and scroll, and stays stable during simulation', () => {
+  const ui = boot();
+  const nodes = root => [root, ...root.children.flatMap(nodes)];
+  const contents = () => nodes(ui.ids.get('recipeDetail')).map(node => node.textContent).join(' ');
+  const clickEntry = key => {
+    const button = ui.ids.get('recipeEntries').children.find(node => node.dataset.entry === key);
+    assert.ok(button, key); button.emit('click');
+  };
+  const follow = key => {
+    const button = nodes(ui.ids.get('recipeDetail')).find(node => node.dataset.entry === key);
+    assert.ok(button, key); button.emit('click');
+  };
+  ui.tabs.find(b => b.dataset.tab === 'recipes').emit('click');
+  const search = ui.ids.get('recipeSearch'); search.value = 'COPPER W'; search.emit('input');
+  assert.deepEqual(ui.ids.get('recipeEntries').children.map(node => node.dataset.entry), ['item:copperWinding', 'item:copperWire']);
+  clickEntry('item:copperWire');
+  assert.match(contents(), /Production uses/); assert.match(contents(), /Used in construction/);
+  assert.match(contents(), /3s per batch/); assert.match(contents(), /8s per batch/);
+  assert.match(contents(), /10 Copper Wire/);
+  ui.ids.get('recipeEntries').scrollTop = 75; ui.ids.get('recipeDetail').scrollTop = 210;
+  follow('machine:windingSpool'); assert.equal(ui.ids.get('recipeTitle').textContent, 'Winding Spool');
+  assert.equal(search.value, '', 'following links clears an unrelated search');
+  assert.match(contents(), /\$2.7M cash/); assert.match(contents(), /500 Wood/);
+  ui.ids.get('recipeBack').emit('click');
+  assert.equal(search.value, 'COPPER W'); assert.equal(ui.ids.get('recipeTitle').textContent, 'Copper Wire');
+  assert.equal(ui.ids.get('recipeEntries').scrollTop, 75); assert.equal(ui.ids.get('recipeDetail').scrollTop, 210);
+  ui.ids.get('recipeForward').emit('click'); assert.equal(ui.ids.get('recipeTitle').textContent, 'Winding Spool');
+  const title = ui.ids.get('recipeTitle');
+  for (let now = 100; now <= 500; now += 100) ui.frame(now);
+  assert.equal(ui.ids.get('recipeTitle'), title, 'ticks must not rebuild the book');
+  ui.tabs.find(b => b.dataset.tab === 'factory').emit('click');
+  ui.tabs.find(b => b.dataset.tab === 'recipes').emit('click'); assert.equal(ui.ids.get('recipeTitle').textContent, 'Winding Spool');
+  search.value = 'no such material'; search.emit('input'); assert.equal(ui.ids.get('recipeEntries').children[0].textContent, 'No matching items or machines.');
+  ui.ids.get('recipeClear').emit('click');
+  ui.ids.get('recipeEntries').scrollTop = 120;
+  clickEntry('item:wood'); assert.equal(ui.ids.get('recipeEntries').scrollTop, 120, 'choosing a result must not jump the list');
+  ui.ids.get('recipeDetail').scrollTop = 90;
+  clickEntry('item:wood'); assert.equal(ui.ids.get('recipeDetail').scrollTop, 90, 'reselecting an entry preserves reading position');
+  ui.ids.get('recipeMachine').value = 'primitiveFurnace'; ui.ids.get('recipeMachine').emit('change');
+  ui.ids.get('recipeKind').value = 'item'; ui.ids.get('recipeKind').emit('change');
+  const filtered = ui.ids.get('recipeEntries').children.map(node => node.dataset.entry);
+  assert.ok(filtered.includes('item:moltenCopper')); assert.ok(!filtered.includes('item:copperWinding'));
+  clickEntry('item:moltenCopper'); assert.match(contents(), /500ku heat per batch/);
+  assert.match(contents(), /does not travel on conveyors/);
+  follow('machine:primitiveFurnace');
+  nodes(ui.ids.get('recipeDetail')).find(node => node.tagName === 'BUTTON' && node.textContent === 'View in Shop').emit('click');
+  assert.equal(ui.ids.get('shop').hidden, false); assert.equal(ui.ids.get('shopDetail').children[0].textContent, 'Primitive Furnace');
+  ui.ids.get('shopDetail').children.find(node => node.textContent === 'Recipes & uses').emit('click');
+  assert.equal(ui.ids.get('recipes').hidden, false); assert.equal(ui.ids.get('recipeTitle').textContent, 'Primitive Furnace');
 });
 
 test("unreadable saves survive startup, autosave, export and unload until an explicit reset", () => {
