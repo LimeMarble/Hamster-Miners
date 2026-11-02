@@ -823,8 +823,8 @@ test("Clay Pit purchases show cash/material costs, update ownership, place, and 
   assert.equal(ui.state().inventory.clay, 3);
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
   const clay = ui.ids.get("itemCards").children.find((card) => card.children.some((node) => node.textContent === "Clay"));
-  assert.ok(clay); clay.children.find((node) => node.textContent === "Sell all").emit("click");
-  assert.equal(ui.state().cash, 0.75); assert.equal(ui.state().inventory.clay, 0);
+  assert.ok(clay);
+  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.clay, 3);
 });
 
 test("Brick Storage Shop, inventory placement and stable collection controls use real handlers without hauling", () => {
@@ -943,13 +943,13 @@ test("Rock Drill mode selector remains mounted during production and persists th
 test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
   const ui = boot(); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2"]],
-    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $2.5k", "Base Value Required: $1.2"]]]) {
+    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $7.5k", "Base Value Required: $1.2"]]]) {
     shopCard(ui, type).emit('click');
     assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent), expected);
   }
 });
 
-test("Sifter Shop costs, repeat placement and sellable Chert versus unsellable Soil use actual UI handlers", () => {
+test("Sifter Shop costs, repeat placement and collected materials use actual UI handlers", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.cash = 3600;
   Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100, chert: 0.3, soil: 0.3 });
@@ -972,19 +972,25 @@ test("Sifter Shop costs, repeat placement and sellable Chert versus unsellable S
   const chert = cards.find((entry) => entry.children.some((node) => node.textContent === "Chert"));
   assert.ok(soil); assert.ok(chert);
   assert.equal(soil.children.some((node) => node.tagName === "BUTTON"), false);
-  chert.children.find((node) => node.textContent === "Sell all").emit("click");
-  assert.ok(Math.abs(ui.state().cash - 0.03) < 1e-8);
+  assert.equal(chert.children.some((node) => node.tagName === "BUTTON"), false);
+  assert.equal(ui.state().cash, 0);
+  assert.equal(ui.state().inventory.chert, 0.3);
   assert.equal(ui.state().inventory.soil, 0.3);
 });
 
-test("Items exposes Wood's $0.10 sale and hides it again when sold", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 10;
+test("Items displays all collected materials without inventory selling or changing cash and quantities", () => {
+  const factory = new A.Factory(A.createState(1));
+  for (const [id, definition] of Object.entries(A.DATA.materials)) if (!definition.fluid) factory.state.inventory[id] = 10;
   const ui = boot(factory.exportSave()); ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
-  const wood = ui.ids.get("itemCards").children[0];
-  assert.ok(wood.children.some((child) => child.textContent === "$0.1 each from inventory"));
-  wood.children.find((child) => child.textContent === "Sell all").emit("click");
-  assert.equal(ui.state().cash, 1); assert.equal(ui.state().inventory.wood, 0);
-  assert.match(ui.ids.get("itemCards").children[0].textContent, /Inventory is empty/);
+  const cards = ui.ids.get("itemCards").children;
+  assert.equal(cards.length, Object.values(A.DATA.materials).filter(definition => !definition.fluid).length);
+  for (const card of cards) {
+    assert.equal(card.children.some(child => child.tagName === "BUTTON"), false);
+    assert.equal(card.children.some(child => /from inventory|Sell/.test(child.textContent)), false);
+    assert.ok(card.children.some(child => child.tagName === "STRONG" && child.textContent === "10"));
+  }
+  assert.equal(typeof factory.sellInventory, "undefined");
+  assert.equal(ui.state().cash, 0); assert.deepEqual(ui.state().inventory, factory.state.inventory);
 });
 
 test("Clay Bench Shop cost, one-crew placement, sparse hitbox and stable mode selector use the actual browser handlers", () => {
@@ -1090,9 +1096,8 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   assert.equal(ui.state().inventory.brick, 4); assert.equal(ui.ids.get("crew").textContent, "10 / 10");
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
   const bricks = ui.ids.get("itemCards").children.find((card) => card.children.some((node) => node.textContent === "Bricks"));
-  assert.ok(bricks.children.some((node) => node.textContent === "$1 each from inventory"));
-  bricks.children.find((node) => node.textContent === "Sell all").emit("click");
-  assert.equal(ui.state().cash, 4); assert.equal(ui.state().inventory.brick, 0);
+  assert.ok(bricks);
+  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.brick, 4);
 });
 
 test("visible place/rotate/cancel controls create the correct footprint and preserve the old game save", () => {
@@ -1400,6 +1405,8 @@ test('recipe browsing follows ingredients and machines, restores filtered histor
   assert.deepEqual(ui.ids.get('recipeEntries').children.map(node => node.dataset.entry), ['item:copperWinding', 'item:copperWire']);
   clickEntry('item:copperWire');
   assert.match(contents(), /Production uses/); assert.match(contents(), /Used in construction/);
+  assert.match(contents(), /4 Molten Copper/); assert.match(contents(), /20 Copper Wire/);
+  assert.match(contents(), /150 Copper Wire\/min/);
   assert.match(contents(), /3s per batch/); assert.match(contents(), /8s per batch/);
   assert.match(contents(), /10 Copper Wire/);
   ui.ids.get('recipeEntries').scrollTop = 75; ui.ids.get('recipeDetail').scrollTop = 210;

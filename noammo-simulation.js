@@ -32,12 +32,15 @@
     return source?.fluid && !source.requiresRefractoryCaster && product && !product.fluid && !product.requiresRefractoryCaster
       ? source.moldsTo : null;
   }
-  function formingRecipe(definition, input, mode) {
+  function formingRecipe(definition, input, mode, legacyExtrusionBatch) {
     const recipe = definition.formingModes?.[mode], source = D.materials[input?.material];
     const output = source?.[recipe?.materialProperty];
     if (!recipe || !output || !D.materials[output] || Boolean(source.fluid) !== Boolean(definition.fluidInput)
       || D.materials[output].fluid) return null;
-    return { ...recipe, output };
+    // Finish pre-correction jobs at their original yield. Fresh jobs always
+    // use the live four-unit batch; waiting input uses its new buffer limit.
+    if (legacyExtrusionBatch !== undefined && (legacyExtrusionBatch !== true || definition !== D.machines.extruder)) return null;
+    return { ...recipe, output, ...(legacyExtrusionBatch ? { input: 1, outputQuantity: 5 } : {}) };
   }
 
   function rotatePoint(x, y, width, height, direction) {
@@ -127,7 +130,7 @@
   function sharesCrossing(a, b, x, y) {
     const bridge = D.machines[a.type]?.bridge ? a : D.machines[b.type]?.bridge ? b : null;
     const other = bridge === a ? b : a;
-    if (!bridge || other.type !== "belt") return false;
+    if (!bridge || !["belt", "electricConveyor"].includes(other.type)) return false;
     const middle = conveyorCells(bridge)[1];
     return middle.x === x && middle.y === y;
   }
@@ -310,6 +313,7 @@
     const effect = D.machines[type].cashEffect, base = D.materials[item.material].value;
     const uses = item.upgrades[type] ?? 0;
     if (!effect || base === null || base < (effect.baseValueRequired ?? 0)
+      || item.value < (effect.lowerLimit ?? 0)
       || item.value + epsilon >= effect.upperLimit || uses >= (effect.useLimit ?? Infinity)) return;
     item.value = effect.multiplier ? item.value * effect.multiplier : item.value + effect.bonus;
     item.upgrades[type] = uses + 1;
@@ -328,7 +332,7 @@
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -390,6 +394,10 @@
         this.pressPowers.set(machine.id, { connections: connections.length, speed: connections.length < 2 ? 0 : paired ? 2 : 1 });
       }
       this.poweredDrives = this.state.machines.filter((machine) => machine.type === "drive" && this.driveHasWheel(machine));
+      const supply = this.state.machines.reduce((total, machine) => total
+        + (D.machines[machine.type].electricOutput && this.kineticHasWheel(machine) ? D.machines[machine.type].electricOutput : 0), 0);
+      const demand = this.state.machines.reduce((total, machine) => total + (D.machines[machine.type].electricPower ?? 0), 0);
+      this.electricity = { supply, demand, shortage: demand > supply };
       this.transportOrder = this.orderConveyors();
       this.layoutVersion++;
     }
@@ -461,6 +469,7 @@
       });
     }
     conveyorPowered(machine, x, y) {
+      if (D.machines[machine.type].electricPower) return !this.electricity.shortage;
       return D.machines[machine.type].requiresKinetic ? this.kineticHasWheel(machine) : this.powered(x, y);
     }
     totalCrew() { return D.config.startingCrew + this.state.hiredCrew; }
@@ -712,12 +721,6 @@
       this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
       return money;
     }
-    sellInventory(material, quantity) {
-      if (!D.materials[material] || D.materials[material].value === null || !Number.isFinite(quantity) || quantity <= 0) return 0;
-      const count = Math.min(quantity, this.state.inventory[material]);
-      this.state.inventory[material] -= count;
-      return this.sell([cargo(material, count)]);
-    }
     total(machine, field) { return machine[field].reduce((sum, item) => sum + item.quantity, 0); }
     setOverflowMode(id, mode) {
       const machine = this.byId.get(id), definition = D.machines[machine?.type];
@@ -814,7 +817,10 @@
     }
     finishShaping(machine) {
       if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
-      const recipe = this.craftRecipe(machine, machine.job.input, machine.job.mode);
+      const definition = D.machines[machine.type];
+      const recipe = definition.formingModes
+        ? formingRecipe(definition, machine.job.input, machine.job.mode, machine.job.legacyExtrusionBatch)
+        : this.craftRecipe(machine, machine.job.input, machine.job.mode);
       const quantity = recipe.outputQuantity ?? 1;
       const product = blendGradeRepairs(cargo(recipe.output, quantity,
         machine.job.input.value * recipe.input * recipe.valueMultiplier / quantity), [machine.job.input]);
@@ -981,7 +987,7 @@
         x: Math.round(point.x + perpendicular.x * offset), y: Math.round(point.y + perpendicular.y * offset),
       }));
       const slots = positions.map((cell) => this.conveyorAt(cell.x, cell.y, elevated));
-      const allowed = (slot) => slot.machine.id === fromId || (slot.machine.type === "belt"
+      const allowed = (slot) => slot.machine.id === fromId || (["belt", "electricConveyor"].includes(slot.machine.type)
         ? slot.tile.direction !== opposite(direction)
         : ports(slot.machine).some((entry) => entry.role === "input" && entry.x === slot.tile.x
           && entry.y === slot.tile.y && entry.direction === opposite(direction)));
@@ -1063,7 +1069,7 @@
           quantity = Math.min(Math.floor(item.quantity), Math.floor((definition.heatCapacity - machine.heat + epsilon) / fuelHeat));
           if (consume && quantity > 0) machine.heat += quantity * fuelHeat;
         }
-      } else if (D.machines[machine.type].conveyors && (machine.type === "belt" || input)) {
+      } else if (D.machines[machine.type].conveyors && (["belt", "electricConveyor"].includes(machine.type) || input)) {
         if (incomingSide === machine.facing) return 0;
         if (D.machines[machine.type].pressModes && !this.craftRecipe(machine, item)) return 0;
         const tile = conveyorCells(machine).find((cell) => cell.x === x && cell.y === y);
@@ -1252,6 +1258,10 @@
       if (definition.kineticInputsRequired && !this.kineticHasWheel(machine)) {
         return `Waiting for kinetic connections · ${this.kineticConnections.get(machine.id)?.length ?? 0} / ${definition.kineticInputsRequired}`;
       }
+      if (definition.electricOutput) return `Generating ${formatNumber(definition.electricOutput)}u · factory-wide supply`;
+      if (definition.electricPower) return this.electricity.shortage
+        ? `Electricity shortage · ${formatNumber(this.electricity.demand)}u demand / ${formatNumber(this.electricity.supply)}u supply · paused`
+        : `Electric power available · ${formatNumber(definition.electricPower)}u`;
       if (definition.formingModes) {
         if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked"
           : `Making ${definition.formingModes[machine.job.mode].name} · ${formatNumber(machine.job.remaining)}s`;
@@ -1330,10 +1340,20 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.electricityVersion ?? 0) < 1) {
+        for (const type of ["electricConveyor", "kineticGenerator", "orangeMetal"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
+        state.electricityVersion = 1;
+      }
       if ((state.wireIndustryVersion ?? 0) < 1) {
         for (const type of ["graphiteDrill", "extruder", "windingSpool"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
         for (const material of ["graphite", "copperWire", "copperCoil", "copperWinding"]) if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
         state.wireIndustryVersion = 1;
+      }
+      if (state.wireIndustryVersion < 2) {
+        for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
+          if (machine.type === "extruder" && machine.job?.input?.quantity === 1) machine.job.legacyExtrusionBatch = true;
+        }
+        state.wireIndustryVersion = 2;
       }
       if ((state.metalPressVersion ?? 0) < 1) {
         for (const type of ["metalPress", "heavyWheel"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
@@ -1603,7 +1623,7 @@
           const definition = D.machines[machine.type];
           const pending = machine.input.reduce((sum, item) => sum + item.quantity, 0);
           const recipe = formingRecipe(definition, machine.input[0], machine.mode);
-          const jobRecipe = machine.job && formingRecipe(definition, machine.job.input, machine.job.mode);
+          const jobRecipe = machine.job && formingRecipe(definition, machine.job.input, machine.job.mode, machine.job.legacyExtrusionBatch);
           const validOutput = (item) => Object.keys(D.materials).some((material) => Object.keys(definition.formingModes).some((mode) => {
             const recipe = formingRecipe(definition, { material }, mode);
             return recipe?.output === item.material && item.quantity <= (recipe.outputQuantity ?? 1) + epsilon;

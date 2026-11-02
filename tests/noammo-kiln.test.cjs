@@ -297,7 +297,7 @@ test("Fired products sell at actual process value, collectors reset only on with
   factory.pickup(tube.id); feed(factory, kiln, "unfiredBrick", 4, 1.05);
   factory.update(0.1); factory.update(8); factory.pickup(kiln.id);
   assert.equal(factory.state.inventory.brick, 4);
-  near(factory.sellInventory("brick", 4), 4, "stored Bricks sell at their $1 base, not their former $4.2 process value");
+  near(factory.state.cash, 33.6, "recovering finished Bricks does not sell them");
   factory.state.cash = 750; factory.state.inventory.brick = 200;
   assert.equal(factory.buy("sellTube").amount, 1); assert.equal(factory.state.inventory.brick, 0);
 });

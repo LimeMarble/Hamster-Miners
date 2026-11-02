@@ -68,13 +68,13 @@ test("every rotated Sifter routes fractional Soil and Chert only from its own po
       assert.ok(receivers[material].contents.every((item) => item.material === material));
     }
     near(factory.state.cash, 0);
-    near(factory.collect(receivers.chert.id), 3); near(factory.sellInventory("chert", 3), 0.3);
-    near(factory.collect(receivers.soil.id), 3); assert.equal(factory.sellInventory("soil", 3), 0);
+    near(factory.collect(receivers.chert.id), 3); near(factory.state.inventory.chert, 3);
+    near(factory.collect(receivers.soil.id), 3); near(factory.state.cash, 0);
     near(factory.state.inventory.soil, 3);
     const tube = place(factory, "sellTube", 50, 50);
     assert.equal(factory.receive(tube, cargo("soil", 1), 50, 50, "left", true), 0);
     near(factory.receive(tube, cargo("chert", 0.1), 50, 50, "left", true), 0.1);
-    near(factory.state.cash, 0.31);
+    near(factory.state.cash, 0.01);
   }
 });
 

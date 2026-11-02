@@ -36,6 +36,10 @@
     } });
   function viewRecipes(type) { recipeBook.open(`machine:${type}`); setTab("recipes"); }
   function appendMachineEffects(panel, definition) {
+    if (definition.electricPower) panel.append(element("p", `Electricity demand: ${number(definition.electricPower)}u, including internal conveyors.`, "machine-effect"));
+    if (definition.electricOutput) panel.append(element("p", `Electricity supply: ${number(definition.electricOutput)}u with both kinetic inputs connected.`, "machine-effect"));
+    if (definition.electricPower || definition.electricOutput) panel.append(element("p", "Generators share one factory-wide supply. All electric machines pause when total demand exceeds supply.", "muted"));
+    if (definition.electricPower && definition.conveyors) panel.append(element("p", `Conveyor: weight capacity ${number(definition.beltWeight)} · ${number(definition.beltSeconds)}s per tile · one cargo stack per tile.`, "machine-effect"));
     for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradeProfile) {
       panel.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
     }
@@ -46,6 +50,7 @@
     if (!effect || typeof effect !== "object") return;
     const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
     if (effect.useLimit !== undefined) lines.push(`Use Limit: ${number(effect.useLimit)}`);
+    if (effect.lowerLimit !== undefined) lines.push(`Lower Bound: ${money(effect.lowerLimit)}`);
     if (effect.upperLimit !== undefined) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
     if (definition.gradeEffect?.poorToStandardPerUse) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Unremarkable per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
@@ -610,11 +615,6 @@
       const definition = D.materials[material], card = element("article", undefined, "item-card");
       const swatch = element("i", undefined, "machine-swatch"); swatch.style.backgroundColor = definition.color;
       card.append(swatch, element("h2", definition.name), element("strong", number(quantity)));
-      if (definition.value !== null) {
-        card.append(element("p", `${money(definition.value)} each from inventory`, "muted"));
-        card.append(action("Sell all", () => { notify(`Sold for ${money(factory.sellInventory(material, quantity))}.`); refresh(); }));
-        card.append(action("Sell 10", () => { notify(`Sold for ${money(factory.sellInventory(material, 10))}.`); refresh(); }, "secondary"));
-      }
       $("itemCards").append(card);
     }
     if (!$("itemCards").children.length) $("itemCards").append(element("p", "Inventory is empty. Collect a Basket or chop a tree."));
@@ -681,6 +681,10 @@
     if (interaction.tool?.repeat && !factory.state.stock[interaction.tool.type]) interaction.tool = null;
     if (interaction.group?.placing && !factory.hasGroupStock(interaction.group.ids)) interaction.group = null;
     text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${factory.totalCrew()}`);
+    const electricity = factory.electricity;
+    text($("electricity"), `${number(electricity.demand)} / ${number(electricity.supply)}u${electricity.shortage ? " · Paused" : ""}`);
+    $("electricity").classList.toggle("power-shortage", electricity.shortage);
+    $("electricity").title = electricity.shortage ? "Demand exceeds supply. All electric machines are paused." : "Factory-wide electricity demand / supply";
     const hireCost = factory.crewHireCost();
     text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);
     $("hireCrew").disabled = !factory.canHireCrew();

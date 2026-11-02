@@ -142,7 +142,7 @@ test('Actual copper smelting → molding → powered Chimes → collection prese
   assert.equal(f.total(basket, 'contents'), 4); near(basket.contents[0].value, 135.5);
   assert.deepEqual(basket.contents[0].upgrades, { copperChimes: 1 }); near(furnace.heat, 10000);
   assert.equal(f.state.inventory.clay, 100); assert.equal(f.collect(basket.id), 4); assert.equal(f.state.inventory.copperIngot, 4);
-  near(f.sellInventory('copperIngot', 4), 24);
+  near(f.state.cash, 0);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 

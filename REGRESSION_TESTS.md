@@ -9,6 +9,13 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
+- Electricity uses a factory-wide supply. Connected Kinetic Generators supply
+  100u each; all placed electric demand counts, and a shortage pauses every
+  electric conveyor until sufficient supply returns. The Electric Conveyor
+  carries one whole stack up to weight 5 at one second per tile. Orange Metal
+  applies +$1k for base values at least $5 and incoming values from $500 to
+  below $6k. Primitive Shack doubles once below its $7.5k incoming cap.
+
 ### Separate noammo opening
 
 - The recipe browser derives production and construction links from current
@@ -324,7 +331,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   placement, pickup and save/load. Old saves default to zero hires; invalid
   counts are rejected. The stable Hire button updates its price, affordability
   and available/total count on every screen, including after incoming sales.
-- Wood sells for $0.10 through inventory and Sell Tube, retaining fresh
+- Inventory has no selling controls or sale method; collection retains material
+  quantities without granting cash. Wood sells for $0.10 through Sell Tube, retaining fresh
   upgraded cargo values and its 50 heat units. One starter Sell Tube is free;
   extra tubes require $750 and 200 Bricks each, with normal bulk costs and no
   borrowing bypass. Old saves receive a missing starter once, keep any tubes
@@ -755,9 +763,14 @@ future pipe tiers) are not treated as current acceptance requirements.
   rotated ports, paired kinetic requirements, power loss and shared Heavy
   Wheel placement. Checks exercise 40-second centered Graphite extraction,
   direct Furnace-to-Extruder liquid delivery in either construction order,
-  eight-second value-preserving Wire batches, three-second Coils and
+  four-liquid-to-twenty-Wire eight-second value-preserving batches, three-second Coils and
   eight-second Windings. Bounded inputs, partial output batches, mixed-value
   Wire, quality/history inheritance, safe mode changes, pickup isolation,
   older saves and malformed production buffers are covered. Spool controls
   stay mounted during updates; the generic building lifecycle/render contract
   automatically includes all three machines.
+- Extruder batch correction keeps a four-unit waiting liquid buffer and
+  bounded twenty-Wire output. Older placed/stored one-unit jobs finish their
+  five-Wire batches without losing progress or multiplying materials/value;
+  future jobs use four units. Recipe-browser quantities and rates follow the
+  live definition.

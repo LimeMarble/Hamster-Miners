@@ -255,22 +255,22 @@ test("old saves default to zero paid hires and malformed hired counts are reject
   }
 });
 
-test("Wood sells for $0.10 from inventory and a direct Logger-to-Sell-Tube route", () => {
+test("Wood sells for $0.10 through a direct Logger-to-Sell-Tube route; collection does not sell inventory", () => {
   assert.equal(D.materials.wood.value, 0.1); assert.equal(D.materials.wood.heat, 30000);
   const factory = new Factory(createState(1));
   factory.state.inventory.wood = 10;
-  assert.equal(factory.sellInventory("wood", 10), 1);
   const basket = place(factory, "basket", 40, 40);
   factory.receive(basket, cargo("wood", 5), 40, 40, null, true);
   assert.equal(factory.collect(basket.id), 5);
-  assert.equal(factory.sellInventory("wood", 5), 0.5);
+  assert.equal(factory.state.inventory.wood, 15); assert.equal(factory.state.cash, 0);
   const tree = factory.state.trees[0];
   place(factory, "logger", tree.x, tree.y + 1, "left");
   const tube = factory.place("sellTube", tree.x - 2, tree.y).machine;
   assert.ok(tube); advance(factory, 12);
-  assert.ok(Math.abs(factory.state.cash - 1.7) < 1e-8);
+  assert.ok(Math.abs(factory.state.cash - 0.2) < 1e-8);
   assert.equal(factory.receive(tube, cargo("wood", 2, 0.7), tube.x, tube.y, null, true), 2);
-  assert.ok(Math.abs(factory.state.cash - 3.1) < 1e-8, "fresh upgraded Wood retains its actual value");
+  assert.ok(Math.abs(factory.state.cash - 1.6) < 1e-8, "fresh upgraded Wood retains its actual value");
+  assert.equal(factory.state.inventory.wood, 15);
 });
 
 test("one Sell Tube is free; additional tubes require $750 and 200 Bricks each and cannot be borrowed", () => {
@@ -794,8 +794,15 @@ test("actual opening bootstraps Fiber and manually carved gears before buying a 
   assert.equal(factory.buy("belt", 4).amount, 4);
   for (const type of ['wheel', 'drive']) assert.equal(factory.buy(type).amount, 1);
   assert.equal(factory.state.cash, 0, 'belts, Wheel and Drive have no cash requirement');
-  assert.equal(factory.sellInventory('wood', 40), 4);
-  assert.equal(factory.buy('primitive', 2).amount, 2); assert.equal(factory.state.cash, 0);
+  // Divert fresh Fiber into the free Sell Tube to fund the first Upgraders.
+  factory.pickup(basket.id);
+  assert.ok(factory.move(incomeTube.id, 125, 6, 'right').machine);
+  for (let i = 0; i < 100 && factory.state.cash < 4; i++) advance(factory, 10);
+  assert.ok(factory.state.cash >= 4);
+  assert.ok(factory.move(incomeTube.id, 147, 10, 'right').machine);
+  basket = factory.place('basket', 125, 6).machine;
+  const setupCash = factory.state.cash;
+  assert.equal(factory.buy('primitive', 2).amount, 2); assert.equal(factory.state.cash, setupCash - 4);
   const wheel = factory.place("wheel", 119, 10, "right").machine;
   const drive = factory.place("drive", 120, 12, "up").machine;
   assert.equal(factory.driveHasWheel(drive), true);

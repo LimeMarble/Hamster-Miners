@@ -247,15 +247,15 @@
         labelLines: ["Extruder"], labelCell: [1, 1],
         cost: { cash: 1500000, materials: { granite: 250, copperPlate: 60, copperGear: 10, graphite: 10 } },
         requiresKinetic: true, kineticInputsRequired: 2, fluidInput: true,
-        defaultMode: "wire", inputLimit: 1, outputBuffer: 1,
-        formingModes: { wire: { name: "Wire", materialProperty: "extrudesTo", input: 1, outputQuantity: 5, seconds: 8, valueMultiplier: 1 } },
+        defaultMode: "wire", inputLimit: 4, outputBuffer: 1,
+        formingModes: { wire: { name: "Wire", materialProperty: "extrudesTo", input: 4, outputQuantity: 20, seconds: 8, valueMultiplier: 1 } },
         ports: [
           { x: 1, y: 0, direction: "up", role: "kineticInput" },
           { x: 2, y: 0, direction: "up", role: "kineticInput" },
           { x: 0, y: 1, direction: "left", role: "input" },
           { x: 2, y: 1, direction: "right", role: "output" },
         ],
-        description: "Forms one unit of molten metal into five Wire in eight seconds, preserving total value. Requires two kinetic connections and one operating hamster.",
+        description: "Forms four units of molten metal into twenty Wire in eight seconds, preserving total value. Requires two kinetic connections and one operating hamster.",
       },
       windingSpool: {
         name: "Winding Spool", width: 2, height: 2, color: "#b08a62", category: "Material",
@@ -314,6 +314,16 @@
         ],
         description: "Two hamsters drive paired kinetic outputs on both long edges. Each pair can power a Metal Press at double processing speed.",
       },
+      kineticGenerator: {
+        name: "Kinetic Generator", width: 2, height: 2, color: "#a58c58", category: "Logistics",
+        labelLines: ["Kinetic", "Generator"], requiresKinetic: true, kineticInputsRequired: 2, electricOutput: 100,
+        cost: { cash: 2000000, materials: { granite: 200, copperPlate: 10, copperGear: 10, copperWire: 20, copperWinding: 10, graphite: 5 } },
+        ports: [
+          { x: 1, y: 0, direction: "right", role: "kineticInput" },
+          { x: 1, y: 1, direction: "right", role: "kineticInput" },
+        ],
+        description: "Supplies 100u of factory-wide electricity while both adjacent facing-edge kinetic inputs are connected. Two Generators can share the opposite output pairs of a Heavy Hamster Wheel.",
+      },
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
         cost: { cash: 0, materials: { wood: 75, leekFiber: 7.5 } },
@@ -371,7 +381,7 @@
         conveyors: [[0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
         upgradeCells: [[1, 1], [1, 2]],
         cost: { cash: 10000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } },
-        cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 2500, baseValueRequired: 1.2 },
+        cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 7500, baseValueRequired: 1.2 },
         description: "Doubles the value of passing products. Two parallel conveyor paths run through the Shack.",
       },
       graniteProcessor: {
@@ -388,11 +398,25 @@
         cashEffect: { multiplier: 1.25, useLimit: 1, upperLimit: 2.5e4 },
         description: "Increases the value of passing sellables by 25% once. Requires kinetic power for its conveyor.",
       },
+      orangeMetal: {
+        name: "Orange Metal", width: 1, height: 3, color: "#cf8643", category: "Cash",
+        labelLines: ["Orange", "Metal"], labelCell: [0, 0], conveyors: [[0, 1]],
+        electricPower: 8, beltSeconds: 1, beltWeight: 5,
+        cost: { cash: 5000000, materials: { copperPlate: 60, chert: 50, copperWinding: 5, copperCoil: 10, copperWire: 15 } },
+        cashEffect: { bonus: 1000, lowerLimit: 500, upperLimit: 6000, baseValueRequired: 5 },
+        description: "Adds $1k to passing sellables worth at least $500 and below $6k, with base value at least $5. Repeat passes until the incoming cap is reached. Uses 8u of electricity, including its conveyor.",
+      },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
         cost: { cash: 0, materials: { wood: 10, woodenGear: 4 } },
         conveyors: [[0, 0]],
         description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes two seconds per tile.",
+      },
+      electricConveyor: {
+        name: "Electric Conveyor", width: 1, height: 1, color: "#718b88", category: "Logistics",
+        cost: { cash: 20000, materials: { chert: 20, copperWire: 10, copperCoil: 10, copperGear: 4, graphite: 1 } },
+        conveyors: [[0, 0]], electricPower: 1, beltSeconds: 1, beltWeight: 5,
+        description: "Moves one cargo stack at a time, up to weight 5, at one tile per second. Uses 1u of factory-wide electricity.",
       },
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
