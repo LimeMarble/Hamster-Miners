@@ -9,9 +9,16 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
+- Primitive cash upgrader conveyors can be upgraded as a whole with unplaced
+  Basic Conveyors. Their electricity, speed and weight limits follow the Basic
+  tier. Pickup refunds each replacement exactly once and leaves original belt
+  components attached for dismantling. Moves and saves preserve the upgrade.
+  The Leek Duster applies its treatment only with a kinetic connection, even
+  while its replacement electric belts can move untreated cargo.
+
 - Electricity uses a factory-wide supply. Connected Kinetic Generators supply
   100u each; all placed electric demand counts, and a shortage pauses every
-  electric conveyor until sufficient supply returns. The Electric Conveyor
+  electric conveyor until sufficient supply returns. The Basic Conveyor
   carries one whole stack up to weight 5 at one second per tile. Orange Metal
   applies +$1k for base values at least $5 and incoming values from $500 to
   below $6k. Primitive Shack doubles once below its $7.5k incoming cap.
@@ -732,7 +739,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   cannot falsely trigger overflow. Tests include adjacent Overflow chains,
   bounded blocked cargo, power removal, live Kiln delivery, instance isolation,
   pickup recovery, malformed saves, atomic component costs and stable UI controls.
-- Noammo two-weight conveyor capacity: overweight stacks reject without splitting;
+- Noammo conveyor transfers reject overweight stacks without splitting. Machine
+  solid output buffers instead send the largest whole-number portion that fits,
+  retaining the remainder, and individual overweight items remain blocked;
   legal fractional quantities retain value and grade/use metadata. Older five-weight saves split into
   paced legal portions; reload, upgrades and pickup cannot lose or duplicate
   queued quantities. Legacy mining-game capacity remains unchanged.
@@ -763,8 +772,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   rotated ports, paired kinetic requirements, power loss and shared Heavy
   Wheel placement. Checks exercise 40-second centered Graphite extraction,
   direct Furnace-to-Extruder liquid delivery in either construction order,
-  four-liquid-to-twenty-Wire eight-second value-preserving batches, three-second Coils and
-  eight-second Windings. Bounded inputs, partial output batches, mixed-value
+  four-liquid-to-twenty-Wire eight-second value-preserving batches, one-second Coils and
+  four-second Windings. Bounded inputs, partial output batches, mixed-value
   Wire, quality/history inheritance, safe mode changes, pickup isolation,
   older saves and malformed production buffers are covered. Spool controls
   stay mounted during updates; the generic building lifecycle/render contract

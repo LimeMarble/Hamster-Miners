@@ -135,7 +135,7 @@
           point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
       overflowMarkers(ctx, machine);
-      if (machine.type !== "belt") {
+      if (!["belt", "electricConveyor"].includes(machine.type)) {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
         const labelCell = definition.manualTransferSeconds ? [1, (machine.mode ?? definition.defaultMode) === "up" ? 0 : 2] : definition.labelCell;

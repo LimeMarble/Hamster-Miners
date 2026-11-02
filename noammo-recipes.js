@@ -189,6 +189,13 @@
         const recipes = catalog.recipes.filter(recipe => recipe.machine === entry.key);
         const production = section("Production recipes", recipes.length ? "" : "This machine has no material-production recipe.");
         recipes.forEach(recipe => production.append(recipeCard(recipe))); effects(entry);
+        if (entry.electricPower || entry.electricOutput) {
+          const power = section("Electricity");
+          power.append(element("p", entry.electricOutput ? `Supplies ${number(entry.electricOutput)}u with both kinetic inputs connected.`
+            : `Draws ${number(entry.electricPower)}u, including its internal conveyor.`));
+          power.append(element("p", "All generators share one factory-wide supply. All electric machines pause when demand exceeds supply."));
+          if (entry.conveyors) power.append(element("p", `Conveyor: weight capacity ${number(entry.beltWeight)} · ${number(entry.beltSeconds)}s per tile · one cargo stack per tile.`));
+        }
         if (entry.heatCapacity) {
           const fuel = section("Fuel & heat"); fuel.append(element("p", `Heat capacity: ${number(entry.heatCapacity)}u. Full batches consume their heat when started.`));
           for (const [id, material] of Object.entries(data.materials)) if (material.heat) fuel.append(reference(`item:${id}`, `${material.name} · ${number(material.heat)}u each`));

@@ -30,9 +30,9 @@ test('primitive belts reject overweight stacks intact and accept legal fractiona
   assert.equal(f.sell([m.lanes[0]]), 73, 'weight does not scale upgraded cash either');
 });
 
-test('thermal outputs retain one-product unloading every two seconds in every orientation', () => {
+test('thermal outputs unload the largest fitting whole portion at belt cadence in every orientation', () => {
   for (const facing of A.DATA.directions) for (const [type, material, quantity, chunk] of [
-    ['kiln', 'brick', 4, 1], ['kiln', 'pot', 2, 1], ['primitiveFurnace', 'charcoal', 2, 1],
+    ['kiln', 'brick', 4, 2], ['kiln', 'pot', 2, 1], ['primitiveFurnace', 'charcoal', 2, 2],
   ]) {
     const f = new A.Factory(A.createState(1));
     place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
@@ -51,10 +51,10 @@ test('thermal outputs retain one-product unloading every two seconds in every or
     assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
     f.update(1.9); assert.equal(f.total(basket, 'contents'), 0);
     f.update(0.1); assert.equal(f.total(basket, 'contents'), chunk);
-    assert.equal(f.total(source, 'output'), quantity - 2 * chunk);
+    assert.equal(f.total(source, 'output'), Math.max(0, quantity - 2 * chunk));
     if (quantity > chunk) {
       assert.equal(belt.lanes[0].quantity, chunk);
-      f.update((quantity - 1) * 2);
+      f.update((Math.ceil(quantity / chunk) - 1) * 2);
     }
     assert.equal(f.total(basket, 'contents'), quantity);
     assert.equal(basket.contents[0].value, 17);
@@ -68,12 +68,12 @@ test('kiln output cadence stays unchanged for machine conveyors and cannot bank 
   kiln.output.push(A.cargo('brick', 4)); seal.lanes[0] = { ...A.cargo('wood', 2), progress: 1 };
   f.update(30); assert.equal(f.total(kiln, 'output'), 4);
   delete seal.lanes[0]; f.update(0.1);
-  assert.equal(seal.lanes[0].quantity, 1); assert.equal(f.total(kiln, 'output'), 3);
+  assert.equal(seal.lanes[0].quantity, 2); assert.equal(f.total(kiln, 'output'), 2);
   delete seal.lanes[0]; f.update(1.9); assert.equal(seal.lanes[0], undefined);
-  f.update(0.1); assert.equal(seal.lanes[0].quantity, 1); assert.equal(f.total(kiln, 'output'), 2);
+  f.update(0.1); assert.equal(seal.lanes[0].quantity, 2); assert.equal(f.total(kiln, 'output'), 0);
 });
 
-test('generic machine outputs wait intact for a belt carrying the entire stack', () => {
+test('generic machine outputs release whole fitting items and preserve blocked remainder', () => {
   const data = JSON.parse(JSON.stringify(A.DATA));
   data.materials.testKettle = { name: 'Test Kettle', value: 100, weight: 1.5 };
   data.machines.testIndustrialBelt = { ...data.machines.belt, beltWeight: 30 };
@@ -85,14 +85,29 @@ test('generic machine outputs wait intact for a belt carrying the entire stack',
   const belt = place(f, 'belt', output.x + 1, output.y);
   const kettles = api.cargo('testKettle', 2, 321); kettles.graded = true;
   source.output.push(kettles);
-  const before = JSON.stringify(source.output);
-  f.update(4); assert.equal(JSON.stringify(source.output), before); assert.equal(belt.lanes[0], undefined);
+  f.update(0.1); assert.equal(source.output[0].quantity, 1); assert.equal(belt.lanes[0].quantity, 1);
+  f.update(4); assert.equal(source.output[0].quantity, 1); assert.equal(belt.lanes[0].value, 321);
   f.pickup(belt.id);
   const industrial = place(f, 'testIndustrialBelt', output.x + 1, output.y);
   f.update(0.1); assert.equal(source.output.length, 0);
-  assert.equal(industrial.lanes[0].quantity, 2); assert.equal(industrial.lanes[0].value, 321);
+  assert.equal(industrial.lanes[0].quantity, 1); assert.equal(industrial.lanes[0].value, 321);
   assert.equal(industrial.lanes[0].graded, true);
   assert.deepEqual(JSON.parse(api.Factory.importSave(f.exportSave()).exportSave()), JSON.parse(f.exportSave()));
+});
+
+test('an individual solid output heavier than the receiving belt stays intact', () => {
+  const data = JSON.parse(JSON.stringify(A.DATA));
+  data.machines.testLightBelt = { ...data.machines.belt, beltWeight: 1 };
+  const sandbox = { module: { exports: {} }, require: () => data };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
+  const api = sandbox.module.exports, f = new api.Factory(api.createState(1));
+  place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
+  const source = place(f, 'gradingBench', 40, 40);
+  const belt = place(f, 'testLightBelt', 42, 41);
+  source.output.push(api.cargo('copperWinding', 1, 321));
+  f.update(4);
+  assert.equal(source.output[0].quantity, 1); assert.equal(source.output[0].value, 321);
+  assert.equal(belt.lanes[0], undefined);
 });
 
 test('thermal solid unloading follows receiving conveyor speed, while molten output uses fluid input capacity', () => {
@@ -106,10 +121,10 @@ test('thermal solid unloading follows receiving conveyor speed, while molten out
     const kiln = place(f, 'kiln', 40, 40), belt = place(f, 'testBelt', 42, 41);
     const basket = place(f, 'basket', 43, 41);
     kiln.output.push(api.cargo('brick', 4, 17));
-    f.update(0.1); assert.equal(belt.lanes[0].quantity, 1); assert.equal(kiln.outputCooldown, seconds);
+    f.update(0.1); assert.equal(belt.lanes[0].quantity, 2); assert.equal(kiln.outputCooldown, seconds);
     assert.deepEqual(JSON.parse(api.Factory.importSave(f.exportSave()).exportSave()), JSON.parse(f.exportSave()));
     f.update(seconds - 0.1); assert.equal(f.total(basket, 'contents'), 0);
-    f.update(0.1); assert.equal(f.total(basket, 'contents'), 1);
+    f.update(0.1); assert.equal(f.total(basket, 'contents'), 2);
     f.update(3 * seconds); assert.equal(f.total(basket, 'contents'), 4);
     assert.equal(kiln.output.length, 0); assert.equal(basket.contents[0].value, 17);
     const furnace = place(f, 'primitiveFurnace', 50, 40), molder = place(f, 'ingotMolder', 52, 40);

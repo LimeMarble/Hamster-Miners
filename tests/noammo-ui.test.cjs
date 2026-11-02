@@ -103,6 +103,18 @@ function boot(saved, { width = 900, height = 600 } = {}) {
     state() { windowEvents.get("beforeunload")(); return JSON.parse(storage.get(A.DATA.saveKey)).state; } };
 }
 
+test('machine inspector installs and refunds a whole Basic Conveyor upgrade', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.copperChimes = 1; f.state.stock.electricConveyor = 1;
+  const machine = f.place('copperChimes', 121, 121).machine;
+  const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const button = ui.ids.get('upgradeConveyors'); assert.ok(button); assert.equal(button.disabled, false);
+  button.emit('click');
+  let state = ui.state(); assert.equal(state.stock.electricConveyor, 0);
+  assert.equal(state.machines.find(entry => entry.id === machine.id).conveyorUpgrade, 'electricConveyor');
+  ui.ids.get('pickupMachine').emit('click'); state = ui.state();
+  assert.equal(state.stock.electricConveyor, 1); assert.equal(state.stock.belt, 0);
+});
+
 test('Press mode controls stay mounted through production and safely change the next recipe', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.metalPress = 1; f.state.stock.heavyWheel = 1;
   const m = f.place('metalPress', 121, 121).machine;
@@ -1407,7 +1419,7 @@ test('recipe browsing follows ingredients and machines, restores filtered histor
   assert.match(contents(), /Production uses/); assert.match(contents(), /Used in construction/);
   assert.match(contents(), /4 Molten Copper/); assert.match(contents(), /20 Copper Wire/);
   assert.match(contents(), /150 Copper Wire\/min/);
-  assert.match(contents(), /3s per batch/); assert.match(contents(), /8s per batch/);
+  assert.match(contents(), /1s per batch/); assert.match(contents(), /4s per batch/); assert.match(contents(), /8s per batch/);
   assert.match(contents(), /10 Copper Wire/);
   ui.ids.get('recipeEntries').scrollTop = 75; ui.ids.get('recipeDetail').scrollTop = 210;
   follow('machine:windingSpool'); assert.equal(ui.ids.get('recipeTitle').textContent, 'Winding Spool');

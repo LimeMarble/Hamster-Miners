@@ -7,6 +7,7 @@ function place(f, type, x = 40, y = 40, facing = 'right') {
 }
 function powered(type) {
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
+  if (D.machines[type].electricPower) { place(f, 'heavyWheel', 69, 72); place(f, 'kineticGenerator', 70, 70, 'down'); }
   const m = place(f, type); if (D.machines[type].requiresKinetic) require('./helpers/noammo-centered.cjs').attachKineticWheel(f, m); return { f, m };
 }
 function feed(f, m, item) {

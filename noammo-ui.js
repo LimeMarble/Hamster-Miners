@@ -384,6 +384,21 @@
         }, "secondary"); pickup.id = "pickupMachine";
         controls.append(move, pickup, action("Recipes", () => viewRecipes(machine.type), "secondary"));
         panel.append(controls);
+        const conveyorCount = A.conveyorUpgradeCost(machine.type);
+        if (conveyorCount) {
+          const detail = element("p", machine.conveyorUpgrade
+            ? `Basic Conveyors installed: ${conveyorCount}. Picking up this machine returns them and restores the original conveyors.`
+            : `Replace all ${conveyorCount} internal conveyor${conveyorCount === 1 ? "" : "s"} with Basic Conveyors. Originals stay with this machine; pickup returns the Basic Conveyors.`, "muted");
+          panel.append(detail);
+          if (!machine.conveyorUpgrade) {
+            const upgrade = action(`Upgrade conveyors · ${conveyorCount} Basic`, () => {
+              const response = factory.upgradeConveyors(machine.id);
+              if (response.error) return notify(response.error);
+              inspectorSignature = ""; refresh();
+            }, "secondary");
+            upgrade.id = "upgradeConveyors"; panel.append(upgrade);
+          }
+        }
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
         if (definition.manualTransferSeconds) {
           const label = element("label", "Overflow side "), mode = element("select");
@@ -516,6 +531,7 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
       if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit)} · Finished items: ${number(factory.total(machine, "output"))} / 1`);

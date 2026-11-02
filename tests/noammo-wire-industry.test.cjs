@@ -122,16 +122,16 @@ test('Spool combines ten fractional/stacked Wire for a value-preserving Winding,
   assert.equal(f.setFormingMode(m.id, 'winding').error, undefined);
   near(feed(f, m, A.cargo('copperWire', 2.5, 10)), 2.5); f.update(1); assert.equal(m.job, null);
   near(feed(f, m, { ...A.cargo('copperWire', 20, 30), materialHistory: { 'leekDuster:copperWire:cash': true } }), 7.5);
-  assert.equal(feed(f, m, A.cargo('copperWire')), 0); f.update(0.1); near(m.job.remaining, 8);
+  assert.equal(feed(f, m, A.cargo('copperWire')), 0); f.update(0.1); near(m.job.remaining, 4);
   assert.equal(feed(f, m, A.cargo('copperWire', 10, 50)), 10);
   assert.equal(f.setFormingMode(m.id, 'coil').error, undefined); assert.equal(m.job.mode, 'winding');
   near(f.state.inventory.copperWire, 10); assert.equal(m.input.length, 0);
   assert.equal(feed(f, m, A.cargo('copperWire', 5, 15)), 1, 'coil mode only buffers one recipe');
-  f.update(7.9); assert.equal(basket.contents.length, 0); f.update(0.1);
+  f.update(3.9); assert.equal(basket.contents.length, 0); f.update(0.1);
   const winding = basket.contents[0]; assert.equal(winding.material, 'copperWinding'); near(winding.value, 250);
   near(winding.quantity, 1); assert.deepEqual(winding.upgrades, {});
   assert.equal(winding.materialHistory['leekDuster:copperWire:cash'], true);
-  near(m.job.remaining, 3); f.update(2.9); assert.equal(f.total(basket, 'contents'), 1); f.update(0.1);
+  near(m.job.remaining, 1); f.update(0.9); assert.equal(f.total(basket, 'contents'), 1); f.update(0.1);
   const coil = basket.contents.find(item => item.material === 'copperCoil'); near(coil.value, 15); near(coil.quantity, 1);
   near(D.materials.copperWinding.weight, D.materials.copperWire.weight * 10);
   near(D.materials.copperWinding.value, D.materials.copperWire.value * 10);
@@ -163,6 +163,19 @@ test('Furnace feeds Extruder directly in all rotations and either machine order;
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 
+test('Extruder sends twenty Wire as two intact ten-Wire stacks onto a Primitive Conveyor', () => {
+  const { f, m } = setup('extruder');
+  feed(f, m, A.cargo('moltenCopper', 4, 100)); f.update(8.1);
+  assert.equal(m.output[0].quantity, 20);
+  const belt = place(f, 'belt', 43, 41), basket = place(f, 'basket', 44, 41);
+  f.powered = () => true;
+  f.update(0.1); assert.equal(belt.lanes[0].quantity, 10); assert.equal(m.output[0].quantity, 10);
+  assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
+  f.update(2); assert.equal(f.total(basket, 'contents'), 10); assert.equal(belt.lanes[0].quantity, 10);
+  assert.equal(m.output.length, 0); f.update(2); assert.equal(f.total(basket, 'contents'), 20);
+  near(basket.contents.reduce((sum, item) => sum + item.value * item.quantity, 0), 400);
+});
+
 test('Opposite-facing Extruder and Spool share the two sides of one Heavy Wheel', () => {
   const { f, m, wheel } = setup('extruder', 'down');
   const local = A.ports({ type: 'windingSpool', x: 0, y: 0, facing: 'up' }).find(p => p.role === 'kineticInput');
@@ -178,7 +191,21 @@ test('Opposite-facing Extruder and Spool share the two sides of one Heavy Wheel'
   assert.equal(f.kineticHasWheel(m), true); assert.equal(f.kineticHasWheel(spool), true);
   assert.equal(f.state.machines.filter(item => item.type === 'heavyWheel').length, 1);
   feed(f, m, A.cargo('moltenCopper', 4)); feed(f, spool, A.cargo('copperWire')); f.update(0.1);
-  near(m.job.remaining, 8); near(spool.job.remaining, 3);
+  near(m.job.remaining, 8); near(spool.job.remaining, 1);
+});
+
+test('old active Spool jobs retain proportional progress when timing changes', () => {
+  for (const [mode, count, oldRemaining, expected] of [['coil', 1, 1.5, 0.5], ['winding', 10, 4, 2]]) {
+    const { f, m } = setup('windingSpool');
+    f.setFormingMode(m.id, mode); feed(f, m, A.cargo('copperWire', count)); f.update(0.1);
+    const save = JSON.parse(f.exportSave()); delete save.state.spoolTimingVersion;
+    save.state.machines.find(entry => entry.id === m.id).job.remaining = oldRemaining;
+    const loaded = A.Factory.importSave(JSON.stringify(save));
+    near(loaded.byId.get(m.id).job.remaining, expected);
+    near(A.Factory.importSave(loaded.exportSave()).byId.get(m.id).job.remaining, expected);
+    save.state.machines.find(entry => entry.id === m.id).job.remaining = 20;
+    assert.throws(() => A.Factory.importSave(JSON.stringify(save)), /Invalid Winding Spool job/);
+  }
 });
 
 test('Material mappings support later metals without Copper-specific forming code', () => {

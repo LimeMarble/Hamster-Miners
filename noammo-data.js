@@ -264,8 +264,8 @@
         requiresKinetic: true, kineticInputsRequired: 2,
         defaultMode: "coil", inputLimit: 10, outputBuffer: 1,
         formingModes: {
-          coil: { name: "Coils", materialProperty: "coilsTo", input: 1, seconds: 3, valueMultiplier: 1 },
-          winding: { name: "Windings", materialProperty: "windsTo", input: 10, seconds: 8, valueMultiplier: 1 },
+          coil: { name: "Coils", materialProperty: "coilsTo", input: 1, seconds: 1, valueMultiplier: 1 },
+          winding: { name: "Windings", materialProperty: "windsTo", input: 10, seconds: 4, valueMultiplier: 1 },
         },
         ports: [
           { x: 0, y: 0, direction: "up", role: "kineticInput" },
@@ -273,7 +273,7 @@
           { x: 0, y: 1, direction: "left", role: "input" },
           { x: 1, y: 1, direction: "right", role: "output" },
         ],
-        description: "Forms one Wire into one Coil in three seconds, or ten matching Wire into one Winding in eight seconds. Preserves total value. Requires both kinetic intakes; no operating crew.",
+        description: "Forms one Wire into one Coil in one second, or ten matching Wire into one Winding in four seconds. Preserves total value. Requires both kinetic intakes; no operating crew.",
       },
       metalPress: {
         name: "Metal Press", width: 3, height: 3, color: "#a98169", category: "Material",
@@ -413,7 +413,7 @@
         description: "Moves one cargo stack at a time. Requires kinetic power. Transit takes two seconds per tile.",
       },
       electricConveyor: {
-        name: "Electric Conveyor", width: 1, height: 1, color: "#718b88", category: "Logistics",
+        name: "Basic Conveyor", width: 1, height: 1, color: "#718b88", category: "Logistics",
         cost: { cash: 20000, materials: { chert: 20, copperWire: 10, copperCoil: 10, copperGear: 4, graphite: 1 } },
         conveyors: [[0, 0]], electricPower: 1, beltSeconds: 1, beltWeight: 5,
         description: "Moves one cargo stack at a time, up to weight 5, at one tile per second. Uses 1u of factory-wide electricity.",

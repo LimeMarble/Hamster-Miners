@@ -23,6 +23,7 @@ textarea { resize: vertical; }
 nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
 .totals { display: flex; gap: 18px; white-space: nowrap; }.totals small, .totals strong { display: block; }.totals strong { font-size: 19px; }
 .crew-total { display: flex; align-items: center; gap: 8px; }.crew-total button { font-size: 12px; padding: 6px 8px; }
+.power-shortage { color: #f5bc73; }
 #notice { position: fixed; left: 50%; top: 83px; transform: translateX(-50%); z-index: 20; pointer-events: none; background: #10190fef; border: 1px solid var(--accent); border-radius: 6px; padding: 8px 16px; max-width: 90vw; text-align: center; opacity: 0; transition: opacity .15s; }
 #notice.visible { opacity: 1; }
 main { padding: 12px; }
@@ -101,6 +102,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .help-panel summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .options-panel { max-width: 950px; margin: auto; }.options-panel details { margin: 22px 0; }.options-panel details p { margin-top: 12px; color: var(--muted); }
 .tree-chops { display: flex; gap: 5px; margin: 15px 0; }.tree-chops i { width: 26px; height: 10px; background: #46513c; border: 1px solid #7c8a62; }.tree-chops i.done { background: var(--accent); }
-@media (max-width: 1150px) { .factory-layout { grid-template-columns: minmax(0,1fr) 240px; }.topbar { gap: 10px; padding: 9px; }.brand strong { font-size: 16px; }.totals { gap: 10px; }.totals strong { font-size: 17px; }.inspector { padding: 10px; } }
+@media (max-width: 1150px) { .factory-layout { grid-template-columns: minmax(0,1fr) 240px; }.topbar { gap: 10px; padding: 9px; flex-wrap: wrap; }.brand strong { font-size: 16px; }.totals { gap: 10px; }.totals strong { font-size: 17px; }.inspector { padding: 10px; } }
+@media (max-width: 560px) { .totals { flex-wrap: wrap; white-space: normal; } }
 @media (max-width: 850px) { .topbar { flex-wrap: wrap; }.topbar nav { order: 3; width: 100%; }.factory-layout { grid-template-columns: minmax(0,1fr); height: auto; min-height: 0; }.factory-center { height: 62dvh; min-height: 390px; }.inspector { grid-column: 1 / -1; max-height: 420px; }.shop-layout, .inventory-layout { grid-template-columns: minmax(0,1fr); }.shop-detail { grid-row: 1; position: static; }.shop-cards { grid-template-columns: repeat(auto-fill,minmax(11rem,1fr)); } }
 @media (prefers-reduced-motion: reduce) { #notice { transition: none; } }
