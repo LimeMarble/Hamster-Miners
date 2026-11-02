@@ -15,6 +15,15 @@
   function world(ctx, camera) {
     ctx.save(); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x * TILE, -camera.y * TILE);
   }
+  function clearCanvas(ctx, viewport) {
+    // Canvas backing dimensions are rounded to whole physical pixels. Clear
+    // in that coordinate space so fractional display scaling cannot leave a
+    // partially uncleared final row or column of old drawing behind.
+    if (ctx.canvas && typeof ctx.setTransform === "function") {
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.restore();
+    } else ctx.clearRect(0, 0, viewport.width, viewport.height);
+  }
   const contourCache = new Map();
   function footprintContours(machine) {
     const cacheKey = `${machine.type}:${machine.facing}:${machine.mode ?? D.machines[machine.type].defaultMode ?? ""}`;
@@ -82,7 +91,7 @@
     }
   }
   function drawFloor(ctx, factory, camera, viewport) {
-    ctx.clearRect(0, 0, viewport.width, viewport.height);
+    clearCanvas(ctx, viewport);
     ctx.fillStyle = "#111a14"; ctx.fillRect(0, 0, viewport.width, viewport.height);
     world(ctx, camera);
     ctx.fillStyle = "#24362a"; ctx.fillRect(0, 0, D.config.columns * TILE, D.config.rows * TILE);
@@ -171,7 +180,7 @@
     }
   }
   function drawOverlay(ctx, factory, camera, viewport, interaction = {}) {
-    ctx.clearRect(0, 0, viewport.width, viewport.height); world(ctx, camera);
+    clearCanvas(ctx, viewport); world(ctx, camera);
     const selected = factory.byId.get(interaction.selected);
     if (selected?.type === "drive" || interaction.tool?.type === "drive") {
       const drive = selected?.type === "drive" ? selected : { ...interaction.tool, x: interaction.hover?.x ?? 0, y: interaction.hover?.y ?? 0 };

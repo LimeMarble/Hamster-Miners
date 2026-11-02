@@ -5,6 +5,18 @@ const path = require('node:path');
 const vm = require('node:vm');
 const A = require('../noammo-simulation.js');
 const R = require('../noammo-renderer.js');
+test('each canvas layer clears its entire rounded backing buffer at fractional display scaling', () => {
+  const factory = new A.Factory(A.createState(1));
+  const viewport = { width: 115.6, height: 80.4 }, camera = { x: 120, y: 120, zoom: 0.6 };
+  for (const draw of [R.drawFloor, R.drawOverlay]) {
+    const { ctx } = drawing(), operations = [];
+    ctx.canvas = { width: 145, height: 101 };
+    ctx.setTransform = (...args) => operations.push(['transform', ...args]);
+    ctx.clearRect = (...args) => operations.push(['clear', ...args]);
+    draw(ctx, factory, camera, viewport);
+    assert.deepEqual(operations, [['transform', 1, 0, 0, 1, 0, 0], ['clear', 0, 0, 145, 101]]);
+  }
+});
 function drawing() {
   const calls = [], stack = []; let contours = [], current;
   const ctx = { fillStyle: '', strokeStyle: '', lineWidth: 1,
