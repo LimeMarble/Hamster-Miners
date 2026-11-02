@@ -192,7 +192,7 @@
         if (entry.electricPower || entry.electricOutput) {
           const power = section("Electricity");
           power.append(element("p", entry.electricOutput ? `Supplies ${number(entry.electricOutput)}u with both kinetic inputs connected.`
-            : `Draws ${number(entry.electricPower)}u, including its internal conveyor.`));
+            : `Draws ${number(entry.electricPower)}u${entry.conveyors ? ", including its internal conveyor" : ""}.`));
           power.append(element("p", "All generators share one factory-wide supply. All electric machines pause when demand exceeds supply."));
           if (entry.conveyors) power.append(element("p", `Conveyor: weight capacity ${number(entry.beltWeight)} · ${number(entry.beltSeconds)}s per tile · one cargo stack per tile.`));
         }

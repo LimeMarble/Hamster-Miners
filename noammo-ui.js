@@ -36,7 +36,7 @@
     } });
   function viewRecipes(type) { recipeBook.open(`machine:${type}`); setTab("recipes"); }
   function appendMachineEffects(panel, definition) {
-    if (definition.electricPower) panel.append(element("p", `Electricity demand: ${number(definition.electricPower)}u, including internal conveyors.`, "machine-effect"));
+    if (definition.electricPower) panel.append(element("p", `Electricity demand: ${number(definition.electricPower)}u${definition.conveyors ? ", including internal conveyors" : ""}.`, "machine-effect"));
     if (definition.electricOutput) panel.append(element("p", `Electricity supply: ${number(definition.electricOutput)}u with both kinetic inputs connected.`, "machine-effect"));
     if (definition.electricPower || definition.electricOutput) panel.append(element("p", "Generators share one factory-wide supply. All electric machines pause when total demand exceeds supply.", "muted"));
     if (definition.electricPower && definition.conveyors) panel.append(element("p", `Conveyor: weight capacity ${number(definition.beltWeight)} · ${number(definition.beltSeconds)}s per tile · one cargo stack per tile.`, "machine-effect"));

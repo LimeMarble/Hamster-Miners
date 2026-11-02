@@ -192,8 +192,8 @@ test('centered Rock Drill output can merge onto a Stacker in the front-priority 
   attachKineticWheel(f, drill); place(f, 'drive', 39, 43, 'up');
   const back = place(f, 'belt', 41, 39, 'down'), m = place(f, 'primitiveStacker', 41, 40);
   const basket = place(f, 'basket', 42, 40); f.setStackSize(m.id, 2);
-  f.update(6.9); assert.equal(basket.contents.length, 0); assert.equal(back.lanes[0], undefined);
-  f.update(0.1); near(basket.contents[0].quantity, 2); assert.equal(drill.output.length, 0);
+  f.update(9.9); assert.equal(basket.contents.length, 0); assert.equal(back.lanes[0], undefined);
+  f.update(0.2); near(basket.contents[0].quantity, 2); assert.equal(drill.output.length, 0);
   assert.equal(basket.contents[0].material, 'chert');
 });
 

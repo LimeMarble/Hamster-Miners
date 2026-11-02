@@ -157,7 +157,8 @@
           labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }
       if ((definition.conveyors && !API.conveyorCells(machine)
-        .every((cell) => factory.conveyorPowered(machine, cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))) {
+        .every((cell) => factory.conveyorPowered(machine, cell.x, cell.y))) || (definition.requiresKinetic && !factory.kineticHasWheel(machine))
+        || (definition.electricPower && factory.electricity.shortage)) {
         const marker = cells(machine)[0];
         ctx.fillStyle = "#f5bc73"; ctx.fillRect(marker.x * TILE + 3, marker.y * TILE + 3, 4, 4);
       }

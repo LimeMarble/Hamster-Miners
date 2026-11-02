@@ -337,7 +337,7 @@
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -930,6 +930,7 @@
       this.startKiln(machine);
     }
     unloadBatchSource(machine) {
+      if (D.machines[machine.type].electricPower && this.electricity.shortage) return;
       const outputs = ports(machine).filter((point) => point.role === "output");
       for (const item of [...machine.output]) for (const output of outputs.filter((point) => point.material === item.material)) {
         item.quantity -= this.sendOutput(machine, item, output);
@@ -1183,16 +1184,28 @@
       for (const machine of state.machines) {
         const definition = D.machines[machine.type];
         if (definition.batchOutputs) {
-          if (!machine.output.length && (!definition.requiresKinetic || this.kineticHasWheel(machine))) {
+          if ((definition.outputOverflow || !machine.output.length)
+            && (!definition.requiresKinetic || this.kineticHasWheel(machine))
+            && (!definition.electricPower || !this.electricity.shortage)) {
             machine.timer += seconds;
             if (machine.timer + epsilon >= definition.cycle) {
               machine.timer = Math.max(0, machine.timer - definition.cycle);
-              for (const [material, quantity] of Object.entries(definition.batchOutputs)) machine.output.push(cargo(material, quantity));
+              for (const [material, quantity] of Object.entries(definition.batchOutputs)) {
+                if (definition.outputOverflow === "discardExcess") {
+                  const current = machine.output.find((item) => item.material === material);
+                  const available = Math.max(0, quantity - (current?.quantity ?? 0));
+                  if (available > epsilon) {
+                    if (current) current.quantity += available;
+                    else machine.output.push(cargo(material, available));
+                  }
+                } else machine.output.push(cargo(material, quantity));
+              }
             }
           }
         } else if (definition.source || definition.sourceModes) {
           const cycle = definition.cycle, limit = definition.outputLimit ?? 1;
           if ((!definition.requiresKinetic || this.kineticHasWheel(machine))
+            && (!definition.singleBatchOutput || !machine.output.length)
             && this.total(machine, "output") + (definition.sourceQuantity ?? 1) <= limit + epsilon) {
             machine.timer += seconds;
             if (machine.timer + epsilon >= cycle) {
@@ -1319,6 +1332,9 @@
         return `Waiting for kinetic connections · ${this.kineticConnections.get(machine.id)?.length ?? 0} / ${definition.kineticInputsRequired}`;
       }
       if (definition.electricOutput) return `Generating ${formatNumber(definition.electricOutput)}u · factory-wide supply`;
+      if (definition.electricPower && definition.batchOutputs) return this.electricity.shortage
+        ? `Electricity shortage · ${formatNumber(this.electricity.demand)}u demand / ${formatNumber(this.electricity.supply)}u supply · paused`
+        : `Extracting · ${formatNumber(Math.max(0, definition.cycle - machine.timer))}s · ${formatNumber(definition.electricPower)}u`;
       if (definition.electricPower) return this.electricity.shortage
         ? `Electricity shortage · ${formatNumber(this.electricity.demand)}u demand / ${formatNumber(this.electricity.supply)}u supply · paused`
         : `Electric power available · ${formatNumber(definition.electricPower)}u`;
@@ -1400,6 +1416,11 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo opening prototype save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      if ((state.limestoneDrillVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "limestoneDrill")) state.stock.limestoneDrill = 0;
+        if (state.inventory && !Object.hasOwn(state.inventory, "zincOre")) state.inventory.zincOre = 0;
+        state.limestoneDrillVersion = 1;
+      }
       if ((state.spoolTimingVersion ?? 0) < 1) {
         for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
           if (machine.type !== "windingSpool" || !machine.job) continue;
@@ -1766,8 +1787,10 @@
         const batch = D.machines[machine.type].batchOutputs;
         if (batch && (machine.timer > D.machines[machine.type].cycle + epsilon
           || machine.output.some((item) => !Object.hasOwn(batch, item.material))
+          || (D.machines[machine.type].outputOverflow === "discardExcess"
+            && Object.keys(batch).some((material) => machine.output.filter((item) => item.material === material).length > 1))
           || Object.entries(batch).some(([material, quantity]) => machine.output.filter((item) => item.material === material)
-            .reduce((sum, item) => sum + item.quantity, 0) > quantity + epsilon))) throw new Error("Invalid sifter timer or output buffer.");
+            .reduce((sum, item) => sum + item.quantity, 0) > quantity + epsilon))) throw new Error(machine.type === "pebbleSifter" ? "Invalid sifter timer or output buffer." : "Invalid source timer or output buffer.");
         if (sourceMaterial && (machine.timer > sourceDefinition.cycle + epsilon || machine.output.some((item) => item.material !== sourceMaterial)
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) + epsilon)) throw new Error("Invalid source buffer.");
         if (!sourceDefinition.heatCapacity && !isCrafter(sourceDefinition) && !["fiber", "kiln", "gradingBench"].includes(machine.type) && !sourceMaterial && !sourceDefinition.sourceModes && !batch && machine.output.length) throw new Error("Unexpected output buffer.");

@@ -172,14 +172,24 @@ test('Rock Drill selection, five-second batches, bounded blockage and timers sur
   assert.equal(A.cells(drill).length, 6); assert.equal(drill.mode, 'chert'); assert.equal(ports(drill).length, 3);
   attachKineticWheel(f, drill); attachKineticWheel(f, other);
   f.update(4.9); assert.equal(drill.output.length, 0); f.update(0.1);
-  assert.equal(drill.output[0].quantity, 2); assert.equal(drill.output[0].material, 'chert');
-  f.update(60); assert.equal(f.total(drill, 'output'), 2); near(drill.timer, 0);
+  assert.equal(drill.output[0].quantity, 1); assert.equal(drill.output[0].material, 'chert');
+  f.update(60); assert.equal(f.total(drill, 'output'), 1); near(drill.timer, 0);
   assert.ok(f.setSourceMode(drill.id, 'limestone').error); f.setSourceMode(drill.id, 'granite');
   assert.equal(other.mode, 'chert'); f.move(drill.id, 70, 70, 'up');
   f = Factory.importSave(f.exportSave()); drill = f.byId.get(drill.id); assert.equal(drill.mode, 'granite');
   assert.equal(drill.output[0].material, 'chert', 'mode changes do not rewrite waiting products');
-  f.pickup(drill.id); assert.equal(f.state.inventory.chert, 2); drill = f.place('primitiveRockDrill', 40, 38).machine;
+  f.pickup(drill.id); assert.equal(f.state.inventory.chert, 1); drill = f.place('primitiveRockDrill', 40, 38).machine;
   assert.equal(drill.mode, 'granite'); f.update(5); assert.equal(drill.output[0].material, 'granite');
+});
+
+test('Rock Drill keeps an old two-unit output and resumes with one-unit batches after it clears', () => {
+  const f = powered(), drill = place(f, 'primitiveRockDrill', 40, 38);
+  attachKineticWheel(f, drill); drill.output.push(cargo('chert', 2, 17));
+  const loaded = Factory.importSave(f.exportSave()), restored = loaded.byId.get(drill.id);
+  loaded.update(60); assert.equal(restored.output[0].quantity, 2); near(restored.timer, 0);
+  loaded.pickup(restored.id); assert.equal(loaded.state.inventory.chert, 2);
+  const replacement = loaded.place('primitiveRockDrill', 40, 38).machine;
+  loaded.update(5); assert.equal(replacement.output[0].quantity, 1);
 });
 
 for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter intake, direct power, paused progress and save continuity`, () => {
@@ -195,8 +205,8 @@ for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter i
   const loaded = Factory.importSave(f.exportSave()), restored = loaded.byId.get(drill.id);
   near(restored.timer, 2); assert.equal(loaded.kineticHasWheel(restored), false);
   loaded.setSourceMode(restored.id, 'granite'); attachKineticWheel(loaded, restored);
-  loaded.update(3); assert.equal(restored.output[0].material, 'granite'); assert.equal(restored.output[0].quantity, 2);
-  loaded.update(60); assert.equal(loaded.total(restored, 'output'), 2); near(restored.timer, 0);
+  loaded.update(3); assert.equal(restored.output[0].material, 'granite'); assert.equal(restored.output[0].quantity, 1);
+  loaded.update(60); assert.equal(loaded.total(restored, 'output'), 1); near(restored.timer, 0);
 });
 
 test('single-connection kinetic drills share both Basic Wheel outputs while facing the same direction, with either intake sufficient', () => {

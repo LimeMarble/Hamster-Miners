@@ -54,7 +54,7 @@ function boot(saved, { width = 900, height = 600 } = {}) {
   const inventoryCategories = [...html.matchAll(/data-inventory-category="([^"]+)"/g)].map((match) => match[1]).map((name) => {
     const button = new Element("button"); button.dataset.inventoryCategory = name; return button;
   });
-  const categories = ["All", "Cash", "Material", "Logistics"].map((name) => {
+  const categories = ["All", "Cash", "Resource", "Material", "Logistics"].map((name) => {
     const button = new Element("button"); button.dataset.category = name; return button;
   });
   const document = {
@@ -967,7 +967,7 @@ test("Sifter Shop costs, repeat placement and collected materials use actual UI 
   Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100, chert: 0.3, soil: 0.3 });
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
-  ui.categories.find((button) => button.dataset.category === "Material").emit("click");
+  ui.categories.find((button) => button.dataset.category === "Resource").emit("click");
   const card = shopCard(ui, 'pebbleSifter');
   assert.equal(card.hidden, false); card.emit("click");
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
@@ -1029,6 +1029,27 @@ test("Clay Bench Shop cost, one-crew placement, sparse hitbox and stable mode se
   const reloaded = boot(ui.storage.get(A.DATA.saveKey));
   reloaded.ids.get("cargo").emit("click", screenPoint(121, 121));
   assert.equal(reloaded.ids.get("shapingMode").value, "pot");
+});
+
+test('Resource and Material filters separate producers from transformers in Shop and Inventory', () => {
+  const f = new A.Factory(A.createState(1));
+  for (const type of ['logger', 'clayPit', 'primitiveRockDrill', 'copperDrill', 'graphiteDrill', 'limestoneDrill', 'pebbleSifter', 'fiber', 'kiln']) f.state.stock[type] = 1;
+  const ui = boot(f.exportSave());
+  const sources = ['planter', 'logger', 'clayPit', 'primitiveRockDrill', 'copperDrill', 'graphiteDrill', 'limestoneDrill', 'pebbleSifter'];
+  const transformers = ['fiber', 'clayShaper', 'crudeGearBench', 'potSpinner', 'kiln', 'primitiveFurnace', 'ingotMolder', 'extruder', 'windingSpool', 'metalPress'];
+  for (const type of sources) assert.equal(A.DATA.machines[type].category, 'Resource', type);
+  for (const type of transformers) assert.equal(A.DATA.machines[type].category, 'Material', type);
+  ui.tabs.find(button => button.dataset.tab === 'shop').emit('click');
+  ui.categories.find(button => button.dataset.category === 'Resource').emit('click');
+  assert.equal(shopCard(ui, 'pebbleSifter').hidden, false); assert.equal(shopCard(ui, 'fiber').hidden, true);
+  ui.categories.find(button => button.dataset.category === 'Material').emit('click');
+  assert.equal(shopCard(ui, 'pebbleSifter').hidden, true); assert.equal(shopCard(ui, 'fiber').hidden, false);
+  ui.tabs.find(button => button.dataset.tab === 'inventory').emit('click');
+  const card = type => ui.ids.get('machineCards').children.find(entry => entry.dataset.machine === type);
+  ui.inventoryCategories.find(button => button.dataset.inventoryCategory === 'Resource').emit('click');
+  assert.equal(card('planter').hidden, false); assert.equal(card('fiber').hidden, true);
+  ui.inventoryCategories.find(button => button.dataset.inventoryCategory === 'Material').emit('click');
+  assert.equal(card('planter').hidden, true); assert.equal(card('fiber').hidden, false);
 });
 
 test("Shop cards sort by cash price and categories preserve that order while filtering actual cards", () => {
@@ -1273,7 +1294,7 @@ test("noammo removes debug upgrade controls and Ammo navigation without breaking
   f.state.tuning = { primitiveBonus: 0.23, primitiveLimit: 7 };
   f.place('primitive', 121, 121);
   const saved = f.exportSave(), ui = boot(saved);
-  assert.deepEqual(ui.inventoryCategories.map(button => button.dataset.inventoryCategory), ['All', 'Cash', 'Material', 'Logistics']);
+  assert.deepEqual(ui.inventoryCategories.map(button => button.dataset.inventoryCategory), ['All', 'Cash', 'Resource', 'Material', 'Logistics']);
   for (const id of ['primitiveBonus', 'primitiveLimit', 'applyTuning']) assert.equal(ui.ids.has(id), false);
   ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const copy = ui.ids.get('inspector').children.map(node => node.textContent).join(' ');

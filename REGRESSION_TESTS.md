@@ -9,6 +9,11 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
+- The electric Limestone Drill consumes 10u and has independently rotating
+  outputs for Limestone, Zinc Ore and Corundum. Each output retains at most
+  one batch and discards further overflow without blocking the other outputs.
+  A power shortage pauses production and output until power returns.
+
 - Primitive cash upgrader conveyors can be upgraded as a whole with unplaced
   Basic Conveyors. Their electricity, speed and weight limits follow the Basic
   tier. Pickup refunds each replacement exactly once and leaves original belt
@@ -95,6 +100,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   atomic machine-ingredient purchases and bulk affordability. Shack's two rows
   have three real conveyor cells each, six-second transit, one upgrade per
   material stage and base-value eligibility. All rotations are exercised.
+- Primitive Rock Drill produces 1 Chert or Granite per 5 seconds, retaining
+  previously saved two-unit output batches and pausing when its output is blocked.
 - Rock Drill power checks match and mirror Pebble Sifter's rotated intake, reject area
   power alone, pause and resume partial cycles, retain mode/timer on reload,
   and stop production behind a full output buffer.
