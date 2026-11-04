@@ -1,5 +1,9 @@
 # Hamster Miners regression scenarios
 
+- The `whereismyspill` code unlocks six independent, save-persistent playtest
+  switches. Cover boosted resource drops, storage, machine and conveyor speed,
+  conveyor capacity, sale cash, and lossless disabling of boosted cargo.
+
 - Save recovery covers a Copper Drill with blocked pre-washer Copper output,
   preserving its value and unloading it as Copper Ore, and a save without the
   hired-crew field. Migration backs up the original before replacing it; failed

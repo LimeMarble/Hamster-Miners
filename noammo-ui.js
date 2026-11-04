@@ -770,7 +770,32 @@
     if (activeTab === "factory") renderInspector();
     if (activeTab === "shop") renderShop();
     if (activeTab === "inventory") renderInventory();
+    $("playtestPanel").hidden = !factory.state.playtest.unlocked;
+    for (const [id, elementId, label] of [
+      ["resources", "cheatResources", "×10 resources"], ["storage", "cheatStorage", "×10 storage capacity"],
+      ["machineSpeed", "cheatMachineSpeed", "×10 machine speed"], ["conveyorCapacity", "cheatConveyorCapacity", "×10 conveyor capacity"],
+      ["conveyorSpeed", "cheatConveyorSpeed", "×5 conveyor speed"], ["cash", "cheatCash", "×10 sale cash"],
+    ]) {
+      const enabled = factory.state.playtest.toggles[id];
+      text($(elementId), `${label}: ${enabled ? "On" : "Off"}`); $(elementId).setAttribute("aria-pressed", String(enabled));
+    }
     renderHoverHistory();
+  }
+  const unlockPlaytest = () => {
+    const response = factory.unlockPlaytest($("playtestCode").value);
+    text($("playtestStatus"), response.error ?? "Playtest cheats unlocked for this save.");
+    if (!response.error) { $("playtestCode").value = ""; save(); }
+    refresh();
+  };
+  $("unlockPlaytest").addEventListener("click", unlockPlaytest);
+  $("playtestCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); unlockPlaytest(); } });
+  for (const [id, elementId] of [["resources", "cheatResources"], ["storage", "cheatStorage"], ["machineSpeed", "cheatMachineSpeed"],
+    ["conveyorCapacity", "cheatConveyorCapacity"], ["conveyorSpeed", "cheatConveyorSpeed"], ["cash", "cheatCash"]]) {
+    $(elementId).addEventListener("click", () => {
+      const response = factory.setPlaytestCheat(id, !factory.state.playtest.toggles[id]);
+      if (response.error) notify(response.error); else save();
+      refresh();
+    });
   }
   $("export").addEventListener("click", () => { $("saveText").value = storageFailed && protectedSave !== null ? protectedSave : factory.exportSave(); $("saveText").select(); save(); });
   $("import").addEventListener("click", () => {

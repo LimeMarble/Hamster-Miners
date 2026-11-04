@@ -106,6 +106,23 @@ function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
     state() { windowEvents.get("beforeunload")(); return JSON.parse(storage.get(A.DATA.saveKey)).state; } };
 }
 
+test('playtest code unlocks independent toggles that persist in the save', () => {
+  const ui = boot(); ui.tabs.find(button => button.dataset.tab === 'options').emit('click');
+  assert.equal(ui.ids.get('playtestPanel').hidden, true);
+  ui.ids.get('playtestCode').value = 'wrong'; ui.ids.get('unlockPlaytest').emit('click');
+  assert.equal(ui.ids.get('playtestPanel').hidden, true);
+  ui.ids.get('playtestCode').value = 'whereismyspill'; ui.ids.get('unlockPlaytest').emit('click');
+  assert.equal(ui.ids.get('playtestPanel').hidden, false);
+  assert.equal(ui.ids.get('cheatResources').textContent, '×10 resources: Off');
+  ui.ids.get('cheatResources').emit('click'); ui.ids.get('cheatConveyorSpeed').emit('click');
+  assert.equal(ui.ids.get('cheatResources').getAttribute?.('aria-pressed') ?? ui.ids.get('cheatResources')['aria-pressed'], 'true');
+  const saved = ui.state(); assert.equal(saved.playtest.toggles.resources, true); assert.equal(saved.playtest.toggles.conveyorSpeed, true);
+  assert.equal(saved.playtest.toggles.cash, false);
+  const restored = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: saved }));
+  restored.tabs.find(button => button.dataset.tab === 'options').emit('click');
+  assert.equal(restored.ids.get('playtestPanel').hidden, false); assert.equal(restored.ids.get('cheatResources').textContent, '×10 resources: On');
+});
+
 test('grading help and pottery descriptions reflect current grading data', () => {
   const ui = boot();
   assert.equal(ui.ids.get('gradeMultipliers').textContent, A.DATA.grades.map(grade => `${grade.name} ×${A.formatNumber(grade.multiplier)}`).join(' · '));
@@ -974,7 +991,7 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
   assert.equal(ui.ids.get("gradingChances").textContent, "Waiting for an item to show its grade chances.");
   const chance = ui.ids.get("gradingChances"); ui.frame(100); ui.frame(400);
   assert.equal(ui.ids.get("gradingChances"), chance);
-  assert.match(ui.ids.get("machineStatus").textContent, /Waiting for Clay/);
+  assert.match(ui.ids.get("machineStatus").textContent, /Waiting for a gradeable item/);
   ui.ids.get("cargo").emit("click", screenPoint(123, 122));
   assert.equal(ui.ids.get("basketContents").children[0].children[0].textContent, "Bricks · Graded");
   assert.equal(ui.state().machines.find((machine) => machine.type === "gradingBench").input.length, 0);
