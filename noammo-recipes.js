@@ -195,7 +195,7 @@
         }
       } else {
         const swapSize = ["down", "up"].includes(entry.defaultFacing ?? "right");
-        detail.append(element("p", entry.description), element("p", `${swapSize ? entry.height : entry.width}×${swapSize ? entry.width : entry.height} default footprint · ${entry.crew ?? 0} operating crew`, "recipe-facts"));
+        detail.append(element("p", entry.description), element("p", `${swapSize ? entry.height : entry.width}×${swapSize ? entry.width : entry.height} · ${entry.crew ?? 0} operating crew`, "recipe-facts"));
         detail.append(button("View in Shop", () => openShop(entry.id)));
         const cost = section("Construction cost"), flow = element("div", undefined, "recipe-flow");
         if (entry.cost) {

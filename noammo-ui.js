@@ -47,6 +47,11 @@
     for (const [input, recipe] of Object.entries(definition.recipes ?? {})) if (recipe.gradePromotion) {
       panel.append(element("p", `${D.materials[recipe.output]?.name ?? input} grade effect: moves ${number(recipe.gradePromotion * 100)}% of each eligible tier's chance up one tier${recipe.gradePromotionCeiling === undefined ? "" : `, stopping at ${D.grades[recipe.gradePromotionCeiling].name}`}.`, "machine-effect"));
     }
+    for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.burnishedGradeEffect) {
+      const treatment = recipe.burnishedGradeEffect;
+      const outcomes = treatment.outcomes.map((outcome) => `${number(outcome.share * 100)}% ${D.grades[outcome.grade].name}`).join(" and ");
+      panel.append(element("p", `Burnished Pot grade effect: ${D.grades[treatment.from].name} chance becomes ${outcomes} when fired. Unburnished Pots keep their incoming grade chances.`, "machine-effect"));
+    }
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
     const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
@@ -379,6 +384,9 @@
         const status = element("p", "", "status"); status.id = "machineStatus";
         panel.append(element("h2", definition.name), status, element("p", definition.description));
         appendMachineEffects(panel, definition);
+        if (machine.type === "primitive") panel.append(
+          element("p", `Cash effect: +${money(factory.state.tuning.primitiveBonus)}`, "machine-effect"),
+          element("p", `Upper Limit: ${money(factory.state.tuning.primitiveLimit)}`, "machine-effect"));
         if (A.supportsOutputHistory(machine.type)) {
           const history = element("ol", undefined, "output-history"); history.id = "outputHistory";
           panel.append(element("h3", "Last 5 outputs · newest first"), history);
@@ -549,9 +557,6 @@
           collectButton.title = "Shift-click this collector to collect all, unless another object is selected.";
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
-        if (machine.type === "primitive") panel.append(
-          element("p", `Cash effect: +${money(factory.state.tuning.primitiveBonus)}`, "machine-effect"),
-          element("p", `Upper Limit: ${money(factory.state.tuning.primitiveLimit)}`, "machine-effect"));
       } else {
         panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
@@ -622,7 +627,7 @@
       shopSignature = shopSelection; panel.replaceChildren(element("h2", definition.name), element("p", definition.description));
       appendMachineEffects(panel, definition);
       const defaultSize = A.size({ type: shopSelection, facing: definition.defaultFacing ?? "right" });
-      panel.append(element("p", `${defaultSize.width}×${defaultSize.height} default footprint${definition.crew ? ` · ${definition.crew} crew` : ""}`, "muted"));
+      panel.append(element("p", `${defaultSize.width}×${defaultSize.height}${definition.crew ? ` · ${definition.crew} crew` : ""}`, "muted"));
       const owned = element("p"); owned.id = "shopOwned"; panel.append(owned);
       const quantity = element("input"); quantity.id = "quantity"; quantity.type = "number"; quantity.min = "1"; quantity.max = "9999"; quantity.value = "1";
       const label = element("label", "Purchase amount "); label.append(quantity); panel.append(label);
@@ -691,7 +696,7 @@
     if (machineSignature !== inventorySelection) {
       machineSignature = inventorySelection;
       const definition = D.machines[inventorySelection], bounds = A.size({ type: inventorySelection, facing: definition.defaultFacing ?? "right" });
-      panel.replaceChildren(element("h2", definition.name), element("p", definition.description), element("p", `${bounds.width}×${bounds.height} default footprint`, "muted"));
+      panel.replaceChildren(element("h2", definition.name), element("p", definition.description), element("p", `${bounds.width}×${bounds.height}`, "muted"));
       appendMachineEffects(panel, definition);
       const owned = element("p"); owned.id = "inventoryOwned";
       const place = action("Place", () => build(inventorySelection)); place.id = "placeMachine";

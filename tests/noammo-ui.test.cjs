@@ -113,6 +113,21 @@ test('grading help and pottery descriptions reflect current grading data', () =>
   assert.match(A.DATA.machines.gradingBench.description, /compatible materials/);
 });
 
+test('Kiln displays separate Brick and burnished Pot grade effects in Shop and inspector', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.kiln++;
+  f.place('kiln', 121, 121);
+  const ui = boot(f.exportSave());
+  ui.tabs.find(button => button.dataset.tab === 'shop').emit('click'); shopCard(ui, 'kiln').emit('click');
+  const check = panel => {
+    const text = panel.children.map(node => node.textContent).join(' ');
+    assert.match(text, /Bricks grade effect: moves 40%.*stopping at Unique/);
+    assert.match(text, /Burnished Pot grade effect: Standard chance becomes 85% Fine and 15% Unique/);
+    assert.match(text, /Unburnished Pots keep their incoming grade chances/);
+  };
+  check(ui.ids.get('shopDetail')); ui.tabs.find(button => button.dataset.tab === 'factory').emit('click');
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121)); check(ui.ids.get('inspector'));
+});
+
 test('machine inspector installs and refunds a whole Basic Conveyor upgrade', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.copperChimes = 1; f.state.stock.electricConveyor = 1;
   const machine = f.place('copperChimes', 121, 121).machine;
@@ -1118,7 +1133,7 @@ test("Shop cards sort by cash price and categories preserve that order while fil
 
 test("Brick Seal exposes its effect fields, purchase cost and repeat placement without remounting controls", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 900; factory.state.inventory.brick = 70; factory.state.stock.belt = 2;
+  factory.state.cash = 400; factory.state.inventory.brick = 70; factory.state.stock.belt = 2;
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   shopCard(ui, 'brickSeal').emit('click');
@@ -1128,7 +1143,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   ]);
   assert.equal(effects.length, 4);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$900 / $900");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$400 / $400");
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "70 / 70");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
   assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0); assert.equal(ui.state().cash, 0);
@@ -1147,7 +1162,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
 
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 300;
+  factory.state.cash = 100;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   let ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
@@ -1347,6 +1362,11 @@ test("noammo removes debug upgrade controls and Ammo navigation without breaking
   ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const copy = ui.ids.get('inspector').children.map(node => node.textContent).join(' ');
   assert.match(copy, /Cash effect: \+\$0.23/); assert.doesNotMatch(copy, /TEST|Adjustable|not final|not yet set/);
+  const entries = ui.ids.get('inspector').children;
+  const historyIndex = entries.findIndex(node => node.id === 'outputHistory');
+  const cashIndex = entries.findIndex(node => node.textContent === 'Cash effect: +$0.23');
+  const limitIndex = entries.findIndex(node => node.textContent === 'Upper Limit: $7');
+  assert.ok(cashIndex >= 0 && cashIndex < historyIndex); assert.ok(limitIndex >= 0 && limitIndex < historyIndex);
   ui.tabs.find(b => b.dataset.tab === 'options').emit('click');
   ui.ids.get('saveText').value = saved; ui.ids.get('import').emit('click');
   assert.deepEqual(ui.state().tuning, f.state.tuning);

@@ -221,7 +221,7 @@
         description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds. The Pot starts with the Spinner's grade profile and carries forward prior quality treatments. Requires a Wheel connected to either kinetic intake.",
       },
       burnisher: {
-        name: "Burnisher", width: 3, height: 2, color: "#aa9871", category: "Material", crew: 1,
+        name: "Burnisher", width: 3, height: 2, color: "#aa9871", category: "Cash", crew: 1,
         labelLines: ["Burnisher"], labelCell: [1, 0], footprint: [[0, 0], [1, 0], [2, 0], [1, 1]],
         craftInput: "unfiredPot", inputLimit: 1, outputBuffer: 1, defaultMode: "pot", requiresKinetic: true, preservesCargo: true,
         cost: { cash: 5000, materials: { wood: 100, chert: 40, woodenGear: 10, leekFiber: 15 } },
@@ -258,7 +258,7 @@
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
-        cost: { cash: 300, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
+        cost: { cash: 100, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 8000, outputSeconds: 2, automaticRecipes: true,
         ports: [
           { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
@@ -446,7 +446,7 @@
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
-        cost: { cash: 450, materials: { brick: 35 }, machines: { belt: 1 } },
+        cost: { cash: 200, materials: { brick: 35 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
         cashEffect: { bonus: 1.25, useLimit: 9, upperLimit: 15, baseValueRequired: 0.5 },
         legacyGradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },

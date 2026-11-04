@@ -41,12 +41,12 @@ test("Kiln is a plain labelled machine box, without crew tiles or labels, in eve
 });
 
 test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free unlock", () => {
-  assert.deepEqual(D.machines.kiln.cost, { cash: 300, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
+  assert.deepEqual(D.machines.kiln.cost, { cash: 100, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
   assert.equal(createState().stock.kiln, 0);
   const factory = new Factory(createState(1));
-  factory.state.cash = 300;
+  factory.state.cash = 100;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
-  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 300);
+  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 100);
   factory.state.inventory.leekFiber = 15;
   assert.equal(factory.buy("kiln").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.unfiredBrick, 0);
