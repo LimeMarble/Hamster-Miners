@@ -52,7 +52,7 @@ test('Histories are per-instance, follow movement, clear on pickup/replacement a
 test('Grading logs each actual rolled grade and post-grade value without a second RNG roll or persistent grade category', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'gradingBench'), collector = place(f, 'basket', 42, 41);
   const expected = [];
-  for (const [seed, grade, multiplier] of [[2000, 'Poor', 0.75], [0, 'Unremarkable', 1], [500, 'Standard', 1.5], [1000, 'Fine', 2.5], [1500, 'Remarkable', 8], [1900, 'Exceptional', 40], [500, 'Standard', 1.5]]) {
+  for (const [seed, grade, multiplier] of [[2000, 'Poor', 0.75], [0, 'Unremarkable', 1], [500, 'Standard', 1.5], [1000, 'Fine', 2.5], [1500, 'Unique', 8], [1900, 'Exceptional', 40], [500, 'Standard', 1.5]]) {
     f.state.random = seed;
     const input = { ...cargo('pot', 2, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] };
     const reference = { random: seed }; A.gradeStack(reference, input);

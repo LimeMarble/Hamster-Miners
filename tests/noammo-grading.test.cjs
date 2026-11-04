@@ -20,18 +20,18 @@ function feed(factory, bench, item, consume = true) {
 }
 function rolled(item, seed) { return A.gradeStack({ random: seed }, item); }
 
-test("Grading Bench costs $4k, 100 Wood, 50 Fiber and 10 Chert without a free grant", () => {
-  assert.deepEqual(D.machines.gradingBench.cost, { cash: 4000, materials: { wood: 100, leekFiber: 50, chert: 10 } });
+test("Grading Bench costs $800, 100 Wood, 50 Fiber and one Pot without a free grant", () => {
+  assert.deepEqual(D.machines.gradingBench.cost, { cash: 800, materials: { wood: 100, leekFiber: 50, pot: 1 } });
   const factory = new Factory(createState(1));
   assert.equal(factory.state.stock.gradingBench, 0);
-  const requirements = { wood: 100, leekFiber: 50, chert: 10 };
+  const requirements = { wood: 100, leekFiber: 50, pot: 1 };
   for (const missing of ["cash", ...Object.keys(requirements)]) {
-    factory.state.cash = 4000; Object.assign(factory.state.inventory, requirements);
+    factory.state.cash = 800; Object.assign(factory.state.inventory, requirements);
     if (missing === "cash") factory.state.cash--; else factory.state.inventory[missing]--;
     const before = factory.exportSave();
     assert.ok(factory.buy("gradingBench").error); assert.equal(factory.exportSave(), before);
   }
-  factory.state.cash = 8000; Object.assign(factory.state.inventory, { wood: 200, leekFiber: 100, chert: 20 });
+  factory.state.cash = 1600; Object.assign(factory.state.inventory, { wood: 200, leekFiber: 100, pot: 2 });
   assert.equal(factory.buy("gradingBench", 2).amount, 2);
   assert.equal(factory.state.stock.gradingBench, 2); assert.equal(factory.state.cash, 0);
   for (const material of Object.keys(requirements)) assert.equal(factory.state.inventory[material], 0);
@@ -212,7 +212,7 @@ test("graded Clay retains its averaged quality and value through actual shaping 
   const fuel = A.ports(kiln).find(p => p.channel === 'fuel');
   factory.receive(kiln, A.cargo("wood", 8), fuel.x, fuel.y, fuel.direction, true);
   factory.receive(kiln, { ...A.copy(shaper.output[0]), quantity: 2 }, intake.x, intake.y, intake.direction, true);
-  factory.update(8.1); near(kiln.output[0].value, 180); assert.equal(kiln.output[0].graded, true);
+  factory.update(12.1); near(kiln.output[0].value, 180); assert.equal(kiln.output[0].graded, true);
   near(rolled(kiln.output[0], 1500).value, 180);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });

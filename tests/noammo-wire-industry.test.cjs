@@ -30,6 +30,15 @@ function collector(f, m) {
   return place(f, 'basket', out.x + v.x, out.y + v.y);
 }
 
+test('Spool turns one Leek Fiber into one conveyor-sized Leek Coil while preserving its value', () => {
+  const { f, m } = setup('windingSpool'), basket = collector(f, m);
+  assert.equal(m.mode, 'coil'); assert.equal(feed(f, m, A.cargo('leekFiber', 1, 9)), 1);
+  f.update(0.1); assert.ok(m.job); f.update(1.1);
+  assert.equal(basket.contents[0].material, 'leekCoil'); near(basket.contents[0].value, 9);
+  near(D.materials.leekCoil.weight, 1); near(D.materials.leekCoil.value, 0.1);
+  assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
+});
+
 test('Graphite Drill, Extruder and Spool charge their full costs atomically and start with no free stock', () => {
   const costs = {
     graphiteDrill: { cash: 220000, materials: { granite: 200, wood: 50, copperPlate: 20, copperGear: 8 } },

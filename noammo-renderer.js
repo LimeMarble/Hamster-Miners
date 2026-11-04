@@ -137,7 +137,9 @@
       }
       for (const point of ports(machine)) {
         const v = D.vectors[point.direction], px = (point.x + 0.5 + v.x * 0.4) * TILE, py = (point.y + 0.5 + v.y * 0.4) * TILE;
-        if (point.role.startsWith("kinetic")) {
+        if (point.role === "waterDropoff") {
+          ctx.fillStyle = "#76b9dc"; ctx.fillRect((point.x + 0.5) * TILE - 4, (point.y + 0.5) * TILE - 4, 8, 8);
+        } else if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
         } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
@@ -171,6 +173,8 @@
     const grade = API.gradeLabel(item);
     if (grade) { ctx.strokeStyle = "#d8bf88"; ctx.lineWidth = 2; }
     ctx.fillRect(x - 6, y - 5, 12, 10); ctx.strokeRect(x - 6, y - 5, 12, 10);
+    if (item.preheated) { ctx.fillStyle = "#f1a05a"; ctx.fillRect(x - 6, y - 8, 12, 2); }
+    if (item.burnished) { ctx.fillStyle = "#d9d8b2"; ctx.fillRect(x - 6, y + 6, 12, 2); }
     if (grade) {
       ctx.fillStyle = ctx.strokeStyle; ctx.font = "bold 8px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(grade[0], x - 8, y - 8);
@@ -206,8 +210,10 @@
       }
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
-          for (const point of outputs) {
-            const item = machine.output.find((entry) => entry.material === point.material);
+          for (const [index, point] of outputs.entries()) {
+            const item = machine.type === "pebbleSifter"
+              ? machine.output.find((entry) => (entry.sifterSlot ?? (entry.material === "soil" ? 0 : 1)) === index)
+              : machine.output.find((entry) => entry.material === point.material);
             if (item) drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
           }
         } else {

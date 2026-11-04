@@ -121,9 +121,9 @@
       <details open>
         <summary>Material changes renew cash-upgrader uses</summary>
         <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. Leek Duster is an exception: its effects stay spent through all later transformations. The value you built up is carried into the recipe and scaled by its effect; it does not simply return to base value.</p>
-        <p>For example, Primitive Shack can upgrade Native Copper, then upgrade the resulting Copper Ingot again. The new material must still meet the upgrader’s base-value and cash requirements.</p>
+        <p>For example, Primitive Shack can upgrade Copper Ore, then upgrade the resulting Copper Ingot again. The new material must still meet the upgrader’s base-value and cash requirements.</p>
         <p>Use limits are shared across all machines of the same kind. Passing through a different Granite Processor does not reset its uses. Moving, stacking or splitting cargo does not renew them either.</p>
-        <p>Quality follows separate rules: Brick Seal’s grade repairs carry through shaping and firing, and processing an already graded ingredient does not give the product another grading roll.</p>
+        <p>Quality follows separate rules: processing an already graded ingredient does not give the product another grading roll.</p>
       </details>
       <details>
         <summary>Base value, current value and cash limits</summary>
@@ -133,16 +133,20 @@
       </details>
       <details>
         <summary>Stacking different values and upgrade histories</summary>
-        <p>A stack behaves as one object. Only matching materials can stack together. Their quantities add, while their current unit values, grade repairs and quality chances are averaged by quantity. Total cash value is preserved.</p>
+        <p>A stack behaves as one object. Only matching materials can stack together. Preheated and burnished cargo stack only with cargo sharing those treatments. Quantities add, while current unit values and quality chances are averaged by quantity. Total cash value is preserved.</p>
         <p>For each cash upgrader, the combined stack keeps the highest use count found in its inputs, and retains their other upgrade tags. Uses are not averaged: combining an unused item with one that has exhausted an upgrader leaves the entire stack exhausted for that upgrader.</p>
         <p>Splitting copies the same unit value, use counts and quality information into each portion. If any input is already graded, the whole combined stack becomes graded.</p>
       </details>
       <details>
-        <summary>Grading, repairs and finished value</summary>
+        <summary>Water deliveries</summary>
+        <p>Select a Well, choose Add Water dropoff, then select a blue dropoff within its centered 10 by 10 area. One hamster delivers 0.5 Water every 5 seconds, cycling through the schedule. Water that does not fit is spilled.</p>
+      </details>
+      <details>
+        <summary>Grading and finished value</summary>
         <p>The Grading Bench makes one roll for the entire incoming stack and multiplies its current value. Already graded cargo cannot roll again, even after stacking or manufacturing.</p>
-        <p>Poor ×0.75 · Unremarkable ×1 · Standard ×1.5 · Fine ×2.5 · Remarkable ×8 · Exceptional ×40.</p>
-        <p>Quality treatments change probabilities deterministically; only grading makes a random roll. Metal smelting shifts chances up one tier; clay firing shifts 40% up one tier, stopping at Remarkable. Other form changes preserve chances unless they specify a quality effect.</p>
-        <p>Materials and processes can have different starting chances. Select a Grading Bench to see the chances for its cargo. Brick Seal moves Poor chance to Unremarkable on clay products independently of its cash effect, so it can still repair eligible ungraded clay products after its cash upgrades stop.</p>
+        <p>Poor ×0.75 · Unremarkable ×1 · Standard ×1.5 · Fine ×2.5 · Unique ×8 · Exceptional ×40.</p>
+        <p>Quality treatments change probabilities deterministically; only grading makes a random roll. Brick firing shifts 40% up one tier, stopping at Unique. Burnished Pots receive their quality effect when fired.</p>
+        <p>Materials and processes can have different starting chances. Select a Grading Bench to see the chances for its cargo.</p>
         <p>Select an upgrader or Grading Bench, or Shift-hover over it, to see its last five outputs. The Grading Bench’s history includes the rolled grade.</p>
       </details>
       <details>
@@ -178,16 +182,16 @@
     </section>
     <section id="options" class="screen panel options-panel" hidden>
       <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
-      <p>The Grading Bench applies grades and sale multipliers to factory cargo. Brick Seal repairs affect the first grading roll. Collecting cargo into inventory retains material counts only.</p>
+      <p>The Grading Bench applies grades and sale multipliers to factory cargo. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
       <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=zinc-weight-20261102"></script>
-  <script src="noammo-simulation.js?v=limestone-drill-20261102"></script>
-  <script src="noammo-renderer.js?v=limestone-drill-20261102"></script>
-  <script src="noammo-recipes.js?v=limestone-drill-20261102"></script>
-  <script src="noammo-ui.js?v=limestone-drill-20261102"></script>
+  <script src="noammo-data.js?v=pot-shelf-20261104"></script>
+  <script src="noammo-simulation.js?v=pot-shelf-20261104"></script>
+  <script src="noammo-renderer.js?v=painting-20261103"></script>
+  <script src="noammo-recipes.js?v=water-washer-20261104"></script>
+  <script src="noammo-ui.js?v=water-washer-20261104"></script>
 </body>
 </html>

@@ -136,7 +136,7 @@ test('Actual copper smelting → molding → powered Chimes → collection prese
   const basket = place(f, 'basket', 44, 41); f.state.inventory.clay = 100;
   const fuel = ports(furnace).find(p => p.channel === 'fuel'), material = ports(furnace).find(p => p.channel === 'material');
   f.receive(furnace, cargo('wood', 17), fuel.x, fuel.y, fuel.direction, true);
-  f.receive(furnace, { ...cargo('nativeCopper', 4, 27.1), upgrades: { primitiveShack: 1, brickSeal: 9 } }, material.x, material.y, material.direction, true);
+  f.receive(furnace, { ...cargo('copperOre', 4, 27.1), upgrades: { primitiveShack: 1, brickSeal: 9 } }, material.x, material.y, material.direction, true);
   // Chimes' primitive conveyor releases one ingot every two seconds.
   f.update(0.1); f.update(30);
   assert.equal(f.total(basket, 'contents'), 4); near(basket.contents[0].value, 135.5);

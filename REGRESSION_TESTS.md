@@ -9,6 +9,30 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
+- Pebble Sifter has Chert, Malachite and Soil modes. Malachite focus rolls
+  once per cycle for a 20% chance of one Pebble; Soil focus sends 0.1 Soil to
+  each physical output. Pending output survives mode changes.
+- A Well provides 0.02 Water/s per carrier assigned to a Painting Bench's
+  dropoff. The Painting Bench uses one worker, one fired Pot, one Malachite
+  Pebble and 0.1 Water per six-second cycle. Output value is three times the
+  Pot's value, preserves its quality, and excludes the Pebble's value. The
+  Paint output is a fresh material for ordinary cash-upgrader uses. Assignment,
+  crew limits, interruption, rotation, movement, pickup and save/load are
+  covered without browser automation.
+
+- The Preheater uses one crew and 6ku over 3 seconds to preheat one unfired Pot
+  or two unfired Bricks. Fully preheated Kiln batches take 6 seconds and 48ku;
+  cold or mixed batches take 12 seconds and 96ku. Preheating retains cargo
+  value, grading and upgrade history across transfers and saves. Up to 50
+  percentage points of Unremarkable chance move to Standard. Existing
+  in-progress Kiln jobs retain their progress.
+
+- The 3x2 Burnisher uses one crew and either kinetic input. After 15 seconds it
+  marks an unfired Pot without changing its current grade chances. On firing,
+  its Standard chance becomes 85% Fine and 15% Unique; other grades stay as they
+  are. Unburnished Pots receive no separate firing promotion. Treatment marks
+  survive transfers and saves, and already graded cargo cannot roll again.
+
 - The electric Limestone Drill consumes 10u and has independently rotating
   outputs for Limestone, Zinc Ore and Corundum. Each output retains at most
   one batch and discards further overflow without blocking the other outputs.
@@ -122,7 +146,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   Clay Shaping footprint, all rotated real source/input/output paths, and one
   second per total weight (including fractional Chert and Pot stacks).
   Tables and actual-value multipliers cover Poor/Unremarkable/Standard and zero base
-  Remarkable chance; Brick Seal changes Poor into Unremarkable before the roll.
+  Remarkable chance; Brick Seal grants no new grade improvements.
   Intake and output are bounded; previews, blocked outputs, already graded
   cargo and reloads cannot reroll or multiply the same grade twice.
   Same-material stack formation sums quantities and conserves cash by averaging
@@ -228,9 +252,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   single upper conveyor and inactive lower cell in all rotations. Cash checks
   cover its exact price, zero crew, +$1.25/9-use/$15/base-$0.50 rules, eligibility
   of a future non-clay material, unit values versus stack totals, and a last use
-  crossing the ceiling without any clamp. Cash and grade caps stay independent;
-  output blockage and saved mid-pass cargo cannot repeat an effect. Four repairs
-  remove 20 absolute percentage points of Poor chance. Mixed repaired/untreated
+  crossing the ceiling without any clamp. Brick Seal no longer grants grade repairs;
+  output blockage and saved mid-pass cargo cannot repeat an effect. Legacy repairs
+  remain valid for existing saves. Mixed repaired/untreated
   inputs, the quantity-blending helper's 4:1/9:1 arithmetic, partly consumed stacks and floating-point
   caps preserve the modifiers through shaping, firing and save/load.
   UI tests cover effect fields in Shop/Inventory, material-cost multiplication,

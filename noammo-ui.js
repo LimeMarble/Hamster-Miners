@@ -20,7 +20,7 @@
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
   let dismantledSelection = null;
-  let gesture = null, suppressClick = false, shiftHeld = false;
+  let gesture = null, suppressClick = false, shiftHeld = false, waterSelecting = null;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
   let overlaySignature = "";
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
@@ -161,7 +161,8 @@
     interaction.tree = null;
   }
   function cancel() {
-    if (interaction.box || gesture) { interaction.box = null; interaction.marquee = null; gesture = null; }
+    if (waterSelecting) waterSelecting = null;
+    else if (interaction.box || gesture) { interaction.box = null; interaction.marquee = null; gesture = null; }
     else if (interaction.group || interaction.tool) { interaction.group = null; interaction.tool = null; }
     else { select([]); interaction.tree = null; }
     refresh();
@@ -248,7 +249,7 @@
     suppressClick = false;
     const pixel = position(event), point = tile(pixel);
     const explicitBox = interaction.box && (!interaction.box.contextual || interaction.box.start);
-    if (!interaction.tool && !interaction.group && (explicitBox || emptyTile(point))) {
+    if (!waterSelecting && !interaction.tool && !interaction.group && (explicitBox || emptyTile(point))) {
       gesture = { pixel, start: point, add: Boolean(event.shiftKey), active: false };
     }
   });
@@ -280,6 +281,13 @@
     if (activeTab !== "factory") return;
     if (suppressClick) { suppressClick = false; return; }
     const point = tile(position(event)), tool = interaction.tool;
+    if (waterSelecting) {
+      const target = factory.at.get(A.key(point.x, point.y));
+      const index = target ? A.ports(target).filter((port) => port.role === "waterDropoff").findIndex((port) => port.x === point.x && port.y === point.y) : -1;
+      const response = factory.addWaterDelivery(waterSelecting, target?.id, index);
+      if (response.error) return notify(response.error);
+      waterSelecting = null; inspectorSignature = ""; refresh(); return;
+    }
     const contextual = (interaction.box?.contextual && !interaction.box.start)
       || (!interaction.box && !tool && !interaction.group && event.shiftKey);
     if (contextual) {
@@ -400,6 +408,30 @@
           }
         }
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
+        if (definition.dualPower) {
+          const label = element("label", "Power source "), source = element("select");
+          source.id = "powerSource"; source.setAttribute("aria-label", "Power source");
+          for (const [value, name] of [["kinetic", "Heavy kinetic"], ["electric", "Electricity (40u)"]]) {
+            const option = element("option", name); option.value = value; source.append(option);
+          }
+          source.value = machine.powerSource; label.append(source); panel.append(label);
+          source.addEventListener("change", () => { const response = factory.setPowerSource(machine.id, source.value); if (response.error) source.value = machine.powerSource; result(response); });
+        }
+        if (definition.waterSource) {
+          panel.append(element("p", "Delivers 0.5 Water every 5 seconds in schedule order. Dropoffs must be within the centered 10 by 10 area.", "muted"));
+          const add = action("Add Water dropoff", () => { waterSelecting = machine.id; notify("Select a Water dropoff within range."); refresh(); }, "secondary");
+          add.id = "addWaterDropoff"; panel.append(add);
+          machine.waterSchedule.forEach((entry, index) => {
+            const target = factory.byId.get(entry.targetId), row = element("div", undefined, "row");
+            row.append(element("span", `${index + 1}. ${D.machines[target.type].name} (${target.x}, ${target.y}), dropoff ${entry.index + 1}${factory.waterDropoffInRange(machine, target, entry.index) ? "" : " · out of range"}`));
+            const remove = action("Remove", () => { result(factory.removeWaterDelivery(machine.id, index)); inspectorSignature = ""; refresh(); }, "secondary");
+            remove.id = `removeWaterDropoff${index}`; row.append(remove); panel.append(row);
+          });
+        }
+        if (definition.waterCapacity) {
+          const water = element("p"); water.id = "waterStatus";
+          panel.append(water, element("p", "Schedule the blue Water dropoff from a nearby Well.", "muted"));
+        }
         if (definition.manualTransferSeconds) {
           const label = element("label", "Overflow side "), mode = element("select");
           mode.id = "overflowMode"; mode.setAttribute("aria-label", "Overflow side");
@@ -419,7 +451,8 @@
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
-            ? "Full batches only. Each firing consumes 80ku of heat when it starts; Wood provides 30ku and Charcoal provides 240ku. Amber arrow: Fuel. Pale arrow: Feed."
+            ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
+            : machine.type === "preheater" ? "Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to 50 percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed."
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
         }
@@ -430,7 +463,7 @@
         if (machine.type === "crudeGearBench") {
           const buffers = element("p"); buffers.id = "gearBuffers"; panel.append(buffers);
         }
-        if (definition.pressModes) {
+        if (definition.pressModes && Object.keys(definition.pressModes).length > 1) {
           const label = element("label", "Press mode "), mode = element("select");
           mode.id = "pressMode"; mode.setAttribute("aria-label", "Press mode");
           for (const [id, recipe] of Object.entries(definition.pressModes)) {
@@ -499,14 +532,14 @@
           const chance = element("p"); chance.id = "gradingChances";
           panel.append(element("p", "One grade roll per stack, at one second per total weight. Uses one hamster. Graded stacks cannot be graded again."), chance);
         }
-        if (definition.sourceModes) {
+        if (definition.sourceModes || definition.batchModes) {
           const label = element("label", "Extraction mode "), mode = element("select");
           mode.id = "extractionMode"; mode.setAttribute("aria-label", "Extraction mode");
-          for (const [id, name] of Object.entries(definition.sourceModes)) {
+          for (const [id, name] of Object.entries(definition.sourceModes ?? definition.batchModes)) {
             const option = element("option", name); option.value = id; mode.append(option);
           }
           mode.value = machine.mode;
-          mode.addEventListener("change", () => result(factory.setSourceMode(machine.id, mode.value)));
+          mode.addEventListener("change", () => { const response = factory.setSourceMode(machine.id, mode.value); floorSignature = ""; result(response); });
           label.append(mode); panel.append(label);
         }
         if (A.collectorCapacity(machine)) {
@@ -531,6 +564,7 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(D.machines[machine.type].waterCapacity)}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
@@ -553,7 +587,7 @@
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
       if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
-      if (D.machines[machine.type].pressModes) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit)} · Finished output: ${number(factory.total(machine, "output"))} / 1`);
+      if (D.machines[machine.type].pressModes && $("pressBuffers")) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit)} · Finished output: ${number(factory.total(machine, "output"))}`);
       if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / 1 · Finished ingots: ${number(factory.total(machine, "output"))} / 1`);
       if (D.machines[machine.type].formingModes) {
         const recipe = D.machines[machine.type].formingModes[machine.mode];
@@ -704,10 +738,10 @@
     const hireCost = factory.crewHireCost();
     text($("hireCrew"), `Hire · ${Number.isFinite(hireCost) ? money(hireCost) : "—"}`);
     $("hireCrew").disabled = !factory.canHireCrew();
-    text($("toolLabel"), interaction.box ? interaction.box.start ? "Tap the opposite corner" : interaction.box.contextual ? "Tap empty ground to box-select, or an object for its Shift action" : "Tap the first corner"
+    text($("toolLabel"), waterSelecting ? "Select a Water dropoff in range" : interaction.box ? interaction.box.start ? "Tap the opposite corner" : interaction.box.contextual ? "Tap empty ground to box-select, or an object for its Shift action" : "Tap the first corner"
       : interaction.group ? `${interaction.group.placing ? "Placing" : "Moving"} ${interaction.group.ids.length} machines · Q/E rotates the group`
       : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
-    $("cancel").disabled = !(interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);
+    $("cancel").disabled = !(waterSelecting || interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);
     text($("cancel"), interaction.box ? "Cancel selection" : interaction.group || interaction.tool ? "Cancel" : "Clear selection");
     if (activeTab === "factory") renderInspector();
     if (activeTab === "shop") renderShop();

@@ -35,13 +35,13 @@ function product(f, m) {
 
 test('Pot Spinner has the approved exact cost, no additional crew, and atomic multi-buy', () => {
   const f = new Factory(A.createState(1)), cost = D.machines.potSpinner.cost;
-  assert.deepEqual(cost, { cash: 7500, materials: { wood: 150, brick: 60, granite: 30, leekFiber: 15 } });
+  assert.deepEqual(cost, { cash: 1200, materials: { wood: 150, brick: 60, chert: 30, leekFiber: 15 } });
   for (const missing of ['cash', ...Object.keys(cost.materials)]) {
-    f.state.cash = 22500; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
+    f.state.cash = 3600; Object.assign(f.state.inventory, { wood: 450, brick: 180, chert: 90, leekFiber: 45 });
     if (missing === 'cash') f.state.cash -= 0.01; else f.state.inventory[missing]--;
     const before = f.exportSave(); assert.ok(f.buy('potSpinner', 3).error); assert.equal(f.exportSave(), before);
   }
-  f.state.cash = 22500; Object.assign(f.state.inventory, { wood: 450, brick: 180, granite: 90, leekFiber: 45 });
+  f.state.cash = 3600; Object.assign(f.state.inventory, { wood: 450, brick: 180, chert: 90, leekFiber: 45 });
   assert.equal(f.buy('potSpinner', 3).amount, 3); near(f.state.cash, 0);
   for (const material of Object.keys(cost.materials)) near(f.state.inventory[material], 0);
   const m = f.place('potSpinner', 40, 40).machine;
@@ -132,7 +132,7 @@ test('spun profiles, independent Seal repairs and the Exceptional tier match the
   }
 });
 
-test('two continuously fed Spinners produce thirty pots in two minutes, matching one Kiln firing cycle per eight seconds', () => {
+test('two continuously fed Spinners produce thirty pots in two minutes', () => {
   const f = new Factory(A.createState(1)), machines = [], baskets = [];
   for (const x of [40, 50]) {
     const m = place(f, 'potSpinner', x, 40); wheelFor(f, m);
@@ -145,7 +145,7 @@ test('two continuously fed Spinners produce thirty pots in two minutes, matching
     if (tick === 80) for (const basket of baskets) near(f.total(basket, 'contents'), 1);
   }
   for (const basket of baskets) near(f.total(basket, 'contents'), 15);
-  near(baskets.reduce((sum, b) => sum + f.total(b, 'contents'), 0) / 120, 2 / D.machines.kiln.recipes.unfiredPot.seconds);
+  near(baskets.reduce((sum, b) => sum + f.total(b, 'contents'), 0) / 120, 2 / D.machines.potSpinner.recipes.pot.seconds);
 });
 
 test('Seal treatment before spinning is averaged across the two Clay inputs and survives firing', () => {
@@ -153,15 +153,15 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   feed(f, m, { ...cargo('clay', 1, 2), gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9 } });
   feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(8);
   const pot = m.output[0]; near(pot.value, 10); near(pot.gradeRepairs.brickSeal, 2); assert.deepEqual(pot.upgrades, {});
-  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 80000;
+  const kiln = place(f, 'kiln', 50, 40); kiln.heat = 96000;
   const input = ports(kiln).find(p => p.channel === 'material');
   f.receive(kiln, pot, input.x, input.y, input.direction, true);
   f.receive(kiln, cargo('unfiredPot', 1, 1), input.x, input.y, input.direction, true);
-  f.update(0.1); f.update(8);
+  f.update(0.1); f.update(12);
   assert.equal(kiln.output[0].material, 'pot'); near(kiln.output[0].value, 40);
-  for (const [i, expected] of [0.06, 0.16, 0.32, 0.31, 0.15, 0].entries()) near(A.gradeProbabilities(kiln.output[0])[i], expected);
+  for (const [i, expected] of A.gradeProbabilities(pot).entries()) near(A.gradeProbabilities(kiln.output[0])[i], expected);
   near(kiln.output[0].gradeRepairs.brickSeal, 2);
-  for (const [i, expected] of [0.12, 0.44, 0.36, 0.08, 0, 0].entries()) near(A.gradeProbabilities(kiln.output[1])[i], expected);
+  for (const [i, expected] of [0.2, 0.6, 0.2, 0, 0, 0].entries()) near(A.gradeProbabilities(kiln.output[1])[i], expected);
 });
 
 test('stacked profiles average with ordinary pots; legal portions and saves retain that distribution, and graded mixing cannot reroll', () => {
@@ -193,7 +193,7 @@ test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades 
   near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 32); near(basket.contents[1].value, 48);
   for (const item of basket.contents) {
     assert.equal(item.graded, true);
-    for (const [i, expected] of [0.12, 0.14, 0.28, 0.31, 0.15, 0].entries()) near(item.gradeProfile[i], expected);
+    for (const [i, expected] of profile.entries()) near(item.gradeProfile[i], expected);
   }
   assert.equal(f.state.cash, 0); assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });

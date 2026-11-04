@@ -28,7 +28,7 @@ function fire(f, item, type = 'kiln') {
   const m = place(f, type, 60, 40);
   m.heat = D.machines[type].heatCapacity;
   assert.equal(feed(f, m, item), item.quantity); f.update(0.1);
-  assert.ok(m.job); f.update(type === 'kiln' ? 8 : 20);
+  assert.ok(m.job); f.update(type === 'kiln' ? 12 : 20);
   return { m, result: A.copy(m.output[0]) };
 }
 
@@ -99,21 +99,21 @@ test('Duster cash and grade effects each stay spent across material changes, sta
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('pre-dusted copper smelts one tier higher, keeps history through molding and does not receive another shift', () => {
-  const { f, m } = setup(); const ore = dust(f, m, cargo('nativeCopper', 2, 10));
+test('pre-dusted copper keeps its quality through smelting and molding without receiving another shift', () => {
+  const { f, m } = setup(); const ore = dust(f, m, cargo('copperOre', 2, 10));
   chances(ore, [0, 0.5, 0.425, 0.075, 0, 0]);
   const { m: furnace, result } = fire(f, { ...ore, quantity: 4 }, 'primitiveFurnace', 'copper');
-  chances(result, [0, 0, 0.5, 0.425, 0.075, 0]); near(mean(result), 2.4125); near(result.value, 66);
+  chances(result, [0, 0.5, 0.425, 0.075, 0, 0]); near(mean(result), 1.325); near(result.value, 66);
   const molder = place(f, 'ingotMolder', 62, 40); f.update(0.1); f.update(1);
   const ingot = molder.output[0]; assert.ok(ingot); chances(ingot, A.gradeProbabilities(result));
-  assert.equal(ingot.materialHistory['leekDuster:nativeCopper:grade'], true);
+  assert.equal(ingot.materialHistory['leekDuster:copperOre:grade'], true);
   assert.equal(ingot.value, result.value); assert.equal(furnace.output[0].material, 'moltenCopper');
   const dustedAgain = dust(f, m, { ...A.copy(ingot), quantity: 1 });
   near(dustedAgain.value, ingot.value); chances(dustedAgain, A.gradeProbabilities(ingot));
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('Duster treatments survive shaping and Spinner profiles; firing promotes 40% and stops at Remarkable', () => {
+test('Duster treatments survive shaping and Spinner profiles; unburnished Pots preserve chances when fired', () => {
   for (const spun of [false, true]) {
     const { f, m } = setup();
     const clay = dust(f, m, { ...cargo('clay', 2, 10), gradeRepairs: { brickSeal: 4 } });
@@ -122,8 +122,8 @@ test('Duster treatments survive shaping and Spinner profiles; firing promotes 40
     assert.equal(feed(f, shaper, clay), 2); f.update(0.1); f.update(spun ? 8 : 4);
     const unfired = shaper.output[0]; assert.ok(unfired);
     const { result, m: kiln } = fire(f, { ...unfired, quantity: 2 });
-    chances(result, spun ? [0, 0.09, 0.33, 0.39, 0.19, 0] : [0, 0.24, 0.49, 0.25, 0.02, 0]);
-    near(mean(result), spun ? 3.08 : 1.76); assert.equal(f.state.random, 1, 'quality treatment never rolls RNG');
+    chances(result, A.gradeProbabilities(unfired));
+    near(mean(result), mean(unfired)); assert.equal(f.state.random, 1, 'quality treatment never rolls RNG');
     const dustedAgain = dust(f, m, { ...A.copy(result), quantity: 1 });
     near(dustedAgain.value, result.value); chances(dustedAgain, A.gradeProbabilities(result));
     assert.equal(feed(f, kiln, result), 0, 'fired ceramic cannot be fired again');
