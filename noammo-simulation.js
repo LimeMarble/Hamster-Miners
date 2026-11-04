@@ -1592,7 +1592,10 @@
           delete machine.waterSourceId; delete machine.waterCarriers;
         }
         const assigned = (state.machines ?? []).reduce((sum, machine) => sum + (D.machines[machine.type]?.crew ?? 0), 0);
-        state.hiredCrew = Math.max(state.hiredCrew, assigned - D.config.startingCrew);
+        if (state.hiredCrew === undefined) state.hiredCrew = 0;
+        if (Number.isSafeInteger(state.hiredCrew) && state.hiredCrew >= 0) {
+          state.hiredCrew = Math.max(state.hiredCrew, assigned - D.config.startingCrew);
+        }
         state.copperWashVersion = 1;
       }
       if ((state.burnisherVersion ?? 0) < 1) {
@@ -2016,7 +2019,10 @@
             && Object.keys(batch).some((material) => machine.output.filter((item) => item.material === material).length > 1))
           || Object.entries(batch).some(([material, quantity]) => machine.output.filter((item) => item.material === material)
             .reduce((sum, item) => sum + item.quantity, 0) > quantity + epsilon))) throw new Error("Invalid source timer or output buffer.");
-        if (sourceMaterial && (machine.timer > sourceDefinition.cycle + epsilon || machine.output.some((item) => item.material !== sourceMaterial)
+        // Before the washer update, Copper Drill output was already smeltable
+        // Copper. A migrated buffered batch is Copper Ore until it leaves.
+        if (sourceMaterial && (machine.timer > sourceDefinition.cycle + epsilon || machine.output.some((item) => item.material !== sourceMaterial
+          && !(machine.type === "copperDrill" && item.material === "copperOre"))
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) + epsilon)) throw new Error("Invalid source buffer.");
         if (!sourceDefinition.heatCapacity && !isCrafter(sourceDefinition) && !["fiber", "kiln", "gradingBench", "paintingBench"].includes(machine.type) && !sourceMaterial && !sourceDefinition.sourceModes && !batch && machine.output.length) throw new Error("Unexpected output buffer.");
         const laneCount = conveyorCells(machine).length;

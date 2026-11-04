@@ -103,3 +103,23 @@ test('old Copper and old Well assignments migrate once without losing saved carg
   assert.deepEqual(loaded.byId.get(well.id).waterSchedule, [{ targetId: bench.id, index: 0 }]);
   assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
+test('old Copper Drill with blocked output migrates and can unload its existing Copper Ore', () => {
+  const f = new A.Factory(A.createState(1)), drill = place(f, 'copperDrill', 40, 40);
+  drill.output = [A.cargo('nativeCopper', 1, 7.5)];
+  const saved = JSON.parse(f.exportSave()); delete saved.state.copperWashVersion;
+  delete saved.state.inventory.copperOre; delete saved.state.stock.oreCrushWasher;
+  const loaded = A.Factory.importSave(JSON.stringify(saved)), restored = loaded.byId.get(drill.id);
+  assert.equal(restored.output[0].material, 'copperOre'); near(restored.output[0].value, 7.5);
+  assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
+  const output = A.ports(restored).find(port => port.role === 'output');
+  place(loaded, 'sellTube', output.x + 1, output.y - 0.5);
+  loaded.update(0.1); assert.equal(restored.output.length, 0); near(loaded.state.cash, 7.5);
+});
+test('pre-hiring saves migrate without making the hired crew count invalid', () => {
+  const f = new A.Factory(A.createState(1)), saved = JSON.parse(f.exportSave());
+  delete saved.state.copperWashVersion; delete saved.state.hiredCrew;
+  delete saved.state.inventory.copperOre; delete saved.state.stock.oreCrushWasher;
+  const loaded = A.Factory.importSave(JSON.stringify(saved));
+  assert.equal(loaded.state.hiredCrew, 0); assert.equal(loaded.availableCrew(), D.config.startingCrew);
+  assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
+});

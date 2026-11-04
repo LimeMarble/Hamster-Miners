@@ -7,7 +7,7 @@ const A = require("../noammo-simulation.js");
 
 // Exercise the actual browser entry and event handlers without networking or browser automation.
 // This is a DOM contract test, not a claim of live-browser visual verification.
-function boot(saved, { width = 900, height = 600 } = {}) {
+function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
   const ids = new Map(), frames = [], windowEvents = new Map(), documentEvents = new Map(), storage = new Map();
   const rectangle = { left: 0, top: 0, width, height }, observers = [], renders = [];
   let writes = 0;
@@ -73,7 +73,10 @@ function boot(saved, { width = 900, height = 600 } = {}) {
     document, performance: { now: () => 0 }, devicePixelRatio: 1,
     requestAnimationFrame: (fn) => frames.push(fn), ResizeObserver: class { constructor(fn) { observers.push(fn); } observe() {} },
     addEventListener: (type, fn) => windowEvents.set(type, fn), confirm: () => true,
-    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) { writes++; storage.set(key, value); } },
+    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) {
+      if (failBackups && key.startsWith(`${A.DATA.saveKey}-before-migration-`)) throw new Error('Storage full');
+      writes++; storage.set(key, value);
+    } },
     console: { warn() {} },
   };
   context.window = context;
@@ -1542,11 +1545,34 @@ test('recipe browsing follows ingredients and machines, restores filtered histor
   assert.equal(ui.ids.get('recipes').hidden, false); assert.equal(ui.ids.get('recipeTitle').textContent, 'Primitive Furnace');
 });
 
+test('Copper migration backs up the original and loads a drill with pending output', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.copperDrill++;
+  const drill = f.place('copperDrill', 121, 121).machine;
+  drill.output.push(A.cargo('nativeCopper', 1, 7.5));
+  const saved = JSON.parse(f.exportSave()); delete saved.state.copperWashVersion;
+  delete saved.state.stock.oreCrushWasher; delete saved.state.inventory.copperOre;
+  const original = JSON.stringify(saved), ui = boot(original);
+  const restored = ui.state().machines.find(machine => machine.id === drill.id);
+  assert.equal(restored.output[0].material, 'copperOre'); assert.equal(restored.output[0].value, 7.5);
+  assert.ok([...ui.storage.entries()].some(([key, value]) => key.startsWith(`${A.DATA.saveKey}-before-migration-`) && value === original));
+});
+
+test('a failed migration backup prevents overwriting the original and permits exporting it', () => {
+  const f = new A.Factory(A.createState(1)), saved = JSON.parse(f.exportSave());
+  delete saved.state.potShelfVersion; delete saved.state.stock.potShelf; delete saved.state.inventory.leekCoil;
+  const original = JSON.stringify(saved), ui = boot(original, { failBackups: true });
+  for (let now = 100; now < 7000; now += 100) ui.frame(now);
+  ui.ids.get('export').emit('click'); ui.save();
+  assert.equal(ui.ids.get('saveText').value, original); assert.equal(ui.storage.get(A.DATA.saveKey), original);
+  ui.ids.get('reset').emit('click'); assert.equal(ui.storage.get(A.DATA.saveKey), original);
+});
+
 test("unreadable saves survive startup, autosave, export and unload until an explicit reset", () => {
   const broken = "this is not a valid save", ui = boot(broken);
   for (let now = 100; now < 7000; now += 100) ui.frame(now);
-  ui.ids.get("export").emit("click"); ui.save();
+  ui.ids.get("export").emit("click"); assert.equal(ui.ids.get("saveText").value, broken); ui.save();
   assert.equal(ui.writes, 0); assert.equal(ui.storage.get(A.DATA.saveKey), broken);
   ui.ids.get("reset").emit("click");
+  assert.ok([...ui.storage.entries()].some(([key, value]) => key.startsWith(`${A.DATA.saveKey}-before-migration-`) && value === broken));
   assert.ok(ui.writes > 0); assert.equal(ui.state().kind, A.DATA.saveKind);
 });

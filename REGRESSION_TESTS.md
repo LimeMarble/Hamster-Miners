@@ -1,5 +1,10 @@
 # Hamster Miners regression scenarios
 
+- Save recovery covers a Copper Drill with blocked pre-washer Copper output,
+  preserving its value and unloading it as Copper Ore, and a save without the
+  hired-crew field. Migration backs up the original before replacing it; failed
+  backup leaves the primary untouched, and Export retrieves the preserved text.
+
 Run `npm test` after every change. The automated suite covers the deterministic
 rules below; the manual cases cover browser layout, interaction, and rendering.
 

@@ -2,7 +2,15 @@
   "use strict";
   const A = window.NoAmmo, D = A.DATA, R = window.NoAmmoRenderer;
   const $ = (id) => document.getElementById(id);
-  let factory, storageFailed = false;
+  let factory, storageFailed = false, protectedSave = null, loadFailure = null;
+  function backupBeforeMigration(raw) {
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
+    const prefix = `${D.saveKey}-before-migration-${(hash >>> 0).toString(36)}`;
+    let key = prefix, suffix = 0;
+    while (localStorage.getItem(key) !== null && localStorage.getItem(key) !== raw) key = `${prefix}-${++suffix}`;
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, raw);
+  }
   function backupTerrainSave(raw, loaded) {
     if (!loaded.terrainUpdated) return;
     const key = `${D.saveKey}-before-fixed-terrain-${D.startingTerrain.version}`;
@@ -12,8 +20,18 @@
   function terrainNotice() {
     return `Fixed tree map applied. ${factory.pickedUpForTerrainReset} placed machine(s) returned to inventory; their contents were recovered.`;
   }
-  try { const save = localStorage.getItem(D.saveKey); factory = save ? A.Factory.importSave(save) : new A.Factory(); if (save) backupTerrainSave(save, factory); }
-  catch (error) { factory = new A.Factory(); storageFailed = true; console.warn("Prototype save not loaded:", error); }
+  try {
+    protectedSave = localStorage.getItem(D.saveKey);
+    factory = protectedSave ? A.Factory.importSave(protectedSave) : new A.Factory();
+    if (protectedSave) {
+      const previous = JSON.parse(protectedSave);
+      if (JSON.stringify(previous.state) !== JSON.stringify(factory.state)) backupBeforeMigration(protectedSave);
+      backupTerrainSave(protectedSave, factory);
+    }
+  } catch (error) {
+    if (!factory) factory = new A.Factory();
+    storageFailed = true; loadFailure = error.message; console.warn("Prototype save not loaded or backed up:", error);
+  }
   const camera = { x: 0, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
   let cameraReady = false;
   const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
@@ -754,9 +772,11 @@
     if (activeTab === "inventory") renderInventory();
     renderHoverHistory();
   }
-  $("export").addEventListener("click", () => { $("saveText").value = factory.exportSave(); $("saveText").select(); save(); });
+  $("export").addEventListener("click", () => { $("saveText").value = storageFailed && protectedSave !== null ? protectedSave : factory.exportSave(); $("saveText").select(); save(); });
   $("import").addEventListener("click", () => {
-    try { const replacement = A.Factory.importSave($("saveText").value); backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false;
+    try { const replacement = A.Factory.importSave($("saveText").value);
+      const previous = localStorage.getItem(D.saveKey); if (previous && previous !== $("saveText").value) backupBeforeMigration(previous);
+      backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false; protectedSave = null; loadFailure = null;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
       dismantledSelection = null;
@@ -767,7 +787,9 @@
   });
   $("reset").addEventListener("click", () => {
     if (!window.confirm("Reset only this opening prototype? Existing mining saves will not be changed.")) return;
-    factory = new A.Factory(); storageFailed = false; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
+    try { const previous = localStorage.getItem(D.saveKey); if (previous) backupBeforeMigration(previous); }
+    catch (error) { notify(`Could not back up the existing save, so it was not reset. ${error.message}`); return; }
+    factory = new A.Factory(); storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
     inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
     dismantledSelection = null;
     home(); save(); refresh();
@@ -802,7 +824,7 @@
     requestAnimationFrame(frame);
   }
   resize(); refresh();
-  if (storageFailed) notify("A saved prototype could not be loaded. It has not been overwritten; export or import a valid save before continuing.");
+  if (storageFailed) notify(`A saved prototype could not be loaded or backed up. It has not been overwritten. Export retrieves the preserved save. ${loadFailure ?? ""}`);
   else if (factory.terrainUpdated) notify(terrainNotice());
   else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
   else if (factory.reorientedForFiberResize) notify("Fiber Extractor layouts corrected; reconnect their working tile. Contents are preserved.");
