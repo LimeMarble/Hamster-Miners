@@ -26,6 +26,7 @@
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
   const machineCards = new Map(), cards = new Map();
   const number = A.formatNumber;
+  $("gradeMultipliers").textContent = D.grades.map((grade) => `${grade.name} ×${number(grade.multiplier)}`).join(" · ");
   const money = (value) => `$${number(value)}`;
   const recipeBook = window.NoAmmoRecipes.mount({ document, data: D, formatNumber: number,
     primitiveEffect: () => factory.state.tuning,
@@ -41,10 +42,10 @@
     if (definition.electricPower || definition.electricOutput) panel.append(element("p", "Generators share one factory-wide supply. All electric machines pause when total demand exceeds supply.", "muted"));
     if (definition.electricPower && definition.conveyors) panel.append(element("p", `Conveyor: weight capacity ${number(definition.beltWeight)} · ${number(definition.beltSeconds)}s per tile · one cargo stack per tile.`, "machine-effect"));
     for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradeProfile) {
-      panel.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
+      panel.append(element("p", `Starting grade chances before inherited treatments: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
     }
-    for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.gradePromotion) {
-      panel.append(element("p", `Grade Effects: moves ${number(recipe.gradePromotion * 100)}% of each tier's chance up one tier${recipe.gradePromotionCeiling === undefined ? "" : `, stopping at ${D.grades[recipe.gradePromotionCeiling].name}`}.`, "machine-effect"));
+    for (const [input, recipe] of Object.entries(definition.recipes ?? {})) if (recipe.gradePromotion) {
+      panel.append(element("p", `${D.materials[recipe.output]?.name ?? input} grade effect: moves ${number(recipe.gradePromotion * 100)}% of each eligible tier's chance up one tier${recipe.gradePromotionCeiling === undefined ? "" : `, stopping at ${D.grades[recipe.gradePromotionCeiling].name}`}.`, "machine-effect"));
     }
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
@@ -452,7 +453,7 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
-            : machine.type === "preheater" ? "Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to 50 percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed."
+            : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
         }

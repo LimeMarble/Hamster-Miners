@@ -103,6 +103,16 @@ function boot(saved, { width = 900, height = 600 } = {}) {
     state() { windowEvents.get("beforeunload")(); return JSON.parse(storage.get(A.DATA.saveKey)).state; } };
 }
 
+test('grading help and pottery descriptions reflect current grading data', () => {
+  const ui = boot();
+  assert.equal(ui.ids.get('gradeMultipliers').textContent, A.DATA.grades.map(grade => `${grade.name} ×${A.formatNumber(grade.multiplier)}`).join(' · '));
+  const kiln = A.DATA.machines.kiln.recipes.unfiredPot.burnishedGradeEffect;
+  const burnisher = A.DATA.machines.burnisher.description;
+  for (const outcome of kiln.outcomes) assert.match(burnisher, new RegExp(`${outcome.share * 100}%.*${A.DATA.grades[outcome.grade].name}`));
+  assert.match(A.DATA.machines.preheater.description, new RegExp(`${A.DATA.machines.preheater.preheatGradeTransfer * 100} percentage points`));
+  assert.match(A.DATA.machines.gradingBench.description, /compatible materials/);
+});
+
 test('machine inspector installs and refunds a whole Basic Conveyor upgrade', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.copperChimes = 1; f.state.stock.electricConveyor = 1;
   const machine = f.place('copperChimes', 121, 121).machine;

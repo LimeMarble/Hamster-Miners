@@ -11,6 +11,9 @@
     [128, 160], [74, 169], [68, 183], [71, 192], [147, 202], [166, 205],
     [99, 211], [68, 213], [142, 216], [147, 216], [164, 226], [142, 227],
   ];
+  const PREHEAT_GRADE_TRANSFER = 0.5;
+  const BURNISHED_STANDARD_TO_FINE = 0.85;
+  const BURNISHED_STANDARD_TO_UNIQUE = 0.15;
   const DATA = {
     saveKind: "hamster-miners-noammo-opening",
     saveVersion: 1,
@@ -215,7 +218,7 @@
           pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 8, valueMultiplier: 2,
             gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05, 0] },
         },
-        description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds, improving its grade chances. Requires a Wheel connected to either kinetic intake.",
+        description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds. The Pot starts with the Spinner's grade profile and carries forward prior quality treatments. Requires a Wheel connected to either kinetic intake.",
       },
       burnisher: {
         name: "Burnisher", width: 3, height: 2, color: "#aa9871", category: "Material", crew: 1,
@@ -229,7 +232,7 @@
           { x: 1, y: 1, direction: "down", role: "kineticInput" },
         ],
         recipes: { pot: { name: "Burnished Pot", input: 1, output: "unfiredPot", seconds: 15, valueMultiplier: 1 } },
-        description: "Burnishes 1 unfired Pot in 15 seconds. When fired, 85% of its Standard chance becomes Fine and 15% becomes Unique. Burnished cargo has a pale bar. Requires a Wheel connected to either kinetic intake.",
+        description: `Burnishes 1 unfired Pot in 15 seconds. When fired, ${BURNISHED_STANDARD_TO_FINE * 100}% of its Standard chance becomes Fine and ${BURNISHED_STANDARD_TO_UNIQUE * 100}% becomes Unique. Burnished cargo has a pale bar. Requires a Wheel connected to either kinetic intake.`,
       },
       paintingBench: {
         name: "Painting Bench", width: 2, height: 3, color: "#95a86d", category: "Material", crew: 1,
@@ -251,7 +254,7 @@
         crew: 1, secondsPerWeight: 1, inputWeightLimit: 5,
         labelLines: ["Grading", "Bench"], footprint: [[0, 0], [1, 0], [1, 1]],
         cost: { cash: 800, materials: { wood: 100, leekFiber: 50, pot: 1 } },
-        description: "Grades Clay products, stone and Copper, rolling once per ungraded stack. Takes 1 second per unit of weight.",
+        description: "Grades compatible materials, rolling once per ungraded stack and multiplying its current value. Takes 1 second per unit of weight, up to weight 5.",
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
@@ -264,14 +267,15 @@
         ],
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
-          unfiredPot: { input: 2, output: "pot", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4 },
+          unfiredPot: { input: 2, output: "pot", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4,
+            burnishedGradeEffect: { from: 2, outcomes: [{ grade: 3, share: BURNISHED_STANDARD_TO_FINE }, { grade: 4, share: BURNISHED_STANDARD_TO_UNIQUE }] } },
         },
         description: "Fires 4 unfired Bricks or 2 unfired Pots in 12 seconds, or 6 seconds if the entire batch is preheated. Multiplies value by 4.",
       },
       preheater: {
         name: "Preheater", width: 2, height: 2, color: "#a46e4b", category: "Material", crew: 1,
         cost: { cash: 1500, materials: { brick: 60, clay: 30 } },
-        heatCapacity: 250000, heatPerSecond: 2000, outputSeconds: 2, automaticRecipes: true, preheats: true,
+        heatCapacity: 250000, heatPerSecond: 2000, outputSeconds: 2, automaticRecipes: true, preheats: true, preheatGradeTransfer: PREHEAT_GRADE_TRANSFER,
         ports: [
           { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
           { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
@@ -281,7 +285,7 @@
           unfiredBrick: { input: 2, output: "unfiredBrick", seconds: 3, valueMultiplier: 1 },
           unfiredPot: { input: 1, output: "unfiredPot", seconds: 3, valueMultiplier: 1 },
         },
-        description: "Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to 50 percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 6 seconds.",
+        description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 6 seconds.`,
       },
       primitiveFurnace: {
         name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,

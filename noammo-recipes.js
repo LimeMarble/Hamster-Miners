@@ -123,8 +123,12 @@
       });
     }
     function gradeNotes(node, recipe) {
-      if (recipe.gradeProfile) node.append(element("p", `Base grade chances: ${recipe.gradeProfile.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}`, "muted"));
+      if (recipe.gradeProfile) node.append(element("p", `Starting grade chances before inherited treatments: ${recipe.gradeProfile.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}`, "muted"));
       if (recipe.gradePromotion) node.append(element("p", `Grade effect: promotes ${number(recipe.gradePromotion * 100)}% of each tier's chance by one tier, stopping at ${data.grades[recipe.gradePromotionCeiling ?? data.grades.length - 1].name}.`, "muted"));
+      if (recipe.burnishedGradeEffect) {
+        const effect = recipe.burnishedGradeEffect;
+        node.append(element("p", `Burnished input: ${data.grades[effect.from].name} chance becomes ${effect.outcomes.map(outcome => `${number(outcome.share * 100)}% ${data.grades[outcome.grade].name}`).join(" and ")}.`, "muted"));
+      }
     }
     function recipeCard(recipe) {
       const node = element("article", undefined, "recipe-card"); node.dataset.recipe = recipe.id;
@@ -140,6 +144,7 @@
       if (recipe.adjacentPairSpeed) facts.push(`${number(recipe.seconds / recipe.adjacentPairSpeed)}s with an adjacent kinetic pair`);
       if (machine.heatCapacity) facts.push(`${number(recipe.heatPerSecond * recipe.seconds)}u heat per batch`);
       if (recipe.preheatedSeconds) facts.push(`${number(recipe.preheatedSeconds)}s and ${number(recipe.heatPerSecond * recipe.preheatedSeconds)}u when fully preheated`);
+      if (machine.preheats) facts.push(`moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
       if (recipe.heatPerSecond) facts.push(`${number(recipe.heatPerSecond)}u/s heat`);
       if (recipe.water) facts.push(`${number(recipe.water)} Water per batch`);
       node.append(element("p", facts.join(" · "), "recipe-facts"));
@@ -177,7 +182,7 @@
       if (entry.kind === "item") {
         detail.append(element("p", `${entry.value === null ? "Unsellable" : `Base value: $${number(entry.value)}`} · Weight: ${number(entry.weight)}`, "recipe-facts"));
         const chances = data.gradeTables[entry.gradeTable ?? entry.family];
-        if (chances) detail.append(element("p", `Base grade chances: ${chances.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}`, "muted"));
+        if (chances) detail.append(element("p", `Starting grade chances for fresh cargo: ${chances.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}. Manufactured cargo can inherit different chances and treatments.`, "muted"));
         const sources = catalog.producers.get(entry.key) ?? [], uses = catalog.consumers.get(entry.key) ?? [];
         const made = section("Sources", sources.length || entry.id === "wood" ? "" : "No production source is available in this version.");
         if (entry.id === "wood") made.append(element("p", `Tree chopping: ${data.config.chopsPerHarvest} accepted clicks yield 1–5 Wood.`));

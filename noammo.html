@@ -144,9 +144,9 @@
       <details>
         <summary>Grading and finished value</summary>
         <p>The Grading Bench makes one roll for the entire incoming stack and multiplies its current value. Already graded cargo cannot roll again, even after stacking or manufacturing.</p>
-        <p>Poor ×0.75 · Unremarkable ×1 · Standard ×1.5 · Fine ×2.5 · Unique ×8 · Exceptional ×40.</p>
-        <p>Quality treatments change probabilities deterministically; only grading makes a random roll. Brick firing shifts 40% up one tier, stopping at Unique. Burnished Pots receive their quality effect when fired.</p>
-        <p>Materials and processes can have different starting chances. Select a Grading Bench to see the chances for its cargo.</p>
+        <p id="gradeMultipliers"></p>
+        <p>Quality treatments change probabilities deterministically; only grading makes a random roll. A treatment has no effect on cargo that is already graded. The Kiln improves Brick chances and applies the Burnisher's effect to burnished Pots when they are fired.</p>
+        <p>Materials and processes can have different starting chances, and processing can carry earlier treatments forward. Select a Grading Bench to see the chances for its cargo.</p>
         <p>Select an upgrader or Grading Bench, or Shift-hover over it, to see its last five outputs. The Grading Bench’s history includes the rolled grade.</p>
       </details>
       <details>
@@ -182,16 +182,16 @@
     </section>
     <section id="options" class="screen panel options-panel" hidden>
       <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
-      <p>The Grading Bench applies grades and sale multipliers to factory cargo. Collecting cargo into inventory retains material counts only.</p>
+      <p>The Grading Bench rolls grades for compatible factory cargo and immediately changes its current value. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
       <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=pot-shelf-20261104"></script>
-  <script src="noammo-simulation.js?v=pot-shelf-20261104"></script>
+  <script src="noammo-data.js?v=grading-info-20261104"></script>
+  <script src="noammo-simulation.js?v=grading-info-20261104"></script>
   <script src="noammo-renderer.js?v=painting-20261103"></script>
-  <script src="noammo-recipes.js?v=water-washer-20261104"></script>
-  <script src="noammo-ui.js?v=water-washer-20261104"></script>
+  <script src="noammo-recipes.js?v=grading-info-20261104"></script>
+  <script src="noammo-ui.js?v=grading-info-20261104"></script>
 </body>
 </html>

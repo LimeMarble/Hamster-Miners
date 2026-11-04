@@ -972,7 +972,7 @@
         for (const item of machine.job.inputs) {
           const product = { ...copy(item), preheated: true };
           const chance = gradeProbabilities(product)?.[1] ?? 0;
-          if (chance > epsilon) applyGradeTreatment(product, promotionTreatment([0, Math.min(1, 0.5 / chance), 0, 0, 0, 0]));
+          if (chance > epsilon) applyGradeTreatment(product, promotionTreatment([0, Math.min(1, definition.preheatGradeTransfer / chance), 0, 0, 0, 0]));
           machine.output.push(product);
         }
         machine.job = null; return;
@@ -983,9 +983,11 @@
           input.value * input.quantity * recipe.valueMultiplier / recipe.outputQuantity), [input]));
       } else for (const item of machine.job.inputs) {
         const product = blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier), [item]);
-        if (machine.type === "kiln" && item.burnished && recipe.output === "pot") {
+        if (item.burnished && recipe.burnishedGradeEffect) {
           const treatment = identityTreatment();
-          treatment[2][2] = 0; treatment[2][3] = 0.85; treatment[2][4] = 0.15;
+          const effect = recipe.burnishedGradeEffect;
+          treatment[effect.from].fill(0);
+          for (const outcome of effect.outcomes) treatment[effect.from][outcome.grade] = outcome.share;
           applyGradeTreatment(product, treatment);
         }
         machine.output.push(product);
