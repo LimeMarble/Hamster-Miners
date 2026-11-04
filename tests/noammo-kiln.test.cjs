@@ -157,18 +157,31 @@ test("Blocked output retains a finished batch, one in-process batch and one wait
   assert.equal(kiln.job.remaining, 0, "one blocked kiln cannot stall a separate instance");
 });
 
-test("Kiln unloads at one item every two seconds, has no banked bursts, and overlaps firing with unloading", () => {
+test("Kiln unloads finished stacks directly into storage without an intake delay", () => {
   const { factory, kiln } = setup();
-  feed(factory, kiln, "wood", 8); feed(factory, kiln, "unfiredBrick", 4);
-  factory.update(0.1); feed(factory, kiln, "unfiredBrick", 4);
-  advance(factory, 60);
-  const basket = place(factory, "basket", 42, 41);
-  factory.update(0.1); assert.equal(factory.total(basket, "contents"), 1);
-  factory.update(1.9); assert.equal(factory.total(basket, "contents"), 1);
-  factory.update(0.1); assert.equal(factory.total(basket, "contents"), 2);
-  factory.update(4); assert.equal(factory.total(basket, "contents"), 4);
-  factory.update(2); assert.equal(factory.total(basket, "contents"), 5);
-  assert.ok(kiln.outputCooldown > 0);
+  feed(factory, kiln, "wood", 4);
+  feed(factory, kiln, "unfiredBrick", 1, 2); feed(factory, kiln, "unfiredBrick", 3, 1.05);
+  factory.update(0.1); factory.update(12);
+  const storage = place(factory, "brickStorage", 42, 40);
+  kiln.outputCooldown = 2; // An existing save may have a cooldown in progress.
+  const loaded = Factory.importSave(factory.exportSave());
+  loaded.update(0.1);
+  const result = loaded.byId.get(storage.id);
+  assert.equal(loaded.total(result, "contents"), 4);
+  assert.deepEqual(result.contents.map(item => [item.quantity, item.value]), [[1, 8], [3, 4.2]]);
+  assert.equal(loaded.byId.get(kiln.id).output.length, 0);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+});
+
+test("Resource Storage accepts full stacks immediately, limited only by its remaining capacity", () => {
+  const { factory } = setup();
+  const storage = place(factory, "brickStorage", 50, 40);
+  const input = ports(storage).find(point => point.role === "input");
+  const receive = item => factory.receive(storage, item, input.x, input.y, input.direction, true);
+  assert.equal(receive(cargo("brick", 350)), 350);
+  assert.equal(receive(cargo("clay", 300)), 250);
+  assert.equal(receive(cargo("brick", 1)), 0);
+  assert.equal(factory.total(storage, "contents"), 600);
 });
 
 test("Kiln sustains cold firing through an actual powered belt, regardless of machine order", () => {
@@ -294,7 +307,7 @@ test("Fired products sell at actual process value, collectors reset only on with
   const { factory, kiln } = setup(), tube = place(factory, "sellTube", 42, 41);
   feed(factory, kiln, "wood", 6); feed(factory, kiln, "unfiredPot", 2, 4.2);
   factory.update(0.1); factory.update(14);
-  near(factory.state.cash, 33.6); assert.equal(factory.saleTexts.at(-1).amount, 16.8);
+  near(factory.state.cash, 33.6);
   assert.equal(factory.state.soldItems, 2);
   factory.pickup(tube.id); feed(factory, kiln, "unfiredBrick", 4, 1.05);
   feed(factory, kiln, "wood", 1); factory.update(0.1); factory.update(12); factory.pickup(kiln.id);

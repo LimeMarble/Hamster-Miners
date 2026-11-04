@@ -94,7 +94,7 @@
         name: "Brick Resource Storage", width: 2, height: 2, color: "#b57355", category: "Logistics",
         labelLines: ["Brick Resource", "Storage"], quickAction: "collect", collectorCapacity: 600,
         cost: { cash: 500, materials: { brick: 100, clay: 15 } },
-        description: "Stores up to 600 incoming resources for collection into inventory.",
+        description: "Accepts incoming resources without an intake rate limit, storing up to 600 for collection into inventory.",
       },
       fiber: {
         name: "Leek Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
@@ -478,9 +478,8 @@
         ],
         cost: { cash: 1200, materials: { wood: 120, woodenGear: 12, leekFiber: 50, leek: 16 }, machines: { belt: 3 } },
         cashEffect: { multiplier: 1.65, upperLimit: 200, useLimit: 1 },
-        gradeEffect: { promotionRates: [1, 0.5, 0.25, 0, 0, 0], useLimit: 1 },
         persistentEffects: true,
-        description: "Improves passing cargo's value and grade chances. Requires a Wheel connected to either kinetic intake; each effect applies once per production chain.",
+        description: "Improves passing cargo's value. Requires a Wheel connected to either kinetic intake; applies once per production chain.",
       },
       primitiveShack: {
         name: "Primitive Shack", width: 3, height: 4, color: "#9e815c", category: "Cash",

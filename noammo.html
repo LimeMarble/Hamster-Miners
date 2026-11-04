@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><strong>Hamster Miners</strong><small>noammo · opening prototype</small></div>
+    <div class="brand"><strong>Hamster Miners</strong><small>Factory</small></div>
     <nav aria-label="Game screens">
       <button data-tab="factory" class="active">Factory</button>
       <button data-tab="shop">Shop</button>
@@ -181,31 +181,32 @@
       </details>
     </section>
     <section id="options" class="screen panel options-panel" hidden>
-      <h1>Options</h1><p>This prototype has its own save. Importing or resetting it never changes the existing mining game.</p>
+      <h1>Options</h1><p>The factory game has its own save. Importing or resetting it never changes the existing mining game.</p>
       <p>The Grading Bench rolls grades for compatible factory cargo and immediately changes its current value. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><label for="playtestCode">Code</label><input id="playtestCode" type="text" autocomplete="off"><button id="unlockPlaytest">Apply code</button></div>
       <p id="playtestStatus" role="status"></p>
       <section id="playtestPanel" hidden>
         <h2>Playtest cheats</h2>
-        <p>Each setting is saved with this factory. All start off. Resource drops include tree harvests; machine speed includes Well deliveries. The cash boost changes sale proceeds, not item values.</p>
+        <p>Each setting is saved with this factory. All start off. Resource drops include tree harvests; machine speed includes Well deliveries. Machine bulk runs ten Material recipes per cycle, using ten times the ingredients, fuel and Water. The cash boost changes sale proceeds, not item values.</p>
         <div class="row">
           <button id="cheatResources" aria-pressed="false">×10 resources: Off</button>
           <button id="cheatStorage" aria-pressed="false">×10 storage capacity: Off</button>
           <button id="cheatMachineSpeed" aria-pressed="false">×10 machine speed: Off</button>
+          <button id="cheatMachineBulk" aria-pressed="false">×10 machine bulk: Off</button>
           <button id="cheatConveyorCapacity" aria-pressed="false">×10 conveyor capacity: Off</button>
           <button id="cheatConveyorSpeed" aria-pressed="false">×5 conveyor speed: Off</button>
           <button id="cheatCash" aria-pressed="false">×10 sale cash: Off</button>
         </div>
       </section>
-      <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset this prototype</button></div>
-      <label for="saveText">Prototype save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
+      <div class="row"><button id="export">Export save</button><button id="import">Import save</button><button id="reset" class="danger">Reset factory game</button></div>
+      <label for="saveText">Factory save</label><textarea id="saveText" rows="6" spellcheck="false"></textarea>
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=burnisher-category-20261104"></script>
-  <script src="noammo-simulation.js?v=playtest-20261104"></script>
-  <script src="noammo-renderer.js?v=painting-20261103"></script>
-  <script src="noammo-recipes.js?v=dimensions-20261104"></script>
-  <script src="noammo-ui.js?v=playtest-20261104"></script>
+  <script src="noammo-data.js?v=duster-cash-20261104"></script>
+  <script src="noammo-simulation.js?v=duster-cash-20261104"></script>
+  <script src="noammo-renderer.js?v=machine-labels-20261104"></script>
+  <script src="noammo-recipes.js?v=duster-cash-20261104"></script>
+  <script src="noammo-ui.js?v=duster-cash-20261104"></script>
 </body>
 </html>

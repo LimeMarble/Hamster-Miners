@@ -30,7 +30,7 @@
     }
   } catch (error) {
     if (!factory) factory = new A.Factory();
-    storageFailed = true; loadFailure = error.message; console.warn("Prototype save not loaded or backed up:", error);
+    storageFailed = true; loadFailure = error.message; console.warn("Factory save not loaded or backed up:", error);
   }
   const camera = { x: 0, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
   let cameraReady = false;
@@ -63,7 +63,9 @@
       panel.append(element("p", `Starting grade chances before inherited treatments: ${recipe.gradeProfile.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`, "machine-effect"));
     }
     for (const [input, recipe] of Object.entries(definition.recipes ?? {})) if (recipe.gradePromotion) {
-      panel.append(element("p", `${D.materials[recipe.output]?.name ?? input} grade effect: moves ${number(recipe.gradePromotion * 100)}% of each eligible tier's chance up one tier${recipe.gradePromotionCeiling === undefined ? "" : `, stopping at ${D.grades[recipe.gradePromotionCeiling].name}`}.`, "machine-effect"));
+      const ceiling = recipe.gradePromotionCeiling ?? D.grades.length - 1;
+      const transitions = D.grades.slice(0, ceiling).map((grade, index) => `${grade.name} → ${D.grades[index + 1].name}`).join(", ");
+      panel.append(element("p", `${D.materials[recipe.output]?.name ?? input} grade effect: moves ${number(recipe.gradePromotion * 100)}% of the chance at each grade up one step, all at once: ${transitions}. Existing ${D.grades[ceiling].name} and higher chances do not move. Already graded cargo is unaffected.`, "machine-effect"));
     }
     for (const recipe of Object.values(definition.recipes ?? {})) if (recipe.burnishedGradeEffect) {
       const treatment = recipe.burnishedGradeEffect;
@@ -79,7 +81,7 @@
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
     if (definition.gradeEffect?.poorToStandardPerUse) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Unremarkable per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
     if (definition.gradeEffect?.promotionRates) lines.push(`Grade Effects: moves ${definition.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% of ${D.grades[i].name} to ${D.grades[i + 1].name}` : "").filter(Boolean).join("; ")}. Applies outside the cash limit.`);
-    if (definition.persistentEffects) lines.push("Cash and grade effects each apply only once across the entire processing chain.");
+    if (definition.persistentEffects) lines.push("Cash effect applies only once across the entire processing chain.");
     for (const line of lines) panel.append(element("p", line, "machine-effect"));
   }
   function text(element, value) { if (element && element.textContent !== value) element.textContent = value; }
@@ -123,9 +125,9 @@
   function notify(message) { text($("notice"), message); $("notice").classList.add("visible"); toastTime = performance.now() + 3500; }
   function result(value, message) { if (value?.error) notify(value.error); else if (message) notify(message); refresh(); }
   function save() {
-    if (storageFailed) { text($("saveStatus"), "The unreadable saved prototype is preserved. Import or explicitly reset before saving over it."); return; }
-    try { localStorage.setItem(D.saveKey, factory.exportSave()); text($("saveStatus"), "Prototype saved locally. Existing mine saves are unchanged."); }
-    catch { text($("saveStatus"), "Local saving is unavailable. Export your prototype save to keep it."); }
+    if (storageFailed) { text($("saveStatus"), "The unreadable factory save is preserved. Import or explicitly reset before saving over it."); return; }
+    try { localStorage.setItem(D.saveKey, factory.exportSave()); text($("saveStatus"), "Factory saved locally. Existing mine saves are unchanged."); }
+    catch { text($("saveStatus"), "Local saving is unavailable. Export your factory save to keep it."); }
   }
   function setTab(tab) {
     activeTab = tab;
@@ -576,7 +578,7 @@
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
       } else {
-        panel.append(element("h2", "Opening factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, Basket and Sell Tube. Click trees to gather Wood."),
+        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, Basket and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
@@ -588,11 +590,11 @@
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
-      if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(D.machines[machine.type].waterCapacity)}`);
+      if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
-      if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / 2 · Finished pots: ${number(factory.total(machine, "output"))} / 1`);
-      if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit)} · Finished items: ${number(factory.total(machine, "output"))} / 1`);
+      if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${2 * factory.bulkFactor(machine)} · Finished pots: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
+      if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit * factory.bulkFactor(machine))} · Finished items: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (machine.type === "gradingBench") {
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0];
         const probabilities = item && A.gradeProbabilities(item);
@@ -607,15 +609,15 @@
         text($("furnaceRecipe"), recipe
           ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${number(recipe.seconds)}s`
           : "Recipe: waiting for material");
-        text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(D.machines[machine.type].heatCapacity)}u`);
+        text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(factory.heatCapacity(machine))}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
-      if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / 2 · Finished gears: ${number(factory.total(machine, "output"))} / 1`);
-      if (D.machines[machine.type].pressModes && $("pressBuffers")) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit)} · Finished output: ${number(factory.total(machine, "output"))}`);
-      if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / 1 · Finished ingots: ${number(factory.total(machine, "output"))} / 1`);
+      if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / ${2 * factory.bulkFactor(machine)} · Finished gears: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
+      if (D.machines[machine.type].pressModes && $("pressBuffers")) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit * factory.bulkFactor(machine))} · Finished output: ${number(factory.total(machine, "output"))}`);
+      if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / ${factory.bulkFactor(machine)} · Finished ingots: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (D.machines[machine.type].formingModes) {
         const recipe = D.machines[machine.type].formingModes[machine.mode];
-        text($("formingBuffers"), `Waiting ${D.machines[machine.type].fluidInput ? "liquid" : "Wire"}: ${number(factory.total(machine, "input"))} / ${recipe.input} · Finished output: ${number(factory.total(machine, "output"))}`);
+        text($("formingBuffers"), `Waiting ${D.machines[machine.type].fluidInput ? "liquid" : "input"}: ${number(factory.total(machine, "input"))} / ${recipe.input * factory.bulkFactor(machine)} · Finished output: ${number(factory.total(machine, "output"))}`);
       }
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
@@ -656,12 +658,12 @@
         if (definition.cost) result(factory.buy(shopSelection, amount), `Purchased ${number(amount)} ${definition.name}.`);
         else {
           if (!factory.borrow(shopSelection, amount)) notify("Choose 1–100 borrowed test machines.");
-          else { notify("Borrowed unpriced prototype equipment; no game price assigned."); refresh(); }
+          else { notify("Borrowed unpriced equipment; no game price assigned."); refresh(); }
         }
       }); buy.id = "buyMachine";
       panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"),
         action("Recipes & uses", () => viewRecipes(shopSelection), "secondary"));
-      if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a prototype test aid, not its actual recipe.", "muted"));
+      if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a test aid, not its actual recipe.", "muted"));
       if (shopSelection === "planter") panel.append(element("p", "Your first two Planters are supplied free. Additional Planters require the listed cost.", "muted"));
     }
     const count = factory.state.stock[shopSelection], total = count + factory.state.machines.filter((machine) => machine.type === shopSelection).length;
@@ -773,7 +775,7 @@
     $("playtestPanel").hidden = !factory.state.playtest.unlocked;
     for (const [id, elementId, label] of [
       ["resources", "cheatResources", "×10 resources"], ["storage", "cheatStorage", "×10 storage capacity"],
-      ["machineSpeed", "cheatMachineSpeed", "×10 machine speed"], ["conveyorCapacity", "cheatConveyorCapacity", "×10 conveyor capacity"],
+      ["machineSpeed", "cheatMachineSpeed", "×10 machine speed"], ["machineBulk", "cheatMachineBulk", "×10 machine bulk"], ["conveyorCapacity", "cheatConveyorCapacity", "×10 conveyor capacity"],
       ["conveyorSpeed", "cheatConveyorSpeed", "×5 conveyor speed"], ["cash", "cheatCash", "×10 sale cash"],
     ]) {
       const enabled = factory.state.playtest.toggles[id];
@@ -789,7 +791,7 @@
   };
   $("unlockPlaytest").addEventListener("click", unlockPlaytest);
   $("playtestCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); unlockPlaytest(); } });
-  for (const [id, elementId] of [["resources", "cheatResources"], ["storage", "cheatStorage"], ["machineSpeed", "cheatMachineSpeed"],
+  for (const [id, elementId] of [["resources", "cheatResources"], ["storage", "cheatStorage"], ["machineSpeed", "cheatMachineSpeed"], ["machineBulk", "cheatMachineBulk"],
     ["conveyorCapacity", "cheatConveyorCapacity"], ["conveyorSpeed", "cheatConveyorSpeed"], ["cash", "cheatCash"]]) {
     $(elementId).addEventListener("click", () => {
       const response = factory.setPlaytestCheat(id, !factory.state.playtest.toggles[id]);
@@ -807,11 +809,11 @@
       dismantledSelection = null;
       save(); refresh(); notify(factory.terrainUpdated ? terrainNotice() : factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
-        : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Prototype save imported.");
+        : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Factory save imported.");
     } catch (error) { notify(error.message); }
   });
   $("reset").addEventListener("click", () => {
-    if (!window.confirm("Reset only this opening prototype? Existing mining saves will not be changed.")) return;
+    if (!window.confirm("Reset the factory game? Existing mining saves will not be changed.")) return;
     try { const previous = localStorage.getItem(D.saveKey); if (previous) backupBeforeMigration(previous); }
     catch (error) { notify(`Could not back up the existing save, so it was not reset. ${error.message}`); return; }
     factory = new A.Factory(); storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
@@ -849,7 +851,7 @@
     requestAnimationFrame(frame);
   }
   resize(); refresh();
-  if (storageFailed) notify(`A saved prototype could not be loaded or backed up. It has not been overwritten. Export retrieves the preserved save. ${loadFailure ?? ""}`);
+  if (storageFailed) notify(`The factory save could not be loaded or backed up. It has not been overwritten. Export retrieves the preserved save. ${loadFailure ?? ""}`);
   else if (factory.terrainUpdated) notify(terrainNotice());
   else if (factory.recoveredForPlanterResize) notify(`${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints. Their contents were recovered.`);
   else if (factory.reorientedForFiberResize) notify("Fiber Extractor layouts corrected; reconnect their working tile. Contents are preserved.");

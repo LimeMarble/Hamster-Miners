@@ -154,7 +154,7 @@
         const occupied = labelPoint ? [{ x: machine.x + labelPoint.x, y: machine.y + labelPoint.y }] : cells(machine);
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
         const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
-        const lines = definition.labelLines ?? [names[machine.type] ?? machine.type];
+        const lines = definition.labelLines ?? [names[machine.type] ?? definition.name];
         for (const [index, line] of lines.entries()) ctx.fillText(line, cx * TILE, cy * TILE + (index - (lines.length - 1) / 2) * 10,
           labelCell ? TILE - 6 : bounds.width * TILE - 8);
       }

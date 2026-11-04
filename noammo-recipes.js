@@ -124,7 +124,11 @@
     }
     function gradeNotes(node, recipe) {
       if (recipe.gradeProfile) node.append(element("p", `Starting grade chances before inherited treatments: ${recipe.gradeProfile.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}`, "muted"));
-      if (recipe.gradePromotion) node.append(element("p", `Grade effect: promotes ${number(recipe.gradePromotion * 100)}% of each tier's chance by one tier, stopping at ${data.grades[recipe.gradePromotionCeiling ?? data.grades.length - 1].name}.`, "muted"));
+      if (recipe.gradePromotion) {
+        const ceiling = recipe.gradePromotionCeiling ?? data.grades.length - 1;
+        const transitions = data.grades.slice(0, ceiling).map((grade, i) => `${grade.name} → ${data.grades[i + 1].name}`).join(", ");
+        node.append(element("p", `Grade effect: moves ${number(recipe.gradePromotion * 100)}% of the chance at each grade up one step, all at once: ${transitions}. Existing ${data.grades[ceiling].name} and higher chances do not move. Already graded cargo is unaffected.`, "muted"));
+      }
       if (recipe.burnishedGradeEffect) {
         const effect = recipe.burnishedGradeEffect;
         node.append(element("p", `Burnished input: ${data.grades[effect.from].name} chance becomes ${effect.outcomes.map(outcome => `${number(outcome.share * 100)}% ${data.grades[outcome.grade].name}`).join(" and ")}.`, "muted"));
@@ -164,7 +168,7 @@
         const node = section("Upgrade effects"); lines.forEach(line => node.append(element("p", line)));
         if (entry.gradeEffect?.poorToStandardPerUse) node.append(element("p", `Grade Effects: each of ${number(entry.gradeEffect.useLimit)} uses moves ${number(entry.gradeEffect.poorToStandardPerUse * 100)} percentage points from Poor to Unremarkable on Clay products. Repairs carry through shaping and firing.`));
         if (entry.gradeEffect?.promotionRates) node.append(element("p", `Grade Effects: ${entry.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% ${data.grades[i].name} → ${data.grades[i + 1].name}` : "").filter(Boolean).join(" · ")}. Applies outside the cash range.`));
-        if (entry.persistentEffects) node.append(element("p", "Cash and grade effects each apply once across the entire processing chain."));
+        if (entry.persistentEffects) node.append(element("p", "Cash effect applies once across the entire processing chain."));
       }
       if (entry.secondsPerWeight) {
         const node = section("Grading");

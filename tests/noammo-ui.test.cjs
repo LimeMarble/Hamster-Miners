@@ -115,8 +115,10 @@ test('playtest code unlocks independent toggles that persist in the save', () =>
   assert.equal(ui.ids.get('playtestPanel').hidden, false);
   assert.equal(ui.ids.get('cheatResources').textContent, '×10 resources: Off');
   ui.ids.get('cheatResources').emit('click'); ui.ids.get('cheatConveyorSpeed').emit('click');
+  ui.ids.get('cheatMachineBulk').emit('click');
   assert.equal(ui.ids.get('cheatResources').getAttribute?.('aria-pressed') ?? ui.ids.get('cheatResources')['aria-pressed'], 'true');
   const saved = ui.state(); assert.equal(saved.playtest.toggles.resources, true); assert.equal(saved.playtest.toggles.conveyorSpeed, true);
+  assert.equal(saved.playtest.toggles.machineBulk, true);
   assert.equal(saved.playtest.toggles.cash, false);
   const restored = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: saved }));
   restored.tabs.find(button => button.dataset.tab === 'options').emit('click');
@@ -140,7 +142,8 @@ test('Kiln displays separate Brick and burnished Pot grade effects in Shop and i
   ui.tabs.find(button => button.dataset.tab === 'shop').emit('click'); shopCard(ui, 'kiln').emit('click');
   const check = panel => {
     const text = panel.children.map(node => node.textContent).join(' ');
-    assert.match(text, /Bricks grade effect: moves 40%.*stopping at Unique/);
+    assert.match(text, /Bricks grade effect: moves 40%.*Poor → Unremarkable, Unremarkable → Standard, Standard → Fine, Fine → Unique/);
+    assert.match(text, /Existing Unique and higher chances do not move/);
     assert.match(text, /Burnished Pot grade effect: Standard chance becomes 85% Fine and 15% Unique/);
     assert.match(text, /Unburnished Pots keep their incoming grade chances/);
   };
@@ -1444,15 +1447,15 @@ test("Grading history shows the actual Exceptional roll and $4.8k value in both 
   assert.equal(ui.ids.get('historyTooltip').hidden, true, 'placement suppresses hover tooltips');
 });
 
-test('Leek Duster Shop, inventory and repeat placement expose independent cash and grade effects', () => {
+test('Leek Duster Shop, inventory and repeat placement expose its cash effect', () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 2400;
   Object.assign(f.state.inventory, { wood: 240, woodenGear: 24, leekFiber: 100, leek: 32 }); f.state.stock.belt = 6;
   const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'leekDuster'); card.emit('click');
   const effects = ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent);
   assert.ok(effects.includes('Cash effect: ×1.65')); assert.ok(effects.includes('Upper Limit: $200'));
-  assert.ok(effects.some(line => /100% of Poor to Unremarkable.*50% of Unremarkable to Standard.*25% of Standard to Fine/.test(line)));
-  assert.ok(effects.some(line => /outside the cash limit/.test(line))); assert.ok(effects.some(line => /only once across the entire processing chain/.test(line)));
+  assert.ok(effects.every(line => !/grade/i.test(line)));
+  assert.ok(effects.some(line => /only once across the entire processing chain/.test(line)));
   assert.ok(effects.every(line => !/once per material/.test(line)));
   assert.ok(effects.every(line => !/NaN|undefined/.test(line)));
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');

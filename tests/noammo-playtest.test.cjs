@@ -16,6 +16,10 @@ test('the code unlocks independent off-by-default toggles and old saves migrate 
   const old = JSON.parse(new A.Factory(A.createState(1)).exportSave()); delete old.state.playtest; delete old.state.playtestVersion;
   const loaded = A.Factory.importSave(JSON.stringify(old)); assert.equal(loaded.state.playtest.unlocked, false);
   assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
+  const previous = JSON.parse(f.exportSave()); previous.state.playtestVersion = 1;
+  delete previous.state.playtest.toggles.machineBulk; delete previous.state.playtest.used.machineBulk;
+  const migrated = A.Factory.importSave(JSON.stringify(previous));
+  assert.equal(migrated.state.playtest.toggles.resources, true); assert.equal(migrated.state.playtest.toggles.machineBulk, false);
 });
 
 test('resource and machine speed boosts work independently and preserve buffered output after disabling', () => {

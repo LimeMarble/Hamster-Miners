@@ -1,8 +1,9 @@
 # Hamster Miners regression scenarios
 
-- The `whereismyspill` code unlocks six independent, save-persistent playtest
+- The `whereismyspill` code unlocks seven independent, save-persistent playtest
   switches. Cover boosted resource drops, storage, machine and conveyor speed,
-  conveyor capacity, sale cash, and lossless disabling of boosted cargo.
+  Material machine bulk, conveyor capacity, sale cash, lossless disabling of
+  boosted cargo and in-flight bulk batches that survive a setting change.
 
 - Save recovery covers a Copper Drill with blocked pre-washer Copper output,
   preserving its value and unloading it as Copper Ore, and a save without the
@@ -80,10 +81,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   Inspector mode controls remain mounted during production.
 
 - Leek Duster tests cover the exact atomic cost, both direct kinetic intakes
-  in all rotations, six-second transit, independent cash/grade history that
-  prevents reuse across the entire processing chain (including older saves),
-  quality treatment outside cash range and stack-history unions. Real shaping,
-  smelting, molding and firing reproduce agreed chance tables without extra RNG.
+  in all rotations, six-second transit, cash history that prevents reuse across
+  the entire processing chain, and unchanged grade chances. Older grade history
+  and already applied treatments remain valid in saved cargo. Real shaping,
+  smelting, molding and firing preserve quality without extra RNG.
   Save tests preserve old graded cash and migrate ungraded profiles once,
   rejecting malformed probabilities, treatment matrices and material histories.
 
@@ -241,6 +242,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   Blocked output cannot drain unlimited materials, stall another kiln, bank
   bursts or prevent normal overlap between firing and unloading. Actual powered
   belt tests maintain paced output every two seconds, regardless of instance order.
+  Direct Kiln output transfers full finished stacks immediately, preserving their
+  values and respecting storage capacity, including when loading old cooldowns.
   Kilns and Furnaces unload one solid product at receiving-belt cadence, verified
   with both faster and slower synthetic belts. Liquid transfer uses fluid input
   capacity without applying solid-belt weight or unloading delays. Other output

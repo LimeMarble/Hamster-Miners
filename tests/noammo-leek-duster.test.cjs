@@ -66,11 +66,11 @@ test('Duster uses both rotated center intakes, needs direct power and has a sing
   }
 });
 
-test('Duster cash and grade effects each stay spent across material changes, stack unions, splits and old saves', () => {
+test('Duster leaves grades unchanged and its cash effect stays spent across transformations and old saves', () => {
   const { f, m } = setup();
   let item = dust(f, m, { ...cargo('clay', 1, 200), upgrades: { primitive: 3 } });
-  near(item.value, 200); chances(item, [0, 0.5, 0.45, 0.05, 0, 0]);
-  assert.equal(item.materialHistory['leekDuster:clay:cash'], undefined);
+  near(item.value, 200); chances(item, D.gradeTables.clay);
+  assert.equal(item.materialHistory?.['leekDuster:clay:cash'], undefined);
   const before = A.gradeProbabilities(item); item.value = 100; item = dust(f, m, item);
   near(item.value, 165); assert.deepEqual(A.gradeProbabilities(item), before);
   const again = dust(f, m, item); near(again.value, 165); assert.deepEqual(again.materialHistory, item.materialHistory);
@@ -99,14 +99,14 @@ test('Duster cash and grade effects each stay spent across material changes, sta
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('pre-dusted copper keeps its quality through smelting and molding without receiving another shift', () => {
+test('dusted copper keeps its original quality through smelting and molding', () => {
   const { f, m } = setup(); const ore = dust(f, m, cargo('copperOre', 2, 10));
-  chances(ore, [0, 0.5, 0.425, 0.075, 0, 0]);
+  chances(ore, A.gradeProbabilities(cargo('copperOre')));
   const { m: furnace, result } = fire(f, { ...ore, quantity: 4 }, 'primitiveFurnace', 'copper');
-  chances(result, [0, 0.5, 0.425, 0.075, 0, 0]); near(mean(result), 1.325); near(result.value, 66);
+  chances(result, A.gradeProbabilities(ore)); near(result.value, 66);
   const molder = place(f, 'ingotMolder', 62, 40); f.update(0.1); f.update(1);
   const ingot = molder.output[0]; assert.ok(ingot); chances(ingot, A.gradeProbabilities(result));
-  assert.equal(ingot.materialHistory['leekDuster:copperOre:grade'], true);
+  assert.equal(ingot.materialHistory['leekDuster:copperOre:grade'], undefined);
   assert.equal(ingot.value, result.value); assert.equal(furnace.output[0].material, 'moltenCopper');
   const dustedAgain = dust(f, m, { ...A.copy(ingot), quantity: 1 });
   near(dustedAgain.value, ingot.value); chances(dustedAgain, A.gradeProbabilities(ingot));
