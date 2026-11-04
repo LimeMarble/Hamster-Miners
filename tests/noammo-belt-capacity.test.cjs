@@ -61,6 +61,31 @@ test('thermal outputs unload the largest fitting whole portion at belt cadence i
   }
 });
 
+test('Kiln and Preheater combine separately received matching products into the largest fitting stack', () => {
+  for (const [type, quantity, seconds, material] of [
+    ['kiln', 4, 12, 'brick'], ['preheater', 2, 3, 'unfiredBrick'],
+  ]) {
+    const f = new A.Factory(A.createState(1));
+    const source = place(f, type, 40, 40);
+    source.heat = A.DATA.machines[type].heatCapacity;
+    const input = A.ports(source).find(p => p.channel === 'material');
+    for (let index = 0; index < quantity; index++) {
+      assert.equal(f.receive(source, A.cargo('unfiredBrick', 1, 7), input.x, input.y, input.direction, true), 1);
+    }
+    f.update(0.1); f.update(seconds);
+    const output = A.ports(source).find(p => p.role === 'output');
+    const belt = place(f, 'belt', output.x + 1, output.y);
+    f.powered = () => true;
+    f.update(0.1);
+    assert.equal(belt.lanes[0].material, material);
+    assert.equal(belt.lanes[0].quantity, 2);
+    assert.equal(belt.lanes[0].value, type === 'kiln' ? 28 : 7);
+    assert.equal(f.total(source, 'output'), quantity - 2);
+    assert.equal(Boolean(belt.lanes[0].preheated), type === 'preheater');
+    assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
+  }
+});
+
 test('kiln output cadence stays unchanged for machine conveyors and cannot bank bursts', () => {
   const f = new A.Factory(A.createState(1));
   place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');

@@ -244,6 +244,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   belt tests maintain paced output every two seconds, regardless of instance order.
   Direct Kiln and Preheater output transfers full finished stacks immediately, preserving their
   values and respecting storage capacity, including when loading old cooldowns.
+  Matching finished stacks combine before unloading, allowing separately received
+  ingredients to fill the receiving conveyor's stack capacity.
   Kilns and Furnaces unload one solid product at receiving-belt cadence, verified
   with both faster and slower synthetic belts. Liquid transfer uses fluid input
   capacity without applying solid-belt weight or unloading delays. Other output

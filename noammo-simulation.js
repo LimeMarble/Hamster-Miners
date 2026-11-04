@@ -1045,6 +1045,17 @@
       machine.job = null;
     }
     unloadKiln(machine) {
+      if (machine.type === "kiln" || D.machines[machine.type].preheats) {
+        // Inputs can arrive one at a time. Rejoin matching finished products
+        // before selecting the largest portion that fits the receiving belt.
+        for (let index = 1; index < machine.output.length;) {
+          const previous = machine.output[index - 1], item = machine.output[index];
+          if (sameCargo(previous, item)) {
+            previous.quantity += item.quantity;
+            machine.output.splice(index, 1);
+          } else index++;
+        }
+      }
       const output = ports(machine).find((point) => point.role === "output");
       const direction = D.vectors[output.direction];
       const belt = this.conveyorAt(output.x + direction.x, output.y + direction.y);
