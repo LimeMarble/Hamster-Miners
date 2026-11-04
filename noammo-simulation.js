@@ -1048,9 +1048,9 @@
       const output = ports(machine).find((point) => point.role === "output");
       const direction = D.vectors[output.direction];
       const belt = this.conveyorAt(output.x + direction.x, output.y + direction.y);
-      // Solid kiln output can enter a machine immediately, just as molten
+      // Kiln and Preheater output can enter a machine immediately, just as molten
       // furnace output does. A conveyor still controls its own transfer rate.
-      if (machine.type === "kiln" && !belt) {
+      if ((machine.type === "kiln" || D.machines[machine.type].preheats) && !belt) {
         while (machine.output.length) {
           const item = machine.output[0];
           const sent = this.sendOutput(machine, item, output);

@@ -47,6 +47,30 @@ test('preheating preserves value and quality and lets a full Kiln batch fire in 
   }
 });
 
+test('Preheater directly unloads mixed-value output without a cooldown and respects storage space', () => {
+  const f = new A.Factory(A.createState(1));
+  const preheater = place(f, 'preheater', 40, 40);
+  preheater.heat = 6000;
+  feed(f, preheater, A.cargo('unfiredBrick', 1, 3));
+  feed(f, preheater, A.cargo('unfiredBrick', 1, 7));
+  f.update(0.1); f.update(3);
+  const storage = place(f, 'brickStorage', 42, 40);
+  storage.contents = [A.cargo('clay', 599)];
+  preheater.outputCooldown = 2;
+  const loaded = A.Factory.importSave(f.exportSave());
+  loaded.update(0.1);
+  const heater = loaded.byId.get(preheater.id), container = loaded.byId.get(storage.id);
+  assert.equal(loaded.total(container, 'contents'), 600);
+  assert.equal(heater.output.length, 1);
+  assert.equal(heater.output[0].value, 7);
+  assert.equal(heater.output[0].preheated, true);
+  loaded.collect(storage.id); loaded.update(0.1);
+  assert.equal(heater.output.length, 0);
+  assert.equal(container.contents[0].value, 7);
+  assert.equal(container.contents[0].preheated, true);
+  assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
+});
+
 test('unheated or mixed Kiln batches require twelve seconds and 96ku', () => {
   for (const mixed of [false, true]) {
     const f = new A.Factory(A.createState(1)), kiln = place(f, 'kiln', 40, 40);
