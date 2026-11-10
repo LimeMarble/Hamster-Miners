@@ -327,10 +327,10 @@
           { x: 0, y: 1, direction: "right", role: "output" },
         ],
         recipes: {
-          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 12, valueMultiplier: 1 },
+          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 1 },
           plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 3, seconds: 6, valueMultiplier: 1.5 },
         },
-        description: "Carves 1 Wood into 1 Wooden Gear in 12 seconds or 3 Wooden Plates in 6 seconds. Operated by one hamster.",
+        description: "Carves 1 Wood into 1 Wooden Gear or 3 Wooden Plates in 6 seconds. Operated by one hamster.",
       },
       potSpinner: {
         name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",

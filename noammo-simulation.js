@@ -346,7 +346,7 @@
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
-      runeVersion: 2, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 2,
+      runeVersion: 2, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 3,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -1791,6 +1791,14 @@
           if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
         }
         state.foodVersion = 2;
+      }
+      if (state.foodVersion < 3) {
+        for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
+          if (machine.type === "crudeGearBench" && machine.job?.mode === "gear" && Number.isFinite(machine.job.remaining)) {
+            machine.job.remaining *= D.machines.crudeGearBench.recipes.gear.seconds / 12;
+          }
+        }
+        state.foodVersion = 3;
       }
       if ((state.runeVersion ?? 0) < 1) {
         for (const type of ["minorRunePedestal", "majorRunePedestal"]) {

@@ -32,7 +32,7 @@ test('Wood Carving Bench checks its material-only cost and needs one crew', () =
   f.pickup(m.id); assert.equal(f.availableCrew(), 20);
 });
 
-for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical reference cells, shared lower working tile and twelve-second output`, () => {
+for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical reference cells, shared lower working tile and six-second output`, () => {
   const f = new Factory(A.createState(1)), m = place(f, 'crudeGearBench', 40, 40, facing);
   const expected = [[0, 0], [0, 1]].map(([x, y]) => {
     const p = A.rotatePoint(x, y, 1, 2, facing); return { x: 40 + p.x, y: 40 + p.y };
@@ -45,8 +45,8 @@ for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical refe
   const v = D.vectors[output.direction], basket = place(f, 'basket', output.x + v.x, output.y + v.y);
   assert.equal(f.receive(m, cargo('wood'), expected[0].x, expected[0].y, input.direction, true), 0);
   assert.equal(f.receive(m, cargo('wood'), output.x, output.y, output.direction, true), 0);
-  feed(f, m, cargo('wood', 1, 0.3)); f.update(0.1); assert.equal(m.job.remaining, 12);
-  f.update(11.9); assert.equal(basket.contents.length, 0); f.update(0.1);
+  feed(f, m, cargo('wood', 1, 0.3)); f.update(0.1); assert.equal(m.job.remaining, 6);
+  f.update(5.9); assert.equal(basket.contents.length, 0); f.update(0.1);
   assert.equal(basket.contents[0].material, 'woodenGear');
   assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.3);
   assert.equal(D.materials.woodenGear.weight, 2 * D.materials.wood.weight);
@@ -62,15 +62,15 @@ test('Gear intake is bounded to two waiting Wood, rejects fractions/materials an
   advance(f, 60); assert.equal(m.output.length, 1); assert.equal(f.total(m, 'input'), 2); assert.equal(m.job, null);
   assert.equal(feed(f, m, cargo('wood', 100)), 0);
   const basket = place(f, 'basket', 41, 41); f.update(0.1);
-  assert.equal(f.total(basket, 'contents'), 1); assert.equal(m.job.remaining, 12);
-  f.update(12); assert.equal(f.total(basket, 'contents'), 2);
+  assert.equal(f.total(basket, 'contents'), 1); assert.equal(m.job.remaining, 6);
+  f.update(6); assert.equal(f.total(basket, 'contents'), 2);
 });
 
-test('Gear Bench sustains five gears per minute without powered belts', () => {
+test('Gear Bench sustains ten gears per minute without powered belts', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'crudeGearBench'), basket = place(f, 'basket', 41, 41);
   feed(f, m, cargo('wood', 2)); f.update(0.1);
   for (let tick = 0; tick < 600; tick++) { feed(f, m, cargo('wood', 2)); f.update(0.1); }
-  assert.equal(f.total(basket, 'contents'), 5);
+  assert.equal(f.total(basket, 'contents'), 10);
 });
 
 test('Independent Gear Bench jobs follow moves/saves, recover once on pickup, and never leak into replacements', () => {

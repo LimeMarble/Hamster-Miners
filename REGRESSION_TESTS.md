@@ -381,9 +381,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   gives no cash, while collection controls keep working.
 - Primitive Conveyors cost 6 Wood and two Wooden Gears each, with no cash. Normal and bulk
   purchases require sufficient cash, Wood and Gears, show scaled costs, and cannot borrow free belts.
-- Gear Bench checks cover its 25 Wood price, one crew, two-cell body/working-tile
-  footprint in all rotations, bounded two-Wood input, exact twelve-second jobs,
-  five gears/minute, conserved value/weight, blocked output, independent instances,
+- Wood Carving Bench checks cover its construction cost, one crew, two-cell
+  footprint in all rotations, bounded two-Wood input, exact six-second jobs,
+  ten gears/minute, conserved value, blocked output, independent instances,
   move/pickup conservation, old-save migration and malformed-current-save rejection.
 - All belt-equipped construction recipes require owned conveyor components and
   deduct 20 raw Wood per belt tile without negative costs. Pits and drills remain

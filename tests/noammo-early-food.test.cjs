@@ -67,16 +67,18 @@ test("A scheduled Well supplies Wheat, which can feed the kinetic Grain Mill dir
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
-test("An old two-Wood gear job finishes with its original inputs and new jobs use one Wood", () => {
+test("An old two-Wood gear job keeps its inputs and migrates its remaining time proportionally", () => {
   const factory = new A.Factory(A.createState(1));
   const carver = place(factory, "crudeGearBench", 40, 40);
-  carver.job = { mode: "gear", input: A.cargo("wood", 2), remaining: 1 };
+  carver.job = { mode: "gear", input: A.cargo("wood", 2), remaining: 10 };
   const old = JSON.parse(factory.exportSave());
   delete old.state.foodVersion;
   for (const item of ["woodenPlate", "leekSalad", "wheat", "flour"]) delete old.state.inventory[item];
   for (const machine of ["platingBench", "wheatPlanter", "grainMill"]) delete old.state.stock[machine];
   const restored = A.Factory.importSave(JSON.stringify(old)), loadedCarver = restored.byId.get(carver.id);
-  restored.update(1);
+  assert.equal(loadedCarver.job.remaining, 5);
+  restored.update(4.9); assert.equal(loadedCarver.output.length, 0);
+  restored.update(0.1);
   assert.equal(loadedCarver.output[0].value, 0.2);
   assert.equal(restored.craftRecipe(loadedCarver).input, 1);
   assert.equal(restored.state.stock.platingBench, 0);
