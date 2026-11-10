@@ -63,7 +63,7 @@
   }
   function machineBox(ctx, machine, inset, fill = true) {
     const bounds = size(machine);
-    if (!D.machines[machine.type].footprint && !D.machines[machine.type].modeFootprints) {
+    if (!D.machines[machine.type].footprint) {
       const args = [machine.x * TILE + inset, machine.y * TILE + inset, bounds.width * TILE - inset * 2, bounds.height * TILE - inset * 2];
       if (fill) ctx.fillRect(...args); ctx.strokeRect(...args); return;
     }
@@ -79,16 +79,6 @@
     }
     if (fill) ctx.fill();
     ctx.stroke();
-  }
-  function overflowMarkers(ctx, machine) {
-    const definition = D.machines[machine.type];
-    if (!definition.manualTransferSeconds) return;
-    for (const mode of ["up", "down"]) {
-      const point = API.rotatePoint(0, mode === "up" ? 0 : 2, definition.width, definition.height, machine.facing);
-      arrow(ctx, (machine.x + point.x + 0.5) * TILE, (machine.y + point.y + 0.5) * TILE,
-        API.turn(mode, D.directions.indexOf(machine.facing)), 0.8,
-        mode === (machine.mode ?? definition.defaultMode) ? "#f5d38c" : "#807766");
-    }
   }
   function drawFloor(ctx, factory, camera, viewport) {
     clearCanvas(ctx, viewport);
@@ -145,11 +135,10 @@
         } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
           point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
-      overflowMarkers(ctx, machine);
       if (!["belt", "electricConveyor"].includes(machine.type)) {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
-        const labelCell = definition.manualTransferSeconds ? [1, (machine.mode ?? definition.defaultMode) === "up" ? 0 : 2] : definition.labelCell;
+        const labelCell = definition.labelCell;
         const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, machine.facing);
         const occupied = labelPoint ? [{ x: machine.x + labelPoint.x, y: machine.y + labelPoint.y }] : cells(machine);
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
@@ -204,10 +193,6 @@
         const v = D.vectors[point.direction], lateral = item.lateral ?? 0;
         drawCargo(ctx, item, (point.x + 0.5 - v.y * lateral) * TILE, (point.y + 0.5 + v.x * lateral) * TILE);
       }
-      if (D.machines[machine.type].manualTransferSeconds && machine.job) {
-        const point = API.rotatePoint(1, machine.mode === "up" ? 0 : 2, 2, 3, machine.facing);
-        drawCargo(ctx, machine.job.input, (machine.x + point.x + 0.5) * TILE, (machine.y + point.y + 0.5) * TILE);
-      }
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
           for (const [index, point] of outputs.entries()) {
@@ -255,7 +240,6 @@
       }
       for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
         point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
-      overflowMarkers(ctx, preview);
     }
     const box = interaction.marquee ?? interaction.box;
     if (box?.start && box.end) {

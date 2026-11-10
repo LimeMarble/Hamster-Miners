@@ -558,21 +558,6 @@
           const water = element("p"); water.id = "waterStatus";
           panel.append(water, element("p", "Schedule the blue Water dropoff from a nearby Well.", "muted"));
         }
-        if (definition.manualTransferSeconds) {
-          const label = element("label", "Overflow side "), mode = element("select");
-          mode.id = "overflowMode"; mode.setAttribute("aria-label", "Overflow side");
-          for (const [id, name] of [["up", "Left"], ["down", "Right"]]) {
-            const option = element("option", name); option.value = id; mode.append(option);
-          }
-          mode.value = machine.mode;
-          mode.addEventListener("change", () => {
-            const response = factory.setOverflowMode(machine.id, mode.value);
-            if (response.error) mode.value = machine.mode;
-            else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
-            result(response);
-          });
-          label.append(mode); panel.append(label);
-        }
         if (definition.heatCapacity) {
           const heat = element("p"); heat.id = "kilnHeat";
           const buffers = element("p"); buffers.id = "kilnBuffers";
@@ -742,14 +727,19 @@
     }
   }
   function renderShop() {
+    if (!cards.has(shopSelection) || factory.shopUnlockError(shopSelection)) {
+      shopSelection = [...cards.keys()].find(type => !factory.shopUnlockError(type) && (category === "All" || D.machines[type].category === category)) ?? null;
+    }
     for (const [type, entry] of cards) {
-      entry.card.hidden = category !== "All" && D.machines[type].category !== category;
+      entry.card.hidden = Boolean(factory.shopUnlockError(type)) || (category !== "All" && D.machines[type].category !== category);
       entry.card.classList.toggle("selected", type === shopSelection);
       const count = factory.state.stock[type] + factory.state.machines.filter((machine) => machine.type === type).length;
       text(entry.owned, `Owned: ${number(count)}`);
     }
+    const panel = $("shopDetail");
+    panel.hidden = !shopSelection;
     if (!shopSelection) return;
-    const definition = D.machines[shopSelection], panel = $("shopDetail");
+    const definition = D.machines[shopSelection];
     if (shopSignature !== shopSelection) {
       shopSignature = shopSelection; panel.replaceChildren(element("h2", definition.name), element("p", definition.description));
       appendMachineEffects(panel, definition);
@@ -760,7 +750,6 @@
       const label = element("label", "Purchase amount "); label.append(quantity); panel.append(label);
       quantity.addEventListener("input", renderShop);
       const costs = element("div", undefined, "costs"); costs.id = "costs"; panel.append(costs);
-      const unlock = element("p", "", "muted"); unlock.id = "shopUnlock"; panel.append(unlock);
       const buy = action(definition.cost ? "Buy" : "Borrow unpriced test equipment", () => {
         const amount = Number(quantity.value);
         if (definition.cost) result(factory.buy(shopSelection, amount), `Purchased ${number(amount)} ${definition.name}.`);
@@ -789,9 +778,6 @@
       }
     }
     $("buyMachine").disabled = !valid || (definition.cost ? Boolean(factory.affordability(shopSelection, amount)) : amount > 100);
-    const unlockError = factory.shopUnlockError(shopSelection);
-    $("shopUnlock").hidden = !unlockError;
-    text($("shopUnlock"), unlockError ?? "");
   }
   function renderItems() {
     const signature = JSON.stringify(factory.state.inventory);

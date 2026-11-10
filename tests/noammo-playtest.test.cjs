@@ -43,7 +43,7 @@ test('resource boost applies to each Sifter drop and machine speed accelerates s
 });
 
 test('resource boost scales each multi-output drill batch and survives disabling with pending output', () => {
-  const f = factory(); place(f, 'heavyWheel', 39, 42); place(f, 'kineticGenerator', 40, 40, 'down');
+  const f = factory(); place(f, 'heavyWheel', 77, 40, 'down');
   const drill = place(f, 'limestoneDrill', 80, 40); enabled(f, 'resources'); f.update(25);
   assert.deepEqual(drill.output.map(item => [item.material, item.quantity]), [['limestone', 40], ['zincOre', 10], ['corundum', 5]]);
   f.setPlaytestCheat('resources', false); const loaded = A.Factory.importSave(f.exportSave());
@@ -74,17 +74,6 @@ test('conveyor speed and sale boosts are separate and do not change cargo value'
   enabled(f, 'conveyorSpeed'); assert.equal(feed(f, belt, A.cargo('wood', 1, 3)), 1);
   f.update(0.39); assert.equal(basket.contents.length, 0); f.update(0.01); near(basket.contents[0].value, 3);
   enabled(f, 'cash'); const item = A.cargo('copperOre', 2, 7); near(f.sell([item]), 140); near(item.value, 7); near(f.state.cash, 140);
-});
-
-test('disabling conveyor capacity preserves and gradually unloads an oversized carried stack', () => {
-  const f = factory(), overflow = place(f, 'manualOverflow', 40, 40);
-  place(f, 'belt', 40, 39, 'up'); const basket = place(f, 'basket', 40, 38); f.powered = () => true;
-  enabled(f, 'conveyorCapacity'); overflow.job = { input: A.cargo('wood', 20, 3), remaining: 1 };
-  assert.equal(f.setPlaytestCheat('conveyorCapacity', false).error, undefined);
-  const loaded = A.Factory.importSave(f.exportSave()); loaded.powered = () => true; loaded.update(25);
-  assert.equal(loaded.total(loaded.byId.get(basket.id), 'contents'), 20);
-  assert.equal(loaded.byId.get(overflow.id).job, null);
-  assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test('kiln output remains saveable and drains normally after changing machine speed', () => {

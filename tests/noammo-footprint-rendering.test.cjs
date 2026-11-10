@@ -42,10 +42,9 @@ function inside(contours, x, y) {
   }
   return winding !== 0;
 }
-function fixture(api, type, facing, mode) {
+function fixture(api, type, facing) {
   const f = new api.Factory(api.createState(1)); f.state.stock[type]++;
   const m = f.place(type, 40, 40, facing).machine; assert.ok(m);
-  if (mode) assert.equal(f.setOverflowMode(m.id, mode).error, undefined);
   return { f, m, camera: { x: 38, y: 38, zoom: 1 }, viewport: { width: 400, height: 400 } };
 }
 function verifyFootprint(api, m, contours, fullTiles) {
@@ -63,9 +62,9 @@ function verifyFootprint(api, m, contours, fullTiles) {
   }
 }
 
-function contracts(api, renderer, type, mode) {
-  for (const facing of api.DATA.directions) test(`${type} ${mode ?? ''} ${facing}: joined floor body, perimeter-only selection and full-tile placement/group previews`, () => {
-    const { f, m, camera, viewport } = fixture(api, type, facing, mode), before = f.exportSave();
+function contracts(api, renderer, type) {
+  for (const facing of api.DATA.directions) test(`${type} ${facing}: joined floor body, perimeter-only selection and full-tile placement/group previews`, () => {
+    const { f, m, camera, viewport } = fixture(api, type, facing), before = f.exportSave();
     const floor = drawing(); renderer.drawFloor(floor.ctx, f, camera, viewport);
     const bodies = floor.calls.filter(c => c.color === api.DATA.machines[type].color && c.method === 'fill');
     assert.equal(bodies.length, 1, 'one fill avoids seams or overlapping alpha');
@@ -73,7 +72,7 @@ function contracts(api, renderer, type, mode) {
     verifyFootprint(api, m, bodies[0].contours, false);
     for (const interaction of [
       { selected: m.id },
-      { tool: { type, facing, mode }, hover: { x: 40, y: 40 } },
+      { tool: { type, facing }, hover: { x: 40, y: 40 } },
       { group: { ids: [m.id], turns: 0 }, hover: { x: 40, y: 40 } },
     ]) {
       const overlay = drawing(); renderer.drawOverlay(overlay.ctx, f, camera, viewport, interaction);
@@ -87,8 +86,8 @@ function contracts(api, renderer, type, mode) {
       }
     }
     // Also exercise the valid placement colour, not only a preview over the original.
-    const overlay = drawing(), preview = { type, x: 45, y: 40, facing, mode };
-    renderer.drawOverlay(overlay.ctx, f, camera, viewport, { tool: { type, facing, mode }, hover: { x: 45, y: 40 } });
+    const overlay = drawing(), preview = { type, x: 45, y: 40, facing };
+    renderer.drawOverlay(overlay.ctx, f, camera, viewport, { tool: { type, facing }, hover: { x: 45, y: 40 } });
     const valid = overlay.calls.find(c => c.method === 'fill' && c.color === '#dceaa73a'); assert.ok(valid);
     verifyFootprint(api, preview, valid.contours, true);
     assert.equal(f.exportSave(), before, 'rendering never changes occupancy or simulation');
@@ -96,8 +95,7 @@ function contracts(api, renderer, type, mode) {
 }
 
 for (const [type, d] of Object.entries(A.DATA.machines)) {
-  if (d.modeFootprints) for (const mode of Object.keys(d.modeFootprints)) contracts(A, R, type, mode);
-  else if (d.footprint) contracts(A, R, type);
+  if (d.footprint) contracts(A, R, type);
 }
 
 // The same renderer must handle future holes and diagonal/disconnected shapes.

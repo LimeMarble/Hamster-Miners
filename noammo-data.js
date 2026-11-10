@@ -117,7 +117,7 @@
     machines: {
       minorRunePedestal: {
         name: "Minor Rune Pedestal", width: 2, height: 2, color: "#817594", category: "Logistics",
-        runePedestal: "minor", cost: { cash: 0, materials: {} },
+        runePedestal: "minor", cost: { cash: 10, materials: { wood: 100 } },
         description: "Place it and select a rune category to view the next minor offering.",
       },
       majorRunePedestal: {
@@ -134,7 +134,7 @@
       wheatPlanter: {
         name: "Wheat Planter", width: 3, height: 3, color: "#a18b4f", category: "Resource",
         baseFacing: "up", defaultFacing: "up",
-        cost: { cash: 0, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
+        cost: { cash: 50, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
         source: "wheat", cycle: 10, outputLimit: 2, waterCapacity: 0.5, waterPerBatch: 0.1,
         ports: [
           { x: 1, y: 0, direction: "up", role: "output" },
@@ -281,14 +281,15 @@
       limestoneDrill: {
         name: "Limestone Drill", width: 3, height: 3, color: "#afa784", category: "Resource",
         labelLines: ["Limestone", "Drill"], labelCell: [1, 1],
-        cost: { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30, copperGear: 10, copperWinding: 5 } },
-        electricPower: 10, cycle: 25, batchOutputs: { limestone: 4, zincOre: 1, corundum: 0.5 }, outputOverflow: "discardExcess",
+        cost: { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30, copperGear: 10 } },
+        requiresKinetic: true, requiresHeavyKinetic: true, cycle: 25, batchOutputs: { limestone: 4, zincOre: 1, corundum: 0.5 }, outputOverflow: "discardExcess",
         ports: [
           { x: 1, y: 0, direction: "up", role: "output", material: "zincOre" },
           { x: 2, y: 1, direction: "right", role: "output", material: "limestone" },
           { x: 1, y: 2, direction: "down", role: "output", material: "corundum" },
+          { x: 0, y: 1, direction: "left", role: "kineticInput" },
         ],
-        description: "Extracts Limestone, Zinc Ore and Corundum. Each output operates independently; excess is discarded.",
+        description: "Requires a direct Heavy Hamster Wheel connection. Extracts Limestone, Zinc Ore and Corundum every 25 seconds. Each output operates independently and discards excess.",
       },
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Resource",
@@ -681,7 +682,7 @@
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
         labelLines: ["Bridge"], conveyors: [[0, 0], [1, 0], [2, 0]], bridge: true,
-        cost: { cash: 100, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } },
+        cost: { cash: 12, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } },
         description: "Carries cargo over 1 conveyor. Its entrance and exit must remain clear.",
       },
       primitiveStacker: {
@@ -696,23 +697,6 @@
           { x: 0, y: 0, direction: "right", role: "output" },
         ],
         description: "Combines matching items into stacks of up to 2. Accepts cargo from 3 sides and outputs in its facing direction.",
-      },
-      manualOverflow: {
-        name: "Manual Overflow", width: 2, height: 3, color: "#a38e68", category: "Logistics", crew: 1,
-        labelLines: ["Manual", "Overflow"], defaultMode: "up", manualTransferSeconds: 2,
-        cost: { cash: 4, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
-        conveyors: [[0, 1], [1, 1]],
-        modeFootprints: {
-          up: [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]],
-          down: [[0, 0], [0, 1], [1, 1], [0, 2], [1, 2]],
-        },
-        ports: [
-          { x: 0, y: 1, direction: "left", role: "input" },
-          { x: 1, y: 1, direction: "right", role: "output" },
-          { x: 0, y: 0, direction: "up", role: "output", mode: "up" },
-          { x: 0, y: 2, direction: "down", role: "output", mode: "down" },
-        ],
-        description: "Redirects blocked cargo to the selected side in 2 seconds. The straight route has priority.",
       },
       sellTube: {
         dismantleMinimum: 1,

@@ -177,6 +177,7 @@ test('grading help and pottery descriptions reflect current grading data', () =>
 
 test('Kiln displays separate Brick and burnished Pot grade effects in Shop and inspector', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.kiln++;
+  f.state.minorRunes.transmutation = 1;
   f.place('kiln', 121, 121);
   const ui = boot(f.exportSave());
   ui.tabs.find(button => button.dataset.tab === 'shop').emit('click'); shopCard(ui, 'kiln').emit('click');
@@ -308,35 +309,26 @@ test('shaping finished-item buffer is visible and its controls stay mounted whil
   assert.equal(restored.output.length, 1); assert.equal(restored.job.remaining, 0);
 });
 
-test('Manual Overflow Shop costs, stable side control, occupied-mode refusal and move previews use the real footprint', () => {
+test('Shop hides rune-locked items and shows them immediately after an offering is redeemed', () => {
   const f = new A.Factory(A.createState(1));
-  f.state.cash = 4; f.state.inventory.wood = 20; f.state.inventory.woodenGear = 2; f.state.stock.belt = 2;
+  f.state.cash = 60; f.state.inventory.wood = 200;
+  assert.equal(f.buy('minorRunePedestal').amount, 1);
+  assert.equal(f.state.cash, 50);
+  Object.assign(f.state.inventory, { leekFiber: 50, leekSalad: 5 });
+  assert.ok(f.place('minorRunePedestal', 121, 121).machine);
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
-  shopCard(ui, 'manualOverflow').emit('click');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$4 / $4', '20 / 20', '2 / 2', '2 / 2']);
-  ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.manualOverflow, 1);
-  chooseMachine(ui, 'manualOverflow'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
-  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
-  const mode = ui.ids.get('overflowMode'); assert.equal(mode.value, 'up');
-  assert.deepEqual(mode.children.map(option => [option.value, option.textContent]), [['up', 'Left'], ['down', 'Right']]);
-  for (let now = 100; now <= 500; now += 100) ui.frame(now);
-  assert.equal(ui.ids.get('overflowMode'), mode, 'simulation updates do not remount the selector');
-  // The inactive lower hamster square accepts a separate Basket.
-  chooseMachine(ui, 'basket'); ui.ids.get('cargo').emit('click', screenPoint(122, 123));
-  ui.ids.get('cancel').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
-  const blocked = ui.ids.get('overflowMode'); blocked.value = 'down'; blocked.emit('change');
-  assert.equal(blocked.value, 'up'); assert.match(ui.ids.get('notice').textContent, /must be clear/);
-  ui.ids.get('cargo').emit('click', screenPoint(122, 123)); ui.ids.get('pickupMachine').emit('click');
+  assert.equal(ui.ids.get('shopCards').children.some(card => card.dataset.machine === 'manualOverflow'), false);
+  assert.equal(shopCard(ui, 'wheatPlanter').hidden, true);
+  assert.equal(shopCard(ui, 'kiln').hidden, true);
+  ui.tabs.find(b => b.dataset.tab === 'factory').emit('click');
   ui.ids.get('cargo').emit('click', screenPoint(121, 121));
-  ui.ids.get('overflowMode').value = 'down'; ui.ids.get('overflowMode').emit('change');
-  assert.equal(ui.state().machines.find(m => m.type === 'manualOverflow').mode, 'down');
-  ui.ids.get('moveMachine').emit('click'); ui.frame(600);
-  assert.equal(ui.view().interaction.tool.mode, 'down');
-  ui.ids.get('overflowMode').value = 'up'; ui.ids.get('overflowMode').emit('change'); ui.frame(700);
-  assert.equal(ui.view().interaction.tool.mode, 'up', 'mode changes while moving update the preview too');
-  ui.ids.get('cargo').emit('click', screenPoint(123, 121));
-  const moved = ui.state().machines.find(m => m.type === 'manualOverflow');
-  assert.equal(moved.mode, 'up'); assert.equal(moved.x, 123); assert.equal(A.cells(moved).length, 5);
+  ui.ids.get('redeemRune').emit('click');
+  ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  assert.equal(shopCard(ui, 'wheatPlanter').hidden, false);
+  assert.equal(shopCard(ui, 'kiln').hidden, true);
+  shopCard(ui, 'wheatPlanter').emit('click');
+  assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$50 / $50');
+  assert.equal(ui.state().stock.wheatPlanter, 1);
 });
 
 test('Copper finishing Shop prices, effects and molder production controls use shared data and stay mounted', () => {
@@ -1055,12 +1047,12 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
 
 test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 200; factory.state.stock.belt = 7;
+  factory.state.cash = 24; factory.state.stock.belt = 7;
   Object.assign(factory.state.inventory, { leekFiber: 40, chert: 20 });
   const ui = boot(factory.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   shopCard(ui, 'primitiveBridge').emit('click');
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.deepEqual(ui.ids.get("costs").children.map(row => row.children[1].textContent), ["$200 / $200", "40 / 40", "20 / 20", "7 / 8"]);
+  assert.deepEqual(ui.ids.get("costs").children.map(row => row.children[1].textContent), ["$24 / $24", "40 / 40", "20 / 20", "7 / 8"]);
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   ui.ids.get("quantity").value = "1"; ui.ids.get("quantity").emit("input");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
@@ -1181,7 +1173,9 @@ test('Resource and Material filters separate producers from transformers in Shop
 });
 
 test("Shop cards sort by cash price and categories preserve that order while filtering actual cards", () => {
-  const ui = boot(); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  const factory = new A.Factory(A.createState(1));
+  Object.assign(factory.state.minorRunes, { harvest: 1, transmutation: 3 });
+  const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   const cards = ui.ids.get("shopCards").children;
   const prices = cards.map(card => A.DATA.machines[card.dataset.machine].cost.cash);
   assert.equal(prices[0], 0);
@@ -1263,6 +1257,7 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
 
 test("Shop pedestals expose four categories and Minor Activation stays redeemed across imports and resets", () => {
   const f = new A.Factory(A.createState(1));
+  f.state.cash = 10; f.state.inventory.wood = 100;
   assert.equal(f.buy("minorRunePedestal").amount, 1);
   f.state.cash = 1e30;
   Object.assign(f.state.inventory, { limestone: 10000, aluminiumBronzePlate: 499 });
@@ -1609,7 +1604,8 @@ test("Granite Processor Shop scales materials and conveyor components, filters C
 });
 
 test('recipe browsing follows ingredients and machines, restores filtered history and scroll, and stays stable during simulation', () => {
-  const ui = boot();
+  const factory = new A.Factory(A.createState(1)); factory.state.minorRunes.transmutation = 3;
+  const ui = boot(factory.exportSave());
   const nodes = root => [root, ...root.children.flatMap(nodes)];
   const contents = () => nodes(ui.ids.get('recipeDetail')).map(node => node.textContent).join(' ');
   const clickEntry = key => {

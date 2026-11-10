@@ -49,10 +49,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   are. Unburnished Pots receive no separate firing promotion. Treatment marks
   survive transfers and saves, and already graded cargo cannot roll again.
 
-- The electric Limestone Drill consumes 10u and has independently rotating
-  outputs for Limestone, Zinc Ore and Corundum. Each output retains at most
-  one batch and discards further overflow without blocking the other outputs.
-  A power shortage pauses production and output until power returns.
+- The Limestone Drill takes a direct Heavy Hamster Wheel connection and has
+  independently rotating outputs for Limestone, Zinc Ore and Corundum.
+  Each output retains one batch and discards overflow. Removing heavy kinetic
+  power pauses extraction until the connection is restored.
 
 - Primitive cash upgrader conveyors can be upgraded as a whole with unplaced
   Basic Conveyors. Their electricity, speed and weight limits follow the Basic
@@ -784,16 +784,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   orientation-correct output arrows; placement uses the same 1×1 occupied tile.
 - Stacker and Splitter routing-port guides are faint and sit behind real
   conveyors and moving items, so they never obscure live factory traffic.
-- Noammo Manual Overflow: both modes and all rotations use the correct five
-  occupied tiles, reserving both output positions and only the active hamster
-  position. Mode switches, moves, group previews and save/import agree on the
-  footprint. Occupied mode changes reject without altering contents or state.
-- Manual Overflow normal routes take precedence at sustained belt cadence.
-  Blocked cargo uses exactly two seconds per hand transfer, independent of
-  weight and without an extra release tick. Downstream belt/Stacker releases
-  cannot falsely trigger overflow. Tests include adjacent Overflow chains,
-  bounded blocked cargo, power removal, live Kiln delivery, instance isolation,
-  pickup recovery, malformed saves, atomic component costs and stable UI controls.
+- Noammo retires Manual Overflow when loading older saves. It recovers its
+  construction materials, conveyors, and cargo once, counting stored instances
+  as part of the owned stock.
 - Noammo conveyor transfers reject overweight stacks without splitting. Machine
   solid output buffers instead send the largest whole-number portion that fits,
   retaining the remainder, and individual overweight items remain blocked;

@@ -11,21 +11,21 @@ function place(f, type, x, y, facing = 'right') {
 
 function setup() {
   const f = new A.Factory(A.createState(1));
-  const wheel = place(f, 'heavyWheel', 39, 42);
-  place(f, 'kineticGenerator', 40, 40, 'down');
   const drill = place(f, 'limestoneDrill', 60, 40);
+  const wheel = place(f, 'heavyWheel', 57, 40, 'down');
   return { f, wheel, drill };
 }
 
 test('limestone drill ports rotate together and use the agreed cost and power', () => {
   const def = A.DATA.machines.limestoneDrill;
   assert.equal(A.DATA.materials.zincOre.weight, 0.8);
-  assert.deepEqual(def.cost, { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30, copperGear: 10, copperWinding: 5 } });
-  assert.equal(def.electricPower, 10);
+  assert.deepEqual(def.cost, { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30, copperGear: 10 } });
+  assert.equal(def.requiresHeavyKinetic, true);
   for (const [facing, directions] of Object.entries({ right: ['up', 'right', 'down'], down: ['right', 'down', 'left'], left: ['down', 'left', 'up'], up: ['left', 'up', 'right'] })) {
     const f = new A.Factory(A.createState(1));
     const drill = place(f, 'limestoneDrill', 60, 40, facing);
     assert.deepEqual(A.ports(drill).filter(p => p.role === 'output').map(p => p.direction), directions);
+    assert.equal(A.ports(drill).find(p => p.role === 'kineticInput').direction, A.opposite(facing));
   }
 });
 
@@ -40,6 +40,7 @@ test('outputs remain independent, retain one batch, and discard further excess',
   assert.equal(f.total(zinc, 'contents'), 3);
   assert.equal(f.total(corundum, 'contents'), 1.5);
   assert.deepEqual(drill.output.map(item => [item.material, item.quantity]), [['limestone', 4]]);
+  assert.match(f.status(drill), /Extracting/);
   limestone.contents = [];
   f.update(0.1);
   assert.equal(f.total(limestone, 'contents'), 4);
@@ -47,15 +48,19 @@ test('outputs remain independent, retain one batch, and discard further excess',
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('electricity shortage pauses production and resumes without banking time', () => {
+test('Limestone Drill pauses without heavy kinetic and resumes without banking time', () => {
   const { f, wheel, drill } = setup();
-  assert.deepEqual(f.electricity, { supply: 100, demand: 10, shortage: false });
+  assert.deepEqual(f.electricity, { supply: 0, demand: 0, shortage: false });
   f.update(10);
   f.pickup(wheel.id);
+  const basic = place(f, 'wheel', 58, 40, 'down');
+  assert.equal(f.kineticConnections.get(drill.id)[0].wheel.id, basic.id);
+  assert.match(f.status(drill), /Heavy Hamster Wheel/);
   f.update(60);
   assert.ok(Math.abs(drill.timer - 10) < 1e-6);
   assert.equal(drill.output.length, 0);
-  place(f, 'heavyWheel', 39, 42);
+  f.pickup(basic.id);
+  place(f, 'heavyWheel', 57, 40, 'down');
   f.update(15);
   assert.deepEqual(drill.output.map(item => [item.material, item.quantity]), [['limestone', 4], ['zincOre', 1], ['corundum', 0.5]]);
 });

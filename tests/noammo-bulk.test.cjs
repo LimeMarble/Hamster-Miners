@@ -76,13 +76,13 @@ test("invalid bulk placement changes no positions, buffers, Basket contents, cas
 test('repeat group placement consumes complete sets, keeps rotated settings and never copies source cargo', () => {
   const f = new Factory(createState(1));
   const first = place(f, 'primitiveStacker', 40, 40), second = place(f, 'primitiveStacker', 42, 40);
-  const overflow = place(f, 'manualOverflow', 44, 40); f.setStackSize(first.id, 2); f.setOverflowMode(overflow.id, 'down');
+  const shaper = place(f, 'clayShaper', 44, 40); f.setStackSize(first.id, 2); f.setShapingMode(shaper.id, 'pot');
   first.lanes[0] = { ...cargo('wood', 2), progress: 0.4 };
-  overflow.job = { input: cargo('clay'), remaining: 1 };
-  const stored = place(f, 'manualOverflow', 60, 40); f.pickup(stored.id);
-  const ids = [first.id, second.id, overflow.id];
+  shaper.job = { input: cargo('clay', 2), mode: 'pot', remaining: 1 };
+  const stored = place(f, 'clayShaper', 60, 40); f.pickup(stored.id);
+  const ids = [first.id, second.id, shaper.id];
   f.moveGroup(ids, 80, 80, 1);
-  f.state.stock.primitiveStacker = 1; f.state.stock.manualOverflow = 2;
+  f.state.stock.primitiveStacker = 1; f.state.stock.clayShaper = 2;
   let before = f.exportSave(); assert.equal(f.hasGroupStock(ids), false);
   assert.ok(f.placeGroup(ids, 80, 90).error); assert.equal(f.exportSave(), before);
   f.state.stock.primitiveStacker = 5;
@@ -91,7 +91,7 @@ test('repeat group placement consumes complete sets, keeps rotated settings and 
   const plan = f.groupPlan(ids, 80, 90, 1, true); assert.equal(plan.error, null);
   const copied = f.placeGroup(ids, 80, 90, 1).machines; assert.equal(copied.length, 3);
   assert.deepEqual(copied.map(m => [m.type, m.x, m.y, m.facing, m.mode, m.stackSize]), plan.machines.map(m => [m.type, m.x, m.y, m.facing, m.mode, m.stackSize]));
-  assert.equal(copied[2].id, stored.id); assert.equal(copied[2].mode, 'down', 'the copied setting overrides the stored instance setting');
+  assert.equal(copied[2].id, stored.id); assert.equal(copied[2].mode, 'pot', 'the copied setting overrides the stored instance setting');
   for (const machine of copied) {
     assert.equal(ids.includes(machine.id), false); assert.deepEqual(machine.lanes, {}); assert.equal(machine.job, null);
   }

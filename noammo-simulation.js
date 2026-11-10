@@ -79,7 +79,7 @@
   }
   function cells(machine) {
     const definition = D.machines[machine.type];
-    const footprint = definition.modeFootprints?.[machine.mode ?? definition.defaultMode] ?? definition.footprint;
+    const footprint = definition.footprint;
     if (footprint) return footprint.map(([x, y]) => {
       const point = rotatePoint(x, y, definition.width, definition.height, D.directions[rotation(machine)]);
       return { x: machine.x + point.x, y: machine.y + point.y };
@@ -343,7 +343,7 @@
   function createState(seed = Date.now() >>> 0) {
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
-      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
+      settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
       runeVersion: 2, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 2,
@@ -428,21 +428,13 @@
       const bySlot = new Map(slots.map((slot) => [`${slot.machine.id}:${slot.lane}`, slot]));
       const targets = new Map();
       for (const slot of slots) {
-        const outputs = [slot.tile];
-        if (D.machines[slot.machine.type].manualTransferSeconds && slot.lane === "0") {
-          outputs.push(...ports(slot.machine).filter((point) => point.role === "output" && point.mode));
-        }
-        const downstream = [];
-        for (const output of outputs) {
-          const v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
-          const internal = conveyorCells(slot.machine).find((cell) => cell.x === x && cell.y === y);
-          const target = internal ? slot.machine : (this.occupantsAt.get(key(x, y)) ?? []).find((machine) =>
-            !D.machines[machine.type].bridge || ports(machine).some((point) => point.role === "input"
-              && point.x === x && point.y === y && point.direction === opposite(output.direction)));
-          const tile = target && (internal ?? conveyorCells(target).find((cell) => cell.x === x && cell.y === y));
-          if (tile) downstream.push(bySlot.get(`${target.id}:${tile.index}`));
-        }
-        targets.set(slot, downstream);
+        const output = slot.tile, v = D.vectors[output.direction], x = output.x + v.x, y = output.y + v.y;
+        const internal = conveyorCells(slot.machine).find((cell) => cell.x === x && cell.y === y);
+        const target = internal ? slot.machine : (this.occupantsAt.get(key(x, y)) ?? []).find((machine) =>
+          !D.machines[machine.type].bridge || ports(machine).some((point) => point.role === "input"
+            && point.x === x && point.y === y && point.direction === opposite(output.direction)));
+        const tile = target && (internal ?? conveyorCells(target).find((cell) => cell.x === x && cell.y === y));
+        if (tile) targets.set(slot, bySlot.get(`${target.id}:${tile.index}`));
       }
       // One order for belts, Stackers and machine conveyors. Mixing types must
       // not make an upstream transfer see cargo that departs later in this tick.
@@ -455,7 +447,8 @@
           if (closing) { ordered.push(entry); continue; }
           if (visited.has(entry)) continue;
           visited.add(entry); pending.push([entry, true]);
-          for (const target of targets.get(entry)) if (!visited.has(target)) pending.push([target, false]);
+          const target = targets.get(entry);
+          if (target && !visited.has(target)) pending.push([target, false]);
         }
       }
       return ordered;
@@ -472,8 +465,10 @@
       return this.kineticHasWheel(drive);
     }
     kineticHasWheel(machine) {
-      if (D.machines[machine.type].pressModes || D.machines[machine.type].kineticPairSpeed) return this.pressPower(machine).speed > 0;
-      return (this.kineticConnections.get(machine.id)?.length ?? 0) >= (D.machines[machine.type].kineticInputsRequired ?? 1);
+      const definition = D.machines[machine.type], connections = this.kineticConnections.get(machine.id) ?? [];
+      if (definition.pressModes || definition.kineticPairSpeed) return this.pressPower(machine).speed > 0;
+      if (definition.requiresHeavyKinetic) return connections.some(({ wheel }) => wheel.type === "heavyWheel");
+      return connections.length >= (definition.kineticInputsRequired ?? 1);
     }
     pressPower(machine) { return this.pressPowers.get(machine.id) ?? { connections: 0, speed: 0 }; }
     dualPowered(machine) {
@@ -885,21 +880,6 @@
     }
     total(machine, field, material) {
       return machine[field].reduce((sum, item) => sum + (material && item.material !== material ? 0 : item.quantity), 0);
-    }
-    setOverflowMode(id, mode) {
-      const machine = this.byId.get(id), definition = D.machines[machine?.type];
-      if (!definition?.manualTransferSeconds || !Object.hasOwn(definition.modeFootprints, mode)) return { error: "Invalid overflow mode." };
-      if (machine.mode === mode) return { machine };
-      const error = this.placement(machine.type, machine.x, machine.y, machine.facing, id, mode);
-      if (error) return { error: "The other hamster position must be clear to change overflow mode." };
-      machine.mode = mode; this.rebuild();
-      return { machine };
-    }
-    unloadManualOverflow(machine) {
-      if (!machine.job || machine.job.remaining > epsilon) return;
-      const output = ports(machine).find((point) => point.mode);
-      machine.job.input.quantity -= this.sendOutput(machine, machine.job.input, output);
-      if (machine.job.input.quantity <= epsilon) machine.job = null;
     }
     setStackSize(id, value) {
       const machine = this.byId.get(id), definition = D.machines[machine?.type];
@@ -1508,8 +1488,6 @@
               machine.output.push(cargo(definition.source ?? machine.mode, (definition.sourceQuantity ?? 1) * resourceMultiplier));
             }
           }
-        } else if (definition.manualTransferSeconds && machine.job) {
-          machine.job.remaining = Math.max(0, machine.job.remaining - machineSeconds);
         } else if (machine.type === "fiber") {
           if (machine.job) {
             machine.job.remaining -= machineSeconds;
@@ -1568,7 +1546,6 @@
       }
       for (const { machine, lane, item } of oldLanes) {
         if (machine.lanes[lane] !== item) continue;
-        if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
         const output = conveyorCells(machine)[Number(lane)];
         if (!output || !this.conveyorPowered(machine, output.x, output.y)) continue;
         if (item.lateral) {
@@ -1596,16 +1573,8 @@
           item.quantity -= accepted;
           if (stacking && accepted > epsilon) item.progress = 0;
           if (item.quantity <= epsilon) delete machine.lanes[lane];
-          else if (D.machines[machine.type].manualTransferSeconds && Number(lane) === 0 && accepted <= epsilon && !machine.job) {
-            // One bounded carried stack. The hand transfer has its own fixed
-            // duration, independent of distance, weight and conveyor power.
-            machine.job = { input: { ...copy(item), progress: 0 }, remaining: D.machines[machine.type].manualTransferSeconds };
-            delete machine.job.input.lateral;
-            delete machine.lanes[lane];
-          }
         }
       }
-      for (const machine of state.machines) if (D.machines[machine.type].manualTransferSeconds) this.unloadManualOverflow(machine);
       // A buffered shaping bench can work while one finished item waits. Let
       // its departing conveyor cargo clear before unloading and queueing work.
       for (const machine of state.machines) if (isCrafter(D.machines[machine.type])
@@ -1676,12 +1645,6 @@
         return bulk === 1 ? `Waiting for ${mode.name === "Plates" ? "ingots" : "two matching Plates"} · ${speed}`
           : `Waiting for ${mode.input * bulk} ${mode.name === "Plates" ? "matching ingots" : "matching Plates"} · ${speed}`;
       }
-      if (D.machines[machine.type].manualTransferSeconds) {
-        if (machine.job) return machine.job.remaining <= epsilon ? "Overflow output blocked"
-          : `Redirecting cargo · ${formatNumber(machine.job.remaining / timeScale)}s`;
-        return conveyorCells(machine).every((point) => this.powered(point.x, point.y))
-          ? "Straight route first · manual overflow ready" : "Conveyors waiting for kinetic power";
-      }
       if (D.machines[machine.type].craftInput && D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
       if (D.machines[machine.type].maxStackSize) {
         if (!this.powered(machine.x, machine.y)) return "Waiting for kinetic power";
@@ -1711,6 +1674,9 @@
       }
       if (machine.type === "wheatPlanter") return machine.output.length >= definition.outputLimit
         ? "Output waiting" : `Next Wheat in ${formatNumber((definition.cycle - machine.timer) / timeScale)}s`;
+      if (machine.type === "limestoneDrill") return this.kineticHasWheel(machine)
+        ? `Extracting · ${formatNumber(Math.max(0, definition.cycle - machine.timer) / timeScale)}s`
+        : "Waiting for a Heavy Hamster Wheel connection";
       if (D.machines[machine.type].batchOutputs) {
         if (machine.output.length) return "Output blocked";
         if (D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
@@ -1762,6 +1728,28 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo factory save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      const overflowPlaced = (state.machines ?? []).filter(machine => machine.type === "manualOverflow");
+      const overflowStored = (state.storedMachines ?? []).filter(machine => machine.type === "manualOverflow");
+      const overflowStock = state.stock?.manualOverflow ?? 0;
+      if (!Number.isSafeInteger(overflowStock) || overflowStock < overflowStored.length) throw new Error("Invalid Manual Overflow stock.");
+      const retiredOverflows = overflowStock + overflowPlaced.length;
+      if (retiredOverflows) {
+        state.stock.belt += 2 * retiredOverflows;
+        state.inventory.wood += 20 * retiredOverflows;
+        state.inventory.woodenGear = (state.inventory.woodenGear ?? 0) + 2 * retiredOverflows;
+        for (const machine of [...overflowPlaced, ...overflowStored]) {
+          const cargo = [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
+            ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)];
+          for (const item of cargo) {
+            if (!D.materials[item?.material] || D.materials[item.material].fluid || !Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error("Invalid Manual Overflow cargo.");
+            state.inventory[item.material] = (state.inventory[item.material] ?? 0) + item.quantity;
+          }
+        }
+        state.machines = state.machines.filter(machine => machine.type !== "manualOverflow");
+        state.storedMachines = (state.storedMachines ?? []).filter(machine => machine.type !== "manualOverflow");
+      }
+      if (state.stock) delete state.stock.manualOverflow;
+      delete state.manualOverflowVersion;
       const legacyMajorFootprint = (state.runeVersion ?? 0) < 2;
       if ((state.playtestVersion ?? 0) < 1) { state.playtest = copy(base.playtest); state.playtestVersion = 1; }
       if (state.playtestVersion < 2 && state.playtest?.toggles && state.playtest?.used) {
@@ -1924,10 +1912,6 @@
         for (const type of ["copperDrill", "primitiveFurnace"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
         for (const material of ["charcoal", "moltenCopper"]) if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
         state.copperIndustryVersion = 1;
-      }
-      if ((state.manualOverflowVersion ?? 0) < 1) {
-        if (state.stock && !Object.hasOwn(state.stock, "manualOverflow")) state.stock.manualOverflow = 0;
-        state.manualOverflowVersion = 1;
       }
       if ((state.graniteProcessorVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "graniteProcessor")) state.stock.graniteProcessor = 0;
@@ -2167,16 +2151,6 @@
           || machine.output.some((item) => item.material !== "leekFiber")
           || (machine.job && (machine.job.input.material !== "leek" || machine.job.input.quantity !== (machine.job.bulk ?? 1))))) throw new Error("Invalid Fiber buffer.");
         if (!collectorCapacity(machine) && machine.contents.length) throw new Error("Only resource collectors hold collector contents.");
-        if (D.machines[machine.type].manualTransferSeconds) {
-          if (!Object.hasOwn(D.machines[machine.type].modeFootprints, machine.mode)
-            || machine.input.length || machine.output.length || machine.timer !== 0
-            || Object.keys(machine.lanes).some((lane) => lane !== "0" && lane !== "1")
-            || (machine.job && (machine.job.remaining < 0 || machine.job.remaining > D.machines[machine.type].manualTransferSeconds
-              || machine.job.input.lateral !== undefined
-              || machine.job.input.quantity * D.materials[machine.job.input.material].weight > conveyorWeightLimit(machine) * (state.playtest.used.conveyorCapacity ? 10 : 1) + epsilon))) {
-            throw new Error("Invalid Manual Overflow mode or carried cargo.");
-          }
-        }
         if (D.machines[machine.type].maxStackSize && (!Number.isInteger(machine.stackSize)
           || machine.stackSize < 1 || machine.stackSize > D.machines[machine.type].maxStackSize
           || Object.keys(machine.lanes).some((lane) => lane !== "0")
@@ -2301,7 +2275,7 @@
             || machine.output.length > 1 || machine.output.some(item => item.quantity > maxBulk
               || !Object.values(plateRecipes).some(recipe => recipe.output === item.material))) throw new Error("Invalid Plating Bench buffers.");
         }
-        if (!plateRecipes && !D.machines[machine.type].heatCapacity && !isCrafter(D.machines[machine.type]) && !D.machines[machine.type].manualTransferSeconds
+        if (!plateRecipes && !D.machines[machine.type].heatCapacity && !isCrafter(D.machines[machine.type])
           && !["fiber", "kiln", "gradingBench", "paintingBench"].includes(machine.type) && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
         const sourceDefinition = D.machines[machine.type], sourceMaterial = sourceDefinition.source;
         if (sourceDefinition.sourceModes && (!Object.hasOwn(sourceDefinition.sourceModes, machine.mode)
