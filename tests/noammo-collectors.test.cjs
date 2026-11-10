@@ -29,7 +29,7 @@ test("Brick Resource Storage has the approved cost, no crew, and no free grant",
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
   assert.equal(factory.state.inventory.clay, 0); assert.equal(factory.state.stock.brickStorage, 2);
   assert.ok(factory.place("brickStorage", 40, 40).machine);
-  assert.equal(factory.availableCrew(), 10);
+  assert.equal(factory.availableCrew(), 20);
 });
 
 test("Brick Storage rotates its four occupied tiles and sole lower-left input; actual Clay Pit deliveries obey it", () => {

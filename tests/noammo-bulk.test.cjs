@@ -41,7 +41,8 @@ test("bulk turns rotate complete footprints and facing, with opposite turns exac
 test("every ordinary machine supports bulk movement in all facings with contents and identity intact", () => {
   for (const type of Object.keys(A.DATA.machines).filter((type) => type !== "logger")) for (const facing of A.DATA.directions) {
     const factory = new Factory(createState(1));
-    const machine = place(factory, type, 40, 40, facing), other = place(factory, "basket", 46, 44);
+    const machine = place(factory, type, 40, 40, facing);
+    const other = place(factory, "basket", 40 + Math.max(6, A.size(machine).width), 44);
     if (type === "fiber") machine.output.push(cargo("leekFiber", 2, 0.7));
     if (type === "basket") machine.contents.push(cargo("leek", 3));
     const output = JSON.stringify(machine.output), stock = { ...factory.state.stock };
@@ -105,7 +106,7 @@ test('repeat group placement consumes complete sets, keeps rotated settings and 
 test('repeat group placement checks combined crew before placing any member', () => {
   const f = new Factory(createState(1)), a = place(f, 'fiber', 40, 40), b = place(f, 'fiber', 42, 40);
   const extras = [];
-  for (let i = 0; i < 7; i++) extras.push(place(f, 'fiber', 44 + 2 * i, 40));
+  for (let i = 0; i < 17; i++) extras.push(place(f, 'fiber', 44 + 2 * i, 40));
   f.state.stock.fiber = 2; assert.equal(f.availableCrew(), 1);
   const before = f.exportSave(); assert.match(f.placeGroup([a.id, b.id], 80, 80).error, /hamsters/);
   assert.equal(f.exportSave(), before);

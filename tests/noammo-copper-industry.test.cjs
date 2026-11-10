@@ -35,17 +35,19 @@ test('Copper industry purchases consume exact agreed costs atomically, with no f
     assert.equal(A.createState(1).stock[type], 0);
     for (const missing of ['cash', ...Object.keys(cost.materials)]) {
       const f = new Factory(A.createState(1)); f.state.cash = cost.cash;
+      if (type === 'primitiveFurnace') f.state.minorRunes.transmutation = 3;
       Object.assign(f.state.inventory, cost.materials);
       if (missing === 'cash') f.state.cash -= 0.01; else f.state.inventory[missing]--;
       const before = f.exportSave(); assert.ok(f.buy(type).error); assert.equal(f.exportSave(), before);
     }
     const f = new Factory(A.createState(1)); f.state.cash = cost.cash * 2;
+    if (type === 'primitiveFurnace') f.state.minorRunes.transmutation = 3;
     for (const [material, quantity] of Object.entries(cost.materials)) f.state.inventory[material] = quantity * 2;
     assert.equal(f.buy(type, 2).amount, 2); assert.equal(f.state.cash, 0);
     for (const material of Object.keys(cost.materials)) assert.equal(f.state.inventory[material], 0);
     const m = f.place(type, 40, 40).machine; assert.equal(A.cells(m).length, 6);
     assert.equal(A.conveyorCells(m).length, 0);
-    assert.equal(f.availableCrew(), type === 'primitiveFurnace' ? 8 : 10);
+    assert.equal(f.availableCrew(), type === 'primitiveFurnace' ? 18 : 20);
   }
 });
 

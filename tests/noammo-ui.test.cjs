@@ -7,10 +7,11 @@ const A = require("../noammo-simulation.js");
 
 // Exercise the actual browser entry and event handlers without networking or browser automation.
 // This is a DOM contract test, not a claim of live-browser visual verification.
-function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
-  const ids = new Map(), frames = [], windowEvents = new Map(), documentEvents = new Map(), storage = new Map();
+function boot(saved, { width = 900, height = 600, failBackups = false, storage = new Map() } = {}) {
+  const ids = new Map(), frames = [], windowEvents = new Map(), documentEvents = new Map();
   const rectangle = { left: 0, top: 0, width, height }, observers = [], renders = [];
-  let writes = 0;
+  let writes = 0, clock = 0;
+  const intervals = [];
   if (saved !== undefined) storage.set(A.DATA.saveKey, saved);
   const drawing = {};
   for (const name of ["save", "restore", "clearRect", "fillRect", "strokeRect", "translate", "rotate", "scale", "beginPath", "moveTo", "lineTo", "closePath", "fill", "stroke", "fillText", "setTransform"]) drawing[name] = () => {};
@@ -70,7 +71,8 @@ function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
     },
   };
   const context = {
-    document, performance: { now: () => 0 }, devicePixelRatio: 1,
+    document, performance: { now: () => clock }, devicePixelRatio: 1,
+    setInterval: (fn) => { intervals.push(fn); return intervals.length; },
     requestAnimationFrame: (fn) => frames.push(fn), ResizeObserver: class { constructor(fn) { observers.push(fn); } observe() {} },
     addEventListener: (type, fn) => windowEvents.set(type, fn), confirm: () => true,
     localStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) {
@@ -93,7 +95,9 @@ function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
   }
   return { ids, tabs, categories, inventoryTabs, inventoryCategories, storage, get writes() { return writes; },
     save: () => windowEvents.get("beforeunload")(),
-    frame(now) { assert.ok(frames.length); frames.shift()(now); },
+    frame(now) { clock = now; assert.ok(frames.length); frames.shift()(now); },
+    background(now) { clock = now; intervals.forEach(fn => fn()); },
+    visibility(hidden, now) { clock = now; document.hidden = hidden; documentEvents.get('visibilitychange')(); },
     view() { return renders.at(-1); },
     key(key, event = {}) { documentEvents.get("keydown")({ key, preventDefault() {}, ...event }); },
     keyUp(key) { documentEvents.get("keyup")({ key }); },
@@ -105,6 +109,42 @@ function boot(saved, { width = 900, height = 600, failBackups = false } = {}) {
     },
     state() { windowEvents.get("beforeunload")(); return JSON.parse(storage.get(A.DATA.saveKey)).state; } };
 }
+
+test('background simulation runs production and saves without rendering or double-counting tab switches', () => {
+  const f = new A.Factory(A.createState(1));
+  f.state.stock.clayPit++; const pit = f.place('clayPit', 121, 121).machine;
+  const output = A.ports(pit).find(p => p.role === 'output'), v = A.DATA.vectors[output.direction];
+  f.state.stock.sellTube++; assert.ok(f.place('sellTube', Math.floor(output.x + v.x), Math.floor(output.y + v.y)).machine);
+  const ui = boot(f.exportSave()); ui.frame(100);
+  ui.visibility(true, 100);
+  const rendered = ui.view(), writes = ui.writes;
+  ui.background(5100);
+  assert.ok(ui.writes > writes, 'background production autosaves');
+  assert.equal(ui.view(), rendered, 'hidden simulation does not render');
+  // A delayed callback longer than Factory.update's 60-second maximum must
+  // simulate the whole gap, using the same production rules as the foreground.
+  ui.background(125100);
+  const background = ui.state();
+  assert.ok(Math.abs(background.seconds - 125.1) < 1e-7);
+  f.update(60); f.update(60); f.update(5.1);
+  assert.equal(background.cash, f.state.cash);
+  assert.equal(background.soldItems, f.state.soldItems);
+  assert.ok(background.soldItems > 0);
+  ui.visibility(false, 125100); ui.frame(125100);
+  assert.ok(Math.abs(ui.state().seconds - background.seconds) < 1e-7);
+  ui.frame(125200);
+  assert.ok(Math.abs(ui.state().seconds - background.seconds - 0.1) < 1e-7);
+  ui.frame(125100); ui.frame(125300);
+  assert.ok(Math.abs(ui.state().seconds - background.seconds - 0.2) < 1e-7, 'a stale animation timestamp cannot rewind the simulation clock');
+  const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: background }));
+  assert.equal(reloaded.state().seconds, background.seconds, 'reload grants no offline time');
+});
+
+test('returning from a hidden tab catches up even before a background timer fires', () => {
+  const ui = boot(); ui.frame(100); ui.visibility(true, 100);
+  ui.visibility(false, 10100); ui.frame(10100);
+  assert.ok(Math.abs(ui.state().seconds - 10.1) < 1e-7);
+});
 
 test('playtest code unlocks independent toggles that persist in the save', () => {
   const ui = boot(); ui.tabs.find(button => button.dataset.tab === 'options').emit('click');
@@ -184,14 +224,14 @@ test('Well inspector adds and removes a selected Water dropoff', () => {
   ui.ids.get('addWaterDropoff').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 122));
   const updated = ui.state().machines.find(machine => machine.id === well.id);
   assert.deepEqual(updated.waterSchedule, [{ targetId: bench.id, index: 0 }]);
-  assert.equal(ui.ids.get('crew').textContent, '8 / 10');
+  assert.equal(ui.ids.get('crew').textContent, '18 / 20');
   ui.ids.get('removeWaterDropoff0').emit('click');
   assert.deepEqual(ui.state().machines.find(machine => machine.id === well.id).waterSchedule, []);
 });
 
-test('Pebble Sifter exposes all three selectable modes', () => {
-  const f = new A.Factory(A.createState(1)); f.state.stock.pebbleSifter++;
-  const sifter = f.place('pebbleSifter', 121, 121).machine;
+test('Pebble Sifter II exposes all three selectable modes', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.pebbleSifterII++;
+  const sifter = f.place('pebbleSifterII', 121, 121).machine;
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const mode = ui.ids.get('extractionMode');
   assert.deepEqual(mode.children.map(option => option.textContent), ['Chert', 'Malachite focus', 'Soil focus']);
@@ -231,7 +271,7 @@ test('Spool mode and buffer controls remain mounted, persist selection and keep 
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const mode = ui.ids.get('formingMode'), buffers = ui.ids.get('formingBuffers');
   assert.deepEqual(mode.options.map(option => option.value), ['coil', 'winding']);
-  for (let now = 100; now <= 1000; now += 100) ui.frame(now);
+  for (let now = 100; now <= 900; now += 100) ui.frame(now);
   assert.equal(ui.ids.get('formingMode'), mode); assert.equal(ui.ids.get('formingBuffers'), buffers);
   mode.value = 'winding'; mode.emit('change');
   const state = ui.state(), restored = state.machines.find(p => p.id === m.id);
@@ -334,7 +374,8 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
     furnace.heat = 240000; furnace.outputCooldown = 1.5;
     const feedMaterial = type === 'primitiveFurnace' ? 'copperOre' : 'unfiredBrick';
     furnace.input.push(A.cargo(feedMaterial));
-    furnace.output.push(type === 'preheater' ? { ...A.cargo('unfiredBrick', 2), preheated: true }
+    const preheats = type === 'preheater' || type === 'primitiveOven';
+    furnace.output.push(preheats ? { ...A.cargo('unfiredBrick', 2), preheated: true }
       : A.cargo(type === 'kiln' ? 'pot' : 'moltenCopper', type === 'kiln' ? 2 : 4));
     f.place('basket', 124, 122);
     const ui = boot(f.exportSave()), canvas = ui.ids.get('cargo'), panel = ui.ids.get('inspector');
@@ -352,7 +393,7 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
     assert.equal(state.machines.some(m => m.id === furnace.id), false);
     assert.equal(stored.heat, 0); assert.equal(stored.outputCooldown, 0);
     assert.deepEqual(stored.input, []); assert.deepEqual(stored.output, []); assert.equal(stored.job, null);
-    assert.equal(state.inventory[feedMaterial], type === 'preheater' ? 3 : 1);
+    assert.equal(state.inventory[feedMaterial], preheats ? 3 : 1);
     assert.equal(state.inventory.moltenCopper, 0);
     pickup.emit('click'); assert.deepEqual(ui.state().inventory, state.inventory, 'detached controls cannot refund contents twice');
     chooseMachine(ui, type); canvas.emit('click', screenPoint(126, 124));
@@ -363,6 +404,7 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
 
 test('Copper industry Shop costs and automatic furnace recipe, heat and buffers stay current without remounting controls', () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 250000;
+  f.state.minorRunes.transmutation = 3;
   Object.assign(f.state.inventory, { granite: 200, chert: 50, woodenGear: 20, wood: 40, brick: 200, clay: 50 });
   let ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   for (const [type, expected] of [
@@ -470,7 +512,7 @@ test("Inventory separates Machines and Items, with no default machine list on th
   assert.equal(ui.ids.get("machineInventory").hidden, false);
   assert.equal(ui.ids.get("itemInventory").hidden, true);
   const visible = ui.ids.get("machineCards").children.filter((card) => !card.hidden);
-  assert.deepEqual(visible.map((card) => card.dataset.machine), ["planter", "basket", "sellTube"]);
+  assert.deepEqual(visible.map((card) => card.dataset.machine), ["planter", "basket", "pebbleSifter", "wheel", "sellTube"]);
   ui.inventoryTabs[1].emit("click");
   assert.equal(ui.ids.get("machineInventory").hidden, true);
   assert.equal(ui.ids.get("itemInventory").hidden, false);
@@ -533,7 +575,7 @@ test('starter reserves disable dismantling visibly after the last surplus machin
 });
 
 test("machine cards filter, select stable details, and Place returns to the unchanged factory camera", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0;
+  const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0; factory.state.stock.wheel = 0;
   factory.place('planter', 121, 121);
   factory.state.stock.primitive = 1; factory.place('primitive', 125, 121);
   const ui = boot(factory.exportSave()); ui.frame(100);
@@ -871,15 +913,15 @@ test("crew hiring updates cash, available/total crew and the next price immediat
   assert.equal(hire.textContent, "Hire · $5"); assert.equal(hire.disabled, false);
   hire.emit("click");
   assert.equal(ui.state().cash, 5.5); assert.equal(ui.state().hiredCrew, 1);
-  assert.equal(ui.ids.get("crew").textContent, "11 / 11"); assert.equal(hire.textContent, "Hire · $5.5");
+  assert.equal(ui.ids.get("crew").textContent, "21 / 21"); assert.equal(hire.textContent, "Hire · $5.5");
   for (const tab of ui.tabs) { tab.emit("click"); ui.frame(100); assert.equal(ui.ids.get("hireCrew"), hire); }
   hire.emit("click");
   assert.equal(ui.state().cash, 0); assert.equal(ui.state().hiredCrew, 2);
-  assert.equal(ui.ids.get("crew").textContent, "12 / 12");
+  assert.equal(ui.ids.get("crew").textContent, "22 / 22");
   assert.equal(hire.textContent, "Hire · $6.05"); assert.equal(hire.disabled, true);
   hire.emit("click"); assert.equal(ui.state().hiredCrew, 2);
   const loaded = boot(ui.storage.get(A.DATA.saveKey));
-  assert.equal(loaded.ids.get("crew").textContent, "12 / 12"); assert.equal(loaded.ids.get("hireCrew").textContent, "Hire · $6.05");
+  assert.equal(loaded.ids.get("crew").textContent, "22 / 22"); assert.equal(loaded.ids.get("hireCrew").textContent, "Hire · $6.05");
 });
 
 test("the Hire button enables when factory income reaches its cost without remounting", () => {
@@ -1013,11 +1055,12 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
 
 test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 200; factory.state.inventory.wood = 100; factory.state.stock.belt = 7;
+  factory.state.cash = 200; factory.state.stock.belt = 7;
+  Object.assign(factory.state.inventory, { leekFiber: 40, chert: 20 });
   const ui = boot(factory.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   shopCard(ui, 'primitiveBridge').emit('click');
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.deepEqual(ui.ids.get("costs").children.map(row => row.children[1].textContent), ["$200 / $200", "7 / 8"]);
+  assert.deepEqual(ui.ids.get("costs").children.map(row => row.children[1].textContent), ["$200 / $200", "40 / 40", "20 / 20", "7 / 8"]);
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   ui.ids.get("quantity").value = "1"; ui.ids.get("quantity").emit("input");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
@@ -1040,7 +1083,7 @@ test("Rock Drill mode selector remains mounted during production and persists th
 
 test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
   const ui = boot(); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
-  for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2"]],
+  for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2", "Base Value Required: $0.2"]],
     ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $7.5k", "Base Value Required: $1.2"]]]) {
     shopCard(ui, type).emit('click');
     assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent), expected);
@@ -1049,19 +1092,18 @@ test("Infuser and Shack details display their exact cash effects without inventi
 
 test("Sifter Shop costs, repeat placement and collected materials use actual UI handlers", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 3600;
-  Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100, chert: 0.3, soil: 0.3 });
+  Object.assign(factory.state.inventory, { wood: 100, leekFiber: 40, woodenGear: 10, chert: 0.3, soil: 0.3 });
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   ui.categories.find((button) => button.dataset.category === "Resource").emit("click");
   const card = shopCard(ui, 'pebbleSifter');
   assert.equal(card.hidden, false); card.emit("click");
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.deepEqual(ui.ids.get("costs").children.map((row) => row.children[1].textContent), ["$3.6k / $3.6k", "300 / 300", "60 / 60", "100 / 100"]);
+  assert.deepEqual(ui.ids.get("costs").children.map((row) => row.children[1].textContent), ["$0 / $0", "100 / 100", "40 / 40", "10 / 10"]);
   ui.ids.get("buyMachine").emit("click");
-  assert.equal(ui.state().stock.pebbleSifter, 2);
+  assert.equal(ui.state().stock.pebbleSifter, 3);
   chooseMachine(ui, "pebbleSifter"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
-  assert.equal(ui.state().stock.pebbleSifter, 1);
+  assert.equal(ui.state().stock.pebbleSifter, 2);
   ui.ids.get("cargo").emit("click", screenPoint(126, 121));
   assert.equal(ui.state().machines.filter((machine) => machine.type === "pebbleSifter").length, 2);
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
@@ -1102,7 +1144,7 @@ test("Clay Bench Shop cost, one-crew placement, sparse hitbox and stable mode se
   chooseMachine(ui, "clayShaper");
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   let state = ui.state(), bench = state.machines.find((machine) => machine.type === "clayShaper");
-  assert.equal(bench.mode, "brick"); assert.equal(ui.ids.get("crew").textContent, "9 / 10");
+  assert.equal(bench.mode, "brick"); assert.equal(ui.ids.get("crew").textContent, "19 / 20");
   const selector = ui.ids.get("shapingMode");
   assert.deepEqual(selector.options.map((option) => option.value), ["brick", "pot"]);
   selector.value = "pot"; selector.emit("change");
@@ -1161,23 +1203,22 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   shopCard(ui, 'brickSeal').emit('click');
   const effects = ui.ids.get("shopDetail").children.filter((node) => node.className === "machine-effect");
-  assert.deepEqual(effects.slice(0, 4).map((node) => node.textContent), [
-    "Cash effect: +$1.25", "Use Limit: 9", "Upper Limit: $15", "Base Value Required: $0.5",
+  assert.deepEqual(effects.map((node) => node.textContent), [
+    "Cash effect: +$3.6", "Use Limit: 5", "Base Value Required: $0.5",
   ]);
-  assert.equal(effects.length, 4);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
   assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$400 / $400");
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "70 / 70");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
   assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0); assert.equal(ui.state().cash, 0);
   chooseMachine(ui, "brickSeal");
-  assert.ok(ui.ids.get("machineDetail").children.some((node) => node.textContent === "Use Limit: 9"));
+  assert.ok(ui.ids.get("machineDetail").children.some((node) => node.textContent === "Use Limit: 5"));
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   assert.equal(ui.state().stock.brickSeal, 1);
   ui.ids.get("cargo").emit("click", screenPoint(123, 121));
   const machines = ui.state().machines.filter((machine) => machine.type === "brickSeal");
   assert.equal(machines.length, 2); assert.notEqual(machines[0].id, machines[1].id);
-  assert.equal(ui.ids.get("crew").textContent, "10 / 10");
+  assert.equal(ui.ids.get("crew").textContent, "20 / 20");
   const move = ui.ids.get("moveMachine");
   for (let frame = 1; frame <= 20; frame++) ui.frame(frame * 100);
   assert.equal(ui.ids.get("moveMachine"), move);
@@ -1185,6 +1226,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
 
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
+  factory.state.minorRunes.transmutation = 1;
   factory.state.cash = 100;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   let ui = boot(factory.exportSave());
@@ -1201,7 +1243,7 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   ui = boot(factory.exportSave());
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   const heat = ui.ids.get("kilnHeat"), buffers = ui.ids.get("kilnBuffers"), move = ui.ids.get("moveMachine");
-  assert.equal(ui.ids.get("crew").textContent, "8 / 10"); assert.equal(heat.textContent, "Heat: 120k / 250ku");
+  assert.equal(ui.ids.get("crew").textContent, "18 / 20"); assert.equal(heat.textContent, "Heat: 120k / 250ku");
   for (let frame = 1; frame <= 130; frame++) ui.frame(frame * 100);
   assert.equal(ui.ids.get("kilnHeat"), heat); assert.equal(ui.ids.get("kilnBuffers"), buffers);
   assert.equal(ui.ids.get("moveMachine"), move, "production must not remount the control buttons");
@@ -1212,11 +1254,62 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   const moved = ui.state().machines.find((machine) => machine.id === kiln.id);
   assert.equal(moved.facing, "down"); assert.equal(moved.heat, 24000); assert.equal(moved.output[0].quantity, 4);
   ui.ids.get("pickupMachine").emit("click");
-  assert.equal(ui.state().inventory.brick, 4); assert.equal(ui.ids.get("crew").textContent, "10 / 10");
+  assert.equal(ui.state().inventory.brick, 4); assert.equal(ui.ids.get("crew").textContent, "20 / 20");
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
   const bricks = ui.ids.get("itemCards").children.find((card) => card.children.some((node) => node.textContent === "Bricks"));
   assert.ok(bricks);
   assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.brick, 4);
+});
+
+test("Shop pedestals expose four categories and Minor Activation stays redeemed across imports and resets", () => {
+  const f = new A.Factory(A.createState(1));
+  assert.equal(f.buy("minorRunePedestal").amount, 1);
+  f.state.cash = 1e30;
+  Object.assign(f.state.inventory, { limestone: 10000, aluminiumBronzePlate: 499 });
+  assert.match(f.buy("majorRunePedestal").error, /Aluminium Bronze Plate/);
+  f.state.inventory.aluminiumBronzePlate++;
+  assert.equal(f.buy("majorRunePedestal").amount, 1);
+  assert.equal(f.state.cash, 0);
+  assert.equal(f.state.inventory.limestone, 0);
+  assert.equal(f.state.inventory.aluminiumBronzePlate, 0);
+  const minor = f.place("minorRunePedestal", 121, 121).machine;
+  const major = f.place("majorRunePedestal", 130, 121).machine;
+  assert.deepEqual(A.size(minor), { width: 2, height: 2 });
+  assert.deepEqual(A.size(major), { width: 8, height: 8 });
+  const cost = 1e25;
+  f.state.cash = cost * 2;
+  const otherSave = f.exportSave(), ui = boot(otherSave);
+  const selectPedestal = (view, x) => view.ids.get("cargo").emit("click", screenPoint(x, 121));
+  const tabs = view => view.ids.get("runeCategoryTabs").children;
+  const activation = view => tabs(view).find(button => button.dataset.runeCategory === "activation").emit("click");
+  const labels = ["Harvest", "Motion", "Transmutation", "Activation"];
+
+  selectPedestal(ui, major.x);
+  assert.deepEqual(tabs(ui).map(button => button.textContent), labels);
+  assert.equal(ui.ids.get("redeemRune").hidden, true);
+  selectPedestal(ui, minor.x);
+  assert.deepEqual(tabs(ui).map(button => button.textContent), labels);
+  assert.equal(ui.ids.get("runeOfferingTitle").textContent, "Wheat");
+  activation(ui);
+  assert.deepEqual(ui.ids.get("runeOfferingCosts").children.map(row => row.children.map(cell => cell.textContent)), [["Cash", "$20Sp / $10Sp"]]);
+  ui.ids.get("redeemRune").emit("click");
+  assert.equal(ui.state().cash, cost);
+  assert.equal(ui.state().capitalUnlocked, true);
+  assert.equal(ui.storage.get(A.DATA.capitalSaveKey), "1");
+  assert.equal(ui.ids.get("redeemRune").hidden, true);
+
+  const imported = boot(otherSave, { storage: ui.storage });
+  selectPedestal(imported, minor.x); activation(imported);
+  assert.equal(imported.ids.get("runeOfferingTitle").textContent, "Capital unlocked.");
+  assert.equal(imported.ids.get("redeemRune").hidden, true);
+  assert.equal(imported.state().cash, cost * 2);
+  imported.tabs.find(tab => tab.dataset.tab === "options").emit("click");
+  imported.ids.get("saveText").value = otherSave;
+  imported.ids.get("import").emit("click");
+  assert.equal(imported.state().capitalUnlocked, true);
+  imported.ids.get("reset").emit("click");
+  assert.equal(imported.state().capitalUnlocked, true);
+  assert.equal(imported.state().cash, 0);
 });
 
 test("visible place/rotate/cancel controls create the correct footprint and preserve the old game save", () => {
@@ -1353,7 +1446,10 @@ test("Gear Bench can be bought and placed from Inventory, with live stable buffe
   assert.equal(ui.ids.get('gearBuffers'), buffer);
   const restored = boot(JSON.stringify({ kind: A.DATA.saveKind, version: 1, state: ui.state() }));
   restored.ids.get('cargo').emit('click', screenPoint(121, 121));
-  assert.match(restored.ids.get('machineStatus').textContent, /2 Wood/);
+  assert.match(restored.ids.get('machineStatus').textContent, /1 Wood/);
+  const mode = restored.ids.get('carvingMode');
+  mode.value = 'plate'; mode.emit('change');
+  assert.equal(restored.state().machines.find(machine => machine.id === m.id).mode, 'plate');
 });
 
 test("Conveyor Shop independently checks gears and machine purchases check scaled belt components", () => {
@@ -1468,14 +1564,14 @@ test('Leek Duster Shop, inventory and repeat placement expose its cash effect', 
   assert.equal(ui.view().interaction.tool, null); assert.match(ui.ids.get('machineStatus').textContent, /Waiting for kinetic power/);
 });
 
-test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and uncapped cash effect', () => {
+test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and cash effect', () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 4000;
   f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
   const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'pebblePile');
   ui.categories.find(button => button.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(button => button.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const effects = ['Cash effect: +$4', 'Use Limit: 5', 'Base Value Required: $0.5'];
+  const effects = ['Cash effect: ×1.1', 'Use Limit: 4', 'Upper Limit: $100', 'Base Value Required: $0.3'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$4k / $4k', '40 / 40', '60 / 60', '2 / 2']);

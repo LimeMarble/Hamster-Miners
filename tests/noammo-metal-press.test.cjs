@@ -49,7 +49,7 @@ function outlet(f, m, type = 'basket') {
 test('Press and Heavy Wheel costs enforce every ingredient atomically and dismantling recovers only construction parts', () => {
   const costs = {
     metalPress: { cash: 5e5, materials: { wood: 100, granite: 500, copperIngot: 50, woodenGear: 40 }, machines: { belt: 3 } },
-    heavyWheel: { cash: 6e5, materials: { wood: 800, chert: 200, copperPlate: 50, copperGear: 15 } },
+    heavyWheel: { cash: 6e5, materials: { wood: 800, chert: 200, granite: 150, woodenGear: 25 } },
   };
   for (const [type, cost] of Object.entries(costs)) {
     assert.deepEqual(D.machines[type].cost, cost);

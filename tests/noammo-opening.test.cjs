@@ -73,7 +73,7 @@ test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.drive.cost, { cash: 0, materials: { wood: 75, leekFiber: 7.5 } });
   assert.deepEqual(D.machines.primitive.cost, { cash: 2, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } });
   assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
-  assert.deepEqual(D.machines.planter.cost, { cash: 1500, materials: { brick: 50, leekFiber: 100, soil: 200 } });
+  assert.deepEqual(D.machines.planter.cost, { cash: 0, materials: { wood: 40, leekFiber: 10, leek: 4, chert: 2, soil: 10 } });
   assert.equal(D.config.planterSeconds, 8); assert.equal(D.machines.planter.cycle, 8);
   assert.equal(D.materials.wood.heat, 30000);
   assert.equal(D.machines.primitive.cashEffect, null, "test balance must not masquerade as an agreed effect");
@@ -87,16 +87,15 @@ test("slow starter Planter yields one Leek per eight seconds and additional Plan
   advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
   advance(factory, 52); assert.equal(factory.total(basket, "contents"), 7);
   assert.equal(planter.output.length, 0);
-  factory.state.cash = 3000; factory.state.inventory.brick = 100; factory.state.inventory.leekFiber = 199;
-  factory.state.inventory.soil = 400;
+  Object.assign(factory.state.inventory, { wood: 80, leekFiber: 19, leek: 8, chert: 4, soil: 20 });
   const before = factory.exportSave(); assert.ok(factory.buy("planter", 2).error); assert.equal(factory.exportSave(), before);
-  factory.state.inventory.leekFiber = 200;
-  factory.state.inventory.soil = 399;
+  factory.state.inventory.leekFiber = 20;
+  factory.state.inventory.soil = 19;
   const withoutSoil = factory.exportSave();
   assert.ok(factory.buy("planter", 2).error); assert.equal(factory.exportSave(), withoutSoil);
-  factory.state.inventory.soil = 400;
+  factory.state.inventory.soil = 20;
   assert.equal(factory.buy("planter", 2).amount, 2);
-  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0); assert.equal(factory.state.inventory.leekFiber, 0);
+  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.wood, 0); assert.equal(factory.state.inventory.leekFiber, 0);
   assert.equal(factory.state.inventory.soil, 0);
   assert.equal(factory.borrow("planter"), false);
 });
@@ -111,7 +110,7 @@ test("manual Clay Pits require $5 and 100 Wood, use one crew, and output into a 
     const before = factory.exportSave(); assert.ok(factory.buy('clayPit').error); assert.equal(factory.exportSave(), before);
     factory.state.cash = 5; assert.equal(factory.buy("clayPit").amount, 1);
     const pit = factory.place("clayPit", 40, 40, facing).machine;
-    assert.equal(factory.availableCrew(), 9); assert.deepEqual(size(pit), { width: 2, height: 2 });
+    assert.equal(factory.availableCrew(), 19); assert.deepEqual(size(pit), { width: 2, height: 2 });
     const outputs = ports(pit); assert.equal(outputs.length, 1); assert.equal(outputs[0].span, 2);
     const [tx, ty] = { right: [42, 40], down: [40, 42], left: [38, 40], up: [40, 38] }[facing];
     place(factory, "sellTube", tx, ty);
@@ -152,7 +151,7 @@ test("four unpowered Clay Pits feed one free Sell Tube from four sides for exact
   for (const [x, y, facing] of [[38, 40, "right"], [42, 40, "left"], [40, 38, "down"], [40, 42, "up"]]) place(factory, "clayPit", x, y, facing);
   advance(factory, 60);
   assert.equal(factory.state.cash, 5); assert.equal(factory.state.soldItems, 20);
-  assert.equal(factory.availableCrew(), 6); assert.equal(factory.poweredDrives.length, 0);
+  assert.equal(factory.availableCrew(), 16); assert.equal(factory.poweredDrives.length, 0);
 });
 
 test("Sell Tube feedback uses actual stack proceeds, never fires on intake checks, stays bounded and is not saved", () => {
@@ -208,7 +207,7 @@ test("older opening saves default the new Clay fields without changing progress 
 
 test("crew hiring starts at $5, scales by 1.1 per paid hire, and rejects unaffordable hires without mutation", () => {
   const factory = new Factory(createState(1));
-  assert.equal(factory.totalCrew(), 10); assert.equal(factory.availableCrew(), 10);
+  assert.equal(factory.totalCrew(), 20); assert.equal(factory.availableCrew(), 20);
   for (let hired = 0; hired < 5; hired++) {
     const cost = 5 * 1.1 ** hired;
     assert.equal(factory.crewHireCost(), cost);
@@ -219,14 +218,14 @@ test("crew hiring starts at $5, scales by 1.1 per paid hire, and rejects unaffor
     factory.state.cash = cost;
     assert.equal(factory.hireCrew().cost, cost); assert.equal(factory.state.cash, 0);
     assert.equal(factory.state.hiredCrew, hired + 1);
-    assert.equal(factory.totalCrew(), 11 + hired); assert.equal(factory.availableCrew(), 11 + hired);
+    assert.equal(factory.totalCrew(), 21 + hired); assert.equal(factory.availableCrew(), 21 + hired);
   }
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
 test("hired crew support additional machines and survive placement, pickup and save/load", () => {
   const factory = new Factory(createState(1));
-  for (let index = 0; index < 10; index++) place(factory, "fiber", 40 + index * 2, 40);
+  for (let index = 0; index < 20; index++) place(factory, "fiber", 40 + index * 2, 40);
   assert.equal(factory.availableCrew(), 0);
   factory.state.stock.fiber++;
   assert.ok(factory.place("fiber", 80, 40).error);
@@ -234,9 +233,9 @@ test("hired crew support additional machines and survive placement, pickup and s
   const extra = factory.place("fiber", 80, 40).machine;
   assert.ok(extra); assert.equal(factory.availableCrew(), 0);
   factory.hireCrew(); place(factory, "fiber", 82, 40);
-  assert.equal(factory.totalCrew(), 12); assert.equal(factory.availableCrew(), 0);
+  assert.equal(factory.totalCrew(), 22); assert.equal(factory.availableCrew(), 0);
   const loaded = Factory.importSave(factory.exportSave());
-  assert.equal(loaded.totalCrew(), 12); assert.equal(loaded.availableCrew(), 0);
+  assert.equal(loaded.totalCrew(), 22); assert.equal(loaded.availableCrew(), 0);
   assert.equal(loaded.move(extra.id, 80, 42, "right").error, undefined);
   loaded.pickup(extra.id);
   assert.equal(loaded.availableCrew(), 1); assert.equal(loaded.state.hiredCrew, 2);
@@ -247,7 +246,7 @@ test("old saves default to zero paid hires and malformed hired counts are reject
   const factory = new Factory(createState(1));
   delete factory.state.hiredCrew;
   const loaded = Factory.importSave(factory.exportSave());
-  assert.equal(loaded.state.hiredCrew, 0); assert.equal(loaded.totalCrew(), 10); assert.equal(loaded.crewHireCost(), 5);
+  assert.equal(loaded.state.hiredCrew, 0); assert.equal(loaded.totalCrew(), 20); assert.equal(loaded.crewHireCost(), 5);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
   for (const invalid of [-1, 1.5, null, "2"]) {
     const saved = JSON.parse(factory.exportSave()); saved.state.hiredCrew = invalid;
@@ -596,7 +595,7 @@ test("Logger produces Wood every six seconds in all rotations and old saves reta
     const logger = place(factory, "logger", tree.x + dx, tree.y + dy, facing);
     const point = ports(logger)[0], v = D.vectors[point.direction];
     const basket = place(factory, "basket", point.x + v.x, point.y + v.y);
-    assert.equal(factory.availableCrew(), 9);
+    assert.equal(factory.availableCrew(), 19);
     advance(factory, 5.9); assert.equal(factory.total(basket, "contents"), 0);
     advance(factory, 0.1); assert.equal(factory.total(basket, "contents"), 1);
     const old = JSON.parse(factory.exportSave()); delete old.state.loggerSpeedVersion;
@@ -664,8 +663,12 @@ test("purchasing checks cash AND materials, including gears and Wood per conveyo
 });
 
 test("dismantling every priced machine returns its current materials and component machines, never cash", () => {
-  for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost)) {
+  for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost && !definition.legacyOnly)) {
     const f = new Factory(createState(1)), cost = definition.cost;
+    if (type === "kiln") f.state.minorRunes.transmutation = 1;
+    if (type === "primitiveOven") f.state.minorRunes.transmutation = 2;
+    if (type === "primitiveFurnace") f.state.minorRunes.transmutation = 3;
+    if (type === "wheatPlanter") f.state.minorRunes.harvest = 1;
     f.state.cash = cost.cash + 123;
     Object.assign(f.state.inventory, cost.materials); Object.assign(f.state.stock, cost.machines ?? {});
     const originalStock = A.copy(f.state.stock), originalInventory = A.copy(f.state.inventory);
@@ -678,6 +681,30 @@ test("dismantling every priced machine returns its current materials and compone
     f.state.stock[type] = 0;
     const before = f.exportSave(); assert.ok(f.dismantle(type).error); assert.equal(f.exportSave(), before);
   }
+});
+
+test("Old Major Pedestals resize without displacing existing machines or refunding unpaid materials", () => {
+  const f = new Factory(createState(1));
+  const expanded = place(f, "majorRunePedestal", 40, 40);
+  const obstructed = place(f, "majorRunePedestal", 60, 40);
+  const edge = place(f, "majorRunePedestal", 80, 40);
+  const neighbor = place(f, "minorRunePedestal", 100, 40);
+  const old = JSON.parse(f.exportSave());
+  old.state.runeVersion = 1;
+  delete old.state.freeMajorPedestals;
+  delete old.state.inventory.aluminiumBronzePlate;
+  old.state.machines.find(machine => machine.id === neighbor.id).x = 64;
+  old.state.machines.find(machine => machine.id === edge.id).x = 246;
+  const loaded = Factory.importSave(JSON.stringify(old));
+  assert.deepEqual(size(loaded.byId.get(expanded.id)), { width: 8, height: 8 });
+  assert.equal(loaded.byId.get(neighbor.id).x, 64);
+  assert.equal(loaded.byId.has(obstructed.id), false);
+  assert.equal(loaded.byId.has(edge.id), false);
+  assert.equal(loaded.state.stock.majorRunePedestal, 2);
+  assert.equal(loaded.state.inventory.aluminiumBronzePlate, 0);
+  assert.deepEqual(loaded.dismantle("majorRunePedestal").materials, {});
+  assert.equal(loaded.state.freeMajorPedestals, 2);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test("dismantling consumes one picked-up instance, cannot touch placed machines and refunds no buffered cargo twice", () => {
@@ -726,11 +753,11 @@ test('starter dismantling reserves count placed, stocked and stored machines onc
 test("Primitive test ceiling is incoming eligibility, not an output clamp, and blockage cannot reapply it", () => {
   const { factory } = poweredFactory();
   const primitive = place(factory, "primitive", 23, 24);
-  assert.equal(factory.receive(primitive, cargo("leek", 1, 0.95), 23, 24, "left", true), 1);
+  assert.equal(factory.receive(primitive, cargo("leek", 1, 0.45), 23, 24, "left", true), 1);
   advance(factory, D.config.beltSeconds / 2);
-  assert.ok(Math.abs(primitive.lanes[0].value - 1.05) < 1e-8);
+  assert.ok(Math.abs(primitive.lanes[0].value - 0.55) < 1e-8);
   advance(factory, 10);
-  assert.ok(Math.abs(primitive.lanes[0].value - 1.05) < 1e-8);
+  assert.ok(Math.abs(primitive.lanes[0].value - 0.55) < 1e-8);
   assert.equal(primitive.lanes[0].upgrades.primitive, 1);
 });
 

@@ -22,9 +22,9 @@ test('Gear Bench has a cash-free 25 Wood price, one crew, and no gear/conveyor/p
   const before = f.exportSave(); assert.ok(f.buy('crudeGearBench').error); assert.equal(f.exportSave(), before);
   f.state.inventory.wood = 25; assert.equal(f.buy('crudeGearBench').amount, 1);
   const m = f.place('crudeGearBench', 40, 40).machine;
-  assert.equal(f.availableCrew(), 9); assert.equal(f.state.cash, 0);
+  assert.equal(f.availableCrew(), 19); assert.equal(f.state.cash, 0);
   assert.deepEqual(A.conveyorCells(m), []); assert.equal(d.requiresKinetic, undefined);
-  f.pickup(m.id); assert.equal(f.availableCrew(), 10);
+  f.pickup(m.id); assert.equal(f.availableCrew(), 20);
 });
 
 for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical reference cells, shared lower working tile and twelve-second output`, () => {
@@ -40,13 +40,12 @@ for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical refe
   const v = D.vectors[output.direction], basket = place(f, 'basket', output.x + v.x, output.y + v.y);
   assert.equal(f.receive(m, cargo('wood'), expected[0].x, expected[0].y, input.direction, true), 0);
   assert.equal(f.receive(m, cargo('wood'), output.x, output.y, output.direction, true), 0);
-  feed(f, m, cargo('wood', 1, 0.1)); f.update(10); assert.equal(m.job, null);
   feed(f, m, cargo('wood', 1, 0.3)); f.update(0.1); assert.equal(m.job.remaining, 12);
   f.update(11.9); assert.equal(basket.contents.length, 0); f.update(0.1);
   assert.equal(basket.contents[0].material, 'woodenGear');
-  assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.4);
+  assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.3);
   assert.equal(D.materials.woodenGear.weight, 2 * D.materials.wood.weight);
-  assert.equal(D.materials.woodenGear.value, 2 * D.materials.wood.value);
+  assert.equal(D.materials.woodenGear.value, D.materials.wood.value);
 });
 
 test('Gear intake is bounded to two waiting Wood, rejects fractions/materials and probes without mutation', () => {
@@ -54,7 +53,7 @@ test('Gear intake is bounded to two waiting Wood, rejects fractions/materials an
   const before = f.exportSave(); assert.equal(feed(f, m, cargo('wood', 100), false), 2); assert.equal(f.exportSave(), before);
   for (const item of [cargo('clay'), cargo('woodenGear'), cargo('wood', 0.5)]) assert.equal(feed(f, m, item), 0);
   assert.equal(feed(f, m, cargo('wood', 100)), 2); assert.equal(feed(f, m, cargo('wood')), 0);
-  f.update(0.1); assert.equal(feed(f, m, cargo('wood', 100)), 2);
+  f.update(0.1); assert.equal(feed(f, m, cargo('wood', 100)), 1);
   advance(f, 60); assert.equal(m.output.length, 1); assert.equal(f.total(m, 'input'), 2); assert.equal(m.job, null);
   assert.equal(feed(f, m, cargo('wood', 100)), 0);
   const basket = place(f, 'basket', 41, 41); f.update(0.1);
@@ -74,7 +73,7 @@ test('Independent Gear Bench jobs follow moves/saves, recover once on pickup, an
   feed(f, m, cargo('wood', 2, 1)); feed(f, second, cargo('wood', 2, 2)); f.update(0.1); f.update(3);
   feed(f, m, cargo('wood', 2)); assert.equal(f.move(m.id, 60, 40, 'up').error, undefined);
   const loaded = Factory.importSave(f.exportSave()); loaded.update(9);
-  assert.equal(loaded.byId.get(m.id).output[0].value, 2); assert.equal(loaded.byId.get(second.id).output[0].value, 4);
+  assert.equal(loaded.byId.get(m.id).output[0].value, 1); assert.equal(loaded.byId.get(second.id).output[0].value, 2);
   loaded.pickup(m.id); assert.equal(loaded.state.inventory.woodenGear, 1); assert.equal(loaded.state.inventory.wood, 2);
   loaded.pickup(m.id); assert.equal(loaded.state.inventory.woodenGear, 1); assert.equal(loaded.state.stock.crudeGearBench, 1);
   const replacement = loaded.place('crudeGearBench', 40, 40).machine;
@@ -89,9 +88,9 @@ test('Older saves gain only zero Gear stock/inventory; malformed current fields,
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
   const m = place(f, 'crudeGearBench');
   for (const items of [[cargo('wood', 3)], [cargo('clay')], [cargo('wood', 0.5)]]) {
-    m.input = items; assert.throws(() => Factory.importSave(f.exportSave()), /Gear Bench/);
+    m.input = items; assert.throws(() => Factory.importSave(f.exportSave()), /Wood Carving Bench/);
   }
-  m.input = []; m.mode = 'pot'; assert.throws(() => Factory.importSave(f.exportSave()), /Gear Bench/);
+  m.input = []; m.mode = 'pot'; assert.throws(() => Factory.importSave(f.exportSave()), /Wood Carving Bench/);
   m.mode = 'gear'; delete f.state.inventory.woodenGear; assert.throws(() => Factory.importSave(f.exportSave()));
 });
 

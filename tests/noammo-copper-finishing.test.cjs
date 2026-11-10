@@ -36,7 +36,7 @@ test('Molder and Chimes have agreed atomic purchase costs, staffing and footprin
     assert.equal(f.buy(type).amount, 1); assert.equal(f.state.cash, 0);
     const m = f.place(type, 40, 40).machine;
     assert.equal(A.cells(m).length, type === 'ingotMolder' ? 2 : 3);
-    assert.equal(f.availableCrew(), type === 'ingotMolder' ? 9 : 10);
+    assert.equal(f.availableCrew(), type === 'ingotMolder' ? 19 : 20);
   }
   assert.deepEqual(A.size({ type: 'ingotMolder', facing: 'right' }), { width: 1, height: 2 });
   assert.deepEqual(ports({ type: 'ingotMolder', x: 0, y: 0, facing: 'right' }), ports({ type: 'fiber', x: 0, y: 0, facing: 'right' }));

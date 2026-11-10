@@ -55,7 +55,7 @@ test('Graphite Drill, Extruder and Spool charge their full costs atomically and 
     const f = new A.Factory(A.createState(1)); f.state.cash = cost.cash; Object.assign(f.state.inventory, cost.materials);
     assert.equal(f.buy(type).amount, 1); assert.equal(f.state.cash, 0);
     const m = f.place(type, 40, 40).machine; assert.ok(m);
-    assert.equal(f.availableCrew(), type === 'extruder' ? 9 : 10);
+    assert.equal(f.availableCrew(), type === 'extruder' ? 19 : 20);
   }
 });
 

@@ -30,10 +30,10 @@ test("Clay Shaping Bench costs no Clay, assigns one crew, and never grants itsel
   assert.equal(factory.buy("clayShaper").amount, 1);
   assert.equal(factory.state.inventory.clay, 0);
   const machine = factory.place("clayShaper", 40, 40).machine;
-  assert.equal(machine.mode, "brick"); assert.equal(factory.availableCrew(), 9);
-  factory.pickup(machine.id); assert.equal(factory.availableCrew(), 10);
+  assert.equal(machine.mode, "brick"); assert.equal(factory.availableCrew(), 19);
+  factory.pickup(machine.id); assert.equal(factory.availableCrew(), 20);
   factory.state.hiredCrew = 0;
-  for (let i = 0; i < 10; i++) place(factory, "fiber", 50 + i * 2, 50);
+  for (let i = 0; i < 20; i++) place(factory, "fiber", 50 + i * 2, 50);
   assert.match(factory.place("clayShaper", 40, 40).error, /hamsters/);
 });
 

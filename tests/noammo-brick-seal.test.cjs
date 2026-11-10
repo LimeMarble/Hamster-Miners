@@ -53,30 +53,29 @@ test("Brick Seal costs $200 and 35 fired Bricks, needs no crew, and exactly copi
   factory.state.inventory.brick = 35; assert.equal(factory.buy("brickSeal").amount, 1);
   assert.equal(factory.state.inventory.brick, 0); assert.equal(factory.state.cash, 0);
   const seal = factory.place("brickSeal", 40, 40).machine;
-  assert.equal(factory.availableCrew(), 10);
+  assert.equal(factory.availableCrew(), 20);
   assert.deepEqual(ports(seal).map((point) => [point.x - 40, point.y - 40]), [[layout.internalConveyors[0].column, layout.internalConveyors[0].row], [0, 0]]);
 });
 
-test("Cash uses are shared across Seal instances, capped at nine, and use current per-unit value without altering quantity", () => {
+test("Cash uses are shared across Seal instances, capped at five, and preserve quantity", () => {
   const { factory, seal } = setup(), other = place(factory, "brickSeal", 42, 42);
   let item = cargo("brick", 2, 1);
   for (let index = 0; index < 12; index++) item = pass(factory, index % 2 ? other : seal, item);
-  near(item.value, 1 + 1.25 * 9); assert.equal(item.upgrades.brickSeal, 9); assert.equal(item.quantity, 2);
+  near(item.value, 1 + 3.6 * 5); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.quantity, 2);
   assert.equal(item.gradeRepairs, undefined);
 });
 
-test("Cash ceiling is incoming eligibility, may be exceeded by the final use, and never clamps or reduces a product's value", () => {
+test("Brick Seal applies all five uses above the old cash ceiling and preserves spent uses from saves", () => {
   const { factory, seal } = setup();
-  let item = pass(factory, seal, cargo("brick", 1, 14.9));
-  near(item.value, 16.15); assert.equal(item.upgrades.brickSeal, 1);
-  item = pass(factory, seal, item); near(item.value, 16.15); assert.equal(item.upgrades.brickSeal, 1);
-  for (const value of [15, 20, 100]) {
-    item = pass(factory, seal, cargo("pot", 1, value));
-    assert.equal(item.value, value); assert.equal(item.upgrades.brickSeal, undefined);
-    assert.equal(item.gradeRepairs, undefined);
-  }
-  item = repeat(factory, seal, cargo("unfiredPot", 1, 4.2), 12);
-  near(item.value, 15.45); assert.equal(item.upgrades.brickSeal, 9);
+  const item = repeat(factory, seal, cargo("brick", 1, 100), 12);
+  near(item.value, 118); assert.equal(item.upgrades.brickSeal, 5);
+  const oldCargo = { ...cargo("brick", 1, 20), upgrades: { brickSeal: 9 } };
+  seal.lanes[0] = oldCargo;
+  const loaded = Factory.importSave(factory.exportSave());
+  assert.deepEqual(loaded.byId.get(seal.id).lanes[0], oldCargo);
+  delete loaded.byId.get(seal.id).lanes[0];
+  const passed = pass(loaded, loaded.byId.get(seal.id), oldCargo);
+  assert.equal(passed.value, 20); assert.equal(passed.upgrades.brickSeal, 9);
 });
 
 test("Eligibility uses declared base value, not current value, material family, ore/ingot labels or stack total", () => {
@@ -92,7 +91,7 @@ test("Eligibility uses declared base value, not current value, material family, 
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "noammo-simulation.js"), "utf8"), context);
   const { factory: metalFactory, seal: metalSeal } = setup(context.NoAmmo);
   const item = pass(metalFactory, metalSeal, context.NoAmmo.cargo("testMetal", 2, 2));
-  near(item.value, 3.25); assert.equal(item.upgrades.brickSeal, 1); assert.equal(item.gradeRepairs, undefined);
+  near(item.value, 5.6); assert.equal(item.upgrades.brickSeal, 1); assert.equal(item.gradeRepairs, undefined);
 });
 
 test("Brick Seal does not add quality repairs, including when legacy repairs are present", () => {
@@ -111,9 +110,9 @@ test("Blocked/unpowered Seals cannot repeatedly upgrade cargo or silently become
   assert.equal(factory.receive(seal, cargo("brick"), 40, 41, "left", true), 0);
   assert.equal(factory.receive(seal, cargo("brick"), 40, 40, "right", true), 0);
   receive(factory, seal, cargo("brick", 1, 1)); factory.update(1);
-  near(seal.lanes[0].value, 2.25); assert.equal(seal.lanes[0].gradeRepairs, undefined);
+  near(seal.lanes[0].value, 4.6); assert.equal(seal.lanes[0].gradeRepairs, undefined);
   for (let index = 0; index < 3; index++) factory.update(30);
-  near(seal.lanes[0].value, 2.25); assert.equal(seal.lanes[0].gradeRepairs, undefined);
+  near(seal.lanes[0].value, 4.6); assert.equal(seal.lanes[0].gradeRepairs, undefined);
   assert.equal(receive(factory, seal, cargo("brick")), 0);
   const distant = place(factory, "brickSeal", 70, 70);
   assert.equal(receive(factory, distant, cargo("brick")), 0);
@@ -127,7 +126,7 @@ test("Actual Seal conveyor routes feed a Basket in all orientations, leaving the
     receive(factory, seal, cargo("brick", 1, 4.2));
     factory.update(1.9); assert.equal(basket.contents.length, 0);
     factory.update(0.1); assert.equal(factory.total(basket, "contents"), 1);
-    near(basket.contents[0].value, 5.45); assert.equal(basket.contents[0].gradeRepairs, undefined);
+    near(basket.contents[0].value, 7.8); assert.equal(basket.contents[0].gradeRepairs, undefined);
     assert.equal(cells(seal).length, 2);
     assert.equal(Factory.importSave(factory.exportSave()).byId.get(seal.id).facing, facing);
   }
@@ -144,7 +143,7 @@ test("Repair follows Clay through shaping and firing, but new material cash tags
   const kiln = place(factory, "kiln", 60, 50);
   receive(factory, kiln, cargo("wood", 4)); receive(factory, kiln, { ...sealed, quantity: 2 });
   factory.update(0.1); factory.update(12);
-  const fired = kiln.output[0]; near(fired.value, (4.2 + 1.25) * 4);
+  const fired = kiln.output[0]; near(fired.value, (4.2 + 3.6) * 4);
   assert.equal(fired.gradeRepairs.brickSeal, 4); assert.deepEqual(fired.upgrades, {});
 });
 

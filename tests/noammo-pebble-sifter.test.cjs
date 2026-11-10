@@ -32,21 +32,22 @@ function setup(facing = "right", collectors = true) {
 }
 
 test("Pebble Sifter cost, construction materials, six-cell footprint and material properties are exact", () => {
-  assert.deepEqual(D.machines.pebbleSifter.cost, { cash: 1800, materials: { wood: 150, brick: 30, leekFiber: 50 } });
+  assert.deepEqual(D.machines.pebbleSifter.cost, { cash: 0, materials: { wood: 50, leekFiber: 20, woodenGear: 5 } });
   assert.equal(D.materials.chert.value, 0.1); assert.equal(D.materials.soil.value, null);
   const factory = new Factory(createState(1));
-  assert.equal(factory.state.stock.pebbleSifter, 0);
-  const full = { wood: 150, brick: 30, leekFiber: 50 };
-  for (const missing of ["cash", ...Object.keys(full)]) {
-    factory.state.cash = 1800; Object.assign(factory.state.inventory, full);
-    if (missing === "cash") factory.state.cash--; else factory.state.inventory[missing]--;
+  assert.equal(factory.state.stock.pebbleSifter, 1);
+  assert.equal(factory.state.stock.wheel, 1);
+  const full = { wood: 50, leekFiber: 20, woodenGear: 5 };
+  for (const missing of Object.keys(full)) {
+    Object.assign(factory.state.inventory, full);
+    factory.state.inventory[missing]--;
     const before = factory.exportSave(); assert.ok(factory.buy("pebbleSifter").error);
     assert.equal(factory.exportSave(), before);
   }
-  factory.state.cash = 3600; Object.assign(factory.state.inventory, { wood: 300, brick: 60, leekFiber: 100 });
+  Object.assign(factory.state.inventory, { wood: 100, leekFiber: 40, woodenGear: 10 });
   assert.equal(factory.buy("pebbleSifter", 2).amount, 2); assert.equal(factory.state.cash, 0);
   const sifter = factory.place("pebbleSifter", 40, 40).machine;
-  assert.equal(A.cells(sifter).length, 6); assert.equal(factory.availableCrew(), 10);
+  assert.equal(A.cells(sifter).length, 6); assert.equal(factory.availableCrew(), 20);
   assert.deepEqual(ports(sifter), [
     { x: 42, y: 40, direction: "right", role: "output", material: "soil" },
     { x: 41, y: 41, direction: "down", role: "kineticInput" },
@@ -164,8 +165,31 @@ test("Sifter migration only defaults new fields; corrupt output materials, sizes
     (machine) => { machine.timer = 100; },
   ]) {
     const invalid = JSON.parse(before); mutate(invalid.state.machines.find((machine) => machine.id === sifter.id));
-    assert.throws(() => Factory.importSave(JSON.stringify(invalid)), /sifter/);
+    assert.throws(() => Factory.importSave(JSON.stringify(invalid)), /sifter/i);
   }
+});
+
+test("Sifter II consumes a stocked Sifter and the old focus-mode setup survives migration", () => {
+  const { factory, sifter } = setup("right", false);
+  assert.ok(factory.setSourceMode(sifter.id, "malachite").error);
+  assert.deepEqual(D.machines.pebbleSifterII.cost, { cash: 0, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } });
+  Object.assign(factory.state.inventory, { brick: 40, granite: 75 });
+  assert.equal(factory.buy("pebbleSifterII").amount, 1);
+  assert.equal(factory.state.stock.pebbleSifter, 0);
+  assert.equal(factory.state.inventory.brick, 0);
+  assert.equal(factory.state.inventory.granite, 0);
+
+  const old = JSON.parse(factory.exportSave());
+  delete old.state.starterSiftersVersion;
+  delete old.state.stock.pebbleSifterII;
+  old.state.tuning.primitiveLimit = 1;
+  old.state.machines.find(machine => machine.id === sifter.id).mode = "malachite";
+  const loaded = Factory.importSave(JSON.stringify(old)), upgraded = loaded.byId.get(sifter.id);
+  assert.equal(upgraded.type, "pebbleSifterII");
+  assert.equal(upgraded.mode, "malachite");
+  assert.equal(loaded.state.tuning.primitiveLimit, 0.5);
+  assert.equal(loaded.state.stock.pebbleSifter, 1);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test("buffered Soil and Chert render on separate port cells with compact fractional labels", () => {

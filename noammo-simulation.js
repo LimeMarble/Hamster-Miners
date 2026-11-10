@@ -34,8 +34,17 @@
   }
   const supportsOutputHistory = (type) => type === "primitive" || type === "gradingBench" || Boolean(D.machines[type]?.cashEffect);
   const isCrafter = (definition) => Boolean(definition.craftInput || definition.molder || definition.pressModes || definition.formingModes);
+  const runeUnlocks = new Map();
+  for (const [category, offerings] of Object.entries(D.minorRunes)) {
+    for (const [index, offering] of offerings.entries()) {
+      if (!D.machines[offering.machine] || Object.keys(offering.materials).some(material => !D.materials[material])) break;
+      runeUnlocks.set(offering.machine, { category, tier: index + 1 });
+    }
+  }
   const thermalRecipeEntry = (definition, material) => Object.entries(definition.recipes)
     .find(([id, recipe]) => (recipe.material ?? id) === material);
+  const ovenRecipeForInput = (definition, input) => input.length
+    ? Object.values(definition.recipes).find(recipe => input.every(item => Object.hasOwn(recipe.inputs, item.material))) : null;
   function moldingProduct(material) {
     const source = D.materials[material], product = D.materials[source?.moldsTo];
     return source?.fluid && !source.requiresRefractoryCaster && product && !product.fluid && !product.requiresRefractoryCaster
@@ -93,7 +102,7 @@
     const configured = D.machines[machine.type].ports;
     if (configured) return configured.filter((point) => !point.mode || point.mode === (machine.mode ?? D.machines[machine.type].defaultMode)).map((point) => ({
       ...port(machine, point.x, point.y, point.direction, point.role),
-      ...(point.material ? { material: machine.type === "pebbleSifter" && point.material === "chert"
+      ...(point.material ? { material: D.machines[machine.type].batchModes && point.material === "chert"
         ? (machine.mode === "soil" ? "soil" : machine.mode === "malachite" ? "malachitePebble" : "chert") : point.material } : {}),
       ...(point.mode ? { mode: point.mode } : {}),
       ...(point.span ? { span: point.span } : {}),
@@ -144,13 +153,15 @@
     const middle = conveyorCells(bridge)[1];
     return middle.x === x && middle.y === y;
   }
+  // Older cargo can retain more spent uses than the rebalanced upgrade allows.
+  const legacyCashUseLimits = { brickSeal: 9, pebblePile: 5 };
   function validCargo(item) {
     return item && D.materials[item.material] && Number.isFinite(item.quantity) && item.quantity > 0
       && Number.isFinite(item.value) && item.value >= 0 && item.upgrades && typeof item.upgrades === "object"
       && !Array.isArray(item.upgrades) && Number.isFinite(item.progress) && item.progress >= 0 && item.progress <= 1
       && Object.values(item.upgrades).every((value) => typeof value === "boolean" || (Number.isSafeInteger(value) && value >= 0))
       && Object.entries(item.upgrades).every(([type, uses]) => D.machines[type]?.cashEffect?.useLimit === undefined
-        || (Number.isSafeInteger(uses) && uses >= 0 && uses <= D.machines[type].cashEffect.useLimit))
+        || (Number.isSafeInteger(uses) && uses >= 0 && uses <= (legacyCashUseLimits[type] ?? D.machines[type].cashEffect.useLimit)))
       && item.grading === undefined && (item.graded === undefined || typeof item.graded === "boolean")
       && (item.materialHistory === undefined || (item.materialHistory && typeof item.materialHistory === "object" && !Array.isArray(item.materialHistory)
         && Object.entries(item.materialHistory).every(([key, value]) => {
@@ -292,15 +303,7 @@
     if (Object.values(repairs).some((count) => count > 0)) output.gradeRepairs = repairs;
     return blendQuality(output, inputs);
   }
-  function applyBrickSeal(item) {
-    const definition = D.machines.brickSeal, effect = definition.cashEffect, material = D.materials[item.material];
-    const uses = item.upgrades.brickSeal ?? 0;
-    if (material.value !== null && material.value >= effect.baseValueRequired && item.value < effect.upperLimit && uses < effect.useLimit) {
-      setCargoValue(item, item.value + effect.bonus); item.upgrades.brickSeal = Math.min(effect.useLimit, uses + 1);
-    }
-  }
   function applyCashEffect(item, type) {
-    if (type === "brickSeal") return applyBrickSeal(item);
     if (D.machines[type].persistentEffects) {
       const cashKey = `${type}:${item.material}:cash`, gradeKey = `${type}:${item.material}:grade`;
       // Keep the original material in saved history for compatibility/provenance,
@@ -341,18 +344,21 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, manualOverflowVersion: 1, beltCapacityVersion: 1, pebblePileVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, playtestVersion: 2,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
+      runeVersion: 2, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 2,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
       clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0, hiredCrew: 0,
-      tuning: { primitiveBonus: 0.1, primitiveLimit: 1 },
+      tuning: { primitiveBonus: 0.1, primitiveLimit: 0.5 },
       playtest: { unlocked: false, toggles: Object.fromEntries(CHEATS.map((id) => [id, false])), used: Object.fromEntries(CHEATS.map((id) => [id, false])) },
     };
     state.stock.planter = 2;
     state.stock.basket = 1;
     state.stock.sellTube = 1;
+    state.stock.pebbleSifter = 1;
+    state.stock.wheel = 1;
     return state;
   }
 
@@ -753,8 +759,44 @@
       this.rebuild();
       return { amount: count };
     }
+    nextRune(pedestal, category) {
+      if (pedestal !== "minor" || !Object.hasOwn(D.minorRunes, category)) return null;
+      if (category === "activation" && this.state.capitalUnlocked) return null;
+      return D.minorRunes[category][this.state.minorRunes[category] ?? 0] ?? null;
+    }
+    runeCostError(offering) {
+      if (!offering) return "No offering available.";
+      if (offering.machine && !runeUnlocks.has(offering.machine)) return "This unlock is pending.";
+      if (this.state.cash < (offering.cash ?? 0)) return "Not enough cash.";
+      for (const [material, quantity] of Object.entries(offering.materials)) {
+        if (this.state.inventory[material] + epsilon < quantity) return `Not enough ${D.materials[material].name}.`;
+      }
+      return null;
+    }
+    redeemRune(id, category) {
+      const pedestal = D.machines[this.byId.get(id)?.type]?.runePedestal;
+      const offering = this.nextRune(pedestal, category);
+      const error = this.runeCostError(offering);
+      if (error) return { error };
+      this.state.cash -= offering.cash ?? 0;
+      for (const [material, quantity] of Object.entries(offering.materials)) this.state.inventory[material] = Math.max(0, this.state.inventory[material] - quantity);
+      if (category === "activation") this.state.capitalUnlocked = true;
+      else {
+        this.state.minorRunes[category]++;
+        this.state.stock[offering.machine]++;
+      }
+      return { offering };
+    }
+    shopUnlockError(type) {
+      if (D.machines[type]?.legacyOnly) return "Use the Primitive Oven for new builds.";
+      const unlock = runeUnlocks.get(type);
+      if (unlock && this.state.minorRunes[unlock.category] < unlock.tier) return `Unlock this at the Minor Rune Pedestal under ${D.runeCategories[unlock.category]}.`;
+      return null;
+    }
     affordability(type, amount = 1) {
       if (!Number.isInteger(amount) || amount < 1 || amount > 9999) return "Choose 1–9999 machines.";
+      const unlockError = this.shopUnlockError(type);
+      if (unlockError) return unlockError;
       const cost = D.machines[type]?.cost;
       if (!cost) return "This item's cost has not been set.";
       if (this.state.cash + epsilon < cost.cash * amount) return "Not enough cash.";
@@ -792,10 +834,14 @@
       if (!(this.state.stock[type] > 0)) return "Pick up an owned machine before dismantling it.";
       return null;
     }
+    dismantleRefund(type) {
+      if (type === "majorRunePedestal" && this.state.freeMajorPedestals > 0) return { materials: {} };
+      return D.machines[type]?.cost;
+    }
     dismantle(type) {
       const error = this.dismantleError(type);
       if (error) return { error };
-      const cost = D.machines[type].cost;
+      const cost = this.dismantleRefund(type);
       const index = this.state.storedMachines.findIndex((machine) => machine.type === type);
       const materials = { ...cost.materials }, machines = { ...cost.machines };
       if (index >= 0) {
@@ -807,6 +853,7 @@
         this.outputHistories.delete(stored.id);
       }
       this.state.stock[type]--;
+      if (type === "majorRunePedestal" && this.state.freeMajorPedestals > 0) this.state.freeMajorPedestals--;
       for (const [material, quantity] of Object.entries(materials)) this.state.inventory[material] += quantity;
       for (const [machine, quantity] of Object.entries(machines)) this.state.stock[machine] += quantity;
       return { amount: 1, materials, machines };
@@ -836,7 +883,9 @@
       this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
       return money;
     }
-    total(machine, field) { return machine[field].reduce((sum, item) => sum + item.quantity, 0); }
+    total(machine, field, material) {
+      return machine[field].reduce((sum, item) => sum + (material && item.material !== material ? 0 : item.quantity), 0);
+    }
     setOverflowMode(id, mode) {
       const machine = this.byId.get(id), definition = D.machines[machine?.type];
       if (!definition?.manualTransferSeconds || !Object.hasOwn(definition.modeFootprints, mode)) return { error: "Invalid overflow mode." };
@@ -866,7 +915,8 @@
     }
     setShapingMode(id, mode) {
       const machine = this.byId.get(id);
-      if (machine?.type !== "clayShaper" || !Object.hasOwn(D.machines.clayShaper.recipes, mode)) return { error: "Invalid shaping mode." };
+      const definition = D.machines[machine?.type];
+      if (!definition?.craftInput || !Object.hasOwn(definition.recipes, mode)) return { error: "Invalid shaping mode." };
       // A running job retains its original recipe. Only subsequent jobs change.
       machine.mode = mode;
       return { machine };
@@ -924,6 +974,7 @@
       if (definition.waterPerBatch) machine.water = Math.max(0, machine.water - definition.waterPerBatch * bulk);
       const ingredients = this.takeInput(machine, recipe.input * bulk);
       machine.job = { input: combineCargo(ingredients), ...(definition.molder ? {} : { mode: machine.mode }), ...(bulk > 1 ? { bulk } : {}), remaining: recipe.seconds };
+      if (recipe.seconds === 0) this.finishShaping(machine);
     }
     finishShaping(machine) {
       if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
@@ -989,10 +1040,34 @@
       this.finishPainting(machine); this.startPainting(machine);
     }
     furnaceRecipe(machine) {
-      return thermalRecipeEntry(D.machines[machine.type], machine.input[0]?.material)?.[1];
+      const definition = D.machines[machine.type];
+      if (definition.oven) return ovenRecipeForInput(definition, machine.input);
+      return thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
+    }
+    preheatCargo(item, definition) {
+      const product = { ...copy(item), preheated: true };
+      const chance = gradeProbabilities(product)?.[1] ?? 0;
+      if (chance > epsilon) applyGradeTreatment(product, promotionTreatment([0, Math.min(1, definition.preheatGradeTransfer / chance), 0, 0, 0, 0]));
+      return product;
     }
     startKiln(machine) {
-      const definition = D.machines[machine.type], entry = thermalRecipeEntry(definition, machine.input[0]?.material), recipe = entry?.[1], bulk = machineBulk(this.state, machine);
+      const definition = D.machines[machine.type], bulk = machineBulk(this.state, machine);
+      if (definition.oven) {
+        const recipe = this.furnaceRecipe(machine);
+        if (machine.output.length || !recipe || machine.heat + epsilon < recipe.heat * bulk) return;
+        const ingredients = Object.entries(recipe.inputs);
+        if (ingredients.some(([material, count]) => this.total(machine, "input", material) < count * bulk)) return;
+        machine.heat = Math.max(0, machine.heat - recipe.heat * bulk);
+        const inputs = ingredients.flatMap(([material, count]) => this.takeInput(machine, count * bulk, material));
+        if (recipe.preheats) machine.output.push(...inputs.map(item => this.preheatCargo(item, definition)));
+        else {
+          const quantity = recipe.outputQuantity * bulk;
+          const value = inputs.reduce((sum, item) => sum + item.quantity * item.value, 0) * recipe.valueMultiplier / quantity;
+          machine.output.push(blendGradeRepairs(cargo(recipe.output, quantity, value), inputs));
+        }
+        return;
+      }
+      const entry = thermalRecipeEntry(definition, machine.input[0]?.material), recipe = entry?.[1];
       if (machine.job || !recipe || this.total(machine, "input") + epsilon < recipe.input * bulk) return;
       let pending = recipe.input * bulk; const batch = [];
       for (const item of machine.input) {
@@ -1013,12 +1088,7 @@
       const definition = D.machines[machine.type], recipe = definition.recipes[machine.job.recipe];
       if (machine.job.bulk > 1) machine.outputBulk = true;
       if (definition.preheats) {
-        for (const item of machine.job.inputs) {
-          const product = { ...copy(item), preheated: true };
-          const chance = gradeProbabilities(product)?.[1] ?? 0;
-          if (chance > epsilon) applyGradeTreatment(product, promotionTreatment([0, Math.min(1, definition.preheatGradeTransfer / chance), 0, 0, 0, 0]));
-          machine.output.push(product);
-        }
+        machine.output.push(...machine.job.inputs.map(item => this.preheatCargo(item, definition)));
         machine.job = null; return;
       }
       if (recipe.outputQuantity !== undefined) {
@@ -1045,7 +1115,8 @@
       machine.job = null;
     }
     unloadKiln(machine) {
-      if (machine.type === "kiln" || D.machines[machine.type].preheats) {
+      const direct = machine.type === "kiln" || D.machines[machine.type].preheats || D.machines[machine.type].oven;
+      if (direct) {
         // Inputs can arrive one at a time. Rejoin matching finished products
         // before selecting the largest portion that fits the receiving belt.
         for (let index = 1; index < machine.output.length;) {
@@ -1061,7 +1132,7 @@
       const belt = this.conveyorAt(output.x + direction.x, output.y + direction.y);
       // Kiln and Preheater output can enter a machine immediately, just as molten
       // furnace output does. A conveyor still controls its own transfer rate.
-      if ((machine.type === "kiln" || D.machines[machine.type].preheats) && !belt) {
+      if (direct && !belt) {
         while (machine.output.length) {
           const item = machine.output[0];
           const sent = this.sendOutput(machine, item, output);
@@ -1095,9 +1166,10 @@
       this.startKiln(machine);
     }
     unloadBatchSource(machine) {
-      if (D.machines[machine.type].electricPower && this.electricity.shortage) return;
+      const definition = D.machines[machine.type];
+      if (definition.electricPower && this.electricity.shortage) return;
       const outputs = ports(machine).filter((point) => point.role === "output");
-      if (machine.type === "pebbleSifter") {
+      if (definition.batchModes) {
         for (const item of [...machine.output]) {
           const slot = item.sifterSlot ?? (item.material === "soil" ? 0 : 1);
           const delivered = { ...item }; delete delivered.sifterSlot;
@@ -1132,7 +1204,7 @@
       return false;
     }
     receiveConveyor(machine, item, tile, consume, lateral = null) {
-      if (machine.beltRemainders?.[tile.index]) return 0;
+      if (D.materials[item.material].directTransferOnly || machine.beltRemainders?.[tile.index]) return 0;
       const elevated = Boolean(D.machines[machine.type].bridge);
       const stacking = Boolean(D.machines[machine.type].maxStackSize), existing = machine.lanes[tile.index];
       if (stacking && existing && (existing.material !== item.material || Boolean(existing.preheated) !== Boolean(item.preheated)
@@ -1226,6 +1298,7 @@
       if (!validCargo(item) || (D.materials[item.material].fluid && !D.machines[machine.type].molder && !D.machines[machine.type].fluidInput)) return 0;
       const input = ports(machine).find((point) => point.role === "input" && point.x === x && point.y === y
         && (!incomingSide || point.direction === incomingSide));
+      if (D.materials[item.material].directTransferOnly && !(input?.channel === "dish" && D.machines[machine.type].plateRecipes?.[item.material])) return 0;
       let quantity = 0;
       if (collectorCapacity(machine) && (machine.type === "basket" || input)) {
         quantity = Math.max(0, Math.min(item.quantity, this.collectorCapacity(machine) - this.total(machine, "contents")));
@@ -1264,6 +1337,15 @@
           quantity = Math.min(item.quantity, Math.floor(D.machines.gradingBench.inputWeightLimit / D.materials[item.material].weight));
           if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
         }
+      } else if (D.machines[machine.type].plateRecipes && input) {
+        const recipes = D.machines[machine.type].plateRecipes;
+        const dish = machine.input.find(entry => Object.hasOwn(recipes, entry.material));
+        const isDish = input.channel === "dish" && Object.hasOwn(recipes, item.material) && (!dish || dish.material === item.material);
+        if (!isDish && !(input.channel === "plate" && input.material === item.material)) return 0;
+        const required = machineBulk(this.state, machine);
+        const waiting = this.total(machine, "input", item.material);
+        quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), required - waiting));
+        if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (machine.type === "paintingBench" && input) {
         const expected = input.channel === "pot" ? "pot" : input.channel === "malachite" ? "malachitePebble" : null;
         if (item.material === expected) {
@@ -1273,9 +1355,18 @@
         }
       } else if (D.machines[machine.type].heatCapacity && input) {
         const definition = D.machines[machine.type];
-        const feedRecipe = thermalRecipeEntry(definition, item.material)?.[1];
+        const feedRecipe = definition.oven ? null : thermalRecipeEntry(definition, item.material)?.[1];
         const fuelHeat = D.materials[item.material].heat;
-        if (input.channel === "material" && feedRecipe && !(definition.preheats && item.preheated)
+        if (definition.oven && input.channel !== "fuel") {
+          const recipe = Object.values(definition.recipes).find(entry => {
+            const index = Object.keys(entry.inputs).indexOf(item.material);
+            return index >= 0 && input.channel === `ingredient${index + 1}` && machine.input.every(waiting => Object.hasOwn(entry.inputs, waiting.material));
+          });
+          if (recipe && !(recipe.preheats && item.preheated)) {
+            quantity = Math.max(0, Math.min(Math.floor(item.quantity), recipe.inputs[item.material] * machineBulk(this.state, machine) - this.total(machine, "input", item.material)));
+            if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
+          }
+        } else if (input.channel === "material" && feedRecipe && !(definition.preheats && item.preheated)
           && machine.input.every((entry) => entry.material === item.material)) {
           quantity = Math.max(0, Math.min(Math.floor(item.quantity), feedRecipe.input * machineBulk(this.state, machine) - this.total(machine, "input")));
           if (consume && quantity > 0) machine.input.push({ ...copy(item), quantity, progress: 0 });
@@ -1385,12 +1476,13 @@
             machine.timer += machineSeconds;
             if (machine.timer + epsilon >= definition.cycle) {
               machine.timer = Math.max(0, machine.timer - definition.cycle);
-              if (machine.type === "pebbleSifter") {
-                machine.output.push(cargo("soil", 0.1 * resourceMultiplier));
-                if (machine.mode === "soil") machine.output.push({ ...cargo("soil", 0.1 * resourceMultiplier), sifterSlot: 1 });
+              if (definition.batchModes) {
+                const { soil, chert } = definition.batchOutputs;
+                machine.output.push(cargo("soil", soil * resourceMultiplier));
+                if (machine.mode === "soil") machine.output.push({ ...cargo("soil", soil * resourceMultiplier), sifterSlot: 1 });
                 else if (machine.mode === "malachite") {
-                  if (random(state) < 0.2) machine.output.push(cargo("malachitePebble", resourceMultiplier));
-                } else machine.output.push(cargo("chert", 0.1 * resourceMultiplier));
+                  if (random(state) < definition.malachiteChance) machine.output.push(cargo("malachitePebble", resourceMultiplier));
+                } else machine.output.push(cargo("chert", chert * resourceMultiplier));
               } else for (const [material, quantity] of Object.entries(definition.batchOutputs)) {
                 if (definition.outputOverflow === "discardExcess") {
                   const current = machine.output.find((item) => item.material === material);
@@ -1406,11 +1498,13 @@
         } else if (definition.source || definition.sourceModes) {
           const cycle = definition.cycle, limit = (definition.outputLimit ?? 1) * resourceMultiplier;
           if ((!definition.requiresKinetic || this.kineticHasWheel(machine))
+            && (!definition.waterPerBatch || machine.water + epsilon >= definition.waterPerBatch)
             && (!definition.singleBatchOutput || !machine.output.length)
             && this.total(machine, "output") + (definition.sourceQuantity ?? 1) * resourceMultiplier <= limit + epsilon) {
             machine.timer += machineSeconds;
             if (machine.timer + epsilon >= cycle) {
               machine.timer = Math.max(0, machine.timer - cycle);
+              if (definition.waterPerBatch) machine.water = Math.max(0, machine.water - definition.waterPerBatch);
               machine.output.push(cargo(definition.source ?? machine.mode, (definition.sourceQuantity ?? 1) * resourceMultiplier));
             }
           }
@@ -1439,6 +1533,15 @@
             let grade = "Already graded";
             const product = gradeStack(state, machine.job.input, (name) => { grade = name; });
             machine.output.push(product); this.recordOutput(machine, product, grade); machine.job = null;
+          }
+        } else if (definition.plateRecipes && !machine.output.length) {
+          const dishType = machine.input.find(item => Object.hasOwn(definition.plateRecipes, item.material))?.material;
+          const recipe = definition.plateRecipes[dishType], bulk = machineBulk(state, machine);
+          const ingredients = recipe && Object.entries(recipe.inputs);
+          if (ingredients?.every(([material, quantity]) => this.total(machine, "input", material) >= quantity * bulk)) {
+            const inputs = ingredients.map(([material, quantity]) => combineCargo(this.takeInput(machine, quantity * bulk, material)));
+            const dish = inputs.find(item => item.material === recipe.valueIngredient);
+            machine.output.push(blendGradeRepairs(cargo(recipe.output, bulk, dish.value * recipe.valueMultiplier), [dish]));
           }
         } else if (machine.type === "paintingBench") {
           if (machine.job) machine.job.remaining = Math.max(0, machine.job.remaining - machineSeconds);
@@ -1557,7 +1660,10 @@
           : `Making ${definition.formingModes[machine.job.mode].name} · ${formatNumber(machine.job.remaining / (timeScale * (definition.kineticPairSpeed ? this.pressPower(machine).speed : 1)))}s`;
         if (machine.output.length) return "Output blocked";
         const recipe = definition.formingModes[machine.mode];
-        return `Waiting for ${recipe.input * machineBulk(this.state, machine)} ${definition.fluidInput ? "molten metal" : recipe.materialProperty === "washesTo" ? "matching rock" : "Wire or Fiber"} · ${formatNumber(this.total(machine, "input"))} / ${recipe.input * machineBulk(this.state, machine)}`;
+        const input = recipe.inputName ?? (definition.fluidInput ? "molten metal" : {
+          washesTo: "matching rock", cutsTo: "Leek or Peeled Leek",
+        }[recipe.materialProperty] ?? "Wire or Fiber");
+        return `Waiting for ${recipe.input * machineBulk(this.state, machine)} ${input} · ${formatNumber(this.total(machine, "input"))} / ${recipe.input * machineBulk(this.state, machine)}`;
       }
       if (D.machines[machine.type].pressModes) {
         const power = this.pressPower(machine), mode = D.machines[machine.type].pressModes[machine.mode];
@@ -1595,6 +1701,16 @@
         if (machine.input.filter((item) => item.material === "malachitePebble").reduce((sum, item) => sum + item.quantity, 0) < bulk) return bulk === 1 ? "Waiting for a Malachite Pebble" : `Waiting for ${bulk} Malachite Pebbles`;
         return "Waiting for Water";
       }
+      if (definition.plateRecipes) {
+        if (machine.output.length) return "Output waiting";
+        const bulk = machineBulk(this.state, machine);
+        const dishType = machine.input.find(item => Object.hasOwn(definition.plateRecipes, item.material))?.material;
+        if (!dishType) return "Waiting for food";
+        const missing = Object.entries(definition.plateRecipes[dishType].inputs).find(([material, quantity]) => this.total(machine, "input", material) < quantity * bulk);
+        return missing ? `Waiting for ${D.materials[missing[0]].name}` : "Ready to plate";
+      }
+      if (machine.type === "wheatPlanter") return machine.output.length >= definition.outputLimit
+        ? "Output waiting" : `Next Wheat in ${formatNumber((definition.cycle - machine.timer) / timeScale)}s`;
       if (D.machines[machine.type].batchOutputs) {
         if (machine.output.length) return "Output blocked";
         if (D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
@@ -1617,11 +1733,15 @@
         .every((point) => this.conveyorPowered(machine, point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
       if (D.machines[machine.type].heatCapacity) {
         if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked" : `${definition.preheats ? "Preheating" : "Firing"} · ${formatNumber(machine.job.remaining / timeScale)}s`;
-        if (machine.output.length) return D.materials[machine.output[0].material].fluid
+        if (machine.type !== "kiln" && machine.output.length) return D.materials[machine.output[0].material].fluid
           ? `${D.materials[machine.output[0].material].name} waiting for molding` : "Output waiting";
         const recipe = this.furnaceRecipe(machine);
         if (!recipe) return "Waiting for material";
         const bulk = machineBulk(this.state, machine);
+        if (definition.oven) {
+          const missing = Object.entries(recipe.inputs).find(([material, amount]) => this.total(machine, "input", material) < amount * bulk);
+          return missing ? `Waiting for ${D.materials[missing[0]].name}` : `Waiting for heat · ${formatNumber(recipe.heat * bulk)}u required`;
+        }
         if (this.total(machine, "input") < recipe.input * bulk) return `Waiting for a full batch · ${this.total(machine, "input")} / ${recipe.input * bulk}`;
         const seconds = recipe.preheatedSeconds && machine.input.every((item) => item.preheated) ? recipe.preheatedSeconds : recipe.seconds;
         return `Waiting for heat · ${formatNumber(seconds * (recipe.heatPerSecond ?? D.machines[machine.type].heatPerSecond) * bulk)}u required`;
@@ -1642,6 +1762,7 @@
       const payload = JSON.parse(text);
       if (payload?.kind !== D.saveKind || payload.version !== D.saveVersion || payload.state?.kind !== D.saveKind) throw new Error("This is not a no-ammo factory save. Existing mine saves are kept separate.");
       const state = copy(payload.state), base = createState(1);
+      const legacyMajorFootprint = (state.runeVersion ?? 0) < 2;
       if ((state.playtestVersion ?? 0) < 1) { state.playtest = copy(base.playtest); state.playtestVersion = 1; }
       if (state.playtestVersion < 2 && state.playtest?.toggles && state.playtest?.used) {
         if (!Object.hasOwn(state.playtest.toggles, "machineBulk")) state.playtest.toggles.machineBulk = false;
@@ -1657,6 +1778,54 @@
         if (state.stock && !Object.hasOwn(state.stock, "potShelf")) state.stock.potShelf = 0;
         if (state.inventory && !Object.hasOwn(state.inventory, "leekCoil")) state.inventory.leekCoil = 0;
         state.potShelfVersion = 1;
+      }
+      if ((state.plantCutterVersion ?? 0) < 1) {
+        if (state.stock && !Object.hasOwn(state.stock, "plantCutter")) state.stock.plantCutter = 0;
+        for (const material of ["peeledLeek", "choppedLeek"]) {
+          if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        }
+        state.plantCutterVersion = 1;
+      }
+      if ((state.foodVersion ?? 0) < 1) {
+        for (const type of ["platingBench", "wheatPlanter", "grainMill"]) {
+          if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
+        }
+        for (const material of ["woodenPlate", "leekSalad", "wheat", "flour"]) {
+          if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        }
+        state.foodVersion = 1;
+      }
+      if (state.foodVersion < 2) {
+        for (const type of ["doughShaper", "primitiveOven"]) {
+          if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
+        }
+        for (const material of ["dough", "rawPasta", "unplatedLeekPasta", "leekPasta"]) {
+          if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        }
+        state.foodVersion = 2;
+      }
+      if ((state.runeVersion ?? 0) < 1) {
+        for (const type of ["minorRunePedestal", "majorRunePedestal"]) {
+          if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
+        }
+        state.minorRunes = copy(base.minorRunes);
+        if (state.stock?.kiln > 0 || (state.machines ?? []).some(machine => machine.type === "kiln")) state.minorRunes.transmutation = 1;
+        state.capitalUnlocked = false;
+        state.runeVersion = 1;
+      }
+      const placedMajorPedestals = (state.machines ?? []).filter(machine => machine.type === "majorRunePedestal").length;
+      if (legacyMajorFootprint) {
+        if (state.inventory && !Object.hasOwn(state.inventory, "aluminiumBronzePlate")) state.inventory.aluminiumBronzePlate = 0;
+        state.freeMajorPedestals = state.stock?.majorRunePedestal + placedMajorPedestals;
+        state.runeVersion = 2;
+      }
+      if (!Number.isSafeInteger(state.freeMajorPedestals) || state.freeMajorPedestals < 0
+        || state.freeMajorPedestals > state.stock?.majorRunePedestal + placedMajorPedestals) throw new Error("Invalid legacy Major Rune Pedestal count.");
+      if (typeof state.capitalUnlocked !== "boolean" || !state.minorRunes
+        || Object.keys(state.minorRunes).length !== Object.keys(base.minorRunes).length
+        || Object.keys(base.minorRunes).some(category => !Number.isSafeInteger(state.minorRunes[category])
+          || state.minorRunes[category] < 0 || state.minorRunes[category] > D.minorRunes[category].length)) {
+        throw new Error("Invalid rune progress.");
       }
       if ((state.sawmillVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "sawmill")) state.stock.sawmill = 0;
@@ -1796,6 +1965,22 @@
         }
         if (state.stock && !Object.hasOwn(state.stock, "pebbleSifter")) state.stock.pebbleSifter = 0;
         state.pebbleSifterVersion = 1;
+      }
+      if ((state.starterSiftersVersion ?? 0) < 1) {
+        if (state.tuning?.primitiveLimit === 1) state.tuning.primitiveLimit = 0.5;
+        // Existing sifters had focus modes. Keep their recipes and placements.
+        for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
+          if (machine.type === "pebbleSifter") {
+            machine.type = "pebbleSifterII";
+            machine.mode ??= "chert";
+          }
+        }
+        if (state.stock && Number.isInteger(state.stock.pebbleSifter) && state.stock.pebbleSifter >= 0) {
+          state.stock.pebbleSifterII = state.stock.pebbleSifter;
+          state.stock.pebbleSifter = 1;
+          if (state.stock.wheel === 0 && !(state.machines ?? []).some((machine) => machine.type === "wheel")) state.stock.wheel = 1;
+        }
+        state.starterSiftersVersion = 1;
       }
       if ((state.brickStorageVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "brickStorage")) state.stock.brickStorage = 0;
@@ -2013,8 +2198,10 @@
             || machine.input.some((item) => item.material !== definition.craftInput || !Number.isInteger(item.quantity))
             || machine.input.reduce((sum, item) => sum + item.quantity, 0) > definition.inputLimit * maxBulk
             || machine.output.length > 1
-            || machine.output.some((item) => !Object.values(recipes).some((outputRecipe) => outputRecipe.output === item.material) || item.quantity > maxBulk)
-            || (machine.job && (!recipe || machine.job.input.material !== definition.craftInput || machine.job.input.quantity !== recipe.input * (machine.job.bulk ?? 1)
+            || machine.output.some((item) => !Object.values(recipes).some(outputRecipe => outputRecipe.output === item.material && item.quantity <= (outputRecipe.outputQuantity ?? 1) * maxBulk))
+            || (machine.job && (!recipe || machine.job.input.material !== definition.craftInput
+              || (machine.job.input.quantity !== recipe.input * (machine.job.bulk ?? 1)
+                && !(machine.type === "crudeGearBench" && machine.job.mode === "gear" && machine.job.input.quantity === 2 * (machine.job.bulk ?? 1)))
               || machine.job.remaining < 0 || machine.job.remaining > recipe.seconds
               || machine.output.length > (definition.outputBuffer ?? 0)))) throw new Error(`Invalid ${definition.name} buffer or mode.`);
         }
@@ -2066,22 +2253,29 @@
         if (D.machines[machine.type].heatCapacity) {
           const definition = D.machines[machine.type];
           if (definition.automaticRecipes && machine.mode !== undefined) throw new Error("Invalid furnace recipe selection.");
-          const inputRecipe = thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
           const outputRecipe = Object.values(definition.recipes).find((recipe) => recipe.output === machine.output[0]?.material);
-          const jobRecipe = definition.recipes[machine.job?.recipe];
           if (!Number.isFinite(machine.heat) || machine.heat < 0 || machine.heat > definition.heatCapacity * maxBulk
             || (machine.outputBulk !== undefined && (machine.outputBulk !== true || maxBulk !== 10 || !machine.output.length))
             || !Number.isFinite(machine.outputCooldown) || machine.outputCooldown < 0
             || machine.outputCooldown > Math.max(definition.outputSeconds, ...Object.values(D.machines)
               .filter((entry) => entry.conveyors).map((entry) => entry.beltSeconds ?? D.config.beltSeconds))
-            || (machine.input.length && (!inputRecipe || machine.input.some((item) => item.material !== (inputRecipe.material ?? machine.input[0].material) || !Number.isInteger(item.quantity))
-              || machine.input.reduce((sum, item) => sum + item.quantity, 0) > inputRecipe.input * maxBulk))
             || (machine.output.length && (!outputRecipe || machine.output.some((item) => item.material !== machine.output[0].material || !Number.isInteger(item.quantity))
-              || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (outputRecipe.outputQuantity ?? outputRecipe.input) * maxBulk))
-            || (machine.job && (!jobRecipe || !Array.isArray(machine.job.inputs) || !machine.job.inputs.length
-              || machine.job.inputs.some((item) => !validCargo(item) || item.material !== (jobRecipe.material ?? machine.job.recipe) || !Number.isInteger(item.quantity))
-              || machine.job.inputs.reduce((sum, item) => sum + item.quantity, 0) !== jobRecipe.input * (machine.job.bulk ?? 1)
-              || machine.job.remaining < 0 || machine.job.remaining > jobRecipe.seconds))) throw new Error("Invalid Kiln/Furnace heat, batch or output buffer.");
+              || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (outputRecipe.outputQuantity ?? outputRecipe.input) * maxBulk))) throw new Error("Invalid Kiln/Furnace heat, batch or output buffer.");
+          if (definition.oven) {
+            const recipe = ovenRecipeForInput(definition, machine.input);
+            if (machine.job || (machine.input.length && (!recipe || machine.input.some(item => !Number.isInteger(item.quantity) || item.preheated)
+              || Object.entries(recipe.inputs).some(([material, quantity]) => machine.input.filter(item => item.material === material)
+                .reduce((sum, item) => sum + item.quantity, 0) > quantity * maxBulk)))) throw new Error("Invalid Primitive Oven input.");
+          } else {
+            const inputRecipe = thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
+            const jobRecipe = definition.recipes[machine.job?.recipe];
+            if ((machine.input.length && (!inputRecipe || machine.input.some(item => item.material !== (inputRecipe.material ?? machine.input[0].material) || !Number.isInteger(item.quantity))
+              || machine.input.reduce((sum, item) => sum + item.quantity, 0) > inputRecipe.input * maxBulk))
+              || (machine.job && (!jobRecipe || !Array.isArray(machine.job.inputs) || !machine.job.inputs.length
+                || machine.job.inputs.some(item => !validCargo(item) || item.material !== (jobRecipe.material ?? machine.job.recipe) || !Number.isInteger(item.quantity))
+                || machine.job.inputs.reduce((sum, item) => sum + item.quantity, 0) !== jobRecipe.input * (machine.job.bulk ?? 1)
+                || machine.job.remaining < 0 || machine.job.remaining > jobRecipe.seconds))) throw new Error("Invalid Kiln/Furnace heat, batch or output buffer.");
+          }
         }
         if (machine.type === "paintingBench") {
           const def = D.machines.paintingBench;
@@ -2097,7 +2291,17 @@
               || new Set(machine.job.inputs.map((item) => item.material)).size !== 2
               || machine.job.remaining < 0 || machine.job.remaining > def.paintSeconds))) throw new Error("Invalid Painting Bench assignment or buffers.");
         }
-        if (!D.machines[machine.type].heatCapacity && !isCrafter(D.machines[machine.type]) && !D.machines[machine.type].manualTransferSeconds
+        const plateRecipes = D.machines[machine.type].plateRecipes;
+        if (plateRecipes) {
+          const dishes = new Set(machine.input.filter(item => item.material !== "woodenPlate").map(item => item.material));
+          if (machine.job || dishes.size > 1 || machine.input.some(item => !Number.isInteger(item.quantity)
+            || (item.material !== "woodenPlate" && !Object.hasOwn(plateRecipes, item.material)))
+            || machine.input.filter(item => item.material === "woodenPlate").reduce((sum, item) => sum + item.quantity, 0) > maxBulk
+            || machine.input.filter(item => item.material !== "woodenPlate").reduce((sum, item) => sum + item.quantity, 0) > maxBulk
+            || machine.output.length > 1 || machine.output.some(item => item.quantity > maxBulk
+              || !Object.values(plateRecipes).some(recipe => recipe.output === item.material))) throw new Error("Invalid Plating Bench buffers.");
+        }
+        if (!plateRecipes && !D.machines[machine.type].heatCapacity && !isCrafter(D.machines[machine.type]) && !D.machines[machine.type].manualTransferSeconds
           && !["fiber", "kiln", "gradingBench", "paintingBench"].includes(machine.type) && (machine.input.length || machine.job)) throw new Error("Unexpected machine input.");
         const sourceDefinition = D.machines[machine.type], sourceMaterial = sourceDefinition.source;
         if (sourceDefinition.sourceModes && (!Object.hasOwn(sourceDefinition.sourceModes, machine.mode)
@@ -2105,27 +2309,27 @@
           || machine.output.some((item) => !Object.hasOwn(sourceDefinition.sourceModes, item.material) || !Number.isInteger(item.quantity))
             || machine.output.reduce((sum, item) => sum + item.quantity, 0) > sourceDefinition.outputLimit * (state.playtest.used.resources ? 10 : 1) + epsilon)) throw new Error("Invalid Rock Drill buffer or mode.");
         const batch = D.machines[machine.type].batchOutputs;
-        if (machine.type === "pebbleSifter") {
+        if (sourceDefinition.batchModes) {
           const slots = machine.output.map((item) => item.sifterSlot ?? (item.material === "soil" ? 0 : 1));
           if (!Object.hasOwn(sourceDefinition.batchModes, machine.mode)
             || machine.timer > sourceDefinition.cycle + epsilon || new Set(slots).size !== slots.length
             || machine.output.some((item, index) => ![0, 1].includes(slots[index])
               || (slots[index] === 0 && item.material !== "soil")
               || (slots[index] === 1 && !["soil", "chert", "malachitePebble"].includes(item.material))
-              || item.quantity > (item.material === "malachitePebble" ? 1 : 0.1) * (state.playtest.used.resources ? 10 : 1) + epsilon)) throw new Error("Invalid sifter timer or output buffer.");
+              || item.quantity > (batch[item.material] ?? 1) * (state.playtest.used.resources ? 10 : 1) + epsilon)) throw new Error("Invalid sifter timer or output buffer.");
         }
-        if (batch && machine.type !== "pebbleSifter" && (machine.timer > D.machines[machine.type].cycle + epsilon
+        if (batch && !sourceDefinition.batchModes && (machine.timer > sourceDefinition.cycle + epsilon
           || machine.output.some((item) => !Object.hasOwn(batch, item.material))
           || (D.machines[machine.type].outputOverflow === "discardExcess"
             && Object.keys(batch).some((material) => machine.output.filter((item) => item.material === material).length > 1))
           || Object.entries(batch).some(([material, quantity]) => machine.output.filter((item) => item.material === material)
-            .reduce((sum, item) => sum + item.quantity, 0) > quantity * (state.playtest.used.resources ? 10 : 1) + epsilon))) throw new Error("Invalid source timer or output buffer.");
+            .reduce((sum, item) => sum + item.quantity, 0) > quantity * (state.playtest.used.resources ? 10 : 1) + epsilon))) throw new Error(`Invalid ${sourceDefinition.name} timer or output buffer.`);
         // Before the washer update, Copper Drill output was already smeltable
         // Copper. A migrated buffered batch is Copper Ore until it leaves.
         if (sourceMaterial && (machine.timer > sourceDefinition.cycle + epsilon || machine.output.some((item) => item.material !== sourceMaterial
           && !(machine.type === "copperDrill" && item.material === "copperOre"))
           || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (D.machines[machine.type].outputLimit ?? 1) * (state.playtest.used.resources ? 10 : 1) + epsilon)) throw new Error("Invalid source buffer.");
-        if (!sourceDefinition.heatCapacity && !isCrafter(sourceDefinition) && !["fiber", "kiln", "gradingBench", "paintingBench"].includes(machine.type) && !sourceMaterial && !sourceDefinition.sourceModes && !batch && machine.output.length) throw new Error("Unexpected output buffer.");
+        if (!plateRecipes && !sourceDefinition.heatCapacity && !isCrafter(sourceDefinition) && !["fiber", "kiln", "gradingBench", "paintingBench"].includes(machine.type) && !sourceMaterial && !sourceDefinition.sourceModes && !batch && machine.output.length) throw new Error("Unexpected output buffer.");
         const laneCount = conveyorCells(machine).length;
         for (const [lane, item] of Object.entries(machine.lanes)) {
           if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > conveyorWeightLimit(machine, state) + epsilon) throw new Error("Invalid conveyor cargo.");
@@ -2168,15 +2372,21 @@
       const migrateFootprints = legacyFootprint || legacyHorizontalFiber;
       const factory = new Factory({ ...state, planterFootprintVersion: 2, fiberFootprintVersion: 3, machines: [] });
       const recovered = new Set();
-      // Keep corrected machine footprints first. Only old layout collisions are
-      // recovered with the normal pickup rules; inventory/cargo are not erased.
-      const priority = (machine) => machine.type === "planter" ? 2 : machine.type === "fiber" ? 1 : 0;
-      const ordered = migrateFootprints ? [...state.machines].sort((a, b) => priority(b) - priority(a)) : state.machines;
+      // Give existing machines priority over an expanded Major Pedestal.
+      const priority = (machine) => {
+        if (legacyMajorFootprint && machine.type === "majorRunePedestal") return -1;
+        if (migrateFootprints && machine.type === "planter") return 2;
+        if (migrateFootprints && machine.type === "fiber") return 1;
+        return 0;
+      };
+      const ordered = migrateFootprints || (legacyMajorFootprint && placedMajorPedestals)
+        ? [...state.machines].sort((a, b) => priority(b) - priority(a)) : state.machines;
       for (const machine of ordered) {
         // Terrain migration picks everything up below. Do not reject an old
         // Logger or a corrected footprint before its contents can be recovered.
         const error = terrainUpdated ? null : factory.placement(machine.type, machine.x, machine.y, machine.facing, null, machine.mode);
-        if (error && migrateFootprints && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
+        const canRecover = migrateFootprints || (legacyMajorFootprint && machine.type === "majorRunePedestal");
+        if (error && canRecover && ["Another machine is in the way.", "The tree occupies those tiles.", "Outside the factory."].includes(error)) {
           factory.state.machines.push(machine); factory.rebuild(); factory.pickup(machine.id);
           recovered.add(machine.id);
           continue;

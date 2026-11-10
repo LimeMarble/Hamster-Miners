@@ -14,13 +14,39 @@
   const PREHEAT_GRADE_TRANSFER = 0.5;
   const BURNISHED_STANDARD_TO_FINE = 0.85;
   const BURNISHED_STANDARD_TO_UNIQUE = 0.15;
+  const SIFTER_PORTS = [
+    { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
+    { x: 1, y: 1, direction: "down", role: "kineticInput" },
+    { x: 2, y: 1, direction: "right", role: "output", material: "chert" },
+  ];
   const DATA = {
     saveKind: "hamster-miners-noammo-opening",
     saveVersion: 1,
     saveKey: "hamster-miners-noammo-opening-v1",
+    capitalSaveKey: "hamster-miners-noammo-capital",
+    runeCategories: { harvest: "Harvest", motion: "Motion", transmutation: "Transmutation", activation: "Activation" },
+    runeIngredientNames: { choppedApple: "Chopped Apples" },
+    minorRunes: {
+      harvest: [
+        { name: "Wheat", machine: "wheatPlanter", materials: { wood: 100, leekFiber: 50, leekSalad: 5 } },
+        { name: "Apple", machine: "applePlanter", materials: { clay: 150, malachitePebble: 10, paintedPot: 1 } },
+        { name: "Sugar Cane", machine: "sugarCanePlanter", materials: { soil: 200, copperPlate: 50, choppedApple: 50 } },
+      ],
+      motion: [
+        { name: "Manual Splitter", machine: "manualSplitter", materials: { wood: 25, leekFiber: 20 } },
+        { name: "Conveyor Bridge", machine: "primitiveBridge", materials: { wood: 100, chert: 25 } },
+        { name: "Primitive Stacker", machine: "primitiveStacker", materials: { granite: 400, malachitePebble: 20 } },
+      ],
+      transmutation: [
+        { name: "Clay Kiln", machine: "kiln", materials: { unfiredBrick: 50, clay: 50 } },
+        { name: "Primitive Oven", machine: "primitiveOven", materials: { brick: 100, woodenPlate: 5 } },
+        { name: "Primitive Furnace", machine: "primitiveFurnace", materials: { granite: 200, nativeCopper: 10 } },
+      ],
+      activation: [{ name: "Capital", cash: 1e25, materials: {} }],
+    },
     startingTerrain: { version: 1, treeCenters: TREE_CENTERS },
     config: {
-      columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 10,
+      columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 20,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
       planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 6,
       basketCapacity: 100, beltSeconds: 2, beltWeight: 2,
@@ -33,13 +59,24 @@
       left: { x: -1, y: 0 }, up: { x: 0, y: -1 },
     },
     materials: {
-      leek: { name: "Leek", value: 0.1, weight: 0.2, color: "#9dbf65" },
+      leek: { name: "Leek", value: 0.1, weight: 0.2, color: "#9dbf65", cutsTo: "peeledLeek" },
+      peeledLeek: { name: "Peeled Leek", value: 0.2, weight: 0.2, color: "#c4d18e",
+        cutsTo: "choppedLeek", cutProfile: { outputQuantity: 2, valueMultiplier: 2.5 } },
+      choppedLeek: { name: "Chopped Leek", value: 0.25, weight: 0.1, color: "#d0d99e" },
+      leekSalad: { name: "Leek Salad", value: 1, weight: 0.1 + 1 / 3, color: "#9dc065" },
+      wheat: { name: "Wheat", value: 0.15, weight: 0.25, color: "#d7be73", millsTo: "flour" },
+      flour: { name: "Flour", value: 0.03, weight: 0.05, color: "#dfd2af", shapesTo: "dough" },
+      dough: { name: "Dough", value: 0.3, weight: 0.25, color: "#d8bd92", shapesTo: "rawPasta", doughProfile: { input: 1 } },
+      rawPasta: { name: "Raw Pasta", value: 0.3, weight: 0.25, color: "#dcc37f" },
+      unplatedLeekPasta: { name: "Unplated Leek Pasta", value: 1.7, weight: 0.3, color: "#d6b766", directTransferOnly: true },
+      leekPasta: { name: "Leek Pasta", value: 1.7, weight: 0.3 + 1 / 3, color: "#cab465" },
       leekFiber: { name: "Leek Fiber", value: 0.1, weight: 1, color: "#ded4a0", coilsTo: "leekCoil" },
       leekCoil: { name: "Leek Coil", value: 0.1, weight: 1, color: "#c7c091" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, sawsTo: "plank" },
       plank: { name: "Plank", value: 0.1, weight: 1 / 3, color: "#c89568" },
       charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
-      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 2, color: "#c19762" },
+      woodenGear: { name: "Wooden Gear", value: 0.1, weight: 2, color: "#c19762" },
+      woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 1 / 3, color: "#d5ac76" },
       clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67", family: "clay" },
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
@@ -62,6 +99,7 @@
       copperWire: { name: "Copper Wire", value: 1.2, weight: 0.2, color: "#dba675", family: "metal", gradeTable: "copperMetal", coilsTo: "copperCoil", windsTo: "copperWinding" },
       copperCoil: { name: "Copper Coil", value: 1.2, weight: 0.2, color: "#ce9569", family: "metal", gradeTable: "copperMetal" },
       copperWinding: { name: "Copper Winding", value: 12, weight: 2, color: "#bc8055", family: "metal", gradeTable: "copperMetal" },
+      aluminiumBronzePlate: { name: "Aluminium Bronze Plate", value: null, weight: 1, color: "#c5a15b", family: "metal" },
       soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
     },
     grades: [
@@ -77,11 +115,34 @@
       copper: [0.3, 0.4, 0.3, 0, 0, 0], copperMetal: [0, 0.3, 0.4, 0.3, 0, 0],
     },
     machines: {
+      minorRunePedestal: {
+        name: "Minor Rune Pedestal", width: 2, height: 2, color: "#817594", category: "Logistics",
+        runePedestal: "minor", cost: { cash: 0, materials: {} },
+        description: "Place it and select a rune category to view the next minor offering.",
+      },
+      majorRunePedestal: {
+        name: "Major Rune Pedestal", width: 8, height: 8, color: "#7b6a9f", category: "Logistics",
+        runePedestal: "major", cost: { cash: 1e30, materials: { limestone: 10000, aluminiumBronzePlate: 500 } },
+        description: "Place it and select a rune category to view major offerings.",
+      },
       planter: {
         name: "Leek Planter", width: 3, height: 3, color: "#5f8148", category: "Resource",
         dismantleMinimum: 2,
-        cost: { cash: 1500, materials: { brick: 50, leekFiber: 100, soil: 200 } }, source: "leek", cycle: 8, outputLimit: 2,
+        cost: { cash: 0, materials: { wood: 40, leekFiber: 10, leek: 4, chert: 2, soil: 10 } }, source: "leek", cycle: 8, outputLimit: 2,
         description: "Grows 1 Leek every 8 seconds and outputs it from the facing edge.",
+      },
+      wheatPlanter: {
+        name: "Wheat Planter", width: 3, height: 3, color: "#a18b4f", category: "Resource",
+        baseFacing: "up", defaultFacing: "up",
+        cost: { cash: 0, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
+        source: "wheat", cycle: 10, outputLimit: 2, waterCapacity: 0.5, waterPerBatch: 0.1,
+        ports: [
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 0, y: 1, direction: "left", role: "waterDropoff" },
+          { x: 2, y: 1, direction: "right", role: "waterDropoff" },
+          { x: 1, y: 2, direction: "down", role: "waterDropoff" },
+        ],
+        description: "Grows 1 Wheat every 10 seconds using 0.1 Water. The three Water dropoffs share one buffer.",
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
@@ -101,6 +162,65 @@
         cost: { cash: 0, materials: { wood: 30, leek: 1 } }, crew: 1,
         description: "Extracts 2 Leek Fiber from 1 Leek in 2 seconds. Each Fiber retains the Leek's value.",
       },
+      plantCutter: {
+        name: "Plant Cutter", width: 1, height: 2, color: "#a9b17a", category: "Material", crew: 1,
+        labelLines: ["Plant", "Cutter"],
+        baseFacing: "up", defaultFacing: "up",
+        cost: { cash: 0, materials: { wood: 25, chert: 5 } },
+        defaultMode: "cut", inputLimit: 1, outputBuffer: 1,
+        formingModes: {
+          cut: { name: "Cut produce", materialProperty: "cutsTo", recipeProperty: "cutProfile", input: 1, seconds: 0, valueMultiplier: 2 },
+        },
+        ports: [
+          { x: 0, y: 1, direction: "down", role: "input" },
+          { x: 0, y: 0, direction: "up", role: "output" },
+        ],
+        description: "Peels a Leek at twice its value. Feed the Peeled Leek back through a cutter to make 2 Chopped Leek at 2.5 times the total value. Operated by one hamster.",
+      },
+      platingBench: {
+        name: "Plating Bench", width: 2, height: 2, color: "#ac956c", category: "Material", crew: 1,
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Plating", "Bench"],
+        cost: { cash: 0, materials: { wood: 25, leekFiber: 10 } },
+        plateRecipes: {
+          choppedLeek: { inputs: { choppedLeek: 1, woodenPlate: 1 }, output: "leekSalad", seconds: 0, valueIngredient: "choppedLeek", valueMultiplier: 4 },
+          unplatedLeekPasta: { inputs: { unplatedLeekPasta: 1, woodenPlate: 1 }, output: "leekPasta", seconds: 0, valueIngredient: "unplatedLeekPasta", valueMultiplier: 1 },
+        },
+        ports: [
+          { x: 0, y: 0, direction: "up", role: "output" },
+          { x: 0, y: 1, direction: "down", role: "input", channel: "dish" },
+          { x: 1, y: 1, direction: "down", role: "input", channel: "plate", material: "woodenPlate" },
+        ],
+        description: "Uses one Wooden Plate to serve Leek Salad or Unplated Leek Pasta instantly. Salad gets 4 times the leek's value. Pasta keeps its cooked value. Operated by one hamster.",
+      },
+      grainMill: {
+        name: "Grain Mill", width: 2, height: 2, color: "#a99a73", category: "Material",
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Grain", "Mill"],
+        cost: { cash: 125, materials: { wood: 30, chert: 25, woodenGear: 5 } },
+        requiresKinetic: true, defaultMode: "mill", inputLimit: 1, outputBuffer: 1,
+        formingModes: {
+          mill: { name: "Flour", materialProperty: "millsTo", inputName: "Wheat", input: 1, outputQuantity: 5, seconds: 0, valueMultiplier: 1 },
+        },
+        ports: [
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 0, y: 1, direction: "left", role: "kineticInput" },
+          { x: 1, y: 1, direction: "down", role: "input" },
+        ],
+        description: "Mills 1 Wheat into 5 Flour instantly, preserving total value. Requires one kinetic connection.",
+      },
+      doughShaper: {
+        name: "Dough Shaper", width: 2, height: 2, footprint: [[0, 0], [1, 0], [1, 1]], color: "#b4a078", category: "Material", crew: 1,
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Dough", "Shaper"], labelCell: [0, 0],
+        cost: { cash: 80, materials: { wood: 40, leekFiber: 10, chert: 5 } },
+        defaultMode: "shape", inputLimit: 5, outputBuffer: 1,
+        formingModes: {
+          shape: { name: "Shape dough or pasta", materialProperty: "shapesTo", recipeProperty: "doughProfile", inputName: "Flour or Dough", input: 5, seconds: 0, valueMultiplier: 2 },
+        },
+        ports: [
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 1, y: 1, direction: "down", role: "input" },
+        ],
+        description: "Instantly shapes 5 Flour into 1 Dough, or cuts 1 Dough into 1 Raw Pasta. Each pass doubles total value. Operated by one hamster.",
+      },
       logger: {
         name: "Logger", width: 1, height: 1, color: "#a7784c", category: "Resource", crew: 1,
         source: "wood", cycle: 6,
@@ -114,7 +234,7 @@
       },
       well: {
         name: "Well", width: 2, height: 2, color: "#8c9480", category: "Resource", crew: 1,
-        cost: { cash: 250, materials: { wood: 80, clay: 50, chert: 30, leekFiber: 15 } },
+        cost: { cash: 250, materials: { wood: 80, chert: 30, leekFiber: 15 } },
         waterSource: true, waterDelivery: 0.5, waterSeconds: 5,
         description: "One hamster delivers 0.5 Water every 5 seconds to scheduled dropoffs in a 10 by 10 area.",
       },
@@ -173,15 +293,19 @@
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Resource",
         labelLines: ["Pebble", "Sifter"],
-        cost: { cash: 1800, materials: { wood: 150, brick: 30, leekFiber: 50 } },
+        cost: { cash: 0, materials: { wood: 50, leekFiber: 20, woodenGear: 5 } },
         cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.1, chert: 0.1 },
+        ports: SIFTER_PORTS,
+        description: "Sifts Soil and Chert every 2 seconds. Requires kinetic power and space at both outputs.",
+      },
+      pebbleSifterII: {
+        name: "Pebble Sifter II", width: 3, height: 2, color: "#a49c79", category: "Resource",
+        labelLines: ["Pebble", "Sifter II"],
+        cost: { cash: 0, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } },
+        cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.2, chert: 0.1 }, malachiteChance: 0.2,
         defaultMode: "chert", batchModes: { chert: "Chert", malachite: "Malachite focus", soil: "Soil focus" },
-        ports: [
-          { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
-          { x: 1, y: 1, direction: "down", role: "kineticInput" },
-          { x: 2, y: 1, direction: "right", role: "output", material: "chert" },
-        ],
-        description: "Sifts every 2 seconds. Choose Chert, Malachite focus or Soil focus. Requires a kinetic connection and space at both outputs.",
+        ports: SIFTER_PORTS,
+        description: "Sifts every 2 seconds and produces twice as much Soil as a Pebble Sifter. Choose Chert, Malachite focus or Soil focus. Requires kinetic power and space at both outputs.",
       },
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
@@ -194,15 +318,18 @@
         description: "Shapes Clay into unfired Bricks or Pots. Bricks retain their Clay's value; Pots double the combined value of their Clay inputs.",
       },
       crudeGearBench: {
-        name: "Crude Gear Bench", width: 1, height: 2, color: "#b18b62", category: "Material", crew: 1,
-        labelLines: ["Gear", "Bench"], labelCell: [0, 0],
+        name: "Wood Carving Bench", width: 1, height: 2, color: "#b18b62", category: "Material", crew: 1,
+        labelLines: ["Wood Carving", "Bench"], labelCell: [0, 0],
         cost: { cash: 0, materials: { wood: 25 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
         ports: [
           { x: 0, y: 1, direction: "left", role: "input" },
           { x: 0, y: 1, direction: "right", role: "output" },
         ],
-        recipes: { gear: { name: "Wooden Gear", input: 2, output: "woodenGear", seconds: 12, valueMultiplier: 1 } },
-        description: "Carves 2 Wood into 1 Wooden Gear in 12 seconds. Operated by one hamster.",
+        recipes: {
+          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 12, valueMultiplier: 1 },
+          plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 3, seconds: 6, valueMultiplier: 1.5 },
+        },
+        description: "Carves 1 Wood into 1 Wooden Gear in 12 seconds or 3 Wooden Plates in 6 seconds. Operated by one hamster.",
       },
       potSpinner: {
         name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",
@@ -274,6 +401,7 @@
       },
       preheater: {
         name: "Preheater", width: 2, height: 2, color: "#a46e4b", category: "Material", crew: 1,
+        legacyOnly: true,
         cost: { cash: 1500, materials: { brick: 60, clay: 30 } },
         heatCapacity: 250000, heatPerSecond: 2000, outputSeconds: 2, automaticRecipes: true, preheats: true, preheatGradeTransfer: PREHEAT_GRADE_TRANSFER,
         ports: [
@@ -286,6 +414,25 @@
           unfiredPot: { input: 1, output: "unfiredPot", seconds: 3, valueMultiplier: 1 },
         },
         description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 6 seconds.`,
+      },
+      primitiveOven: {
+        name: "Primitive Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Primitive", "Oven"],
+        cost: { cash: 1500, materials: { brick: 60, clay: 30 } },
+        oven: true, heatCapacity: 250000, outputSeconds: 2, automaticRecipes: true, preheatGradeTransfer: PREHEAT_GRADE_TRANSFER,
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 0, y: 1, direction: "down", role: "input", channel: "ingredient1" },
+          { x: 1, y: 1, direction: "down", role: "input", channel: "ingredient2" },
+          { x: 2, y: 1, direction: "down", role: "input", channel: "ingredient3" },
+        ],
+        recipes: {
+          unfiredBrick: { name: "Preheat Bricks", inputs: { unfiredBrick: 2 }, output: "unfiredBrick", outputQuantity: 2, seconds: 0, heat: 6000, preheats: true, valueMultiplier: 1 },
+          unfiredPot: { name: "Preheat Pot", inputs: { unfiredPot: 1 }, output: "unfiredPot", outputQuantity: 1, seconds: 0, heat: 6000, preheats: true, valueMultiplier: 1 },
+          leekPasta: { name: "Cook Leek Pasta", inputs: { rawPasta: 2, choppedLeek: 1 }, output: "unplatedLeekPasta", outputQuantity: 2, seconds: 0, heat: 6000, valueMultiplier: 4 },
+        },
+        description: "Instantly preheats unfired pottery or cooks Leek Pasta using fuel heat. Cooked pasta transfers directly to a Plating Bench. Operated by one hamster.",
       },
       primitiveFurnace: {
         name: "Primitive Furnace", width: 2, height: 3, color: "#96755d", category: "Material", crew: 2,
@@ -412,7 +559,7 @@
       heavyWheel: {
         name: "Heavy Hamster Wheel", width: 4, height: 3, color: "#9d795c", category: "Logistics", crew: 2,
         labelLines: ["Heavy Hamster", "Wheel"], kineticSource: true,
-        cost: { cash: 6e5, materials: { wood: 800, chert: 200, copperPlate: 50, copperGear: 15 } },
+        cost: { cash: 6e5, materials: { wood: 800, chert: 200, granite: 150, woodenGear: 25 } },
         ports: [
           { x: 1, y: 0, direction: "up", role: "kineticOutput" },
           { x: 2, y: 0, direction: "up", role: "kineticOutput" },
@@ -448,7 +595,7 @@
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
         cost: { cash: 200, materials: { brick: 35 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
-        cashEffect: { bonus: 1.25, useLimit: 9, upperLimit: 15, baseValueRequired: 0.5 },
+        cashEffect: { bonus: 3.6, useLimit: 5, upperLimit: 1e50, baseValueRequired: 0.5 },
         legacyGradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
         description: "Adds value to passing cargo.",
       },
@@ -456,14 +603,14 @@
         name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
         labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
         cost: { cash: 2000, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
-        cashEffect: { bonus: 4, useLimit: 5, baseValueRequired: 0.5 },
-        description: "Adds value to passing cargo.",
+        cashEffect: { multiplier: 1.1, useLimit: 4, upperLimit: 100, baseValueRequired: 0.3 },
+        description: "Multiplies the value of passing cargo.",
       },
       leekInfuser: {
         name: "Leek Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
         labelCell: [0, 1], labelLines: ["Leek", "Infuser"], conveyors: [[0, 0]],
         cost: { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } },
-        cashEffect: { bonus: 0.4, upperLimit: 2 },
+        cashEffect: { bonus: 0.4, upperLimit: 2, baseValueRequired: 0.2 },
         description: "Adds value to passing cargo.",
       },
       leekDuster: {
@@ -534,7 +681,7 @@
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
         labelLines: ["Bridge"], conveyors: [[0, 0], [1, 0], [2, 0]], bridge: true,
-        cost: { cash: 100, materials: {}, machines: { belt: 4 } },
+        cost: { cash: 100, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } },
         description: "Carries cargo over 1 conveyor. Its entrance and exit must remain clear.",
       },
       primitiveStacker: {

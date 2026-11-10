@@ -95,7 +95,7 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   for (const field of ["cash", "earned", "seconds", "hiredCrew", "random", "nextId", "harvestProgress", "harvestedWood"]) {
     assert.equal(loaded.state[field], state[field], field);
   }
-  assert.equal(loaded.availableCrew(), 13);
+  assert.equal(loaded.availableCrew(), 23);
   assert.deepEqual(loaded.state.trees, createState().trees);
   const again = Factory.importSave(loaded.exportSave());
   assert.equal(again.terrainUpdated, false); assert.equal(again.pickedUpForTerrainReset, 0);

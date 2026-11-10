@@ -1,5 +1,11 @@
 # Hamster Miners regression scenarios
 
+- Simulation continues while the open page is hidden, without drawing frames.
+  Background updates autosave and replay delayed timer gaps through normal
+  factory steps, including gaps over 60 seconds. Visibility changes share the
+  simulation clock, preventing lost or double-counted time. Reloading grants no
+  offline progress; importing or resetting starts a new simulation clock.
+
 - The `whereismyspill` code unlocks seven independent, save-persistent playtest
   switches. Cover boosted resource drops, storage, machine and conveyor speed,
   Material machine bulk, conveyor capacity, sale cash, lossless disabling of
@@ -246,6 +252,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   values and respecting storage capacity, including when loading old cooldowns.
   Matching finished stacks combine before unloading, allowing separately received
   ingredients to fill the receiving conveyor's stack capacity.
+  One waiting batch (four Bricks or two Pots) permits the Kiln's next firing.
+  Buffered output does not hide missing material or heat in its status. Six-second
+  preheated firing through a working Primitive Conveyor produces no output warnings;
+  a genuinely blocked finished firing still reports Output blocked.
   Kilns and Furnaces unload one solid product at receiving-belt cadence, verified
   with both faster and slower synthetic belts. Liquid transfer uses fluid input
   capacity without applying solid-belt weight or unloading delays. Other output
@@ -378,7 +388,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   deduct 20 raw Wood per belt tile without negative costs. Pits and drills remain
   conveyor-free plain boxes with centered outputs. The opening test actually
   routes Logger Wood into a Gear Bench before purchasing belts and Upgraders.
-- Crew hiring costs $5 × 1.1^paid hires, excluding the ten starting hamsters.
+- Crew hiring costs $5 × 1.1^paid hires, excluding the twenty starting hamsters.
   It deducts cash once, unlocks machine capacity and persists through
   placement, pickup and save/load. Old saves default to zero hires; invalid
   counts are rejected. The stable Hire button updates its price, affordability

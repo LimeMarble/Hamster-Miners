@@ -20,7 +20,7 @@ test('Preheater has the approved 2x2 footprint, cost and one crew', () => {
     const f = new A.Factory(A.createState(1));
     const preheater = place(f, 'preheater', 40, 40, facing);
     assert.equal(A.cells(preheater).length, 4);
-    assert.equal(f.availableCrew(), 9);
+    assert.equal(f.availableCrew(), 19);
     assert.equal(A.ports(preheater).filter(p => p.channel === 'fuel').length, 1);
     assert.equal(A.ports(preheater).filter(p => p.channel === 'material').length, 1);
   }

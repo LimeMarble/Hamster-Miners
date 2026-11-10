@@ -32,7 +32,7 @@ test('settled construction prices, zero crew, stone base values and Copper base 
   assert.deepEqual(D.machines.leekInfuser.cost, { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } });
   assert.deepEqual(D.machines.primitiveShack.cost, { cash: 10000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } });
   assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 15000, materials: { chert: 40, wood: 50 } });
-  assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 100, materials: {}, machines: { belt: 4 } });
+  assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 100, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } });
   for (const material of ['chert', 'granite', 'limestone']) assert.equal(D.materials[material].value, 0.1);
   assert.equal(D.materials.corundum.value, 1); assert.equal(D.materials.nativeCopper.value, 0.5); assert.equal(D.materials.copperOre.value, 1.5);
   for (const type of ['leekInfuser', 'primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) {
@@ -48,7 +48,8 @@ test('settled construction prices, zero crew, stone base values and Copper base 
 });
 
 test('Bridge multi-buy requires unplaced conveyors and consumes picked-up conveyor instances exactly once', () => {
-  const f = new Factory(A.createState(1)); f.state.cash = 200; f.state.inventory.wood = 100;
+  const f = new Factory(A.createState(1)); f.state.cash = 200;
+  Object.assign(f.state.inventory, { leekFiber: 40, chert: 20 });
   const conveyor = place(f, 'belt', 40, 40); f.state.stock.belt = 7;
   assert.ok(f.buy('primitiveBridge', 2).error, 'placed conveyors are not purchase ingredients');
   f.pickup(conveyor.id); assert.equal(f.state.stock.belt, 8);
@@ -69,11 +70,11 @@ test('Leek Infuser replaces Primitive with +$0.40 below $2, without consuming in
   const distant = place(f, 'leekInfuser', 80, 80); assert.equal(feed(f, distant, cargo('brick')), 0);
 });
 
-test('Brick Seal is additive, capped by incoming $15, and $9 reaches $15.25 in five uses', () => {
+test('Brick Seal adds $3.60 five times to eligible cargo', () => {
   const f = powered(), seal = place(f, 'brickSeal', 40, 40);
   let item = cargo('unfiredPot', 1, 9);
   for (let i = 0; i < 12; i++) item = pass(f, seal, item);
-  near(item.value, 15.25); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs, undefined);
+  near(item.value, 27); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs, undefined);
 });
 
 for (const facing of D.directions) test(`Shack ${facing}: six real belt cells, independent rows, one x2 use and six-second transit`, () => {
@@ -234,7 +235,7 @@ test('single-connection kinetic drills share both Basic Wheel outputs while faci
       assert.equal(loaded.kineticHasWheel(restored), true);
       assert.equal(loaded.total(restored, 'output'), D.machines[type].sourceQuantity ?? 1);
     }
-    assert.equal(loaded.availableCrew(), 9, 'one Wheel powers both drills');
+    assert.equal(loaded.availableCrew(), 19, 'one Wheel powers both drills');
   }
 });
 

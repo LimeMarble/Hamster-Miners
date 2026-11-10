@@ -33,9 +33,9 @@ test('resource and machine speed boosts work independently and preserve buffered
 
 test('resource boost applies to each Sifter drop and machine speed accelerates scheduled Well deliveries', () => {
   const f = new A.Factory(A.createState(2000)); f.unlockPlaytest('whereismyspill');
-  const sifter = place(f, 'pebbleSifter', 40, 40); attachKineticWheel(f, sifter);
+  const sifter = place(f, 'pebbleSifterII', 40, 40); attachKineticWheel(f, sifter);
   f.setSourceMode(sifter.id, 'malachite'); enabled(f, 'resources'); f.update(2);
-  assert.deepEqual(sifter.output.map(item => [item.material, item.quantity]), [['soil', 1], ['malachitePebble', 10]]);
+  assert.deepEqual(sifter.output.map(item => [item.material, item.quantity]), [['soil', 2], ['malachitePebble', 10]]);
   const well = place(f, 'well', 70, 40), bench = place(f, 'paintingBench', 74, 40);
   assert.equal(f.addWaterDelivery(well.id, bench.id, 0).error, undefined);
   enabled(f, 'machineSpeed'); f.update(0.5); near(bench.water, 0.5);

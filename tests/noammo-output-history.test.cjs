@@ -33,7 +33,7 @@ for (const type of Object.keys(D.machines).filter(type => A.supportsOutputHistor
 test('Upgrader records actual post-effect unit value and quantity, not input value or a rounded cash total', () => {
   const { f, m } = powered('brickSeal');
   feed(f, m, cargo('brick', 2, 4.12345)); f.update(1);
-  assert.deepEqual(f.recentOutputs(m.id), [{ value: 5.37345, quantity: 2, grade: null }]);
+  assert.deepEqual(f.recentOutputs(m.id), [{ value: 4.12345 + 3.6, quantity: 2, grade: null }]);
   const snapshot = f.recentOutputs(m.id); m.lanes[0].value = 500; assert.deepEqual(f.recentOutputs(m.id), snapshot);
 });
 

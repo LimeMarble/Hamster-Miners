@@ -45,7 +45,7 @@ test('Pot Spinner has the approved exact cost, no additional crew, and atomic mu
   assert.equal(f.buy('potSpinner', 3).amount, 3); near(f.state.cash, 0);
   for (const material of Object.keys(cost.materials)) near(f.state.inventory[material], 0);
   const m = f.place('potSpinner', 40, 40).machine;
-  assert.equal(f.availableCrew(), 10); wheelFor(f, m); assert.equal(f.availableCrew(), 9);
+  assert.equal(f.availableCrew(), 20); wheelFor(f, m); assert.equal(f.availableCrew(), 19);
 });
 
 for (const facing of D.directions) for (const side of [0, 1]) test(`Spinner ${facing}, kinetic intake ${side}: solid footprint, correct real ports and eight-second production`, () => {
@@ -79,7 +79,7 @@ test('one Wheel powers two Spinners from opposite edges without blocking their m
     feed(f, m, cargo('clay', 2));
   }
   f.update(0.1); f.update(8); assert.ok(top.output[0]); assert.ok(bottom.output[0]);
-  assert.equal(f.availableCrew(), 9);
+  assert.equal(f.availableCrew(), 19);
   f.pickup(wheel.id); assert.equal(f.kineticHasWheel(top), false); assert.equal(f.kineticHasWheel(bottom), false);
 });
 

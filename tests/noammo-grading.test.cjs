@@ -35,7 +35,7 @@ test("Grading Bench costs $800, 100 Wood, 50 Fiber and one Pot without a free gr
   assert.equal(factory.buy("gradingBench", 2).amount, 2);
   assert.equal(factory.state.stock.gradingBench, 2); assert.equal(factory.state.cash, 0);
   for (const material of Object.keys(requirements)) assert.equal(factory.state.inventory[material], 0);
-  factory.place("gradingBench", 40, 40); assert.equal(factory.availableCrew(), 9);
+  factory.place("gradingBench", 40, 40); assert.equal(factory.availableCrew(), 19);
 });
 
 test("grade tables, sale multipliers and independent Brick Seal repairs match the agreed chances", () => {

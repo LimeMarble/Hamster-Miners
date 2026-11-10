@@ -15,22 +15,22 @@ function feed(f, machine, material, item = A.cargo(material)) {
 }
 
 test('Sifter modes retain separate Soil and Chert outlet positions and preserve pending output on mode changes', () => {
-  const f = new A.Factory(A.createState(1)), sifter = place(f, 'pebbleSifter', 40, 40);
+  const f = new A.Factory(A.createState(1)), sifter = place(f, 'pebbleSifterII', 40, 40);
   attachKineticWheel(f, sifter);
   assert.equal(sifter.mode, 'chert'); f.update(2);
-  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity]), [['soil', 0.1], ['chert', 0.1]]);
+  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity]), [['soil', 0.2], ['chert', 0.1]]);
   assert.equal(f.setSourceMode(sifter.id, 'soil').error, undefined);
   const top = place(f, 'basket', 43, 40), bottom = place(f, 'basket', 43, 41);
   f.update(0.1);
   assert.equal(top.contents[0].material, 'soil'); assert.equal(bottom.contents[0].material, 'chert');
   f.update(2);
-  assert.equal(top.contents[0].quantity, 0.2); assert.equal(bottom.contents.find(i => i.material === 'soil').quantity, 0.1);
+  assert.equal(top.contents[0].quantity, 0.4); assert.equal(bottom.contents.find(i => i.material === 'soil').quantity, 0.2);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 
 test('Malachite focus rolls exactly once per production cycle and has 20% success', () => {
   for (const [seed, expected] of [[1, false], [2000, true]]) {
-    const f = new A.Factory(A.createState(seed)), sifter = place(f, 'pebbleSifter', 40, 40);
+    const f = new A.Factory(A.createState(seed)), sifter = place(f, 'pebbleSifterII', 40, 40);
     attachKineticWheel(f, sifter); f.setSourceMode(sifter.id, 'malachite'); f.update(2);
     assert.equal(sifter.output.some(i => i.material === 'malachitePebble'), expected);
     assert.equal(sifter.output[0].material, 'soil');
@@ -44,7 +44,7 @@ test('Painting Bench uses the specified sparse footprint, inputs and one crew in
   assert.deepEqual(A.DATA.machines.paintingBench.cost, cost);
   for (const facing of A.DATA.directions) {
     const f = new A.Factory(A.createState(1)), bench = place(f, 'paintingBench', 40, 40, facing);
-    assert.equal(A.cells(bench).length, 5); assert.equal(f.availableCrew(), 9);
+    assert.equal(A.cells(bench).length, 5); assert.equal(f.availableCrew(), 19);
     const points = A.ports(bench);
     assert.equal(points.filter(p => p.role === 'waterDropoff').length, 1);
     for (const [x, y, direction, role, channel] of [[0, 0, 'left', 'input', 'pot'], [1, 0, 'right', 'output'], [1, 2, 'down', 'input', 'malachite']]) {
@@ -57,7 +57,7 @@ test('Painting Bench uses the specified sparse footprint, inputs and one crew in
 test('a scheduled Well supplies Water, painting triples Pot value and ignores Pebble value', () => {
   const f = new A.Factory(A.createState(1)), well = place(f, 'well', 40, 40), bench = place(f, 'paintingBench', 45, 40);
   assert.equal(f.addWaterDelivery(well.id, bench.id, 0).error, undefined);
-  assert.equal(f.availableCrew(), 8);
+  assert.equal(f.availableCrew(), 18);
   const pot = A.cargo('pot', 1, 42); pot.upgrades.primitive = 9;
   pot.gradeProfile = [0.2, 0.1, 0, 0.595, 0.105, 0];
   const pebble = A.cargo('malachitePebble', 1, 999); pebble.upgrades.primitive = 4;
@@ -78,10 +78,10 @@ test('Well schedule survives moves and saves, and pickup releases its worker wit
   f.update(5.1); assert.ok(bench.job); f.update(2);
   assert.equal(f.move(well.id, 55, 40, 'down').error, undefined);
   f = A.Factory.importSave(f.exportSave()); well = f.byId.get(well.id); bench = f.byId.get(bench.id);
-  assert.deepEqual(well.waterSchedule, [{ targetId: bench.id, index: 0 }]); assert.equal(f.availableCrew(), 8);
-  f.pickup(well.id); assert.equal(f.availableCrew(), 9);
+  assert.deepEqual(well.waterSchedule, [{ targetId: bench.id, index: 0 }]); assert.equal(f.availableCrew(), 18);
+  f.pickup(well.id); assert.equal(f.availableCrew(), 19);
   f.pickup(bench.id); assert.equal(f.state.inventory.pot, 1); assert.equal(f.state.inventory.malachitePebble, 1);
-  assert.equal(f.availableCrew(), 10);
+  assert.equal(f.availableCrew(), 20);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 
@@ -90,7 +90,7 @@ test('one Well alternates two continuously running Painting Benches', () => {
   const benches = [place(f, 'paintingBench', 37, 40), place(f, 'paintingBench', 44, 40)];
   const baskets = [place(f, 'basket', 39, 40), place(f, 'basket', 46, 40)];
   for (const bench of benches) assert.equal(f.addWaterDelivery(well.id, bench.id, 0).error, undefined);
-  assert.equal(f.availableCrew(), 7);
+  assert.equal(f.availableCrew(), 17);
   for (let i = 0; i < 1250; i++) {
     for (const bench of benches) { feed(f, bench, 'pot'); feed(f, bench, 'malachitePebble'); }
     f.update(0.1);

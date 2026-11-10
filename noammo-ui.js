@@ -3,6 +3,10 @@
   const A = window.NoAmmo, D = A.DATA, R = window.NoAmmoRenderer;
   const $ = (id) => document.getElementById(id);
   let factory, storageFailed = false, protectedSave = null, loadFailure = null;
+  function syncCapitalUnlock(target) {
+    if (localStorage.getItem(D.capitalSaveKey) === "1") target.state.capitalUnlocked = true;
+    else if (target.state.capitalUnlocked) localStorage.setItem(D.capitalSaveKey, "1");
+  }
   function backupBeforeMigration(raw) {
     let hash = 2166136261;
     for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
@@ -23,6 +27,7 @@
   try {
     protectedSave = localStorage.getItem(D.saveKey);
     factory = protectedSave ? A.Factory.importSave(protectedSave) : new A.Factory();
+    syncCapitalUnlock(factory);
     if (protectedSave) {
       const previous = JSON.parse(protectedSave);
       if (JSON.stringify(previous.state) !== JSON.stringify(factory.state)) backupBeforeMigration(protectedSave);
@@ -36,11 +41,30 @@
   let cameraReady = false;
   const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
+  let runeCategory = "harvest";
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
   let dismantledSelection = null;
   let gesture = null, suppressClick = false, shiftHeld = false, waterSelecting = null;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
   let overlaySignature = "";
+  let lastSimulation = performance.now();
+  function resetSimulationClock() {
+    lastSimulation = performance.now(); accumulator = 0; saveElapsed = 0;
+  }
+  function advanceSimulation(now) {
+    accumulator += Math.max(0, (now - lastSimulation) / 1000);
+    lastSimulation = Math.max(lastSimulation, now);
+    let changed = false;
+    // Timers in hidden tabs may wake late. Replay normal factory steps,
+    // splitting long gaps because Factory.update accepts at most 60 seconds.
+    while (accumulator >= 0.1) {
+      const seconds = Math.min(accumulator, 60);
+      factory.update(seconds); accumulator -= seconds; saveElapsed += seconds;
+      changed = true;
+    }
+    if (saveElapsed >= 5) { saveElapsed = 0; save(); }
+    return changed;
+  }
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
   const machineCards = new Map(), cards = new Map();
   const number = A.formatNumber;
@@ -77,7 +101,7 @@
     const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
     if (effect.useLimit !== undefined) lines.push(`Use Limit: ${number(effect.useLimit)}`);
     if (effect.lowerLimit !== undefined) lines.push(`Lower Bound: ${money(effect.lowerLimit)}`);
-    if (effect.upperLimit !== undefined) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
+    if (effect.upperLimit !== undefined && effect.upperLimit !== 1e50) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
     if (definition.gradeEffect?.poorToStandardPerUse) lines.push(`Grade Effects: converts ${number(definition.gradeEffect.poorToStandardPerUse * 100)} percentage points of Poor chance to Unremarkable per use on clay products (${number(definition.gradeEffect.useLimit)} uses).`);
     if (definition.gradeEffect?.promotionRates) lines.push(`Grade Effects: moves ${definition.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% of ${D.grades[i].name} to ${D.grades[i + 1].name}` : "").filter(Boolean).join("; ")}. Applies outside the cash limit.`);
@@ -124,6 +148,34 @@
   }
   function notify(message) { text($("notice"), message); $("notice").classList.add("visible"); toastTime = performance.now() + 3500; }
   function result(value, message) { if (value?.error) notify(value.error); else if (message) notify(message); refresh(); }
+  function redeemRune(machine, category) {
+    const currentFactory = factory;
+    const redeem = () => {
+      if (currentFactory !== factory) return;
+      const activation = category === "activation";
+      try {
+        if (activation) syncCapitalUnlock(factory);
+        const previousCash = factory.state.cash;
+        const response = factory.redeemRune(machine.id, category);
+        if (response.error) return result(response);
+        if (activation) {
+          try { syncCapitalUnlock(factory); }
+          catch (error) {
+            factory.state.cash = previousCash;
+            factory.state.capitalUnlocked = false;
+            throw error;
+          }
+        }
+        save();
+        result(response, `${response.offering.name} unlocked.`);
+      } catch (error) {
+        notify(`Could not save the rune unlock. ${error.message}`);
+      }
+    };
+    if (category === "activation" && window.navigator?.locks) {
+      window.navigator.locks.request(D.capitalSaveKey, redeem).catch(error => notify(error.message));
+    } else redeem();
+  }
   function save() {
     if (storageFailed) { text($("saveStatus"), "The unreadable factory save is preserved. Import or explicitly reset before saving over it."); return; }
     try { localStorage.setItem(D.saveKey, factory.exportSave()); text($("saveStatus"), "Factory saved locally. Existing mine saves are unchanged."); }
@@ -234,7 +286,8 @@
     button.dataset.machine = type;
     button.append(inventorySwatch, element("strong", definition.name), count); $("machineCards").append(button); machineCards.set(type, { button, count });
   }
-  const shopEntries = Object.entries(D.machines).sort(([, a], [, b]) => (a.cost?.cash ?? Infinity) - (b.cost?.cash ?? Infinity));
+  const shopEntries = Object.entries(D.machines).filter(([, definition]) => !definition.legacyOnly)
+    .sort(([, a], [, b]) => (a.cost?.cash ?? Infinity) - (b.cost?.cash ?? Infinity));
   for (const [type, definition] of shopEntries) {
     const card = action("", () => { shopSelection = type; shopSignature = ""; refresh(); }, "shop-card");
     card.dataset.machine = type;
@@ -378,6 +431,37 @@
   });
   document.addEventListener("keyup", (event) => { if (event.key === "Shift") { shiftHeld = false; renderHoverHistory(); } });
   window.addEventListener("blur", () => { shiftHeld = false; pointer = null; renderHoverHistory(); });
+  function renderRuneOffering(machine) {
+    const pedestal = D.machines[machine.type].runePedestal;
+    const offering = factory.nextRune(pedestal, runeCategory);
+    const title = $("runeOfferingTitle"), costs = $("runeOfferingCosts"), redeem = $("redeemRune");
+    for (const tab of $("runeCategoryTabs").children) {
+      tab.classList.toggle("active", tab.dataset.runeCategory === runeCategory);
+      tab.setAttribute("aria-pressed", String(tab.dataset.runeCategory === runeCategory));
+    }
+    const message = pedestal === "major" ? "Major offering pending."
+      : runeCategory === "activation" && factory.state.capitalUnlocked ? "Capital unlocked." : "All offerings completed.";
+    text(title, offering?.name ?? message);
+    const rows = offering ? [
+      ...(offering.cash ? [["Cash", money(factory.state.cash), money(offering.cash)]] : []),
+      ...Object.entries(offering.materials).map(([material, needed]) => [
+        D.materials[material]?.name ?? D.runeIngredientNames[material], number(factory.state.inventory[material] ?? 0), number(needed),
+      ]),
+    ] : [];
+    const signature = JSON.stringify(rows);
+    if (costs.dataset.signature !== signature) {
+      costs.dataset.signature = signature;
+      costs.replaceChildren(...rows.map(([label, owned, needed]) => {
+        const row = element("div", undefined, "cost-line");
+        row.append(element("span", label), element("span", `${owned} / ${needed}`));
+        return row;
+      }));
+    }
+    redeem.hidden = !offering;
+    const error = factory.runeCostError(offering);
+    redeem.disabled = Boolean(error);
+    text($("runeOfferingStatus"), offering ? error ?? "" : "");
+  }
   function renderInspector() {
     const machine = factory.byId.get(interaction.selected), tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
     const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
@@ -421,6 +505,19 @@
         }, "secondary"); pickup.id = "pickupMachine";
         controls.append(move, pickup, action("Recipes", () => viewRecipes(machine.type), "secondary"));
         panel.append(controls);
+        if (definition.runePedestal) {
+          const tabs = element("div", undefined, "row"); tabs.id = "runeCategoryTabs";
+          tabs.setAttribute("aria-label", "Rune categories");
+          for (const [id, name] of Object.entries(D.runeCategories)) {
+            const tab = action(name, () => { runeCategory = id; renderRuneOffering(machine); }, "secondary");
+            tab.dataset.runeCategory = id; tabs.append(tab);
+          }
+          const title = element("h3"); title.id = "runeOfferingTitle";
+          const costs = element("div", undefined, "costs"); costs.id = "runeOfferingCosts";
+          const status = element("p", "", "muted"); status.id = "runeOfferingStatus";
+          const redeem = action("Redeem rune", () => redeemRune(machine, runeCategory)); redeem.id = "redeemRune";
+          panel.append(tabs, title, costs, status, redeem);
+        }
         const conveyorCount = A.conveyorUpgradeCost(machine.type);
         if (conveyorCount) {
           const detail = element("p", machine.conveyorUpgrade
@@ -481,6 +578,7 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
+            : definition.oven ? `Uses 6ku per batch. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Leek through Input 2.`
             : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
@@ -490,6 +588,14 @@
           panel.append(buffers);
         }
         if (machine.type === "crudeGearBench") {
+          const label = element("label", "Carving mode "), mode = element("select");
+          mode.id = "carvingMode"; mode.setAttribute("aria-label", "Carving mode");
+          for (const [id, recipe] of Object.entries(definition.recipes)) {
+            const option = element("option", recipe.name); option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => result(factory.setShapingMode(machine.id, mode.value)));
+          label.append(mode); panel.append(label);
           const buffers = element("p"); buffers.id = "gearBuffers"; panel.append(buffers);
         }
         if (definition.pressModes && Object.keys(definition.pressModes).length > 1) {
@@ -583,13 +689,14 @@
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Build manual Clay Pits for $5 and 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Crude Gear Bench costs 25 Wood. Point a Logger directly into the Bench to carve gears before building conveyors.", "Primitive Conveyors cost 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Build a Wheel and Drive using materials, then buy Primitive Upgraders for $2 each. Connect the Drive’s intake to a long Wheel edge."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Build manual Clay Pits for $5 and 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 10 Wood and 4 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Place the starter Wheel and build a Drive. Connect the Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
       text($("machineStatus"), factory.status(machine));
+      if (D.machines[machine.type].runePedestal) renderRuneOffering(machine);
       if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
@@ -607,12 +714,12 @@
         const recipe = definition.recipes[machine.job?.recipe] ?? factory.furnaceRecipe(machine)
           ?? Object.values(definition.recipes).find(entry => entry.output === machine.output[0]?.material);
         text($("furnaceRecipe"), recipe
-          ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${number(recipe.seconds)}s`
+          ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${recipe.seconds === 0 ? "Instant" : `${number(recipe.seconds)}s`}`
           : "Recipe: waiting for material");
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(factory.heatCapacity(machine))}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }
-      if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / ${2 * factory.bulkFactor(machine)} · Finished gears: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
+      if (machine.type === "crudeGearBench") text($("gearBuffers"), `Waiting Wood: ${number(factory.total(machine, "input"))} / ${D.machines.crudeGearBench.inputLimit * factory.bulkFactor(machine)} · Finished output: ${number(factory.total(machine, "output"))}`);
       if (D.machines[machine.type].pressModes && $("pressBuffers")) text($("pressBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} / ${number(D.machines[machine.type].inputLimit * factory.bulkFactor(machine))} · Finished output: ${number(factory.total(machine, "output"))}`);
       if (D.machines[machine.type].molder) text($("molderBuffers"), `Waiting liquid: ${number(factory.total(machine, "input"))} / ${factory.bulkFactor(machine)} · Finished ingots: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (D.machines[machine.type].formingModes) {
@@ -653,6 +760,7 @@
       const label = element("label", "Purchase amount "); label.append(quantity); panel.append(label);
       quantity.addEventListener("input", renderShop);
       const costs = element("div", undefined, "costs"); costs.id = "costs"; panel.append(costs);
+      const unlock = element("p", "", "muted"); unlock.id = "shopUnlock"; panel.append(unlock);
       const buy = action(definition.cost ? "Buy" : "Borrow unpriced test equipment", () => {
         const amount = Number(quantity.value);
         if (definition.cost) result(factory.buy(shopSelection, amount), `Purchased ${number(amount)} ${definition.name}.`);
@@ -681,6 +789,9 @@
       }
     }
     $("buyMachine").disabled = !valid || (definition.cost ? Boolean(factory.affordability(shopSelection, amount)) : amount > 100);
+    const unlockError = factory.shopUnlockError(shopSelection);
+    $("shopUnlock").hidden = !unlockError;
+    text($("shopUnlock"), unlockError ?? "");
   }
   function renderItems() {
     const signature = JSON.stringify(factory.state.inventory);
@@ -725,14 +836,10 @@
         const response = factory.dismantle(type);
         if (response.error) return notify(response.error);
         dismantledSelection = type;
-        save(); refresh(); notify(`Dismantled ${definition.name}. Resources returned; no cash refunded.`);
+        save(); refresh(); notify(Object.keys(response.materials).length || Object.keys(response.machines).length
+          ? `Dismantled ${definition.name}. Resources returned; no cash refunded.` : `Dismantled ${definition.name}.`);
       }, "secondary"); dismantle.id = "dismantleMachine";
-      const returns = definition.cost ? [
-        ...Object.entries(definition.cost.materials ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.materials[id].name}`),
-        ...Object.entries(definition.cost.machines ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.machines[id].name}`),
-      ] : [];
-      const refund = element("p", definition.cost ? `Dismantle returns: ${returns.join(", ") || "no resources"}. No cash refund.`
-        : "No construction recipe to recover.", "muted"); refund.id = "dismantleReturns";
+      const refund = element("p", "", "muted"); refund.id = "dismantleReturns";
       const contents = element("p", "", "muted"); contents.id = "dismantleContents";
       const limit = element("p", "", "muted"); limit.id = "dismantleLimit";
       panel.append(owned, place, dismantle, action("View in Shop", () => { shopSelection = inventorySelection; shopSignature = ""; setTab("shop"); }, "secondary"), refund, contents, limit);
@@ -741,8 +848,14 @@
     text($("inventoryOwned"), `Owned: ${number(available + placed)} · available to place: ${number(available)}`);
     $("placeMachine").disabled = available < 1;
     const dismantleError = factory.dismantleError(inventorySelection);
+    const refund = factory.dismantleRefund(inventorySelection);
+    const returns = refund ? [
+      ...Object.entries(refund.materials ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.materials[id].name}`),
+      ...Object.entries(refund.machines ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.machines[id].name}`),
+    ] : [];
+    text($("dismantleReturns"), refund ? `Dismantle returns: ${returns.join(", ") || "no resources"}. No cash refund.` : "No construction recipe to recover.");
     $("dismantleMachine").disabled = Boolean(dismantleError);
-    $("dismantleMachine").title = dismantleError ?? "Dismantle one unplaced machine using its current construction recipe.";
+    $("dismantleMachine").title = dismantleError ?? "Dismantle one unplaced machine.";
     text($("dismantleLimit"), dismantleError ?? "");
     const stored = factory.state.storedMachines.find((machine) => machine.type === inventorySelection);
     text($("dismantleContents"), stored && [...stored.input, ...stored.output, ...(stored.job?.inputs ?? (stored.job?.input ? [stored.job.input] : []))]
@@ -803,7 +916,8 @@
   $("import").addEventListener("click", () => {
     try { const replacement = A.Factory.importSave($("saveText").value);
       const previous = localStorage.getItem(D.saveKey); if (previous && previous !== $("saveText").value) backupBeforeMigration(previous);
-      backupTerrainSave($("saveText").value, replacement); factory = replacement; storageFailed = false; protectedSave = null; loadFailure = null;
+      backupTerrainSave($("saveText").value, replacement); syncCapitalUnlock(replacement);
+      factory = replacement; resetSimulationClock(); storageFailed = false; protectedSave = null; loadFailure = null;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
       dismantledSelection = null;
@@ -814,22 +928,35 @@
   });
   $("reset").addEventListener("click", () => {
     if (!window.confirm("Reset the factory game? Existing mining saves will not be changed.")) return;
-    try { const previous = localStorage.getItem(D.saveKey); if (previous) backupBeforeMigration(previous); }
+    const replacement = new A.Factory();
+    try {
+      const previous = localStorage.getItem(D.saveKey); if (previous) backupBeforeMigration(previous);
+      syncCapitalUnlock(replacement);
+    }
     catch (error) { notify(`Could not back up the existing save, so it was not reset. ${error.message}`); return; }
-    factory = new A.Factory(); storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
+    factory = replacement; storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
     inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
     dismantledSelection = null;
-    home(); save(); refresh();
+    resetSimulationClock(); home(); save(); refresh();
   });
-  window.addEventListener("resize", resize); window.addEventListener("beforeunload", save);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) save(); lastFrame = performance.now(); });
+  window.addEventListener("resize", resize);
+  window.addEventListener("storage", (event) => {
+    if (event.key !== D.capitalSaveKey || event.newValue !== "1") return;
+    factory.state.capitalUnlocked = true;
+    refresh();
+  });
+  window.addEventListener("beforeunload", () => { advanceSimulation(performance.now()); save(); });
+  document.addEventListener("visibilitychange", () => {
+    const now = performance.now(); advanceSimulation(now); lastFrame = now;
+    if (document.hidden) save(); else refresh();
+  });
+  setInterval(() => { if (document.hidden) advanceSimulation(performance.now()); }, 1000);
   new ResizeObserver(resize).observe($("viewport"));
   function frame(now) {
     const elapsed = lastFrame ? Math.min((now - lastFrame) / 1000, 0.25) : 0; lastFrame = now;
+    const changed = advanceSimulation(now);
     if (!document.hidden) {
-      accumulator += elapsed;
-      if (accumulator >= 0.1) { factory.update(accumulator); saveElapsed += accumulator; accumulator = 0; refresh(); }
-      if (saveElapsed >= 5) { saveElapsed = 0; save(); }
+      if (changed) refresh();
       if (activeTab === "factory" && viewport.width) {
         if (pointer) {
           const edge = 30, speed = 8 / camera.zoom;

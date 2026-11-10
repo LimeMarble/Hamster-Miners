@@ -19,16 +19,22 @@
     }
     for (const [id, definition] of Object.entries(data.machines)) {
       if (definition.batchModes) {
-        add(id, "chert", [], [item("soil", 0.1), item("chert", 0.1)], { seconds: definition.cycle, modeName: "Chert" });
-        add(id, "malachite", [], [item("soil", 0.1), { ...item("malachitePebble", 1), chance: 0.2 }], { seconds: definition.cycle, modeName: "Malachite focus" });
-        add(id, "soil", [], [item("soil", 0.2)], { seconds: definition.cycle, modeName: "Soil focus" });
+        const { soil, chert } = definition.batchOutputs;
+        add(id, "chert", [], [item("soil", soil), item("chert", chert)], { seconds: definition.cycle, modeName: definition.batchModes.chert });
+        add(id, "malachite", [], [item("soil", soil), { ...item("malachitePebble", 1), chance: definition.malachiteChance }],
+          { seconds: definition.cycle, modeName: definition.batchModes.malachite });
+        add(id, "soil", [], [item("soil", soil * 2)], { seconds: definition.cycle, modeName: definition.batchModes.soil });
       } else if (definition.batchOutputs) add(id, "source", [], Object.entries(definition.batchOutputs).map(([material, amount]) => item(material, amount)), { seconds: definition.cycle });
       else if (definition.source || definition.sourceModes) {
         for (const material of definition.source ? [definition.source] : Object.keys(definition.sourceModes)) {
-          add(id, material, [], [item(material, definition.sourceQuantity ?? 1)], { seconds: definition.cycle });
+          add(id, material, [], [item(material, definition.sourceQuantity ?? 1)], { seconds: definition.cycle, water: definition.waterPerBatch });
         }
       }
       for (const [mode, recipe] of Object.entries(definition.recipes ?? {})) {
+        if (recipe.inputs) {
+          add(id, mode, Object.entries(recipe.inputs).map(([material, amount]) => item(material, amount)), [item(recipe.output, recipe.outputQuantity)], recipe);
+          continue;
+        }
         const input = definition.craftInput ?? recipe.material ?? mode;
         add(id, mode, [item(input, recipe.input)], [item(recipe.output, recipe.outputQuantity ?? (definition.heatCapacity ? recipe.input : 1))], recipe);
       }
@@ -36,6 +42,9 @@
         const recipe = definition.paintRecipe;
         add(id, "paint", Object.entries(recipe.inputs).map(([material, amount]) => item(material, amount)),
           [item(recipe.output, 1)], { ...recipe, valueIngredient: "pot" });
+      }
+      for (const [dish, recipe] of Object.entries(definition.plateRecipes ?? {})) {
+        add(id, dish, Object.entries(recipe.inputs).map(([material, amount]) => item(material, amount)), [item(recipe.output, 1)], recipe);
       }
       if (definition.molder) for (const [material, source] of Object.entries(data.materials)) {
         const output = data.materials[source.moldsTo];
@@ -137,7 +146,8 @@
     function recipeCard(recipe) {
       const node = element("article", undefined, "recipe-card"); node.dataset.recipe = recipe.id;
       const heading = element("div", undefined, "recipe-card-heading"); heading.append(reference(recipe.machine));
-      heading.append(element("span", `${recipe.modeName ? `${recipe.modeName} · ` : ""}${number(recipe.seconds)}s per batch`, "muted")); node.append(heading);
+      const duration = recipe.seconds === 0 ? "Instant" : `${number(recipe.seconds)}s per batch`;
+      heading.append(element("span", `${recipe.modeName ? `${recipe.modeName} · ` : ""}${duration}`, "muted")); node.append(heading);
       const flow = element("div", undefined, "recipe-flow");
       if (recipe.inputs.length) { parts(flow, recipe.inputs); flow.append(element("span", "→", "recipe-arrow")); }
       else flow.append(element("span", "Produces", "muted"));
@@ -146,14 +156,14 @@
       if (machine.crew) facts.push(`${number(machine.crew)} crew`);
       if (machine.requiresKinetic) facts.push(`${machine.pressModes ? 2 : machine.kineticInputsRequired ?? 1} kinetic connection(s)`);
       if (recipe.adjacentPairSpeed) facts.push(`${number(recipe.seconds / recipe.adjacentPairSpeed)}s with an adjacent kinetic pair`);
-      if (machine.heatCapacity) facts.push(`${number(recipe.heatPerSecond * recipe.seconds)}u heat per batch`);
+      if (machine.heatCapacity) facts.push(`${number(recipe.heat ?? recipe.heatPerSecond * recipe.seconds)}u heat per batch`);
       if (recipe.preheatedSeconds) facts.push(`${number(recipe.preheatedSeconds)}s and ${number(recipe.heatPerSecond * recipe.preheatedSeconds)}u when fully preheated`);
-      if (machine.preheats) facts.push(`moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
+      if (machine.preheats || recipe.preheats) facts.push(`moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
       if (recipe.heatPerSecond) facts.push(`${number(recipe.heatPerSecond)}u/s heat`);
       if (recipe.water) facts.push(`${number(recipe.water)} Water per batch`);
       node.append(element("p", facts.join(" · "), "recipe-facts"));
-      node.append(element("p", recipe.outputs.map(part => `${number(part.quantity * (part.chance ?? 1) * 60 / recipe.seconds)} ${catalog.entries.get(part.key).name}/min`).join(" · ") + (recipe.outputs.some(part => part.chance !== undefined) ? " on average while continuously running" : " while continuously running"), "muted"));
-      if (recipe.valueIngredient) node.append(element("p", `Output cash value is ×${number(recipe.valueMultiplier)} the Pot's value; the Malachite Pebble's value is not added.`, "muted"));
+      if (recipe.seconds > 0) node.append(element("p", recipe.outputs.map(part => `${number(part.quantity * (part.chance ?? 1) * 60 / recipe.seconds)} ${catalog.entries.get(part.key).name}/min`).join(" · ") + (recipe.outputs.some(part => part.chance !== undefined) ? " on average while continuously running" : " while continuously running"), "muted"));
+      if (recipe.valueIngredient) node.append(element("p", `Output cash value uses ×${number(recipe.valueMultiplier)} the value of ${data.materials[recipe.valueIngredient].name}.`, "muted"));
       else if (recipe.valueMultiplier !== undefined) node.append(element("p", recipe.valueMultiplier === 1 ? "Preserves total input cash value." : `Total output cash value: ×${number(recipe.valueMultiplier)} combined input value.`, "muted"));
       if (recipe.outputs.some(part => catalog.entries.get(part.key).fluid)) node.append(element("p", "Liquid output requires a direct machine connection; it does not travel on conveyors.", "muted"));
       gradeNotes(node, recipe); return node;
@@ -163,7 +173,7 @@
       if (cash) {
         const lines = [`Cash effect: ${cash.multiplier ? `×${number(cash.multiplier)}` : `+$${number(cash.bonus)}`}`];
         for (const [key, label] of [["useLimit", "Use Limit"], ["upperLimit", "Upper Limit"], ["lowerLimit", "Lower Bound"], ["baseValueRequired", "Base Value Required"]]) {
-          if (cash[key] !== undefined) lines.push(`${label}: ${key === "useLimit" ? "" : "$"}${number(cash[key])}`);
+          if (cash[key] !== undefined && !(key === "upperLimit" && cash[key] === 1e50)) lines.push(`${label}: ${key === "useLimit" ? "" : "$"}${number(cash[key])}`);
         }
         const node = section("Upgrade effects"); lines.forEach(line => node.append(element("p", line)));
         if (entry.gradeEffect?.poorToStandardPerUse) node.append(element("p", `Grade Effects: each of ${number(entry.gradeEffect.useLimit)} uses moves ${number(entry.gradeEffect.poorToStandardPerUse * 100)} percentage points from Poor to Unremarkable on Clay products. Repairs carry through shaping and firing.`));

@@ -25,14 +25,15 @@ test('recipe index agrees with the actual crafting and thermal recipe resolvers 
       }
     }
     if (definition.heatCapacity) for (const [mode, recipe] of Object.entries(definition.recipes)) {
-      const live = f.furnaceRecipe({ type: id, input: [A.cargo(recipe.material ?? mode)] });
+      const input = recipe.inputs ? Object.keys(recipe.inputs).map(material => A.cargo(material)) : [A.cargo(recipe.material ?? mode)];
+      const live = f.furnaceRecipe({ type: id, input });
       const listed = index.recipes.find(r => r.id === `${id}:${mode}`);
-      assert.equal(listed.seconds * listed.heatPerSecond, live.seconds * (live.heatPerSecond ?? definition.heatPerSecond));
+      assert.equal(listed.heat ?? listed.seconds * listed.heatPerSecond, live.heat ?? live.seconds * (live.heatPerSecond ?? definition.heatPerSecond));
       assert.equal(listed.outputs[0].quantity, live.outputQuantity ?? live.input);
     }
   }
   for (const recipe of index.recipes) {
-    assert.ok(index.entries.has(recipe.machine)); assert.ok(recipe.seconds > 0);
+    assert.ok(index.entries.has(recipe.machine)); assert.ok(Number.isFinite(recipe.seconds) && recipe.seconds >= 0);
     for (const part of [...recipe.inputs, ...recipe.outputs]) { assert.ok(index.entries.has(part.key)); assert.ok(part.quantity > 0); }
     recipe.inputs.forEach(part => assert.ok(index.consumers.get(part.key).includes(recipe)));
     recipe.outputs.forEach(part => assert.ok(index.producers.get(part.key).includes(recipe)));
@@ -50,7 +51,7 @@ test('sources include multi-output extraction while production uses and machine 
   assert.ok(index.producers.get('item:moltenCopper').some(r => r.machine === 'machine:primitiveFurnace'));
   assert.deepEqual(index.consumers.get('item:moltenCopper').map(r => r.machine).sort(), ['machine:extruder', 'machine:ingotMolder']);
   assert.equal(index.consumers.has('item:copperGear'), false, 'construction ingredients are not production feed');
-  assert.ok(index.constructionUses.get('item:copperGear').some(use => use.machine === 'machine:heavyWheel' && use.quantity === 15));
+  assert.ok(index.constructionUses.get('item:woodenGear').some(use => use.machine === 'machine:heavyWheel' && use.quantity === 25));
   assert.deepEqual(index.constructionUses.get('machine:belt').find(use => use.machine === 'machine:primitiveBridge'), { machine: 'machine:primitiveBridge', quantity: 4 });
   assert.equal(index.consumers.has('item:charcoal'), false, 'burning fuel is not an ore-smelting ingredient');
 });

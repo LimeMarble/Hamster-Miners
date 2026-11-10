@@ -36,17 +36,30 @@ test("Kiln is a plain labelled machine box, without crew tiles or labels, in eve
     assert.equal(labels.filter((label) => label === "Clay Kiln").length, 1);
     assert.equal(labels.includes("Crew"), false);
     assert.equal(fills.filter((entry) => entry.color === D.machines.kiln.color).length, 1);
-    assert.equal(cells(kiln).length, 6); assert.equal(factory.availableCrew(), 8);
+    assert.equal(cells(kiln).length, 6); assert.equal(factory.availableCrew(), 18);
   }
 });
 
-test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free unlock", () => {
+test("Minor Transmutation unlocks the Kiln and grants one, with the construction price for additional copies", () => {
   assert.deepEqual(D.machines.kiln.cost, { cash: 100, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
   assert.equal(createState().stock.kiln, 0);
   const factory = new Factory(createState(1));
   factory.state.cash = 100;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 100);
+  const pedestal = place(factory, "minorRunePedestal", 45, 40);
+  const before = factory.exportSave();
+  assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
+  assert.equal(factory.exportSave(), before);
+  factory.state.inventory.clay = 50;
+  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "kiln");
+  assert.equal(factory.state.stock.kiln, 1);
+  assert.equal(factory.state.inventory.unfiredBrick, 0);
+  assert.equal(factory.state.inventory.clay, 0);
+  assert.equal(factory.nextRune("minor", "transmutation").machine, "primitiveOven");
+  assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
+  Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10 });
+  assert.ok(factory.buy("kiln").error);
   factory.state.inventory.leekFiber = 15;
   assert.equal(factory.buy("kiln").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.unfiredBrick, 0);
@@ -58,8 +71,8 @@ test("Kiln exact price, two-crew assignment, solid 2×3 footprint and no free un
     { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
     { x: 41, y: 41, direction: "right", role: "output" },
   ]);
-  assert.equal(factory.availableCrew(), 8); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 10);
-  for (let index = 0; index < 9; index++) place(factory, "fiber", 50 + index * 2, 50);
+  assert.equal(factory.availableCrew(), 18); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 20);
+  for (let index = 0; index < 19; index++) place(factory, "fiber", 50 + index * 2, 50);
   assert.match(factory.place("kiln", 40, 40).error, /hamsters/);
 });
 
@@ -107,7 +120,7 @@ test("Cold firing requires full batches and 96ku, consuming heat at the start of
     assert.equal(D.materials[recipe.output].value, D.materials[material].value * 4);
     feed(factory, kiln, material, recipe.input); factory.update(0.1);
     assert.equal(kiln.job, null, "24ku cannot start a second firing");
-    assert.match(factory.status(kiln), /Output waiting/);
+    assert.match(factory.status(kiln), /Waiting for heat/);
   }
 });
 
@@ -155,6 +168,43 @@ test("Blocked output retains a finished batch, one in-process batch and one wait
   factory.update(0.1); factory.update(14);
   assert.equal(factory.total(basket, "contents"), 2); near(basket.contents[0].value, 16.8);
   assert.equal(kiln.job.remaining, 0, "one blocked kiln cannot stall a separate instance");
+});
+
+test("One finished Kiln batch does not prevent starting or obscure missing material and heat", () => {
+  for (const [material, output, quantity] of [['unfiredBrick', 'brick', 4], ['unfiredPot', 'pot', 2]]) {
+    const { factory, kiln } = setup();
+    kiln.output = [cargo(output, quantity)];
+    assert.equal(factory.status(kiln), 'Waiting for material');
+    feed(factory, kiln, material, 1);
+    assert.match(factory.status(kiln), /Waiting for a full batch/);
+    feed(factory, kiln, material, quantity - 1);
+    assert.match(factory.status(kiln), /Waiting for heat/);
+    kiln.heat = 96000; factory.update(0.1);
+    assert.equal(kiln.job.remaining, 12);
+    assert.equal(factory.total(kiln, 'output'), quantity);
+    assert.match(factory.status(kiln), /^Firing/);
+    factory.update(12);
+    assert.equal(factory.status(kiln), 'Output blocked');
+    assert.equal(factory.total(kiln, 'output'), quantity);
+    assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
+  }
+});
+
+test("Preheated Kiln firing continues through a working Primitive Conveyor without output warnings", () => {
+  for (const [material, quantity] of [['unfiredBrick', 4], ['unfiredPot', 2]]) {
+    const { factory, kiln } = setup();
+    place(factory, 'wheel', 38, 44); place(factory, 'drive', 39, 42, 'down');
+    place(factory, 'belt', 42, 41); const basket = place(factory, 'basket', 43, 41);
+    const input = ports(kiln).find(point => point.channel === 'material');
+    for (let tick = 0; tick < 400; tick++) {
+      kiln.heat = 250000;
+      factory.receive(kiln, { ...cargo(material, quantity), preheated: true }, input.x, input.y, input.direction, true);
+      factory.update(0.1);
+      assert.doesNotMatch(factory.status(kiln), /Output waiting|Output blocked/);
+    }
+    assert.ok(factory.total(basket, 'contents') >= quantity * 5);
+    assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
+  }
 });
 
 test("Kiln unloads finished stacks directly into storage without an intake delay", () => {

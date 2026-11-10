@@ -28,7 +28,7 @@ test('Burnisher costs the proposed materials, occupies four cells and uses one c
   assert.deepEqual(D.machines.burnisher.cost, { cash: 5000, materials: { wood: 100, chert: 40, woodenGear: 10, leekFiber: 15 } });
   for (const facing of D.directions) {
     const f = new A.Factory(A.createState(1)), m = place(f, 'burnisher', 40, 40, facing);
-    assert.equal(A.cells(m).length, 4); assert.equal(f.availableCrew(), 9);
+    assert.equal(A.cells(m).length, 4); assert.equal(f.availableCrew(), 19);
     assert.equal(A.ports(m).filter(p => p.role === 'kineticInput').length, 2);
   }
 });
