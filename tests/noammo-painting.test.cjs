@@ -18,13 +18,13 @@ test('Sifter modes retain separate Soil and Chert outlet positions and preserve 
   const f = new A.Factory(A.createState(1)), sifter = place(f, 'pebbleSifterII', 40, 40);
   attachKineticWheel(f, sifter);
   assert.equal(sifter.mode, 'chert'); f.update(2);
-  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity]), [['soil', 0.2], ['chert', 0.1]]);
+  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity]), [['soil', 0.4], ['chert', 0.2]]);
   assert.equal(f.setSourceMode(sifter.id, 'soil').error, undefined);
   const top = place(f, 'basket', 43, 40), bottom = place(f, 'basket', 43, 41);
   f.update(0.1);
   assert.equal(top.contents[0].material, 'soil'); assert.equal(bottom.contents[0].material, 'chert');
   f.update(2);
-  assert.equal(top.contents[0].quantity, 0.4); assert.equal(bottom.contents.find(i => i.material === 'soil').quantity, 0.2);
+  assert.equal(top.contents[0].quantity, 0.8); assert.equal(bottom.contents.find(i => i.material === 'soil').quantity, 0.4);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 

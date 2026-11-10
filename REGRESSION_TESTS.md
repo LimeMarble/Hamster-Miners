@@ -25,9 +25,10 @@ future pipe tiers) are not treated as current acceptance requirements.
 
 ## Shared machine contracts
 
-- Pebble Sifter has Chert, Malachite and Soil modes. Malachite focus rolls
-  once per cycle for a 20% chance of one Pebble; Soil focus sends 0.1 Soil to
-  each physical output. Pending output survives mode changes.
+- Pebble Sifter emits 0.5 Soil and 0.5 Chert every five seconds. Pebble Sifter II
+  has Chert, Malachite and Soil modes with a two-second cycle. Malachite focus
+  rolls a 20% chance of one Pebble, and Soil focus sends 0.4 Soil to each
+  physical output. Pending output survives mode changes.
 - A Well provides 0.02 Water/s per carrier assigned to a Painting Bench's
   dropoff. The Painting Bench uses one worker, one fired Pot, one Malachite
   Pebble and 0.1 Water per six-second cycle. Output value is three times the
@@ -321,7 +322,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   stored molten metal is discarded, and dismantled starter Planters do not trigger
   replenishment. UI tests check previews, stable controls, placed-only rejection,
   returned belt placement and no automatic retargeting when the last unit is gone.
-  Starter reserves block dismantling below two total Planters, one Basket and one
+  Starter reserves block dismantling below two total Planters, four Baskets and one
   Sell Tube; mixed placed/stocked/stored ownership is counted once. Surplus units
   refund normally until the reserve, with a disabled button and visible reason.
 - Shift-click (or tap Shift then click) on empty ground arms two-tap selection;
@@ -378,7 +379,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   and placement suppression alongside existing Shift-selection shortcuts.
 - Baskets have no selling action or sale API. Holding or collecting sellables
   gives no cash, while collection controls keep working.
-- Primitive Conveyors cost 10 Wood and four Wooden Gears each, with no cash. Normal and bulk
+- Primitive Conveyors cost 6 Wood and two Wooden Gears each, with no cash. Normal and bulk
   purchases require sufficient cash, Wood and Gears, show scaled costs, and cannot borrow free belts.
 - Gear Bench checks cover its 25 Wood price, one crew, two-cell body/working-tile
   footprint in all rotations, bounded two-Wood input, exact twelve-second jobs,

@@ -344,7 +344,7 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
       runeVersion: 2, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 2,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
@@ -355,7 +355,7 @@
       playtest: { unlocked: false, toggles: Object.fromEntries(CHEATS.map((id) => [id, false])), used: Object.fromEntries(CHEATS.map((id) => [id, false])) },
     };
     state.stock.planter = 2;
-    state.stock.basket = 1;
+    state.stock.basket = D.machines.basket.dismantleMinimum;
     state.stock.sellTube = 1;
     state.stock.pebbleSifter = 1;
     state.stock.wheel = 1;
@@ -2408,6 +2408,11 @@
         const owned = factory.state.stock.planter + factory.state.machines.filter((machine) => machine.type === "planter").length;
         factory.state.stock.planter += Math.max(0, 2 - owned);
         factory.state.starterPlantersVersion = 1;
+      }
+      if ((state.starterBasketsVersion ?? 0) < 1) {
+        const owned = factory.state.stock.basket + factory.state.machines.filter(machine => machine.type === "basket").length;
+        factory.state.stock.basket += Math.max(0, D.machines.basket.dismantleMinimum - owned);
+        factory.state.starterBasketsVersion = 1;
       }
       factory.recoveredForPlanterResize = recovered.size;
       factory.reorientedForFiberResize = reorientedFiber;

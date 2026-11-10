@@ -15,12 +15,17 @@ function advance(f, seconds) {
   for (let time = 0; time < seconds - 1e-8; time += 0.1) f.update(Math.min(0.1, seconds - time));
 }
 
-test('Gear Bench has a cash-free 25 Wood price, one crew, and no gear/conveyor/power dependency', () => {
+test('Wood Carving Bench checks its material-only cost and needs one crew', () => {
   const f = new Factory(A.createState(1)), d = D.machines.crudeGearBench;
-  assert.deepEqual(d.cost, { cash: 0, materials: { wood: 25 } });
-  f.state.inventory.wood = 24;
-  const before = f.exportSave(); assert.ok(f.buy('crudeGearBench').error); assert.equal(f.exportSave(), before);
-  f.state.inventory.wood = 25; assert.equal(f.buy('crudeGearBench').amount, 1);
+  const materials = { wood: 25, leekFiber: 10, chert: 2 };
+  assert.deepEqual(d.cost, { cash: 0, materials });
+  for (const material of Object.keys(materials)) {
+    Object.assign(f.state.inventory, materials);
+    f.state.inventory[material]--;
+    const before = f.exportSave(); assert.ok(f.buy('crudeGearBench').error); assert.equal(f.exportSave(), before);
+  }
+  Object.assign(f.state.inventory, materials);
+  assert.equal(f.buy('crudeGearBench').amount, 1);
   const m = f.place('crudeGearBench', 40, 40).machine;
   assert.equal(f.availableCrew(), 19); assert.equal(f.state.cash, 0);
   assert.deepEqual(A.conveyorCells(m), []); assert.equal(d.requiresKinetic, undefined);
@@ -108,7 +113,7 @@ test('Every actual internal belt requires an owned conveyor and deducts old Wood
     const before = f.exportSave(); assert.ok(f.buy(type, 2).error); assert.equal(f.exportSave(), before);
     f.state.stock.belt++; assert.equal(f.buy(type, 2).amount, 2); assert.equal(f.state.stock.belt, 0);
   }
-  assert.deepEqual(D.machines.belt.cost, { cash: 0, materials: { wood: 10, woodenGear: 4 } });
+  assert.deepEqual(D.machines.belt.cost, { cash: 0, materials: { wood: 6, woodenGear: 2 } });
   assert.equal(D.machines.clayPit.cost.machines, undefined); assert.equal(D.machines.primitiveRockDrill.cost.machines, undefined);
   assert.equal(D.machines.crudeGearBench.cost.machines, undefined);
 });

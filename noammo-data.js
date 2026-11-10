@@ -146,7 +146,7 @@
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
-        dismantleMinimum: 1,
+        dismantleMinimum: 4,
         quickAction: "collect", collectorCapacity: 100,
         cost: { cash: 0, materials: { leekFiber: 5 } },
         description: "Stores up to 100 incoming items for collection into inventory.",
@@ -224,7 +224,7 @@
       logger: {
         name: "Logger", width: 1, height: 1, color: "#a7784c", category: "Resource", crew: 1,
         source: "wood", cycle: 6,
-        cost: { cash: 0, materials: { wood: 50, leekFiber: 5 } },
+        cost: { cash: 0, materials: { chert: 1, wood: 10, leekFiber: 5 } },
         description: "Produces 1 Wood every 6 seconds. Place it in the middle of a tree edge, facing outward.",
       },
       clayPit: {
@@ -295,18 +295,18 @@
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Resource",
         labelLines: ["Pebble", "Sifter"],
         cost: { cash: 0, materials: { wood: 50, leekFiber: 20, woodenGear: 5 } },
-        cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.1, chert: 0.1 },
+        cycle: 5, requiresKinetic: true, batchOutputs: { soil: 0.5, chert: 0.5 },
         ports: SIFTER_PORTS,
-        description: "Sifts Soil and Chert every 2 seconds. Requires kinetic power and space at both outputs.",
+        description: "Produces 0.5 Soil and 0.5 Chert every 5 seconds. Requires kinetic power and space at both outputs.",
       },
       pebbleSifterII: {
         name: "Pebble Sifter II", width: 3, height: 2, color: "#a49c79", category: "Resource",
         labelLines: ["Pebble", "Sifter II"],
         cost: { cash: 0, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } },
-        cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.2, chert: 0.1 }, malachiteChance: 0.2,
+        cycle: 2, requiresKinetic: true, batchOutputs: { soil: 0.4, chert: 0.2 }, malachiteChance: 0.2,
         defaultMode: "chert", batchModes: { chert: "Chert", malachite: "Malachite focus", soil: "Soil focus" },
         ports: SIFTER_PORTS,
-        description: "Sifts every 2 seconds and produces twice as much Soil as a Pebble Sifter. Choose Chert, Malachite focus or Soil focus. Requires kinetic power and space at both outputs.",
+        description: "Sifts every 2 seconds and produces twice the Soil per minute of a Pebble Sifter. Choose Chert, Malachite focus or Soil focus. Requires kinetic power and space at both outputs.",
       },
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
@@ -321,7 +321,7 @@
       crudeGearBench: {
         name: "Wood Carving Bench", width: 1, height: 2, color: "#b18b62", category: "Material", crew: 1,
         labelLines: ["Wood Carving", "Bench"], labelCell: [0, 0],
-        cost: { cash: 0, materials: { wood: 25 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
+        cost: { cash: 0, materials: { wood: 25, leekFiber: 10, chert: 2 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
         ports: [
           { x: 0, y: 1, direction: "left", role: "input" },
           { x: 0, y: 1, direction: "right", role: "output" },
@@ -554,7 +554,7 @@
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
         kineticSource: true, dedicatedPressSource: true,
         defaultFacing: "down",
-        cost: { cash: 0, materials: { wood: 100, leekFiber: 25 } },
+        cost: { cash: 0, materials: { wood: 40, leekFiber: 25, woodenGear: 10 } },
         description: "Provides 1 kinetic output at the center of each long edge. Connect it directly to a Drive or kinetic machine.",
       },
       heavyWheel: {
@@ -581,7 +581,7 @@
       },
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
-        cost: { cash: 0, materials: { wood: 75, leekFiber: 7.5 } },
+        cost: { cash: 0, materials: { wood: 20, leekFiber: 10, woodenGear: 8 } },
         description: "Powers nearby primitive conveyors up to 7 tiles beyond its footprint. Requires a direct Wheel connection.",
       },
       primitive: {
@@ -669,7 +669,7 @@
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
-        cost: { cash: 0, materials: { wood: 10, woodenGear: 4 } },
+        cost: { cash: 0, materials: { wood: 6, woodenGear: 2 } },
         conveyors: [[0, 0]],
         description: "Moves 1 cargo stack per tile, up to weight 2, at 1 tile every 2 seconds. Requires kinetic power.",
       },

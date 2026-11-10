@@ -55,23 +55,23 @@ test("Pebble Sifter cost, construction materials, six-cell footprint and materia
   ]);
 });
 
-test("every rotated Sifter routes fractional Soil and Chert only from its own port at 3 units/minute each", () => {
+test("every rotated Sifter routes fractional Soil and Chert only from its own port at 6 units/minute each", () => {
   for (const facing of D.directions) {
     const { factory, sifter, receivers } = setup(facing);
-    factory.update(1.9); assert.equal(sifter.output.length, 0);
+    factory.update(4.9); assert.equal(sifter.output.length, 0);
     near(factory.total(receivers.soil, "contents"), 0);
     factory.update(0.1);
-    near(factory.total(receivers.soil, "contents"), 0.1);
-    near(factory.total(receivers.chert, "contents"), 0.1);
-    factory.update(58);
+    near(factory.total(receivers.soil, "contents"), 0.5);
+    near(factory.total(receivers.chert, "contents"), 0.5);
+    factory.update(55);
     for (const material of ["soil", "chert"]) {
-      near(factory.total(receivers[material], "contents"), 3);
+      near(factory.total(receivers[material], "contents"), 6);
       assert.ok(receivers[material].contents.every((item) => item.material === material));
     }
     near(factory.state.cash, 0);
-    near(factory.collect(receivers.chert.id), 3); near(factory.state.inventory.chert, 3);
-    near(factory.collect(receivers.soil.id), 3); near(factory.state.cash, 0);
-    near(factory.state.inventory.soil, 3);
+    near(factory.collect(receivers.chert.id), 6); near(factory.state.inventory.chert, 6);
+    near(factory.collect(receivers.soil.id), 6); near(factory.state.cash, 0);
+    near(factory.state.inventory.soil, 6);
     const tube = place(factory, "sellTube", 50, 50);
     assert.equal(factory.receive(tube, cargo("soil", 1), 50, 50, "left", true), 0);
     near(factory.receive(tube, cargo("chert", 0.1), 50, 50, "left", true), 0.1);
@@ -86,8 +86,8 @@ test("Sifter needs a physically matched Wheel port, not nearby area power, and p
   assert.equal(factory.kineticHasWheel(sifter), false);
   factory.update(60); near(sifter.timer, 1);
   assert.match(factory.status(sifter), /kinetic power/);
-  factory.move(wheel.id, wheel.x, wheel.y, "right"); factory.update(1);
-  near(factory.total(receivers.chert, "contents"), 0.1);
+  factory.move(wheel.id, wheel.x, wheel.y, "right"); factory.update(4);
+  near(factory.total(receivers.chert, "contents"), 0.5);
   const other = new Factory(createState(1));
   place(other, "wheel", 20, 20); place(other, "drive", 21, 22, "up");
   const unconnected = place(other, "pebbleSifter", 23, 24);
@@ -106,8 +106,8 @@ test("two real powered belt lines sustain the Sifter's full rate without seeing 
   }
   factory.update(60);
   for (const material of ["soil", "chert"]) {
-    near(factory.total(receivers[material], "contents"), 2.9);
-    near(belts[material].lanes[0].quantity, 0.1);
+    near(factory.total(receivers[material], "contents"), 5.5);
+    near(belts[material].lanes[0].quantity, 0.5);
   }
   assert.equal(sifter.output.length, 0);
 });
@@ -118,16 +118,16 @@ test("either blocked output stalls the whole Sifter with at most one batch held,
     receivers[blocked].contents.push(cargo(blocked, 100));
     factory.update(60);
     const clear = blocked === "soil" ? "chert" : "soil";
-    near(factory.total(receivers[clear], "contents"), 0.1);
-    near(factory.total(sifter, "output"), 0.1);
+    near(factory.total(receivers[clear], "contents"), 0.5);
+    near(factory.total(sifter, "output"), 0.5);
     assert.equal(sifter.output[0].material, blocked);
     assert.match(factory.status(sifter), /blocked/);
     const loaded = Factory.importSave(factory.exportSave());
     loaded.collect(receivers[blocked].id); loaded.update(0.1);
     assert.equal(loaded.byId.get(sifter.id).output.length, 0);
-    loaded.update(2);
-    near(loaded.total(loaded.byId.get(receivers[clear].id), "contents"), 0.2);
-    near(loaded.total(loaded.byId.get(receivers[blocked].id), "contents"), 0.2);
+    loaded.update(5);
+    near(loaded.total(loaded.byId.get(receivers[clear].id), "contents"), 1);
+    near(loaded.total(loaded.byId.get(receivers[blocked].id), "contents"), 1);
   }
 });
 
@@ -138,10 +138,10 @@ test("Sifter work and separate outputs survive saves and group moves; pickup rec
   factory.moveGroup([sifter.id, wheel.id], 80, 80, 1);
   assert.equal(factory.kineticHasWheel(sifter), true); near(sifter.timer, 1.2);
   const loaded = Factory.importSave(factory.exportSave());
-  loaded.update(0.8);
-  assert.deepEqual(loaded.byId.get(sifter.id).output.map(({ material, quantity }) => [material, quantity]), [["soil", 0.1], ["chert", 0.1]]);
+  loaded.update(3.8);
+  assert.deepEqual(loaded.byId.get(sifter.id).output.map(({ material, quantity }) => [material, quantity]), [["soil", 0.5], ["chert", 0.5]]);
   assert.equal(loaded.byId.get(other.id).output.length, 0);
-  loaded.pickup(sifter.id); near(loaded.state.inventory.soil, 0.1); near(loaded.state.inventory.chert, 0.1);
+  loaded.pickup(sifter.id); near(loaded.state.inventory.soil, 0.5); near(loaded.state.inventory.chert, 0.5);
   assert.equal(loaded.pickup(sifter.id), false);
   const replacement = loaded.place("pebbleSifter", 40, 40).machine;
   assert.equal(replacement.id, sifter.id); assert.equal(replacement.output.length, 0); near(replacement.timer, 0);
@@ -149,7 +149,7 @@ test("Sifter work and separate outputs survive saves and group moves; pickup rec
 });
 
 test("Sifter migration only defaults new fields; corrupt output materials, sizes and timers fail validation", () => {
-  const { factory, sifter } = setup("right", false); factory.update(2);
+  const { factory, sifter } = setup("right", false); factory.update(5);
   const before = factory.exportSave();
   const old = new Factory(createState(1));
   const payload = JSON.parse(old.exportSave());
@@ -160,7 +160,7 @@ test("Sifter migration only defaults new fields; corrupt output materials, sizes
   assert.equal(loaded.state.inventory.chert, 0); assert.equal(loaded.state.inventory.soil, 0);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
   for (const mutate of [
-    (machine) => { machine.output[0].quantity = 0.2; },
+    (machine) => { machine.output[0].quantity = 0.6; },
     (machine) => { machine.output[0].material = "wood"; },
     (machine) => { machine.timer = 100; },
   ]) {
@@ -194,7 +194,7 @@ test("Sifter II consumes a stocked Sifter and the old focus-mode setup survives 
 
 test("buffered Soil and Chert render on separate port cells with compact fractional labels", () => {
   for (const facing of D.directions) {
-    const { factory, sifter } = setup(facing, false); factory.update(2);
+    const { factory, sifter } = setup(facing, false); factory.update(5);
     const drawings = [], context = {};
     for (const method of ["save", "restore", "clearRect", "translate", "scale", "rotate", "fillRect", "strokeRect", "fillText", "beginPath", "moveTo", "lineTo", "closePath", "fill", "stroke"]) {
       context[method] = (...args) => drawings.push({ method, args, color: context.fillStyle });
@@ -205,7 +205,7 @@ test("buffered Soil and Chert render on separate port cells with compact fractio
       assert.ok(drawings.some(({ method, args, color }) => method === "fillRect" && color === D.materials[point.material].color
         && args[0] === (point.x + 0.5) * 32 - 6 && args[1] === (point.y + 0.5) * 32 - 5));
     }
-    assert.equal(drawings.filter(({ method, args }) => method === "fillText" && args[0] === "0.1").length, 2);
+    assert.equal(drawings.filter(({ method, args }) => method === "fillText" && args[0] === "0.5").length, 2);
     assert.equal(factory.exportSave(), before);
   }
 });

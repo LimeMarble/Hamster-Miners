@@ -35,11 +35,11 @@ function drawingContext() {
   return { context, calls };
 }
 
-test("opening has its own save identity, fixed permanent trees and two free Planters plus Basket", () => {
+test("opening has its own save identity, fixed permanent trees, two free Planters and four Baskets", () => {
   const state = createState(123);
   assert.equal(D.config.columns, 250); assert.equal(D.config.rows, 250);
   assert.equal(state.trees.length, D.config.treeCount);
-  assert.equal(state.stock.planter, 2); assert.equal(state.stock.basket, 1);
+  assert.equal(state.stock.planter, 2); assert.equal(state.stock.basket, 4);
   assert.equal(state.stock.sellTube, 1);
   assert.equal(state.stock.logger, 0); assert.equal(state.cash, 0);
   assert.notEqual(D.saveKey, "hamster-miners-save");
@@ -66,11 +66,28 @@ test("existing saves receive only the missing starter Planters, counting placed,
   }
 });
 
+test("older saves get only enough Baskets to reach four, and dismantling protects that minimum", () => {
+  for (const [owned, expectedStock] of [[2, 3], [5, 4]]) {
+    const factory = new Factory(createState(1)); factory.state.stock.basket = owned;
+    const placed = factory.place("basket", 40, 40).machine;
+    const stored = factory.place("basket", 41, 40).machine;
+    factory.pickup(stored.id);
+    const old = JSON.parse(factory.exportSave()); delete old.state.starterBasketsVersion;
+    const loaded = Factory.importSave(JSON.stringify(old));
+    assert.equal(loaded.state.stock.basket, expectedStock);
+    assert.ok(loaded.byId.has(placed.id));
+    assert.ok(loaded.state.storedMachines.some(machine => machine.id === stored.id));
+    assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+    if (owned > 4) assert.equal(loaded.dismantle("basket").amount, 1);
+    assert.match(loaded.dismantle("basket").error, /at least 4/);
+  }
+});
+
 test("opening prices and manually operated Fiber match the decisions", () => {
   assert.deepEqual(D.machines.fiber.cost, { cash: 0, materials: { wood: 30, leek: 1 } });
-  assert.deepEqual(D.machines.logger.cost, { cash: 0, materials: { wood: 50, leekFiber: 5 } });
-  assert.deepEqual(D.machines.wheel.cost, { cash: 0, materials: { wood: 100, leekFiber: 25 } });
-  assert.deepEqual(D.machines.drive.cost, { cash: 0, materials: { wood: 75, leekFiber: 7.5 } });
+  assert.deepEqual(D.machines.logger.cost, { cash: 0, materials: { chert: 1, wood: 10, leekFiber: 5 } });
+  assert.deepEqual(D.machines.wheel.cost, { cash: 0, materials: { wood: 40, leekFiber: 25, woodenGear: 10 } });
+  assert.deepEqual(D.machines.drive.cost, { cash: 0, materials: { wood: 20, leekFiber: 10, woodenGear: 8 } });
   assert.deepEqual(D.machines.primitive.cost, { cash: 2, materials: { wood: 10, leekFiber: 5 }, machines: { belt: 2 } });
   assert.deepEqual(D.machines.basket.cost, { cash: 0, materials: { leekFiber: 5 } });
   assert.deepEqual(D.machines.planter.cost, { cash: 0, materials: { wood: 40, leekFiber: 10, leek: 4, chert: 2, soil: 10 } });
@@ -649,13 +666,13 @@ test("purchasing checks cash AND materials, including gears and Wood per conveyo
   assert.equal(factory.buy("fiber").amount, 1);
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.leek, 0); assert.equal(factory.state.inventory.wood, 0);
   assert.ok(factory.buy("belt").error);
-  assert.deepEqual(D.machines.belt.cost, { cash: 0, materials: { wood: 10, woodenGear: 4 } });
+  assert.deepEqual(D.machines.belt.cost, { cash: 0, materials: { wood: 6, woodenGear: 2 } });
   assert.equal(factory.borrow("belt", 5), false); assert.equal(factory.state.stock.belt, 0);
-  factory.state.cash = 0; factory.state.inventory.wood = 49; factory.state.inventory.woodenGear = 20;
+  factory.state.cash = 0; factory.state.inventory.wood = 29; factory.state.inventory.woodenGear = 10;
   assert.ok(factory.buy("belt", 5).error);
-  factory.state.inventory.wood = 50; factory.state.inventory.woodenGear = 19;
+  factory.state.inventory.wood = 30; factory.state.inventory.woodenGear = 9;
   assert.ok(factory.buy("belt", 5).error);
-  factory.state.inventory.woodenGear = 20;
+  factory.state.inventory.woodenGear = 10;
   assert.equal(factory.buy("belt", 5).amount, 5);
   assert.equal(factory.state.stock.belt, 5); assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.wood, 0);
   assert.equal(factory.borrow("primitive", 1), false);
@@ -725,7 +742,7 @@ test("dismantling consumes one picked-up instance, cannot touch placed machines 
   const next = place(f, 'ingotMolder', 45, 40); assert.equal(next.job, null); assert.equal(next.input.length, 0);
   f.state.stock.belt = 1;
   const beforeCash = f.state.cash;
-  f.dismantle('belt'); assert.equal(f.state.inventory.woodenGear, 4); assert.equal(f.state.cash, beforeCash);
+  f.dismantle('belt'); assert.equal(f.state.inventory.woodenGear, 2); assert.equal(f.state.cash, beforeCash);
   f.dismantle('planter'); f.dismantle('planter');
   assert.equal(f.state.inventory.soil, 0, 'starter Planters cannot be dismantled');
   const save = f.exportSave(); assert.ok(f.dismantle('missing').error); assert.equal(f.exportSave(), save);
@@ -734,7 +751,7 @@ test("dismantling consumes one picked-up instance, cannot touch placed machines 
 });
 
 test('starter dismantling reserves count placed, stocked and stored machines once and allow only surplus units', () => {
-  for (const [type, minimum] of [['planter', 2], ['basket', 1], ['sellTube', 1]]) {
+  for (const [type, minimum] of [['planter', 2], ['basket', 4], ['sellTube', 1]]) {
     for (let placed = 0; placed <= minimum; placed++) for (let stored = 0; stored <= minimum - placed; stored++) {
       const f = new Factory(createState(1)); f.state.stock[type] = minimum;
       for (let i = 0; i < placed; i++) assert.ok(f.place(type, 40 + 4 * i, 40).machine);
@@ -798,10 +815,15 @@ test("actual opening bootstraps Fiber and manually carved gears before buying a 
   factory.pickup(basket.id);
   const fiber = factory.place("fiber", 124, 5).machine;
   basket = factory.place("basket", 125, 6).machine;
+  assert.ok(factory.place("pebbleSifter", 140, 20, "right").machine);
+  assert.ok(factory.place("wheel", 140, 22, "right").machine);
+  assert.ok(factory.place("basket", 143, 20).machine);
+  const chertBasket = factory.place("basket", 143, 21).machine;
   const incomeTube = factory.place("sellTube", 147, 10).machine;
   for (let i = 0; i < 5; i++) { advance(factory, 60); factory.collect(basket.id); }
   assert.equal(factory.state.cash, 0, "the opening must reach powered infrastructure without Clay income");
-  assert.ok(factory.state.inventory.leekFiber >= 42.5, "slow Leeks must cover the halved construction costs");
+  assert.ok(factory.state.inventory.leekFiber >= 55, "Leeks must cover the starting infrastructure costs");
+  factory.collect(chertBasket.id);
   while (factory.state.inventory.wood < 310) {
     factory.chop(factory.state.trees[0].id); factory.update(0.2);
   }
@@ -816,7 +838,7 @@ test("actual opening bootstraps Fiber and manually carved gears before buying a 
   // free belts, kinetic connection or gear dependency is needed.
   for (let i = 0; i < 45; i++) advance(factory, 10);
   factory.collect(gearBasket.id);
-  assert.ok(factory.state.inventory.woodenGear >= 16);
+  assert.ok(factory.state.inventory.woodenGear >= 26);
   factory.pickup(gearBench.id);
   assert.equal(factory.buy("belt", 4).amount, 4);
   for (const type of ['wheel', 'drive']) assert.equal(factory.buy(type).amount, 1);

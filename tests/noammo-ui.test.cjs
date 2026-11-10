@@ -551,7 +551,7 @@ test("Inventory dismantling previews resources, returns components, excludes pla
 });
 
 test('starter reserves disable dismantling visibly after the last surplus machine, including mixed placed/unplaced ownership', () => {
-  for (const [type, minimum] of [['planter', 2], ['basket', 1], ['sellTube', 1]]) for (const placed of [false, true]) {
+  for (const [type, minimum] of [['planter', 2], ['basket', 4], ['sellTube', 1]]) for (const placed of [false, true]) {
     const f = new A.Factory(A.createState(1)); f.state.stock[type] = minimum + 1;
     if (placed) assert.ok(f.place(type, 121, 121).machine);
     const ui = boot(f.exportSave()); ui.ids.get('openInventory').emit('click');
@@ -568,6 +568,7 @@ test('starter reserves disable dismantling visibly after the last surplus machin
 
 test("machine cards filter, select stable details, and Place returns to the unchanged factory camera", () => {
   const factory = new A.Factory(A.createState(1)); factory.state.stock.sellTube = 0; factory.state.stock.wheel = 0;
+  for (let x = 40; x < 43; x++) assert.ok(factory.place("basket", x, 40).machine);
   factory.place('planter', 121, 121);
   factory.state.stock.primitive = 1; factory.place('primitive', 125, 121);
   const ui = boot(factory.exportSave()); ui.frame(100);
@@ -617,7 +618,7 @@ test("explicit two-tap selection moves and rotates a group, while Cancel preserv
   assert.deepEqual(moved.map((machine) => machine.id), ids);
   ui.ids.get("pickupGroup").emit("click");
   const state = ui.state(); assert.equal(state.machines.length, 0);
-  for (const type of ["planter", "basket", "fiber"]) assert.equal(state.stock[type], type === "planter" ? 2 : 1);
+  for (const [type, count] of [["planter", 2], ["basket", 4], ["fiber", 1]]) assert.equal(state.stock[type], count);
 });
 
 test("box selection supports reversed corners, additive boxes, repeat/input guards and cancellation", () => {
@@ -797,6 +798,8 @@ test("placement and movement take priority over Shift quick actions, and shortcu
   shiftClick(ui, 126, 124); ui.frame(200);
   const moved = ui.state().machines.find((m) => m.id === basket.id);
   assert.deepEqual([moved.x, moved.y], [126, 124]);
+  assert.equal(ui.view().interaction.tool.type, "basket");
+  ui.ids.get("cancel").emit("click"); ui.frame(300);
   assert.equal(ui.view().interaction.tool, null);
   // Moving Baskets already collects contents under the normal move rules.
   assert.match(ui.ids.get("collectBasket").title, /Shift-click/);
@@ -891,7 +894,7 @@ test("opening browser scripts boot every tab without missing elements or runtime
   const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
   assert.doesNotMatch(html, /250\s*(?:×|by|x)\s*250|36\s+inexhaustible\s+trees/i);
   const ui = boot();
-  assert.equal(ui.state().stock.basket, 1);
+  assert.equal(ui.state().stock.basket, 4);
   for (const button of ui.tabs) {
     assert.doesNotThrow(() => button.emit("click"));
     assert.equal(ui.ids.get(button.dataset.tab).hidden, false);
@@ -993,9 +996,9 @@ test("Brick Storage Shop, inventory placement and stable collection controls use
 });
 
 test("Shop material costs scale with quantity and enforce Sell Tube and Primitive Conveyor prices", () => {
-  for (const [type, material, required, cash] of [["sellTube", "brick", 200, 750], ["belt", "wood", 10, 0]]) for (const owned of [required - 1, required]) {
+  for (const [type, material, required, cash] of [["sellTube", "brick", 200, 750], ["belt", "wood", 6, 0]]) for (const owned of [required - 1, required]) {
     const factory = new A.Factory(A.createState(1)); factory.state.cash = cash; factory.state.inventory[material] = owned;
-    if (type === "belt") factory.state.inventory.woodenGear = 4;
+    if (type === "belt") factory.state.inventory.woodenGear = 2;
     const initialStock = factory.state.stock[type];
     const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
     shopCard(ui, type).emit('click');
@@ -1426,10 +1429,11 @@ test("Primitive Stacker uses a stable typed size control, validates limits, and 
 });
 
 test("Gear Bench can be bought and placed from Inventory, with live stable buffers and saved two-tile geometry", () => {
-  const f = new A.Factory(A.createState(1)); f.state.inventory.wood = 25;
+  const f = new A.Factory(A.createState(1));
+  Object.assign(f.state.inventory, { wood: 25, leekFiber: 10, chert: 2 });
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   shopCard(ui, 'crudeGearBench').emit('click');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$0 / $0', '25 / 25']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$0 / $0', '25 / 25', '10 / 10', '2 / 2']);
   assert.equal(ui.ids.get('buyMachine').disabled, false); ui.ids.get('buyMachine').emit('click');
   assert.equal(ui.state().stock.crudeGearBench, 1); assert.equal(ui.state().inventory.wood, 0);
   chooseMachine(ui, 'crudeGearBench'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
@@ -1448,7 +1452,7 @@ test("Gear Bench can be bought and placed from Inventory, with live stable buffe
 });
 
 test("Conveyor Shop independently checks gears and machine purchases check scaled belt components", () => {
-  for (const [type, component, required] of [['belt', 'woodenGear', 4], ['brickSeal', 'belt', 1]]) {
+  for (const [type, component, required] of [['belt', 'woodenGear', 2], ['brickSeal', 'belt', 1]]) {
     const f = new A.Factory(A.createState(1)), cost = A.DATA.machines[type].cost;
     f.state.cash = cost.cash * 2;
     for (const [id, qty] of Object.entries(cost.materials)) f.state.inventory[id] = qty * 2;

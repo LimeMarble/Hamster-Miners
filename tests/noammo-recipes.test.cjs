@@ -45,8 +45,8 @@ test('sources include multi-output extraction while production uses and machine 
   const index = buildCatalog(D);
   for (const material of ['soil', 'chert']) {
     const source = index.producers.get(`item:${material}`).find(r => r.machine === 'machine:pebbleSifter');
-    assert.deepEqual(source.outputs, [{ key: 'item:soil', quantity: 0.1 }, { key: 'item:chert', quantity: 0.1 }]);
-    assert.equal(source.seconds, 2);
+    assert.deepEqual(source.outputs, [{ key: 'item:soil', quantity: 0.5 }, { key: 'item:chert', quantity: 0.5 }]);
+    assert.equal(source.seconds, 5);
   }
   assert.ok(index.producers.get('item:moltenCopper').some(r => r.machine === 'machine:primitiveFurnace'));
   assert.deepEqual(index.consumers.get('item:moltenCopper').map(r => r.machine).sort(), ['machine:extruder', 'machine:ingotMolder']);
