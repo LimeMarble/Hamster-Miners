@@ -196,6 +196,31 @@ test('current saves cannot import overweight cargo or malformed legacy remainder
   }
 });
 
+test('Old Flour and Dough conveyor stacks drain at their new weights without losing cargo', () => {
+  assert.equal(A.DATA.materials.flour.weight, 0.25);
+  assert.equal(A.DATA.materials.dough.weight, 0.35);
+  for (const [material, version, quantity, capacity] of [['flour', 4, 40, 8], ['dough', 5, 8, 5]]) {
+    const f = new A.Factory(A.createState(1));
+    const belt = place(f, 'belt', 40, 40);
+    const basket = place(f, 'basket', 41, 40);
+    place(f, 'wheel', 38, 44);
+    place(f, 'drive', 39, 42, 'down');
+    const old = JSON.parse(f.exportSave());
+    old.state.foodVersion = version;
+    const stack = { ...A.cargo(material, quantity, 7), progress: 0.5, upgrades: { pebblePile: 2 } };
+    old.state.machines.find(machine => machine.id === belt.id).lanes[0] = stack;
+    const migrated = A.Factory.importSave(JSON.stringify(old));
+    assert.deepEqual(migrated.byId.get(belt.id).lanes[0], { ...stack, quantity: capacity });
+    assert.deepEqual(migrated.byId.get(belt.id).beltRemainders[0], { ...stack, quantity: quantity - capacity, progress: 0 });
+    const resumed = A.Factory.importSave(migrated.exportSave());
+    resumed.update(12);
+    const output = resumed.byId.get(basket.id);
+    assert.equal(resumed.total(output, 'contents', material), quantity);
+    assert.ok(output.contents.every(item => item.value === 7 && item.upgrades.pebblePile === 2));
+    assert.equal(resumed.byId.get(belt.id).beltRemainders, undefined);
+  }
+});
+
 test('older zero-value Wood receives the economy correction in both the active portion and saved remainder', () => {
   const { saved, id } = legacy('belt', 'wood', 5), p = JSON.parse(saved);
   p.state.machines.find(m => m.id === id).lanes[0].value = 0; delete p.state.openingEconomyVersion;

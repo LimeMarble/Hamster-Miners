@@ -65,8 +65,8 @@
       choppedLeek: { name: "Chopped Leek", value: 0.25, weight: 0.1, color: "#d0d99e" },
       leekSalad: { name: "Leek Salad", value: 1, weight: 0.1 + 1 / 3, color: "#9dc065" },
       wheat: { name: "Wheat", value: 0.15, weight: 0.25, color: "#d7be73", millsTo: "flour" },
-      flour: { name: "Flour", value: 0.03, weight: 0.05, color: "#dfd2af", shapesTo: "dough" },
-      dough: { name: "Dough", value: 0.3, weight: 0.25, color: "#d8bd92", shapesTo: "rawPasta", doughProfile: { input: 1 } },
+      flour: { name: "Flour", value: 0.30, weight: 0.25, color: "#dfd2af", shapesTo: "dough" },
+      dough: { name: "Dough", value: 0.60, weight: 0.35, color: "#d8bd92", shapesTo: "rawPasta", doughProfile: { outputQuantity: 2, valueMultiplier: 1, water: 0 } },
       rawPasta: { name: "Raw Pasta", value: 0.3, weight: 0.25, color: "#dcc37f" },
       unplatedLeekPasta: { name: "Unplated Leek Pasta", value: 1.7, weight: 0.3, color: "#d6b766", directTransferOnly: true },
       leekPasta: { name: "Leek Pasta", value: 1.7, weight: 0.3 + 1 / 3, color: "#cab465" },
@@ -135,14 +135,14 @@
         name: "Wheat Planter", width: 3, height: 3, color: "#a18b4f", category: "Resource",
         baseFacing: "up", defaultFacing: "up",
         cost: { cash: 50, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
-        source: "wheat", cycle: 10, outputLimit: 2, waterCapacity: 0.5, waterPerBatch: 0.1,
+        source: "wheat", cycle: 10, sourceQuantity: 5, outputLimit: 10, waterCapacity: 0.5, waterPerBatch: 0.25,
         ports: [
           { x: 1, y: 0, direction: "up", role: "output" },
           { x: 0, y: 1, direction: "left", role: "waterDropoff" },
           { x: 2, y: 1, direction: "right", role: "waterDropoff" },
           { x: 1, y: 2, direction: "down", role: "waterDropoff" },
         ],
-        description: "Grows 1 Wheat every 10 seconds using 0.1 Water. The three Water dropoffs share one buffer.",
+        description: "Grows 5 Wheat every 10 seconds using 0.25 Water. The three Water dropoffs share one buffer.",
       },
       basket: {
         name: "Leek Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
@@ -180,7 +180,7 @@
       platingBench: {
         name: "Plating Bench", width: 2, height: 2, color: "#ac956c", category: "Material", crew: 1,
         baseFacing: "up", defaultFacing: "up", labelLines: ["Plating", "Bench"],
-        cost: { cash: 0, materials: { wood: 25, leekFiber: 10 } },
+        cost: { cash: 20, materials: { wood: 25, leekFiber: 10 } },
         plateRecipes: {
           choppedLeek: { inputs: { choppedLeek: 1, woodenPlate: 1 }, output: "leekSalad", seconds: 0, valueIngredient: "choppedLeek", valueMultiplier: 4 },
           unplatedLeekPasta: { inputs: { unplatedLeekPasta: 1, woodenPlate: 1 }, output: "leekPasta", seconds: 0, valueIngredient: "unplatedLeekPasta", valueMultiplier: 1 },
@@ -196,30 +196,31 @@
         name: "Grain Mill", width: 2, height: 2, color: "#a99a73", category: "Material",
         baseFacing: "up", defaultFacing: "up", labelLines: ["Grain", "Mill"],
         cost: { cash: 125, materials: { wood: 30, chert: 25, woodenGear: 5 } },
-        requiresKinetic: true, defaultMode: "mill", inputLimit: 1, outputBuffer: 1,
+        requiresKinetic: true, defaultMode: "mill", inputLimit: 2, outputBuffer: 1,
         formingModes: {
-          mill: { name: "Flour", materialProperty: "millsTo", inputName: "Wheat", input: 1, outputQuantity: 5, seconds: 0, valueMultiplier: 1 },
+          mill: { name: "Flour", materialProperty: "millsTo", inputName: "Wheat", input: 2, outputQuantity: 1, seconds: 0, valueMultiplier: 1 },
         },
         ports: [
           { x: 1, y: 0, direction: "up", role: "output" },
           { x: 0, y: 1, direction: "left", role: "kineticInput" },
           { x: 1, y: 1, direction: "down", role: "input" },
         ],
-        description: "Mills 1 Wheat into 5 Flour instantly, preserving total value. Requires one kinetic connection.",
+        description: "Mills 2 Wheat into 1 Flour instantly, preserving total value. Requires one kinetic connection.",
       },
       doughShaper: {
-        name: "Dough Shaper", width: 2, height: 2, footprint: [[0, 0], [1, 0], [1, 1]], color: "#b4a078", category: "Material", crew: 1,
+        name: "Dough Shaper", width: 2, height: 2, color: "#b4a078", category: "Material", crew: 1,
         baseFacing: "up", defaultFacing: "up", labelLines: ["Dough", "Shaper"], labelCell: [0, 0],
         cost: { cash: 80, materials: { wood: 40, leekFiber: 10, chert: 5 } },
-        defaultMode: "shape", inputLimit: 5, outputBuffer: 1,
+        defaultMode: "shape", inputLimit: 1, outputBuffer: 1, waterCapacity: 0.5,
         formingModes: {
-          shape: { name: "Shape dough or pasta", materialProperty: "shapesTo", recipeProperty: "doughProfile", inputName: "Flour or Dough", input: 5, seconds: 0, valueMultiplier: 2 },
+          shape: { name: "Shape dough or pasta", materialProperty: "shapesTo", recipeProperty: "doughProfile", inputName: "Flour or Dough", input: 1, seconds: 0, valueMultiplier: 2, water: 0.1 },
         },
         ports: [
+          { x: 0, y: 1, direction: "left", role: "waterDropoff" },
           { x: 1, y: 0, direction: "up", role: "output" },
           { x: 1, y: 1, direction: "down", role: "input" },
         ],
-        description: "Instantly shapes 5 Flour into 1 Dough, or cuts 1 Dough into 1 Raw Pasta. Each pass doubles total value. Operated by one hamster.",
+        description: "Instantly shapes 1 Flour and 0.1 Water into 1 Dough at twice the Flour's value. Cuts 1 Dough into 2 Raw Pasta with the same total value. Operated by one hamster.",
       },
       logger: {
         name: "Logger", width: 1, height: 1, color: "#a7784c", category: "Resource", crew: 1,
@@ -603,9 +604,13 @@
       pebblePile: {
         name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
         labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
-        cost: { cash: 2000, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
-        cashEffect: { multiplier: 1.1, useLimit: 4, upperLimit: 100, baseValueRequired: 0.3 },
-        description: "Multiplies the value of passing cargo.",
+        cost: { cash: 500, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
+        cashEffect: { useLimit: 4, upperLimit: 100, baseValueRequired: 0.3, brackets: [
+          { upperLimit: 10, multiplier: 1.5 },
+          { upperLimit: 25, multiplier: 1.25 },
+          { upperLimit: 100, multiplier: 1.12 },
+        ] },
+        description: "Gives a bigger value boost to cheaper cargo.",
       },
       leekInfuser: {
         name: "Leek Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
@@ -616,6 +621,7 @@
       },
       leekDuster: {
         name: "Leek Duster", width: 3, height: 1, color: "#a4b779", category: "Cash",
+        hiddenFromShop: true,
         labelLines: ["Leek Duster"], labelCell: [1, 0],
         conveyors: [[0, 0], [1, 0], [2, 0]], upgradeCells: [[1, 0]], requiresKinetic: true,
         ports: [
@@ -697,6 +703,23 @@
           { x: 0, y: 0, direction: "right", role: "output" },
         ],
         description: "Combines matching items into stacks of up to 2. Accepts cargo from 3 sides and outputs in its facing direction.",
+      },
+      manualSplitter: {
+        name: "Manual Splitter", width: 3, height: 2, color: "#a38e68", category: "Logistics", crew: 1,
+        baseFacing: "up", defaultFacing: "up", defaultMode: "left", labelLines: ["Manual", "Splitter"],
+        cost: { cash: 4, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
+        conveyors: [[1, 1], [1, 0]],
+        modeFootprints: {
+          left: [[0, 0], [0, 1], [1, 0], [1, 1], [2, 1]],
+          right: [[0, 1], [1, 0], [1, 1], [2, 0], [2, 1]],
+        },
+        ports: [
+          { x: 1, y: 1, direction: "down", role: "input" },
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 0, y: 1, direction: "left", role: "output", mode: "left", channel: "split" },
+          { x: 2, y: 1, direction: "right", role: "output", mode: "right", channel: "split" },
+        ],
+        description: "Alternates cargo between the straight exit and a selectable side exit. If an exit is blocked, cargo can use the other. Operated by one hamster.",
       },
       sellTube: {
         dismantleMinimum: 1,

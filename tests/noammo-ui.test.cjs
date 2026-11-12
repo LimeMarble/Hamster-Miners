@@ -1050,6 +1050,7 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
 
 test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
   const factory = new A.Factory(A.createState(1));
+  factory.state.minorRunes.motion = 2;
   factory.state.cash = 24; factory.state.stock.belt = 7;
   Object.assign(factory.state.inventory, { leekFiber: 40, chert: 20 });
   const ui = boot(factory.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
@@ -1177,7 +1178,7 @@ test('Resource and Material filters separate producers from transformers in Shop
 
 test("Shop cards sort by cash price and categories preserve that order while filtering actual cards", () => {
   const factory = new A.Factory(A.createState(1));
-  Object.assign(factory.state.minorRunes, { harvest: 1, transmutation: 3 });
+  Object.assign(factory.state.minorRunes, { harvest: 1, motion: 3, transmutation: 3 });
   const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   const cards = ui.ids.get("shopCards").children;
   const prices = cards.map(card => A.DATA.machines[card.dataset.machine].cost.cash);
@@ -1542,38 +1543,32 @@ test("Grading history shows the actual Exceptional roll and $4.8k value in both 
   assert.equal(ui.ids.get('historyTooltip').hidden, true, 'placement suppresses hover tooltips');
 });
 
-test('Leek Duster Shop, inventory and repeat placement expose its cash effect', () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 2400;
-  Object.assign(f.state.inventory, { wood: 240, woodenGear: 24, leekFiber: 100, leek: 32 }); f.state.stock.belt = 6;
+test('Leek Duster is hidden in the Shop and still supports repeat placement from owned stock', () => {
+  const f = new A.Factory(A.createState(1)); f.state.stock.leekDuster = 2;
   const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
-  const card = shopCard(ui, 'leekDuster'); card.emit('click');
-  const effects = ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent);
-  assert.ok(effects.includes('Cash effect: ×1.65')); assert.ok(effects.includes('Upper Limit: $200'));
-  assert.ok(effects.every(line => !/grade/i.test(line)));
-  assert.ok(effects.some(line => /only once across the entire processing chain/.test(line)));
-  assert.ok(effects.every(line => !/once per material/.test(line)));
-  assert.ok(effects.every(line => !/NaN|undefined/.test(line)));
-  ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$2.4k / $2.4k', '240 / 240', '24 / 24', '100 / 100', '32 / 32', '6 / 6']);
-  ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.leekDuster, 2); assert.equal(ui.state().cash, 0);
+  ui.categories.find(button => button.dataset.category === 'Cash').emit('click');
+  assert.equal(ui.ids.get('shopCards').children.some(card => card.dataset.machine === 'leekDuster'), false);
   chooseMachine(ui, 'leekDuster'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   ui.ids.get('rotateRight').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(125, 121)); ui.frame(100);
   const machines = ui.state().machines.filter(machine => machine.type === 'leekDuster');
   assert.equal(machines.length, 2); assert.deepEqual(A.size(machines[0]), { width: 3, height: 1 }); assert.deepEqual(A.size(machines[1]), { width: 1, height: 3 });
   assert.equal(ui.view().interaction.tool, null); assert.match(ui.ids.get('machineStatus').textContent, /Waiting for kinetic power/);
+  const effects = ui.ids.get('inspector').children.filter(node => node.className === 'machine-effect').map(node => node.textContent);
+  assert.ok(effects.includes('Cash effect: ×1.65')); assert.ok(effects.includes('Upper Limit: $200'));
+  assert.ok(effects.some(line => /only once across the entire processing chain/.test(line)));
 });
 
 test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and cash effect', () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 4000;
+  const f = new A.Factory(A.createState(1)); f.state.cash = 1000;
   f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
   const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'pebblePile');
   ui.categories.find(button => button.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(button => button.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const effects = ['Cash effect: ×1.1', 'Use Limit: 4', 'Upper Limit: $100', 'Base Value Required: $0.3'];
+  const effects = ['Below $10 · ×1.5', '$10 to below $25 · ×1.25', '$25 to below $100 · ×1.12', 'Use Limit: 4', 'Upper Limit: $100', 'Base Value Required: $0.3'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$4k / $4k', '40 / 40', '60 / 60', '2 / 2']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$1k / $1k', '40 / 40', '60 / 60', '2 / 2']);
   ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.pebblePile, 2); assert.equal(ui.state().cash, 0);
   assert.equal(ui.state().stock.belt, 0); assert.equal(ui.state().inventory.chert, 0); assert.equal(ui.state().inventory.leekFiber, 0);
   chooseMachine(ui, 'pebblePile');

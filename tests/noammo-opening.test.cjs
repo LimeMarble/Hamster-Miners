@@ -680,12 +680,13 @@ test("purchasing checks cash AND materials, including gears and Wood per conveyo
 });
 
 test("dismantling every priced machine returns its current materials and component machines, never cash", () => {
-  for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost && !definition.legacyOnly)) {
+  for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost && !definition.legacyOnly && !definition.hiddenFromShop)) {
     const f = new Factory(createState(1)), cost = definition.cost;
     if (type === "kiln") f.state.minorRunes.transmutation = 1;
     if (type === "primitiveOven") f.state.minorRunes.transmutation = 2;
     if (type === "primitiveFurnace") f.state.minorRunes.transmutation = 3;
     if (type === "wheatPlanter") f.state.minorRunes.harvest = 1;
+    f.state.minorRunes.motion = 3;
     f.state.cash = cost.cash + 123;
     Object.assign(f.state.inventory, cost.materials); Object.assign(f.state.stock, cost.machines ?? {});
     const originalStock = A.copy(f.state.stock), originalInventory = A.copy(f.state.inventory);

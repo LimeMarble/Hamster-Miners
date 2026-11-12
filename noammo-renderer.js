@@ -12,6 +12,10 @@
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = color;
     ctx.beginPath(); ctx.moveTo(6 * scale, 0); ctx.lineTo(-4 * scale, -4 * scale); ctx.lineTo(-4 * scale, 4 * scale); ctx.closePath(); ctx.fill(); ctx.restore();
   }
+  function waterDropoff(ctx, point) {
+    ctx.fillStyle = "#76b9dc";
+    ctx.fillRect((point.x + 0.5) * TILE - 4, (point.y + 0.5) * TILE - 4, 8, 8);
+  }
   function world(ctx, camera) {
     ctx.save(); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x * TILE, -camera.y * TILE);
   }
@@ -63,7 +67,7 @@
   }
   function machineBox(ctx, machine, inset, fill = true) {
     const bounds = size(machine);
-    if (!D.machines[machine.type].footprint) {
+    if (!D.machines[machine.type].footprint && !D.machines[machine.type].modeFootprints) {
       const args = [machine.x * TILE + inset, machine.y * TILE + inset, bounds.width * TILE - inset * 2, bounds.height * TILE - inset * 2];
       if (fill) ctx.fillRect(...args); ctx.strokeRect(...args); return;
     }
@@ -128,18 +132,18 @@
       for (const point of ports(machine)) {
         const v = D.vectors[point.direction], px = (point.x + 0.5 + v.x * 0.4) * TILE, py = (point.y + 0.5 + v.y * 0.4) * TILE;
         if (point.role === "waterDropoff") {
-          ctx.fillStyle = "#76b9dc"; ctx.fillRect((point.x + 0.5) * TILE - 4, (point.y + 0.5) * TILE - 4, 8, 8);
+          waterDropoff(ctx, point);
         } else if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
-        } else if (!definition.conveyors) arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
+        } else if (!definition.conveyors || point.channel === "split") arrow(ctx, px, py, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.6,
           point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
       if (!["belt", "electricConveyor"].includes(machine.type)) {
         const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
         const labelCell = definition.labelCell;
-        const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, machine.facing);
+        const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, D.directions[API.rotation(machine)]);
         const occupied = labelPoint ? [{ x: machine.x + labelPoint.x, y: machine.y + labelPoint.y }] : cells(machine);
         const cx = occupied.reduce((sum, cell) => sum + cell.x + 0.5, 0) / occupied.length;
         const cy = occupied.reduce((sum, cell) => sum + cell.y + 0.5, 0) / occupied.length;
@@ -186,12 +190,23 @@
       ...factory.state.machines.filter((entry) => D.machines[entry.type].bridge)]) {
       const bounds = size(machine);
       if (!visible(machine.x, machine.y, bounds.width, bounds.height, camera, viewport)) continue;
-      const outputs = ports(machine).filter((point) => point.role === "output");
+      const machinePorts = ports(machine);
+      const outputs = machinePorts.filter((point) => point.role === "output");
       for (const [index, item] of Object.entries(machine.lanes)) {
         const point = API.conveyorCells(machine)[Number(index)];
         if (!point) continue;
         const v = D.vectors[point.direction], lateral = item.lateral ?? 0;
         drawCargo(ctx, item, (point.x + 0.5 - v.y * lateral) * TILE, (point.y + 0.5 + v.x * lateral) * TILE);
+      }
+      const { plateRecipes } = D.machines[machine.type];
+      if (plateRecipes && machine.input.length) {
+        for (const point of machinePorts.filter((port) => port.role === "input")) {
+          const item = machine.input.find((entry) => point.channel === "plate"
+            ? entry.material === point.material : Object.hasOwn(plateRecipes, entry.material));
+          if (!item) continue;
+          const quantity = factory.total(machine, "input", item.material);
+          drawCargo(ctx, { ...item, quantity }, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
+        }
       }
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
@@ -210,7 +225,7 @@
       }
       if (API.collectorCapacity(machine)) {
         const count = factory.total(machine, "contents");
-        const point = ports(machine).find((entry) => entry.role === "input") ?? machine;
+        const point = machinePorts.find((entry) => entry.role === "input") ?? machine;
         if (count) { ctx.fillStyle = "#102014"; ctx.fillRect(point.x * TILE + 4, point.y * TILE + 9, 24, 14);
           ctx.fillStyle = "#f0edcf"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(API.formatNumber(count), (point.x + 0.5) * TILE, (point.y + 0.5) * TILE); }
       }
@@ -238,8 +253,11 @@
         ctx.fillStyle = "#455d4a77"; ctx.fillRect(point.x * TILE + 4, point.y * TILE + 7, 24, 18);
         arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.direction, 0.65, "#f1edbd");
       }
-      for (const point of ports(preview)) arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
-        point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
+      for (const point of ports(preview)) {
+        if (point.role === "waterDropoff") waterDropoff(ctx, point);
+        else arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
+          point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
+      }
     }
     const box = interaction.marquee ?? interaction.box;
     if (box?.start && box.end) {

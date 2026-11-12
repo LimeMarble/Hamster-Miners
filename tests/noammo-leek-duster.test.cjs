@@ -32,19 +32,18 @@ function fire(f, item, type = 'kiln') {
   return { m, result: A.copy(m.output[0]) };
 }
 
-test('Duster exact cost is atomic, consumes three owned belts and grants no stock to old saves', () => {
+test('Duster cannot be bought while hidden but owned units still dismantle at their construction cost', () => {
   const cost = { cash: 1200, materials: { wood: 120, woodenGear: 12, leekFiber: 50, leek: 16 }, machines: { belt: 3 } };
   assert.deepEqual(D.machines.leekDuster.cost, cost); assert.equal(D.machines.leekDuster.crew ?? 0, 0);
-  for (const missing of ['cash', ...Object.keys(cost.materials), 'belt']) {
-    const f = new Factory(A.createState(1)); f.state.cash = 2400;
-    for (const [type, count] of Object.entries(cost.materials)) f.state.inventory[type] = count * 2;
-    f.state.stock.belt = 6;
-    if (missing === 'cash') f.state.cash -= 0.01;
-    else if (missing === 'belt') f.state.stock.belt--; else f.state.inventory[missing]--;
-    const before = f.exportSave(); assert.ok(f.buy('leekDuster', 2).error); assert.equal(f.exportSave(), before);
-  }
   const f = new Factory(A.createState(1)); f.state.cash = 1200; Object.assign(f.state.inventory, cost.materials); f.state.stock.belt = 3;
-  assert.equal(f.buy('leekDuster').amount, 1); assert.equal(f.state.cash, 0); assert.equal(f.state.stock.belt, 0);
+  const before = f.exportSave();
+  assert.match(f.buy('leekDuster').error, /unavailable in the shop/);
+  assert.equal(f.exportSave(), before);
+  f.state.stock.leekDuster = 1;
+  assert.equal(f.dismantle('leekDuster').amount, 1);
+  assert.equal(f.state.stock.belt, 6);
+  assert.equal(f.state.cash, 1200);
+  for (const [material, quantity] of Object.entries(cost.materials)) assert.equal(f.state.inventory[material], quantity * 2);
   const old = JSON.parse(new Factory(A.createState(1)).exportSave()); delete old.state.leekDusterVersion; delete old.state.stock.leekDuster;
   assert.equal(Factory.importSave(JSON.stringify(old)).state.stock.leekDuster, 0);
 });

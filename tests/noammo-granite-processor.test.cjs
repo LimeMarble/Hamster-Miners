@@ -98,11 +98,13 @@ test('Old saves gain zero Processor stock only; running use counts move and save
 });
 
 test('Pebble Pile has the specified atomic cost, no crew, and the Brick Seal footprint in every orientation', () => {
-  assert.deepEqual(D.machines.pebblePile.cost, { cash: 2000, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } });
-  assert.deepEqual(D.machines.pebblePile.cashEffect, { multiplier: 1.1, useLimit: 4, upperLimit: 100, baseValueRequired: 0.3 });
+  assert.deepEqual(D.machines.pebblePile.cost, { cash: 500, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } });
+  assert.deepEqual(D.machines.pebblePile.cashEffect, { useLimit: 4, upperLimit: 100, baseValueRequired: 0.3, brackets: [
+    { upperLimit: 10, multiplier: 1.5 }, { upperLimit: 25, multiplier: 1.25 }, { upperLimit: 100, multiplier: 1.12 },
+  ] });
   assert.equal(A.createState(1).stock.pebblePile, 0);
   for (const missing of ['cash', 'chert', 'leekFiber', 'belt', null]) {
-    const f = new Factory(A.createState(1)); f.state.cash = 4000; f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
+    const f = new Factory(A.createState(1)); f.state.cash = 1000; f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
     if (missing === 'cash') f.state.cash -= 0.01;
     else if (missing === 'belt') f.state.stock.belt--;
     else if (missing) f.state.inventory[missing]--;
@@ -115,7 +117,7 @@ test('Pebble Pile has the specified atomic cost, no crew, and the Brick Seal foo
     assert.deepEqual(A.cells(m), A.cells(reference)); assert.deepEqual(A.ports(m), A.ports(reference));
     assert.equal(A.conveyorCells(m).length, 1); assert.equal(f.availableCrew(), 19);
     assert.equal(feed(f, m, cargo('brick', 2, 99)), 2); f.update(1); f.update(20);
-    near(m.lanes[0].value, 108.9); assert.equal(m.lanes[0].quantity, 2); assert.equal(m.lanes[0].upgrades.pebblePile, 1);
+    near(m.lanes[0].value, 110.88); assert.equal(m.lanes[0].quantity, 2); assert.equal(m.lanes[0].upgrades.pebblePile, 1);
   }
 });
 
@@ -123,12 +125,16 @@ test('Pebble Pile multiplies cash up to four times across instances and respects
   const { f, m } = setup('right', 'pebblePile'), second = place(f, 'pebblePile', 43, 40);
   let item = { ...cargo('brick', 2, 50), graded: true, gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9, primitiveShack: 1 } };
   for (let i = 0; i < 8; i++) item = pass(f, i % 2 ? second : m, item);
-  near(item.value, 50 * 1.1 ** 4); assert.equal(item.quantity, 2); assert.equal(item.upgrades.pebblePile, 4);
+  near(item.value, 50 * 1.12 ** 4); assert.equal(item.quantity, 2); assert.equal(item.upgrades.pebblePile, 4);
   assert.equal(item.graded, true); assert.equal(item.gradeRepairs.brickSeal, 4); assert.equal(item.upgrades.brickSeal, 9);
   for (const material of ['clay', 'unfiredBrick', 'wood', 'chert', 'leekFiber', 'soil']) {
     const result = pass(f, m, cargo(material, 1, 50)); near(result.value, 50); assert.equal(result.upgrades.pebblePile, undefined);
   }
-  const capped = pass(f, m, cargo('brick', 1, 100)); assert.equal(capped.value, 100); assert.equal(capped.upgrades.pebblePile, undefined);
+  for (const [value, multiplier] of [[9, 1.5], [10, 1.25], [24, 1.25], [25, 1.12], [99, 1.12], [100, 1]]) {
+    const result = pass(f, m, cargo('brick', 1, value));
+    near(result.value, value * multiplier);
+    assert.equal(result.upgrades.pebblePile, multiplier === 1 ? undefined : 1);
+  }
   const distant = place(f, 'pebblePile', 70, 70); assert.equal(feed(f, distant, cargo('brick')), 0);
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });

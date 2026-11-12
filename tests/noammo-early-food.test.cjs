@@ -59,12 +59,30 @@ test("A scheduled Well supplies Wheat, which can feed the kinetic Grain Mill dir
   factory.update(5);
   assert.equal(wheat.water, 0.5);
   factory.removeWaterDelivery(well.id, 0);
-  factory.update(10.1);
-  assert.equal(wheat.water, 0.4);
-  assert.equal(factory.total(basket, "contents"), 5);
+  factory.update(11);
+  assert.equal(wheat.water, 0.25);
+  assert.equal(factory.total(basket, "contents"), 2);
+  assert.equal(factory.total(mill, "input"), 1);
   assert.equal(basket.contents[0].material, "flour");
-  assert.equal(basket.contents[0].value, 0.03);
+  assert.equal(basket.contents[0].value, 0.3);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+});
+
+test("Queued Wheat batches fill the receiving conveyor and retain the remainder", () => {
+  const factory = new A.Factory(A.createState(1));
+  const wheat = place(factory, "wheatPlanter", 40, 40);
+  wheat.water = 0.5;
+  factory.update(20);
+  assert.equal(factory.total(wheat, "output"), 10);
+  const belt = place(factory, "belt", 41, 39, "up");
+  const basket = place(factory, "basket", 41, 38);
+  place(factory, "wheel", 44, 43, "right");
+  place(factory, "drive", 45, 41, "down");
+  factory.update(0.1);
+  assert.equal(belt.lanes[0].quantity, 8);
+  assert.equal(factory.total(wheat, "output"), 2);
+  factory.update(4.5);
+  assert.equal(factory.total(basket, "contents"), 10);
 });
 
 test("An old two-Wood gear job keeps its inputs and migrates its remaining time proportionally", () => {
@@ -107,14 +125,23 @@ test("Minor Transmutation II grants the instant Oven and unlocks the next offeri
 test("Shaped pasta cooks instantly, waits at a powered belt and serves through an adjacent Plating Bench", () => {
   const factory = new A.Factory(A.createState(1));
   const shaper = place(factory, "doughShaper", 40, 40);
-  assert.equal(A.cells(shaper).length, 3);
-  assert.equal(feed(factory, shaper, A.cargo("flour", 5)), 5);
+  const well = place(factory, "well", 42, 40);
+  assert.equal(A.cells(shaper).length, 4);
+  assert.deepEqual(A.ports(shaper).find(port => port.role === "waterDropoff"), { x: 40, y: 41, direction: "left", role: "waterDropoff" });
+  assert.equal(feed(factory, shaper, A.cargo("flour", 2)), 1);
+  shaper.water = 0.05;
   factory.update(0.1);
+  assert.equal(factory.status(shaper), "Waiting for Water");
+  assert.equal(shaper.water, 0.05);
+  assert.equal(factory.addWaterDelivery(well.id, shaper.id, 0).error, undefined);
+  factory.update(5);
+  assert.equal(shaper.water, 0.4);
   assert.deepEqual(shaper.output, [A.cargo("dough")]);
   const dough = shaper.output.shift();
+  shaper.water = 0;
   assert.equal(feed(factory, shaper, dough), 1);
   factory.update(0.1);
-  assert.deepEqual(shaper.output, [A.cargo("rawPasta", 1, 0.6)]);
+  assert.deepEqual(shaper.output, [A.cargo("rawPasta", 2)]);
 
   const oven = place(factory, "primitiveOven", 50, 42);
   const belt = place(factory, "belt", 51, 41, "up");
@@ -126,12 +153,12 @@ test("Shaped pasta cooks instantly, waits at a powered belt and serves through a
     return factory.receive(oven, item, input.x, input.y, input.direction, true);
   };
   assert.equal(sendToOven(A.cargo("wood"), "fuel"), 1);
-  assert.equal(sendToOven(A.cargo("rawPasta", 2, 0.6), "ingredient1"), 2);
+  assert.equal(sendToOven(shaper.output.shift(), "ingredient1"), 2);
   assert.equal(sendToOven(A.cargo("choppedLeek"), "ingredient2"), 1);
   factory.update(0.1);
   assert.equal(oven.heat, 24000);
   assert.equal(oven.output[0].quantity, 2);
-  assert.equal(oven.output[0].value, 2.9);
+  assert.equal(oven.output[0].value, 1.7);
   assert.deepEqual(belt.lanes, {});
   factory.pickup(belt.id);
   const bench = place(factory, "platingBench", 51, 40);
@@ -141,6 +168,51 @@ test("Shaped pasta cooks instantly, waits at a powered belt and serves through a
     factory.update(0.2);
   }
   assert.deepEqual(oven.output, []);
-  assert.deepEqual(basket.contents, [A.cargo("leekPasta", 2, 2.9)]);
+  assert.deepEqual(basket.contents, [A.cargo("leekPasta", 2, 1.7)]);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+});
+
+test("Old milling and shaping jobs finish at their saved yields and buffered Flour drains with Water", () => {
+  const factory = new A.Factory(A.createState(1));
+  const mill = place(factory, "grainMill", 40, 40);
+  const shaper = place(factory, "doughShaper", 44, 40);
+  const old = JSON.parse(factory.exportSave());
+  old.state.foodVersion = 3;
+  const oldMill = old.state.machines.find(machine => machine.id === mill.id);
+  oldMill.job = { mode: "mill", input: A.cargo("wheat"), remaining: 0 };
+  oldMill.output = [A.cargo("flour", 5, 0.03)];
+  const oldShaper = old.state.machines.find(machine => machine.id === shaper.id);
+  delete oldShaper.water;
+  oldShaper.job = { mode: "shape", input: A.cargo("flour", 5, 0.03), remaining: 0 };
+  oldShaper.input = [A.cargo("flour", 5, 0.03)];
+  const migrated = A.Factory.importSave(JSON.stringify(old));
+  assert.deepEqual(A.Factory.importSave(migrated.exportSave()).state, migrated.state);
+  const currentMill = migrated.state.machines.find(machine => machine.id === mill.id);
+  const currentShaper = migrated.state.machines.find(machine => machine.id === shaper.id);
+  assert.deepEqual(currentMill.output.shift(), A.cargo("flour", 5, 0.03));
+  migrated.finishShaping(currentMill);
+  assert.deepEqual(currentMill.output, [A.cargo("flour", 5, 0.03)]);
+  migrated.finishShaping(currentShaper);
+  assert.deepEqual(currentShaper.output.shift(), A.cargo("dough", 1, 0.3));
+  assert.equal(currentShaper.water, 0);
+  currentShaper.water = 0.1;
+  migrated.startShaping(currentShaper);
+  assert.equal(migrated.total(currentShaper, "input"), 4);
+  assert.deepEqual(currentShaper.output, [A.cargo("dough", 1, 0.06)]);
+});
+
+test("A machine in the old Dough Shaper gap stays placed when the dropoff is added", () => {
+  const factory = new A.Factory(A.createState(1));
+  const shaper = place(factory, "doughShaper", 40, 40);
+  const belt = place(factory, "belt", 40, 42);
+  const old = JSON.parse(factory.exportSave());
+  old.state.foodVersion = 5;
+  old.state.machines.find(machine => machine.id === belt.id).y = 41;
+  old.state.machines.find(machine => machine.id === shaper.id).input.push(A.cargo("flour"));
+  const migrated = A.Factory.importSave(JSON.stringify(old));
+  assert.equal(migrated.byId.get(belt.id).y, 41);
+  assert.equal(migrated.byId.has(shaper.id), false);
+  assert.equal(migrated.state.stock.doughShaper, 1);
+  assert.equal(migrated.state.inventory.flour, 1);
+  assert.deepEqual(A.Factory.importSave(migrated.exportSave()).state, migrated.state);
 });

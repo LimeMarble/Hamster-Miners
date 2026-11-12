@@ -3,6 +3,14 @@
 
   // Index the same quantities and material mappings used by production. The
   // browser owns navigation only; it never changes factory or inventory state.
+  function cashEffectLines(effect, number, money) {
+    if (!effect.brackets) return [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
+    return effect.brackets.map(({ upperLimit, multiplier }, index) => {
+      const lower = effect.brackets[index - 1]?.upperLimit;
+      const range = lower === undefined ? `Below ${money(upperLimit)}` : `${money(lower)} to below ${money(upperLimit)}`;
+      return `${range} · ×${number(multiplier)}`;
+    });
+  }
   function buildCatalog(data) {
     const entries = new Map(), recipes = [], producers = new Map(), consumers = new Map(), constructionUses = new Map();
     const item = (id, quantity) => ({ key: `item:${id}`, quantity });
@@ -171,7 +179,7 @@
     function effects(entry) {
       const cash = entry.id === "primitive" ? { bonus: primitiveEffect().primitiveBonus, upperLimit: primitiveEffect().primitiveLimit } : entry.cashEffect;
       if (cash) {
-        const lines = [`Cash effect: ${cash.multiplier ? `×${number(cash.multiplier)}` : `+$${number(cash.bonus)}`}`];
+        const lines = cashEffectLines(cash, number, value => `$${number(value)}`);
         for (const [key, label] of [["useLimit", "Use Limit"], ["upperLimit", "Upper Limit"], ["lowerLimit", "Lower Bound"], ["baseValueRequired", "Base Value Required"]]) {
           if (cash[key] !== undefined && !(key === "upperLimit" && cash[key] === 1e50)) lines.push(`${label}: ${key === "useLimit" ? "" : "$"}${number(cash[key])}`);
         }
@@ -273,7 +281,7 @@
     render();
     return { open, refresh: () => { state = capture(); render(); } };
   }
-  const api = { buildCatalog, mount };
+  const api = { buildCatalog, mount, cashEffectLines };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.NoAmmoRecipes = api;
 }(globalThis));

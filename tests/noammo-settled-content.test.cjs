@@ -38,6 +38,7 @@ test('settled construction prices, zero crew, stone base values and Copper base 
   for (const type of ['leekInfuser', 'primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) {
     assert.equal(D.machines[type].crew ?? 0, 0);
     const f = new Factory(A.createState(1)), cost = D.machines[type].cost;
+    f.state.minorRunes.motion = 2;
     f.state.cash = cost.cash; Object.assign(f.state.inventory, cost.materials);
     Object.assign(f.state.stock, cost.machines ?? {});
     const before = f.exportSave(); f.state.cash -= 0.01;
@@ -49,6 +50,7 @@ test('settled construction prices, zero crew, stone base values and Copper base 
 
 test('Bridge multi-buy requires unplaced conveyors and consumes picked-up conveyor instances exactly once', () => {
   const f = new Factory(A.createState(1)); f.state.cash = 24;
+  f.state.minorRunes.motion = 2;
   Object.assign(f.state.inventory, { leekFiber: 40, chert: 20 });
   const conveyor = place(f, 'belt', 40, 40); f.state.stock.belt = 7;
   assert.ok(f.buy('primitiveBridge', 2).error, 'placed conveyors are not purchase ingredients');

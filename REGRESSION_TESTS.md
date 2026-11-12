@@ -788,8 +788,8 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Noammo retires Manual Overflow when loading older saves. It recovers its
   construction materials, conveyors, and cargo once, counting stored instances
   as part of the owned stock.
-- Noammo conveyor transfers reject overweight stacks without splitting. Machine
-  solid output buffers instead send the largest whole-number portion that fits,
+- Noammo belt-to-belt transfers reject overweight stacks without splitting. Machine
+  outputs, including Splitter exits, send the largest whole-number portion that fits,
   retaining the remainder, and individual overweight items remain blocked;
   legal fractional quantities retain value and grade/use metadata. Older five-weight saves split into
   paced legal portions; reload, upgrades and pickup cannot lose or duplicate

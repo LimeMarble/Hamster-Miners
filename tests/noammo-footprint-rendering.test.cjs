@@ -32,6 +32,20 @@ function drawing() {
   };
   return { ctx, calls };
 }
+test('placement previews draw Wheat Water dropoffs as squares and retain the output arrow', () => {
+  const factory = new A.Factory(A.createState(1));
+  const camera = { x: 38, y: 38, zoom: 1 }, viewport = { width: 400, height: 400 };
+  for (const facing of A.DATA.directions) {
+    const { ctx, calls } = drawing();
+    const preview = { type: 'wheatPlanter', x: 40, y: 40, facing };
+    R.drawOverlay(ctx, factory, camera, viewport, { tool: preview, hover: { x: 40, y: 40 } });
+    const squares = calls.filter(call => call.method === 'fillRect' && call.color === '#76b9dc');
+    const ports = A.ports(preview).filter(point => point.role === 'waterDropoff');
+    assert.deepEqual(squares.map(({ x, y, width, height }) => [x, y, width, height]),
+      ports.map(({ x, y }) => [x * R.TILE + R.TILE / 2 - 4, y * R.TILE + R.TILE / 2 - 4, 8, 8]));
+    assert.equal(calls.filter(call => call.method === 'fill' && call.color === '#f1edbd').length, 1);
+  }
+});
 function inside(contours, x, y) {
   let winding = 0;
   for (const points of contours) for (let i = 0; i < points.length; i++) {

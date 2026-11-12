@@ -98,7 +98,7 @@
     }
     const effect = definition.cashEffect;
     if (!effect || typeof effect !== "object") return;
-    const lines = [`Cash effect: ${effect.multiplier ? `×${number(effect.multiplier)}` : `+${money(effect.bonus)}`}`];
+    const lines = window.NoAmmoRecipes.cashEffectLines(effect, number, money);
     if (effect.useLimit !== undefined) lines.push(`Use Limit: ${number(effect.useLimit)}`);
     if (effect.lowerLimit !== undefined) lines.push(`Lower Bound: ${money(effect.lowerLimit)}`);
     if (effect.upperLimit !== undefined && effect.upperLimit !== 1e50) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
@@ -286,7 +286,7 @@
     button.dataset.machine = type;
     button.append(inventorySwatch, element("strong", definition.name), count); $("machineCards").append(button); machineCards.set(type, { button, count });
   }
-  const shopEntries = Object.entries(D.machines).filter(([, definition]) => !definition.legacyOnly)
+  const shopEntries = Object.entries(D.machines).filter(([, definition]) => !definition.legacyOnly && !definition.hiddenFromShop)
     .sort(([, a], [, b]) => (a.cost?.cash ?? Infinity) - (b.cost?.cash ?? Infinity));
   for (const [type, definition] of shopEntries) {
     const card = action("", () => { shopSelection = type; shopSignature = ""; refresh(); }, "shop-card");
@@ -557,6 +557,21 @@
         if (definition.waterCapacity) {
           const water = element("p"); water.id = "waterStatus";
           panel.append(water, element("p", "Schedule the blue Water dropoff from a nearby Well.", "muted"));
+        }
+        if (machine.type === "manualSplitter") {
+          const label = element("label", "Side exit "), mode = element("select");
+          mode.id = "splitterSide"; mode.setAttribute("aria-label", "Side exit");
+          for (const [id, name] of [["left", "Left"], ["right", "Right"]]) {
+            const option = element("option", name); option.value = id; mode.append(option);
+          }
+          mode.value = machine.mode;
+          mode.addEventListener("change", () => {
+            const response = factory.setSplitterSide(machine.id, mode.value);
+            if (response.error) mode.value = machine.mode;
+            else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
+            result(response);
+          });
+          label.append(mode); panel.append(label);
         }
         if (definition.heatCapacity) {
           const heat = element("p"); heat.id = "kilnHeat";
