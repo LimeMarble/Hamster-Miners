@@ -7,7 +7,7 @@ const A = require("../noammo-simulation.js");
 
 // Exercise the actual browser entry and event handlers without networking or browser automation.
 // This is a DOM contract test, not a claim of live-browser visual verification.
-function boot(saved, { width = 900, height = 600, failBackups = false, storage = new Map() } = {}) {
+function boot(saved, { width = 900, height = 600, failBackups = false, storage = new Map(), coarsePointer = false } = {}) {
   const ids = new Map(), frames = [], windowEvents = new Map(), documentEvents = new Map();
   const rectangle = { left: 0, top: 0, width, height }, observers = [], renders = [];
   let writes = 0, clock = 0;
@@ -72,6 +72,7 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
   };
   const context = {
     document, performance: { now: () => clock }, devicePixelRatio: 1,
+    matchMedia: (query) => ({ matches: query === "(pointer: coarse)" && coarsePointer }),
     setInterval: (fn) => { intervals.push(fn); return intervals.length; },
     requestAnimationFrame: (fn) => frames.push(fn), ResizeObserver: class { constructor(fn) { observers.push(fn); } observe() {} },
     addEventListener: (type, fn) => windowEvents.set(type, fn), confirm: () => true,
@@ -493,6 +494,73 @@ function chooseMachine(ui, type) {
   ui.ids.get("machineCards").children.find((card) => card.dataset.machine === type).emit("click");
   ui.ids.get("placeMachine").emit("click");
 }
+
+test("Tab switches cancel placement by default and the Options preference preserves it across reloads", () => {
+  const ui = boot();
+  const switchTo = (view, tab) => view.tabs.find(button => button.dataset.tab === tab).emit("click");
+  const option = ui.ids.get("keepPlacementOnTabSwitch");
+  assert.equal(option.checked, false);
+
+  chooseMachine(ui, "wheel"); ui.frame(100);
+  assert.equal(ui.view().interaction.tool.type, "wheel");
+  switchTo(ui, "factory"); ui.frame(200);
+  assert.equal(ui.view().interaction.tool.type, "wheel");
+  switchTo(ui, "shop"); switchTo(ui, "factory"); ui.frame(300);
+  assert.equal(ui.view().interaction.tool, null);
+  assert.equal(ui.state().stock.wheel, 1);
+
+  switchTo(ui, "options");
+  option.checked = true; option.emit("change");
+  const reloaded = boot(undefined, { storage: ui.storage });
+  assert.equal(reloaded.ids.get("keepPlacementOnTabSwitch").checked, true);
+  chooseMachine(reloaded, "wheel");
+  reloaded.key("q"); reloaded.frame(100);
+  const tool = reloaded.view().interaction.tool;
+  switchTo(reloaded, "recipes"); switchTo(reloaded, "factory"); reloaded.frame(200);
+  assert.deepEqual(reloaded.view().interaction.tool, tool);
+  reloaded.ids.get("cargo").emit("click", screenPoint(121, 121));
+  assert.equal(reloaded.state().machines.find(machine => machine.type === "wheel").facing, tool.facing);
+
+  switchTo(reloaded, "options");
+  const savedOption = reloaded.ids.get("keepPlacementOnTabSwitch");
+  savedOption.checked = false; savedOption.emit("change");
+  assert.equal(boot(undefined, { storage: ui.storage }).ids.get("keepPlacementOnTabSwitch").checked, false);
+});
+
+test("Mobile controls can be switched manually or chosen for the device whenever a save is loaded", () => {
+  const saved = new A.Factory(A.createState(1)).exportSave();
+  const mouse = boot(saved);
+  const toolbar = view => view.ids.get("mobileToolbar");
+  const set = (view, id, checked) => {
+    const option = view.ids.get(id);
+    option.checked = checked;
+    option.emit("change");
+  };
+  const importSave = view => {
+    view.ids.get("saveText").value = saved;
+    view.ids.get("import").emit("click");
+  };
+  assert.equal(mouse.ids.get("autoMobileControls").checked, true);
+  assert.equal(toolbar(mouse).hidden, true);
+  set(mouse, "showMobileControls", true);
+  assert.equal(toolbar(mouse).hidden, false);
+  importSave(mouse);
+  assert.equal(toolbar(mouse).hidden, true);
+  assert.equal(mouse.ids.get("showMobileControls").checked, false);
+
+  const touch = boot(undefined, { storage: mouse.storage, coarsePointer: true });
+  assert.equal(toolbar(touch).hidden, false);
+  set(touch, "showMobileControls", false);
+  assert.equal(toolbar(touch).hidden, true);
+  importSave(touch);
+  assert.equal(toolbar(touch).hidden, false);
+  set(touch, "autoMobileControls", false);
+  const reloaded = boot(undefined, { storage: touch.storage });
+  assert.equal(reloaded.ids.get("autoMobileControls").checked, false);
+  assert.equal(toolbar(reloaded).hidden, false);
+  importSave(reloaded);
+  assert.equal(toolbar(reloaded).hidden, false);
+});
 
 test("Wheel placement starts rotated ninety degrees and Q/E still rotate normally", () => {
   const factory = new A.Factory(A.createState(1)); factory.state.stock.wheel = 1;

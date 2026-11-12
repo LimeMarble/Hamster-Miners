@@ -40,6 +40,22 @@
   const camera = { x: 0, y: 0, zoom: 1 }, viewport = { width: 0, height: 0 };
   let cameraReady = false;
   const interaction = { selected: null, selectedIds: [], tree: null, tool: null, group: null, box: null, marquee: null, hover: null };
+  const placementPreferenceKey = `${D.saveKey}-keep-placement-on-tab-switch`;
+  const placementPreference = $("keepPlacementOnTabSwitch");
+  try { placementPreference.checked = localStorage.getItem(placementPreferenceKey) === "1"; }
+  catch { placementPreference.checked = false; }
+  const mobileControlsKey = `${D.saveKey}-mobile-controls`;
+  const mobileToolbar = $("mobileToolbar"), showMobileControls = $("showMobileControls"), autoMobileControls = $("autoMobileControls");
+  let mobileControls;
+  try { mobileControls = JSON.parse(localStorage.getItem(mobileControlsKey)); }
+  catch { mobileControls = null; }
+  autoMobileControls.checked = mobileControls?.automatic !== false;
+  showMobileControls.checked = mobileControls?.visible === true;
+  function loadMobileControls() {
+    if (autoMobileControls.checked) showMobileControls.checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    mobileToolbar.hidden = !showMobileControls.checked;
+  }
+  loadMobileControls();
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let runeCategory = "harvest";
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
@@ -182,6 +198,9 @@
     catch { text($("saveStatus"), "Local saving is unavailable. Export your factory save to keep it."); }
   }
   function setTab(tab) {
+    if (tab !== activeTab && !placementPreference.checked) {
+      interaction.tool = null; interaction.group = null;
+    }
     activeTab = tab;
     for (const screen of document.querySelectorAll(".screen")) screen.hidden = screen.id !== tab;
     for (const button of document.querySelectorAll("[data-tab]")) button.classList.toggle("active", button.dataset.tab === tab);
@@ -228,10 +247,11 @@
   }
   function build(type) {
     if (!(factory.state.stock[type] > 0)) { shopSelection = type; shopSignature = ""; setTab("shop"); return; }
+    setTab("factory");
     select([]); interaction.group = null; interaction.box = null;
     interaction.tool = { type, facing: D.machines[type].defaultFacing ?? "right",
       mode: factory.state.storedMachines.find((machine) => machine.type === type)?.mode ?? D.machines[type].defaultMode };
-    setTab("factory"); inspectorSignature = ""; refresh();
+    inspectorSignature = ""; refresh();
   }
   function select(ids) {
     interaction.selectedIds = [...new Set(ids)].filter((id) => factory.byId.has(id));
@@ -912,6 +932,18 @@
     refresh();
   };
   $("unlockPlaytest").addEventListener("click", unlockPlaytest);
+  placementPreference.addEventListener("change", () => {
+    try { localStorage.setItem(placementPreferenceKey, placementPreference.checked ? "1" : "0"); }
+    catch { notify("This preference could not be saved. It still applies until you reload."); }
+  });
+  function saveMobileControls() {
+    mobileToolbar.hidden = !showMobileControls.checked;
+    try {
+      localStorage.setItem(mobileControlsKey, JSON.stringify({ automatic: autoMobileControls.checked, visible: showMobileControls.checked }));
+    } catch { notify("These preferences could not be saved. They still apply until you reload."); }
+  }
+  showMobileControls.addEventListener("change", saveMobileControls);
+  autoMobileControls.addEventListener("change", saveMobileControls);
   $("playtestCode").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); unlockPlaytest(); } });
   for (const [id, elementId] of [["resources", "cheatResources"], ["storage", "cheatStorage"], ["machineSpeed", "cheatMachineSpeed"], ["machineBulk", "cheatMachineBulk"],
     ["conveyorCapacity", "cheatConveyorCapacity"], ["conveyorSpeed", "cheatConveyorSpeed"], ["cash", "cheatCash"]]) {
@@ -930,6 +962,7 @@
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
       dismantledSelection = null;
+      loadMobileControls();
       save(); refresh(); notify(factory.terrainUpdated ? terrainNotice() : factory.recoveredForPlanterResize
         ? `Save imported. ${factory.recoveredForPlanterResize} overlapping machine(s) returned to inventory for the corrected footprints.`
         : factory.reorientedForFiberResize ? "Save imported. Fiber Extractor inputs and outputs now share the lower working tile." : "Factory save imported.");
@@ -946,6 +979,7 @@
     factory = replacement; storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
     inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
     dismantledSelection = null;
+    loadMobileControls();
     resetSimulationClock(); home(); save(); refresh();
   });
   window.addEventListener("resize", resize);

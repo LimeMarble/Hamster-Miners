@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="version idkbutsomethingprealpha">
   <title>Hamster Miners</title>
-  <link rel="stylesheet" href="noammo.css?v=well-selection-20261112">
+  <link rel="stylesheet" href="noammo.css?v=mobile-controls-20261112">
 </head>
 <body>
   <header class="topbar">
@@ -26,7 +26,7 @@
       <section class="factory-center" aria-label="Factory floor">
         <div class="factory-toolbar">
           <span id="toolLabel">Select a machine or click a tree</span>
-          <div class="toolbar-buttons">
+          <div id="mobileToolbar" class="toolbar-buttons" hidden>
             <button id="openInventory" class="secondary">Inventory</button>
             <button id="boxSelect" class="secondary" title="Tap two corners, including occupied tiles. Shift-click empty ground also starts selection.">Box select</button>
             <button id="rotateLeft" title="Rotate counterclockwise (Q)">↶ Rotate</button>
@@ -182,6 +182,9 @@
     </section>
     <section id="options" class="screen panel options-panel" hidden>
       <h1>Options</h1><p>The factory game has its own save. Importing or resetting it never changes the existing mining game.</p>
+      <label for="keepPlacementOnTabSwitch"><input id="keepPlacementOnTabSwitch" type="checkbox"> Keep placement when switching tabs</label>
+      <label for="showMobileControls"><input id="showMobileControls" type="checkbox"> Show mobile controls</label>
+      <label for="autoMobileControls"><input id="autoMobileControls" type="checkbox" checked> Choose mobile controls automatically when loading a save</label>
       <p>The Grading Bench rolls grades for compatible factory cargo and immediately changes its current value. Collecting cargo into inventory retains material counts only.</p>
       <div class="row"><label for="playtestCode">Code</label><input id="playtestCode" type="text" autocomplete="off"><button id="unlockPlaytest">Apply code</button></div>
       <p id="playtestStatus" role="status"></p>
@@ -207,6 +210,6 @@
   <script src="noammo-simulation.js?v=oven-ports-20261112"></script>
   <script src="noammo-renderer.js?v=oven-ports-20261112"></script>
   <script src="noammo-recipes.js?v=food-and-pebble-20261112"></script>
-  <script src="noammo-ui.js?v=oven-ports-20261112"></script>
+  <script src="noammo-ui.js?v=mobile-controls-20261112"></script>
 </body>
 </html>
