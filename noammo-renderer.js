@@ -16,6 +16,15 @@
     ctx.fillStyle = "#76b9dc";
     ctx.fillRect((point.x + 0.5) * TILE - 4, (point.y + 0.5) * TILE - 4, 8, 8);
   }
+  function labelledInput(ctx, point) {
+    const v = D.vectors[point.direction], color = point.channel === "fuel" ? "#e5a568" : "#f1edbd";
+    const x = (point.x + 0.5) * TILE, y = (point.y + 0.5) * TILE;
+    arrow(ctx, x + v.x * 0.4 * TILE, y + v.y * 0.4 * TILE, API.opposite(point.direction), 0.6, color);
+    const labelX = x - v.x * 3, labelY = y - v.y * 3, width = point.label.length * 4 + 6;
+    ctx.fillStyle = "#172318"; ctx.fillRect(labelX - width / 2, labelY - 5, width, 10);
+    ctx.fillStyle = color; ctx.font = "bold 9px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(point.label, labelX, labelY, width - 2);
+  }
   function world(ctx, camera) {
     ctx.save(); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x * TILE, -camera.y * TILE);
   }
@@ -133,6 +142,8 @@
         const v = D.vectors[point.direction], px = (point.x + 0.5 + v.x * 0.4) * TILE, py = (point.y + 0.5 + v.y * 0.4) * TILE;
         if (point.role === "waterDropoff") {
           waterDropoff(ctx, point);
+        } else if (point.role === "input" && point.label) {
+          labelledInput(ctx, point);
         } else if (point.role.startsWith("kinetic")) {
           ctx.fillStyle = point.role === "kineticInput" ? "#a8d6e2" : "#f2ca76";
           ctx.fillRect(px - 3, py - 3, 6, 6);
@@ -260,6 +271,7 @@
       }
       for (const point of ports(preview)) {
         if (point.role === "waterDropoff") waterDropoff(ctx, point);
+        else if (point.role === "input" && point.label) labelledInput(ctx, point);
         else arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
           point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
       }

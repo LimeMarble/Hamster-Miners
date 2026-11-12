@@ -426,15 +426,16 @@
       },
       primitiveOven: {
         name: "Stone Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
-        baseFacing: "up", defaultFacing: "up", labelLines: ["Stone", "Oven"],
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Stone", "Oven"], labelCell: [1, 0],
         cost: { cash: 500, materials: { chert: 40, clay: 30 } },
         oven: true, heatCapacity: 250000, outputSeconds: 2, automaticRecipes: true, preheatGradeTransfer: PREHEAT_GRADE_TRANSFER,
         ports: [
-          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
+          { x: 2, y: 0, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
           { x: 1, y: 0, direction: "up", role: "output" },
-          { x: 0, y: 1, direction: "down", role: "input", channel: "ingredient1" },
-          { x: 1, y: 1, direction: "down", role: "input", channel: "ingredient2" },
-          { x: 2, y: 1, direction: "down", role: "input", channel: "ingredient3" },
+          { x: 0, y: 1, direction: "down", role: "input", channel: "ingredient1", label: "1" },
+          { x: 1, y: 1, direction: "down", role: "input", channel: "ingredient2", label: "2" },
+          { x: 2, y: 1, direction: "down", role: "input", channel: "ingredient3", label: "3" },
         ],
         recipes: {
           unfiredBrick: { name: "Preheat Bricks", inputs: { unfiredBrick: 2 }, output: "unfiredBrick", outputQuantity: 2, seconds: 0, heat: 6000, preheats: true, valueMultiplier: 1 },

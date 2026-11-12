@@ -116,6 +116,7 @@
       ...(point.mode ? { mode: point.mode } : {}),
       ...(point.span ? { span: point.span } : {}),
       ...(point.channel ? { channel: point.channel } : {}),
+      ...(point.label ? { label: point.label } : {}),
     }));
     if (D.machines[machine.type].centeredOutput) {
       const definition = D.machines[machine.type];

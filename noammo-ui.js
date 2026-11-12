@@ -585,7 +585,7 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
-            : definition.oven ? `Uses 6ku per batch. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Leek through Input 2.`
+            : definition.oven ? `Uses 6ku per batch. Fuel enters from either side. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Leek through Input 2.`
             : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
