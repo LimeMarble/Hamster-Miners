@@ -102,14 +102,24 @@ test("An old two-Wood gear job keeps its inputs and migrates its remaining time 
   assert.equal(restored.state.stock.platingBench, 0);
 });
 
-test("Minor Transmutation II grants the instant Oven and unlocks the next offering", () => {
+test("Minor Transmutation I grants the Stone Oven before the Clay Kiln", () => {
   const factory = new A.Factory(A.createState(1));
   const pedestal = place(factory, "minorRunePedestal", 60, 40);
-  Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 50, brick: 100, woodenPlate: 5 });
-  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "kiln");
+  assert.deepEqual(A.DATA.machines.primitiveOven.cost, { cash: 500, materials: { chert: 40, clay: 30 } });
+  Object.assign(factory.state.inventory, { chert: 115, clay: 45 });
+  factory.state.cash = 500;
+  assert.ok(factory.shopUnlockError("primitiveOven"));
   assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "primitiveOven");
   assert.equal(factory.state.stock.primitiveOven, 1);
-  assert.equal(factory.nextRune("minor", "transmutation").machine, "primitiveFurnace");
+  assert.equal(factory.state.inventory.chert, 40);
+  assert.equal(factory.state.inventory.clay, 30);
+  assert.ok(factory.shopUnlockError("kiln"));
+  assert.equal(factory.nextRune("minor", "transmutation").machine, "kiln");
+  assert.equal(factory.buy("primitiveOven").amount, 1);
+  assert.equal(factory.state.stock.primitiveOven, 2);
+  assert.equal(factory.state.cash, 0);
+  assert.equal(factory.state.inventory.chert, 0);
+  assert.equal(factory.state.inventory.clay, 0);
   assert.ok(factory.buy("preheater").error);
   const oven = factory.place("primitiveOven", 50, 40).machine;
   const input = A.ports(oven).find(point => point.channel === "ingredient1");
@@ -120,6 +130,22 @@ test("Minor Transmutation II grants the instant Oven and unlocks the next offeri
   assert.equal(oven.output[0].preheated, true);
   assert.equal(oven.output[0].quantity, 2);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+});
+
+test("Old Transmutation tiers keep their unlocks and grant the newly skipped Oven once", () => {
+  for (const tier of [0, 1, 2, 3]) {
+    const factory = new A.Factory(A.createState(1));
+    const old = JSON.parse(factory.exportSave());
+    old.state.runeVersion = 3;
+    old.state.minorRunes.transmutation = tier;
+    old.state.stock.kiln = tier >= 1 ? 1 : 0;
+    old.state.stock.primitiveOven = tier >= 2 ? 1 : 0;
+    const migrated = A.Factory.importSave(JSON.stringify(old));
+    assert.equal(migrated.state.minorRunes.transmutation, tier === 1 ? 2 : tier);
+    assert.equal(migrated.state.stock.kiln, old.state.stock.kiln);
+    assert.equal(migrated.state.stock.primitiveOven, tier >= 1 ? 1 : 0);
+    assert.deepEqual(A.Factory.importSave(migrated.exportSave()).state, migrated.state);
+  }
 });
 
 test("Shaped pasta cooks instantly, waits at a powered belt and serves through an adjacent Plating Bench", () => {

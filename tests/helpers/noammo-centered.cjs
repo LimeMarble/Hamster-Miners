@@ -24,18 +24,20 @@ function attachPitFeed(factory, input, facing) {
       || b.y + 0.5 < area.y || b.y + 0.5 >= area.y + area.height)) continue;
     place(factory, 'wheel', wheel.x, wheel.y);
     place(factory, 'drive', drive.x, drive.y, 'down');
+    attachKineticWheel(factory, pit);
     return pit;
   }
   throw new Error('No room for the integration fixture power source.');
 }
 function attachKineticWheel(factory, machine) {
-  const input = A.ports(machine).find(point => point.role === 'kineticInput');
-  const vector = A.DATA.vectors[input.direction];
-  for (const facing of A.DATA.directions) {
-    for (const output of A.ports({ type: 'wheel', x: 0, y: 0, facing })) {
-      if (output.direction !== A.opposite(input.direction)) continue;
-      const x = input.x + vector.x - output.x, y = input.y + vector.y - output.y;
-      if (!factory.placement('wheel', x, y, facing)) return place(factory, 'wheel', x, y, facing);
+  for (const input of A.ports(machine).filter(point => point.role === 'kineticInput')) {
+    const vector = A.DATA.vectors[input.direction];
+    for (const facing of A.DATA.directions) {
+      for (const output of A.ports({ type: 'wheel', x: 0, y: 0, facing })) {
+        if (output.direction !== A.opposite(input.direction)) continue;
+        const x = input.x + vector.x - output.x, y = input.y + vector.y - output.y;
+        if (!factory.placement('wheel', x, y, facing)) return place(factory, 'wheel', x, y, facing);
+      }
     }
   }
   throw new Error('No room for a directly connected Wheel.');

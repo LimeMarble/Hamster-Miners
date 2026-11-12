@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const A = require("../noammo-simulation.js");
 const R = require("../noammo-renderer.js");
 const { DATA: D, Factory, createState, ports, cells, size, cargo } = A;
+const { attachKineticWheel } = require("./helpers/noammo-centered.cjs");
 
 function place(factory, type, x, y, facing = "right") {
   factory.state.stock[type]++;
@@ -117,9 +118,14 @@ test("slow starter Planter yields one Leek per eight seconds and additional Plan
   assert.equal(factory.borrow("planter"), false);
 });
 
-test("manual Clay Pits require $5 and 100 Wood, use one crew, and output into a full-width Sell Tube", () => {
+test("Clay Pits require $5 and 100 Wood, use one crew and kinetic power, and output into a full-width Sell Tube", () => {
   assert.deepEqual(D.machines.clayPit.cost, { cash: 5, materials: { wood: 100 } });
-  assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 1);
+  assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 0.5);
+  assert.deepEqual(ports({ type: "clayPit", x: 0, y: 0, facing: "up" }), [
+    { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
+    { x: 0, y: 1, direction: "left", role: "kineticInput" },
+    { x: 1, y: 1, direction: "right", role: "kineticInput" },
+  ]);
   for (const facing of D.directions) {
     const factory = new Factory(createState(1)); factory.state.inventory.wood = 99; factory.state.cash = 5;
     assert.ok(factory.buy("clayPit").error); assert.equal(factory.state.inventory.wood, 99);
@@ -128,12 +134,14 @@ test("manual Clay Pits require $5 and 100 Wood, use one crew, and output into a 
     factory.state.cash = 5; assert.equal(factory.buy("clayPit").amount, 1);
     const pit = factory.place("clayPit", 40, 40, facing).machine;
     assert.equal(factory.availableCrew(), 19); assert.deepEqual(size(pit), { width: 2, height: 2 });
-    const outputs = ports(pit); assert.equal(outputs.length, 1); assert.equal(outputs[0].span, 2);
     const [tx, ty] = { right: [42, 40], down: [40, 42], left: [38, 40], up: [40, 38] }[facing];
     place(factory, "sellTube", tx, ty);
+    advance(factory, 12); assert.equal(factory.state.cash, 0); assert.equal(pit.timer, 0);
+    assert.match(factory.status(pit), /Waiting for kinetic power/);
+    attachKineticWheel(factory, pit);
     advance(factory, 11.9); assert.equal(factory.state.cash, 0);
-    advance(factory, 0.1); assert.equal(factory.state.cash, 0.25);
-    assert.equal(factory.poweredDrives.length, 0, "manual extraction needs no Wheel or Drive");
+    advance(factory, 0.1); assert.equal(factory.state.cash, 0.75);
+    assert.equal(factory.poweredDrives.length, 0);
     assert.equal(factory.state.inventory.wood, 0);
   }
 });
@@ -141,20 +149,21 @@ test("manual Clay Pits require $5 and 100 Wood, use one crew, and output into a 
 test("blocked Clay output is bounded, instances retain their timers and cargo through moves/pickups/saves", () => {
   const factory = new Factory(createState(1));
   const first = place(factory, "clayPit", 40, 40), other = place(factory, "clayPit", 45, 40);
+  attachKineticWheel(factory, first); attachKineticWheel(factory, other);
   advance(factory, 120);
-  assert.equal(factory.total(first, "output"), 1); assert.equal(factory.total(other, "output"), 1);
+  assert.equal(factory.total(first, "output"), 3); assert.equal(factory.total(other, "output"), 3);
   assert.equal(first.timer, 0); assert.match(factory.status(first), /blocked/);
   const loaded = Factory.importSave(factory.exportSave());
   assert.deepEqual(loaded.state, factory.state);
   assert.equal(loaded.move(first.id, 50, 40, "down").error, undefined);
   assert.equal(loaded.byId.get(first.id).output[0].material, "clay");
-  loaded.pickup(first.id); assert.equal(loaded.state.inventory.clay, 1);
-  const replacement = loaded.place("clayPit", 40, 40).machine;
+  loaded.pickup(first.id); assert.equal(loaded.state.inventory.clay, 3);
+  const replacement = loaded.place("clayPit", 40, 40, "right").machine;
   assert.equal(replacement.id, first.id); assert.equal(replacement.output.length, 0);
-  assert.equal(loaded.total(loaded.byId.get(other.id), "output"), 1);
+  assert.equal(loaded.total(loaded.byId.get(other.id), "output"), 3);
   advance(loaded, 6); const halfway = Factory.importSave(loaded.exportSave());
   assert.ok(Math.abs(halfway.byId.get(first.id).timer - 6) < 1e-8);
-  advance(halfway, 6); assert.equal(halfway.total(halfway.byId.get(first.id), "output"), 1);
+  advance(halfway, 6); assert.equal(halfway.total(halfway.byId.get(first.id), "output"), 3);
   const bad = JSON.parse(halfway.exportSave());
   bad.state.machines.find((machine) => machine.id === first.id).output.push(cargo("clay"));
   assert.throws(() => Factory.importSave(JSON.stringify(bad)), /source buffer/);
@@ -162,13 +171,15 @@ test("blocked Clay output is bounded, instances retain their timers and cargo th
   assert.throws(() => Factory.importSave(JSON.stringify(bad)), /source buffer/);
 });
 
-test("four unpowered Clay Pits feed one free Sell Tube from four sides for exactly $5 per minute", () => {
+test("four kinetic Clay Pits feed one free Sell Tube from four sides for exactly $15 per minute", () => {
   const factory = new Factory(createState(1));
   factory.place("sellTube", 40, 40);
-  for (const [x, y, facing] of [[38, 40, "right"], [42, 40, "left"], [40, 38, "down"], [40, 42, "up"]]) place(factory, "clayPit", x, y, facing);
+  const pits = [[38, 40, "right"], [42, 40, "left"], [40, 38, "down"], [40, 42, "up"]]
+    .map(([x, y, facing]) => place(factory, "clayPit", x, y, facing));
+  for (const pit of pits) attachKineticWheel(factory, pit);
   advance(factory, 60);
-  assert.equal(factory.state.cash, 5); assert.equal(factory.state.soldItems, 20);
-  assert.equal(factory.availableCrew(), 16); assert.equal(factory.poweredDrives.length, 0);
+  assert.equal(factory.state.cash, 15); assert.equal(factory.state.soldItems, 60);
+  assert.equal(factory.availableCrew(), 12); assert.equal(factory.poweredDrives.length, 0);
 });
 
 test("Sell Tube feedback uses actual stack proceeds, never fires on intake checks, stays bounded and is not saved", () => {
@@ -682,8 +693,8 @@ test("purchasing checks cash AND materials, including gears and Wood per conveyo
 test("dismantling every priced machine returns its current materials and component machines, never cash", () => {
   for (const [type, definition] of Object.entries(D.machines).filter(([, definition]) => definition.cost && !definition.legacyOnly && !definition.hiddenFromShop)) {
     const f = new Factory(createState(1)), cost = definition.cost;
-    if (type === "kiln") f.state.minorRunes.transmutation = 1;
-    if (type === "primitiveOven") f.state.minorRunes.transmutation = 2;
+    if (type === "kiln") f.state.minorRunes.transmutation = 2;
+    if (type === "primitiveOven") f.state.minorRunes.transmutation = 1;
     if (type === "primitiveFurnace") f.state.minorRunes.transmutation = 3;
     if (type === "wheatPlanter") f.state.minorRunes.harvest = 1;
     f.state.minorRunes.motion = 3;

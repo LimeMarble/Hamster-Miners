@@ -24,10 +24,11 @@ test('the code unlocks independent off-by-default toggles and old saves migrate 
 
 test('resource and machine speed boosts work independently and preserve buffered output after disabling', () => {
   const f = factory(), pit = place(f, 'clayPit', 40, 40);
-  enabled(f, 'resources'); f.update(12); near(pit.output[0].quantity, 10);
+  attachKineticWheel(f, pit);
+  enabled(f, 'resources'); f.update(12); near(pit.output[0].quantity, 30);
   f.setPlaytestCheat('resources', false);
-  assert.equal(A.Factory.importSave(f.exportSave()).byId.get(pit.id).output[0].quantity, 10);
-  pit.output = []; enabled(f, 'machineSpeed'); f.update(1.2); near(pit.output[0].quantity, 1);
+  assert.equal(A.Factory.importSave(f.exportSave()).byId.get(pit.id).output[0].quantity, 30);
+  pit.output = []; enabled(f, 'machineSpeed'); f.update(1.2); near(pit.output[0].quantity, 3);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 

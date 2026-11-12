@@ -34,7 +34,8 @@ main { padding: 12px; }
 summary { cursor: pointer; color: var(--accent); }
 .factory-center { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .factory-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 5px; padding: 0 0 8px; font-size: 12px; }
-.toolbar-buttons { display: flex; gap: 4px; }.toolbar-buttons button { font-size: 12px; padding: 5px 8px; }
+.toolbar-buttons { display: none; gap: 4px; }.toolbar-buttons button { font-size: 12px; padding: 5px 8px; }
+@media (pointer: coarse) { .toolbar-buttons { display: flex; } }
 #viewport { position: relative; flex: 1; min-height: 280px; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; background: #18251d; user-select: none; touch-action: manipulation; }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #floor { pointer-events: none; }

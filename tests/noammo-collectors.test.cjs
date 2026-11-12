@@ -47,13 +47,14 @@ test("Brick Storage rotates its four occupied tiles and sole lower-left input; a
     const sourceFacing = A.opposite(input.direction);
     const outputLocal = A.rotatePoint(1, 1, 2, 2, sourceFacing);
     const pit = place(factory, "clayPit", input.x + vector.x - outputLocal.x, input.y + vector.y - outputLocal.y, sourceFacing);
+    require('./helpers/noammo-centered.cjs').attachKineticWheel(factory, pit);
     receive(factory, storage, cargo("clay", 600));
     factory.update(12);
     assert.equal(factory.total(storage, "contents"), 600);
-    assert.equal(factory.total(pit, "output"), 1, "a full collector blocks the real source");
+    assert.equal(factory.total(pit, "output"), 3, "a full collector blocks the real source");
     assert.equal(factory.collect(storage.id), 600);
     factory.update(0.1);
-    assert.equal(factory.total(storage, "contents"), 1);
+    assert.equal(factory.total(storage, "contents"), 3);
     assert.equal(factory.total(pit, "output"), 0);
   }
 });

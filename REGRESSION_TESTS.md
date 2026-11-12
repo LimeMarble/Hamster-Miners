@@ -217,9 +217,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   owning two or more gain nothing; repeated imports cannot grant duplicates.
 - Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
   halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
-- Manual Clay Pits cost $5 and 100 Wood and use one crew each. Their twelve-second
-  cycle and $0.25 Clay work without power, through either half of the two-wide
-  output in every rotation. Four pits feed one Tube for $5/minute. Blocked
+- Clay Pits cost $5 and 100 Wood, use one crew each, and require a Wheel on
+  either side intake. They deliver three $0.25 Clay per twelve-second cycle
+  through either half of the two-wide output in every rotation. Four powered
+  pits feed one Tube for $15/minute. Blocked
   queues are bounded, independent, and conserved through moves/pickups/saves.
   Old saves gain zero-valued new inventory keys, not free pits or resources.
   Invalid/overfull source buffers are still rejected. Shop, Inventory, recipes,

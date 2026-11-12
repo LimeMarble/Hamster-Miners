@@ -57,6 +57,28 @@ test('Well cycles dropoffs every five seconds, spills overflow, and stops servin
   f.pickup(second.id); assert.deepEqual(well.waterSchedule, [{ targetId: first.id, index: 0 }]);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
+test('Well coverage uses the drawn 10 by 10 square for rotated dropoff tiles', () => {
+  const R = require('../noammo-renderer.js');
+  const f = new A.Factory(A.createState(1)), well = place(f, 'well', 40, 40);
+  const area = f.wellArea(well);
+  assert.deepEqual(area, { x: 36, y: 36, width: 10, height: 10 });
+  const strokes = [];
+  const ctx = new Proxy({}, { get: (target, name) => target[name] ?? ((...args) => {
+    if (name === 'strokeRect') strokes.push(args);
+  }) });
+  const camera = { x: 35, y: 35, zoom: 1 }, viewport = { width: 400, height: 400 };
+  R.drawOverlay(ctx, f, camera, viewport, { selected: well.id });
+  assert.deepEqual(strokes[0], [36, 36, 10, 10].map(value => value * R.TILE));
+  for (const facing of A.DATA.directions) {
+    const target = { type: 'doughShaper', x: 0, y: 0, facing };
+    const port = A.ports(target).find(point => point.role === 'waterDropoff');
+    for (const [x, y, expected] of [[36, 36, true], [45, 45, true], [35, 40, false],
+      [46, 40, false], [40, 35, false], [40, 46, false]]) {
+      assert.equal(f.waterDropoffInRange(well, { ...target, x: x - port.x, y: y - port.y }, 0), expected);
+    }
+  }
+});
+
 test('scheduled Water and heavy kinetic wash Native Copper for direct Furnace smelting', () => {
   const f = new A.Factory(A.createState(1)), washer = place(f, 'oreCrushWasher', 80, 40);
   const well = place(f, 'well', 77, 40), furnace = place(f, 'primitiveFurnace', 84, 40);

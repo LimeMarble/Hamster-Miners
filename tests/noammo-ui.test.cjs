@@ -112,7 +112,8 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
 
 test('background simulation runs production and saves without rendering or double-counting tab switches', () => {
   const f = new A.Factory(A.createState(1));
-  f.state.stock.clayPit++; const pit = f.place('clayPit', 121, 121).machine;
+  f.state.stock.clayPit++; const pit = f.place('clayPit', 121, 121, 'right').machine;
+  require('./helpers/noammo-centered.cjs').attachKineticWheel(f, pit);
   const output = A.ports(pit).find(p => p.role === 'output'), v = A.DATA.vectors[output.direction];
   f.state.stock.sellTube++; assert.ok(f.place('sellTube', Math.floor(output.x + v.x), Math.floor(output.y + v.y)).machine);
   const ui = boot(f.exportSave()); ui.frame(100);
@@ -177,7 +178,7 @@ test('grading help and pottery descriptions reflect current grading data', () =>
 
 test('Kiln displays separate Brick and burnished Pot grade effects in Shop and inspector', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.kiln++;
-  f.state.minorRunes.transmutation = 1;
+  f.state.minorRunes.transmutation = 2;
   f.place('kiln', 121, 121);
   const ui = boot(f.exportSave());
   ui.tabs.find(button => button.dataset.tab === 'shop').emit('click'); shopCard(ui, 'kiln').emit('click');
@@ -222,12 +223,43 @@ test('Well inspector adds and removes a selected Water dropoff', () => {
   f.state.stock.well++; f.state.stock.paintingBench++;
   const well = f.place('well', 118, 121).machine, bench = f.place('paintingBench', 121, 121).machine;
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(118, 121));
+  ui.ids.get('addWaterDropoff').emit('click');
+  assert.equal(ui.ids.get('cancel').textContent, 'Cancel Water selection');
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  assert.match(ui.ids.get('notice').textContent, /blue Water dropoff tile/);
+  ui.ids.get('cancelWaterDropoff').emit('click');
+  assert.equal(ui.ids.get('cancel').textContent, 'Clear selection');
+  ui.ids.get('addWaterDropoff').emit('click'); ui.key('Escape');
+  assert.equal(ui.ids.get('cancel').textContent, 'Clear selection');
   ui.ids.get('addWaterDropoff').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 122));
   const updated = ui.state().machines.find(machine => machine.id === well.id);
   assert.deepEqual(updated.waterSchedule, [{ targetId: bench.id, index: 0 }]);
   assert.equal(ui.ids.get('crew').textContent, '18 / 20');
   ui.ids.get('removeWaterDropoff0').emit('click');
   assert.deepEqual(ui.state().machines.find(machine => machine.id === well.id).waterSchedule, []);
+});
+
+test('Moving, placing, or picking up a Well ends dropoff selection', () => {
+  const f = new A.Factory(A.createState(1));
+  f.state.stock.well = 2;
+  const well = f.place('well', 118, 121).machine;
+  const ui = boot(f.exportSave());
+  ui.ids.get('cargo').emit('click', screenPoint(118, 121));
+  ui.ids.get('addWaterDropoff').emit('click');
+  ui.ids.get('moveMachine').emit('click');
+  ui.ids.get('cargo').emit('click', screenPoint(118, 124));
+  assert.equal(ui.state().machines.find(machine => machine.id === well.id).y, 124);
+  ui.ids.get('addWaterDropoff').emit('click');
+  chooseMachine(ui, 'well');
+  ui.ids.get('cargo').emit('click', screenPoint(122, 124));
+  assert.equal(ui.state().machines.filter(machine => machine.type === 'well').length, 2);
+  ui.ids.get('addWaterDropoff').emit('click');
+  ui.ids.get('pickupMachine').emit('click');
+  assert.equal(ui.ids.get('cancel').disabled, true);
+  assert.equal(ui.state().machines.filter(machine => machine.type === 'well').length, 1);
+  chooseMachine(ui, 'well');
+  ui.ids.get('cargo').emit('click', screenPoint(122, 124));
+  assert.equal(ui.state().machines.filter(machine => machine.type === 'well').length, 2);
 });
 
 test('Pebble Sifter II exposes all three selectable modes', () => {
@@ -953,7 +985,7 @@ test("Clay Pit purchases show cash/material costs, update ownership, place, and 
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "100 / 100");
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.clayPit, 1); assert.equal(ui.state().cash, 0);
   chooseMachine(ui, "clayPit"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
-  assert.equal(ui.state().machines.find((machine) => machine.type === "clayPit").facing, "right");
+  assert.equal(ui.state().machines.find((machine) => machine.type === "clayPit").facing, "up");
   ui.ids.get("cancel").emit("click"); shiftClick(ui, 124, 122); shiftClick(ui, 124, 122);
   assert.equal(ui.state().inventory.clay, 3);
   ui.ids.get("openInventory").emit("click"); ui.inventoryTabs[1].emit("click");
@@ -1224,7 +1256,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
 
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.minorRunes.transmutation = 1;
+  factory.state.minorRunes.transmutation = 2;
   factory.state.cash = 100;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   let ui = boot(factory.exportSave());

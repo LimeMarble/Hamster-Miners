@@ -38,8 +38,8 @@
         { name: "Primitive Stacker", machine: "primitiveStacker", materials: { granite: 400, malachitePebble: 20 } },
       ],
       transmutation: [
+        { name: "Stone Oven", machine: "primitiveOven", materials: { chert: 75, clay: 15 } },
         { name: "Clay Kiln", machine: "kiln", materials: { unfiredBrick: 50, clay: 50 } },
-        { name: "Primitive Oven", machine: "primitiveOven", materials: { brick: 100, woodenPlate: 5 } },
         { name: "Primitive Furnace", machine: "primitiveFurnace", materials: { granite: 200, nativeCopper: 10 } },
       ],
       activation: [{ name: "Capital", cash: 1e25, materials: {} }],
@@ -77,7 +77,7 @@
       charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
       woodenGear: { name: "Wooden Gear", value: 0.1, weight: 2, color: "#c19762" },
       woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 1 / 3, color: "#d5ac76" },
-      clay: { name: "Clay", value: 0.25, weight: 1, color: "#b76b53", family: "clay" },
+      clay: { name: "Clay", value: 0.25, weight: 0.5, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 1, color: "#a77d67", family: "clay" },
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 2, color: "#bb8b70", family: "clay" },
       brick: { name: "Bricks", value: 1, weight: 1, color: "#b97955", family: "clay" },
@@ -230,8 +230,15 @@
       },
       clayPit: {
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Resource", crew: 1,
-        cost: { cash: 5, materials: { wood: 100 } }, source: "clay", cycle: 12, centeredOutput: true,
-        description: "Produces 1 Clay every 12 seconds. Operated by one hamster.",
+        baseFacing: "up", defaultFacing: "up",
+        cost: { cash: 5, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
+        centeredOutput: true, requiresKinetic: true,
+        ports: [
+          { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
+          { x: 0, y: 1, direction: "left", role: "kineticInput" },
+          { x: 1, y: 1, direction: "right", role: "kineticInput" },
+        ],
+        description: "Produces 3 Clay every 12 seconds. Requires one hamster and a Wheel connected to either kinetic intake.",
       },
       well: {
         name: "Well", width: 2, height: 2, color: "#8c9480", category: "Resource", crew: 1,
@@ -418,9 +425,9 @@
         description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 6 seconds.`,
       },
       primitiveOven: {
-        name: "Primitive Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
-        baseFacing: "up", defaultFacing: "up", labelLines: ["Primitive", "Oven"],
-        cost: { cash: 1500, materials: { brick: 60, clay: 30 } },
+        name: "Stone Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
+        baseFacing: "up", defaultFacing: "up", labelLines: ["Stone", "Oven"],
+        cost: { cash: 500, materials: { chert: 40, clay: 30 } },
         oven: true, heatCapacity: 250000, outputSeconds: 2, automaticRecipes: true, preheatGradeTransfer: PREHEAT_GRADE_TRANSFER,
         ports: [
           { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },

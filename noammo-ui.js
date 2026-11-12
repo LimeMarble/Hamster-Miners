@@ -363,9 +363,10 @@
     if (waterSelecting) {
       const target = factory.at.get(A.key(point.x, point.y));
       const index = target ? A.ports(target).filter((port) => port.role === "waterDropoff").findIndex((port) => port.x === point.x && port.y === point.y) : -1;
+      if (index < 0) return notify("Select the blue Water dropoff tile.");
       const response = factory.addWaterDelivery(waterSelecting, target?.id, index);
       if (response.error) return notify(response.error);
-      waterSelecting = null; inspectorSignature = ""; refresh(); return;
+      waterSelecting = null; refresh(); return;
     }
     const contextual = (interaction.box?.contextual && !interaction.box.start)
       || (!interaction.box && !tool && !interaction.group && event.shiftKey);
@@ -423,7 +424,7 @@
     if (event.key === "Shift") { shiftHeld = true; renderHoverHistory(); }
     if (event.key === "Escape") cancel();
     if (activeTab !== "factory") return;
-    if (event.key === "Shift" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !interaction.tool && !interaction.group) {
+    if (event.key === "Shift" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !waterSelecting && !interaction.tool && !interaction.group) {
       event.preventDefault(); beginBox(true);
     }
     if (event.key.toLowerCase() === "q") rotate(-1);
@@ -464,7 +465,7 @@
   }
   function renderInspector() {
     const machine = factory.byId.get(interaction.selected), tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
-    const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}`;
+    const signature = `${interaction.selectedIds.join(",")}:${tree?.id ?? ""}:${factory.layoutVersion}:${Boolean(interaction.tool)}:${Boolean(interaction.group)}:${waterSelecting ?? ""}`;
     if (signature !== inspectorSignature) {
       inspectorSignature = signature; const panel = $("inspector"); panel.replaceChildren();
       if (interaction.selectedIds.length > 1) {
@@ -545,8 +546,14 @@
         }
         if (definition.waterSource) {
           panel.append(element("p", "Delivers 0.5 Water every 5 seconds in schedule order. Dropoffs must be within the centered 10 by 10 area.", "muted"));
-          const add = action("Add Water dropoff", () => { waterSelecting = machine.id; notify("Select a Water dropoff within range."); refresh(); }, "secondary");
-          add.id = "addWaterDropoff"; panel.append(add);
+          const targeting = waterSelecting === machine.id;
+          const add = targeting ? action("Cancel Water dropoff selection", cancel, "secondary")
+            : action("Add Water dropoff", () => {
+              interaction.tool = null; interaction.group = null; interaction.box = null;
+              interaction.marquee = null; gesture = null;
+              waterSelecting = machine.id; refresh();
+            }, "secondary");
+          add.id = targeting ? "cancelWaterDropoff" : "addWaterDropoff"; panel.append(add);
           machine.waterSchedule.forEach((entry, index) => {
             const target = factory.byId.get(entry.targetId), row = element("div", undefined, "row");
             row.append(element("span", `${index + 1}. ${D.machines[target.type].name} (${target.x}, ${target.y}), dropoff ${entry.index + 1}${factory.waterDropoffInRange(machine, target, entry.index) ? "" : " · out of range"}`));
@@ -689,7 +696,7 @@
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build manual Clay Pits for $5 and 100 Wood each. Point their output directly into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Leek Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $5 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Leek Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -870,6 +877,7 @@
     if (interaction.group?.ids.some((id) => !factory.byId.has(id))) interaction.group = null;
     if (interaction.tool?.repeat && !factory.state.stock[interaction.tool.type]) interaction.tool = null;
     if (interaction.group?.placing && !factory.hasGroupStock(interaction.group.ids)) interaction.group = null;
+    if (activeTab !== "factory" || interaction.selected !== waterSelecting || interaction.tool || interaction.group || interaction.box) waterSelecting = null;
     text($("cash"), money(factory.state.cash)); text($("crew"), `${factory.availableCrew()} / ${factory.totalCrew()}`);
     const electricity = factory.electricity;
     text($("electricity"), `${number(electricity.demand)} / ${number(electricity.supply)}u${electricity.shortage ? " · Paused" : ""}`);
@@ -882,7 +890,7 @@
       : interaction.group ? `${interaction.group.placing ? "Placing" : "Moving"} ${interaction.group.ids.length} machines · Q/E rotates the group`
       : interaction.tool ? `${interaction.tool.id ? "Moving" : "Placing"} ${D.machines[interaction.tool.type].name} · ${interaction.tool.facing}` : "Select a machine or click a tree");
     $("cancel").disabled = !(waterSelecting || interaction.tool || interaction.group || interaction.box || interaction.selectedIds.length || interaction.tree);
-    text($("cancel"), interaction.box ? "Cancel selection" : interaction.group || interaction.tool ? "Cancel" : "Clear selection");
+    text($("cancel"), waterSelecting ? "Cancel Water selection" : interaction.box ? "Cancel selection" : interaction.group || interaction.tool ? "Cancel" : "Clear selection");
     if (activeTab === "factory") renderInspector();
     if (activeTab === "shop") renderShop();
     if (activeTab === "inventory") renderInventory();

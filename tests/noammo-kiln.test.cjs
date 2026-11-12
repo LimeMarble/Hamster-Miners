@@ -48,6 +48,8 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 100);
   const pedestal = place(factory, "minorRunePedestal", 45, 40);
+  Object.assign(factory.state.inventory, { chert: 75, clay: 25 });
+  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "primitiveOven");
   const before = factory.exportSave();
   assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
   assert.equal(factory.exportSave(), before);
@@ -56,7 +58,7 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
   assert.equal(factory.state.stock.kiln, 1);
   assert.equal(factory.state.inventory.unfiredBrick, 0);
   assert.equal(factory.state.inventory.clay, 0);
-  assert.equal(factory.nextRune("minor", "transmutation").machine, "primitiveOven");
+  assert.equal(factory.nextRune("minor", "transmutation").machine, "primitiveFurnace");
   assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10 });
   assert.ok(factory.buy("kiln").error);

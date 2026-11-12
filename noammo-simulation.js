@@ -377,7 +377,7 @@
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
-      runeVersion: 3, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 6,
+      runeVersion: 4, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 6,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -584,9 +584,15 @@
       }
       return selected;
     }
+    wellArea(well) {
+      const bounds = size(well), range = 10;
+      return { x: well.x + (bounds.width - range) / 2, y: well.y + (bounds.height - range) / 2, width: range, height: range };
+    }
     waterDropoffInRange(well, target, index) {
       const point = ports(target).filter((port) => port.role === "waterDropoff")[index];
-      return Boolean(point && point.x >= well.x - 4 && point.x <= well.x + 5 && point.y >= well.y - 4 && point.y <= well.y + 5);
+      if (!point) return false;
+      const area = this.wellArea(well), x = point.x + 0.5, y = point.y + 0.5;
+      return x >= area.x && x < area.x + area.width && y >= area.y && y < area.y + area.height;
     }
     addWaterDelivery(id, targetId, index) {
       const well = this.byId.get(id), target = this.byId.get(targetId);
@@ -812,7 +818,7 @@
       return { offering };
     }
     shopUnlockError(type) {
-      if (D.machines[type]?.legacyOnly) return "Use the Primitive Oven for new builds.";
+      if (D.machines[type]?.legacyOnly) return `Use the ${D.machines.primitiveOven.name} for new builds.`;
       if (D.machines[type]?.hiddenFromShop) return "This machine is currently unavailable in the shop.";
       const unlock = runeUnlocks.get(type);
       if (unlock && this.state.minorRunes[unlock.category] < unlock.tier) return `Unlock this at the Minor Rune Pedestal under ${D.runeCategories[unlock.category]}.`;
@@ -1723,7 +1729,8 @@
       }
       if (machine.type === "copperDrill" || machine.type === "graphiteDrill") return machine.output.length ? "Output blocked"
         : !this.kineticHasWheel(machine) ? "Waiting for kinetic power" : `Extracting ${D.materials[definition.source].name} · ${formatNumber((definition.cycle - machine.timer) / timeScale)}s`;
-      if (machine.type === "clayPit") return machine.output.length ? "Output blocked" : `Digging Clay · ${(Math.max(0, D.machines.clayPit.cycle - machine.timer) / timeScale).toFixed(1)}s`;
+      if (machine.type === "clayPit") return machine.output.length ? "Output blocked"
+        : !this.kineticHasWheel(machine) ? "Waiting for kinetic power" : `Digging Clay · ${(Math.max(0, definition.cycle - machine.timer) / timeScale).toFixed(1)}s`;
       if (D.machines[machine.type].sourceModes) return machine.output.length ? "Output blocked"
         : D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine) ? "Waiting for kinetic power"
         : `Extracting ${D.materials[machine.mode].name} · ${(Math.max(0, D.machines[machine.type].cycle - machine.timer) / timeScale).toFixed(1)}s`;
@@ -1867,6 +1874,16 @@
       if (state.runeVersion < 3) {
         if (state.stock && !Object.hasOwn(state.stock, "manualSplitter")) state.stock.manualSplitter = 0;
         state.runeVersion = 3;
+      }
+      if (state.runeVersion < 4) {
+        // Old tier I already unlocked the Kiln, which now sits at tier II.
+        if (state.minorRunes?.transmutation === 1) {
+          state.minorRunes.transmutation = 2;
+          if (state.stock?.primitiveOven === 0 && !state.machines.some(machine => machine.type === "primitiveOven")) {
+            state.stock.primitiveOven = 1;
+          }
+        }
+        state.runeVersion = 4;
       }
       if (!Number.isSafeInteger(state.freeMajorPedestals) || state.freeMajorPedestals < 0
         || state.freeMajorPedestals > state.stock?.majorRunePedestal + placedMajorPedestals) throw new Error("Invalid legacy Major Rune Pedestal count.");
@@ -2311,7 +2328,7 @@
             const recipe = ovenRecipeForInput(definition, machine.input);
             if (machine.job || (machine.input.length && (!recipe || machine.input.some(item => !Number.isInteger(item.quantity) || item.preheated)
               || Object.entries(recipe.inputs).some(([material, quantity]) => machine.input.filter(item => item.material === material)
-                .reduce((sum, item) => sum + item.quantity, 0) > quantity * maxBulk)))) throw new Error("Invalid Primitive Oven input.");
+                .reduce((sum, item) => sum + item.quantity, 0) > quantity * maxBulk)))) throw new Error("Invalid Stone Oven input.");
           } else {
             const inputRecipe = thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
             const jobRecipe = definition.recipes[machine.job?.recipe];

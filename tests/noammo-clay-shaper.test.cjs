@@ -57,8 +57,8 @@ for (const facing of D.directions) test(`Clay shaping ${facing}: sparse footprin
   for (const cell of cells(bench).filter((point) => point.x !== input.x || point.y !== input.y)) {
     assert.equal(factory.receive(bench, cargo("clay"), cell.x, cell.y, input.direction, true), 0);
   }
-  advance(factory, 55);
-  assert.equal(factory.total(basket, "contents"), 4);
+  advance(factory, 59);
+  assert.equal(factory.total(basket, "contents"), 12);
   assert.equal(basket.contents[0].material, "unfiredBrick");
   assert.deepEqual(bench.lanes, {}, "no hidden conveyor or kinetic requirement");
   assert.equal(Factory.importSave(factory.exportSave()).byId.get(bench.id).facing, facing);

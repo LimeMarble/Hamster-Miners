@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 function place(f, type, x, y, facing = 'right') { f.state.stock[type]++; return f.place(type, x, y, facing).machine; }
-function legacy(type = 'belt', material = 'clay', quantity = 5) {
+function legacy(type = 'belt', material = 'unfiredBrick', quantity = 5) {
   const f = new A.Factory(A.createState(1)); const m = place(f, type, 40, 40);
   const item = A.cargo(material, quantity, 17); item.graded = true; item.upgrades = { saved: true };
   m.lanes[0] = { ...item, progress: 0.3 };
@@ -160,7 +160,7 @@ test('thermal solid unloading follows receiving conveyor speed, while molten out
   }
 });
 test('older five-weight stacks split and retain exact quantity, cash, metadata and paced transit across reloads', () => {
-  for (const [type, material, quantity] of [['belt', 'clay', 5], ['primitiveBridge', 'pot', 2], ['primitive', 'clay', 4.5]]) {
+  for (const [type, material, quantity] of [['belt', 'unfiredBrick', 5], ['primitiveBridge', 'pot', 2], ['primitive', 'unfiredBrick', 4.5]]) {
     const { saved, id } = legacy(type, material, quantity), f = A.Factory.importSave(saved), m = f.byId.get(id);
     assert.equal(m.lanes[0].quantity * A.DATA.materials[material].weight <= 2, true);
     assert.equal(m.lanes[0].quantity + m.beltRemainders[0].quantity, quantity);

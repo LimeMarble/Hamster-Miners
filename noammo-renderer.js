@@ -186,6 +186,11 @@
       ctx.fillStyle = "#e9d18a0d"; ctx.fillRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
       ctx.strokeStyle = "#d3c47d80"; ctx.lineWidth = 1; ctx.strokeRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
     }
+    if (D.machines[selected?.type]?.waterSource) {
+      const area = factory.wellArea(selected);
+      ctx.fillStyle = "#76b9dc22"; ctx.fillRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
+      ctx.strokeStyle = "#76b9dcc0"; ctx.lineWidth = 1; ctx.strokeRect(area.x * TILE, area.y * TILE, area.width * TILE, area.height * TILE);
+    }
     for (const machine of [...factory.state.machines.filter((entry) => !D.machines[entry.type].bridge),
       ...factory.state.machines.filter((entry) => D.machines[entry.type].bridge)]) {
       const bounds = size(machine);

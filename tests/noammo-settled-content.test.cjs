@@ -212,10 +212,10 @@ for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter i
   loaded.update(60); assert.equal(loaded.total(restored, 'output'), 1); near(restored.timer, 0);
 });
 
-test('single-connection kinetic drills share both Basic Wheel outputs while facing the same direction, with either intake sufficient', () => {
+test('single-connection kinetic sources share both Basic Wheel outputs while facing the same direction, with either intake sufficient', () => {
   const types = Object.keys(D.machines).filter(type => D.machines[type].requiresKinetic && D.machines[type].centeredOutput
     && (D.machines[type].kineticInputsRequired ?? 1) === 1);
-  assert.deepEqual(types, ['primitiveRockDrill', 'copperDrill']);
+  assert.deepEqual(types, ['clayPit', 'primitiveRockDrill', 'copperDrill']);
   for (const type of types) for (const facing of D.directions) {
     const f = new Factory(A.createState(1)), wheel = place(f, 'wheel', 40, 40, facing);
     const drills = ports(wheel).map(output => {
@@ -237,7 +237,7 @@ test('single-connection kinetic drills share both Basic Wheel outputs while faci
       assert.equal(loaded.kineticHasWheel(restored), true);
       assert.equal(loaded.total(restored, 'output'), D.machines[type].sourceQuantity ?? 1);
     }
-    assert.equal(loaded.availableCrew(), 19, 'one Wheel powers both drills');
+    assert.equal(loaded.availableCrew(), 19 - 2 * (D.machines[type].crew ?? 0), 'one Wheel powers both sources');
   }
 });
 
