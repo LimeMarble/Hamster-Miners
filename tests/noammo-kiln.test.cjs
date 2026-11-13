@@ -41,12 +41,12 @@ test("Kiln is a plain labelled machine box, without crew tiles or labels, in eve
 });
 
 test("Minor Transmutation unlocks the Kiln and grants one, with the construction price for additional copies", () => {
-  assert.deepEqual(D.machines.kiln.cost, { cash: 100, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
+  assert.deepEqual(D.machines.kiln.cost, { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
   assert.equal(createState().stock.kiln, 0);
   const factory = new Factory(createState(1));
-  factory.state.cash = 100;
+  factory.state.cash = 3000;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
-  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 100);
+  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 3000);
   const pedestal = place(factory, "minorRunePedestal", 45, 40);
   Object.assign(factory.state.inventory, { chert: 75, clay: 25 });
   assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "primitiveOven");
@@ -72,14 +72,21 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
     { x: 40, y: 40, direction: "left", role: "input", channel: "fuel" },
     { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
     { x: 41, y: 41, direction: "right", role: "output" },
+    { x: 40, y: 40, direction: "up", role: "input", channel: "fuel" },
+    { x: 40, y: 40, direction: "right", role: "input", channel: "fuel" },
+    { x: 40, y: 40, direction: "down", role: "input", channel: "fuel" },
+    { x: 41, y: 40, direction: "left", role: "input", channel: "fuel" },
+    { x: 41, y: 40, direction: "up", role: "input", channel: "fuel" },
+    { x: 41, y: 40, direction: "right", role: "input", channel: "fuel" },
+    { x: 41, y: 40, direction: "down", role: "input", channel: "fuel" },
   ]);
   assert.equal(factory.availableCrew(), 18); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 20);
   for (let index = 0; index < 19; index++) place(factory, "fiber", 50 + index * 2, 50);
   assert.match(factory.place("kiln", 40, 40).error, /hamsters/);
 });
 
-test("Only the fuel intake burns Wood, capped at 250ku; material and output ports reject fuel", () => {
-  for (const index of [0]) {
+test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output ports reject fuel", () => {
+  for (const index of [0, 2, 3, 4, 5, 6, 7, 8]) {
     const { factory, kiln } = setup();
     assert.equal(D.materials.wood.heat, 30000);
     const before = factory.exportSave();
@@ -88,6 +95,7 @@ test("Only the fuel intake burns Wood, capped at 250ku; material and output port
     assert.equal(feed(factory, kiln, "wood", 100, 0.1, index), 8);
     assert.equal(kiln.heat, 240000); assert.deepEqual(kiln.input, []);
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0);
+    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index < 5 ? 5 : 0), 0);
     kiln.heat = 220000;
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 1); assert.equal(kiln.heat, 250000);
     kiln.heat = 221000;
@@ -135,6 +143,7 @@ test("Firing retains each upgraded input's own value, not an average or a base-v
   assert.equal(kiln.output.length, 2);
   near(kiln.output[0].value, 16.8); assert.equal(kiln.output[0].quantity, 1);
   near(kiln.output[1].value, 4.2); assert.equal(kiln.output[1].quantity, 3);
+  for (const item of kiln.output) assert.deepEqual(A.gradeProbabilities(item), A.gradeProbabilities(upgraded));
   assert.deepEqual(kiln.output[0].upgrades, {}, "a new material has fresh cash eligibility");
   near(kiln.output.reduce((sum, item) => sum + item.value * item.quantity, 0), (4.2 + 3 * 1.05) * 4);
 });

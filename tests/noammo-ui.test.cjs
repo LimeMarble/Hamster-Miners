@@ -177,7 +177,7 @@ test('grading help and pottery descriptions reflect current grading data', () =>
   assert.match(A.DATA.machines.gradingBench.description, /compatible materials/);
 });
 
-test('Kiln displays separate Brick and burnished Pot grade effects in Shop and inspector', () => {
+test('Kiln displays the burnished Pot grade effect in Shop and inspector', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.kiln++;
   f.state.minorRunes.transmutation = 2;
   f.place('kiln', 121, 121);
@@ -185,8 +185,7 @@ test('Kiln displays separate Brick and burnished Pot grade effects in Shop and i
   ui.tabs.find(button => button.dataset.tab === 'shop').emit('click'); shopCard(ui, 'kiln').emit('click');
   const check = panel => {
     const text = panel.children.map(node => node.textContent).join(' ');
-    assert.match(text, /Bricks grade effect: moves 40%.*Poor → Unremarkable, Unremarkable → Standard, Standard → Fine, Fine → Unique/);
-    assert.match(text, /Existing Unique and higher chances do not move/);
+    assert.doesNotMatch(text, /Bricks grade effect/);
     assert.match(text, /Burnished Pot grade effect: Standard chance becomes 85% Fine and 15% Unique/);
     assert.match(text, /Unburnished Pots keep their incoming grade chances/);
   };
@@ -1086,13 +1085,13 @@ test("Shop buy handler, quantities, material affordability and owned feedback us
 });
 
 test("Clay Pit purchases show cash/material costs, update ownership, place, and expose collected Clay in Items", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 100; factory.state.cash = 5;
+  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 100; factory.state.cash = 400;
   const basket = factory.place("basket", 124, 122).machine;
   basket.contents.push(A.cargo("clay", 3));
   const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   ui.ids.get("shopCards").children.find((card) => card.children.some((node) => node.textContent === "Clay Pit")).emit("click");
   assert.equal(ui.ids.get("buyMachine").disabled, false);
-  assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$5 / $5');
+  assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$400 / $400');
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "100 / 100");
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.clayPit, 1); assert.equal(ui.state().cash, 0);
   chooseMachine(ui, "clayPit"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
@@ -1107,7 +1106,7 @@ test("Clay Pit purchases show cash/material costs, update ownership, place, and 
 
 test("Brick Storage Shop, inventory placement and stable collection controls use real handlers without hauling", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 1000; factory.state.inventory.brick = 200; factory.state.inventory.clay = 30;
+  factory.state.cash = 2000; factory.state.inventory.brick = 200; factory.state.inventory.clay = 30;
   const basket = factory.place("basket", 128, 124).machine;
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
@@ -1115,7 +1114,7 @@ test("Brick Storage Shop, inventory placement and stable collection controls use
   const card = shopCard(ui, 'brickStorage');
   assert.equal(card.hidden, false); card.emit("click");
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$1k / $1k");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$2k / $2k");
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "200 / 200");
   assert.equal(ui.ids.get("costs").children[2].children[1].textContent, "30 / 30");
   ui.ids.get("buyMachine").emit("click");
@@ -1270,11 +1269,12 @@ test("Items displays all collected materials without inventory selling or changi
 
 test("Clay Bench Shop cost, one-crew placement, sparse hitbox and stable mode selector use the actual browser handlers", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 20; factory.state.inventory.wood = 50; factory.state.inventory.leekFiber = 5;
+  factory.state.cash = 250; factory.state.inventory.wood = 50; factory.state.inventory.leekFiber = 5;
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   shopCard(ui, 'clayShaper').emit('click');
   assert.equal(ui.ids.get("costs").children.length, 3, "Cash, Wood and Fiber only");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$250 / $250");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
   chooseMachine(ui, "clayShaper");
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
@@ -1366,7 +1366,7 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.minorRunes.transmutation = 2;
-  factory.state.cash = 100;
+  factory.state.cash = 3000;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   let ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
@@ -1700,7 +1700,7 @@ test('Leek Duster is hidden in the Shop and still supports repeat placement from
 });
 
 test('Pebble Pile Shop, inventory and placement use the declared cost, footprint and cash effect', () => {
-  const f = new A.Factory(A.createState(1)); f.state.cash = 1000;
+  const f = new A.Factory(A.createState(1)); f.state.cash = 600;
   f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
   const ui = boot(f.exportSave()); ui.tabs.find(tab => tab.dataset.tab === 'shop').emit('click');
   const card = shopCard(ui, 'pebblePile');
@@ -1709,7 +1709,7 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
   const effects = ['Below $50 · ×1.5', '$50 to below $200 · ×1.25', '$200 to below $500 · ×1.12', 'Use Limit: 1', 'Upper Limit: $500', 'Base Value Required: $0.3'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$1k / $1k', '40 / 40', '60 / 60', '2 / 2']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$600 / $600', '40 / 40', '60 / 60', '2 / 2']);
   ui.ids.get('buyMachine').emit('click'); assert.equal(ui.state().stock.pebblePile, 2); assert.equal(ui.state().cash, 0);
   assert.equal(ui.state().stock.belt, 0); assert.equal(ui.state().inventory.chert, 0); assert.equal(ui.state().inventory.leekFiber, 0);
   chooseMachine(ui, 'pebblePile');

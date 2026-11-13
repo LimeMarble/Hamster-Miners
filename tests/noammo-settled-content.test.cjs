@@ -29,7 +29,7 @@ function pair(f, source, directions) {
 }
 
 test('settled construction prices, zero crew, stone base values and Copper base value are exact', () => {
-  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 10000, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } });
+  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 7500, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } });
   assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 15000, materials: { chert: 40, wood: 50, leekFiber: 100, brick: 25 } });
   assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 12, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } });
   for (const material of ['chert', 'granite', 'limestone']) assert.equal(D.materials[material].value, 0.1);

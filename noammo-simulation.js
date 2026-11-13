@@ -121,13 +121,15 @@
     const ingredients = ovenRecipe ? Object.keys(ovenRecipe.inputs) : [];
     let outputSlot = 0;
     if (configured) return configured.filter(point => !point.mode || point.mode === mode).flatMap(point => {
-      const ingredientIndex = definition.oven && point.channel?.startsWith("ingredient") ? Number(point.channel.slice(10)) - 1 : -1;
-      if (ingredientIndex >= 0 && !ingredients[ingredientIndex]) return [];
-      const label = ingredientIndex >= 0 ? (ovenRecipe.inputLabels?.[ingredientIndex] ?? D.materials[ingredients[ingredientIndex]].name) : point.label;
+      const ingredientPort = definition.oven && point.channel?.startsWith("ingredient");
+      const ingredientIndex = ingredientPort ? Number(point.channel.slice(10)) - (ovenRecipe?.preheats ? 2 : 1) : -1;
+      const ingredient = ingredients[ingredientIndex];
+      if (ingredientPort && !ingredient) return [];
+      const label = ingredient ? (ovenRecipe.inputLabels?.[ingredientIndex] ?? D.materials[ingredient].name) : point.label;
       return [{
         ...port(machine, point.x, point.y, point.direction, point.role),
         ...(batch && point.role === "output" ? { material: batch.outputs[outputSlot++].material }
-          : point.material ? { material: point.material } : {}),
+          : ingredient || point.material ? { material: ingredient ?? point.material } : {}),
         ...(point.mode ? { mode: point.mode } : {}),
         ...(point.span ? { span: point.span } : {}),
         ...(point.channel ? { channel: point.channel } : {}),
@@ -1454,8 +1456,7 @@
         const fuelHeat = D.materials[item.material].heat;
         if (definition.oven && input.channel !== "fuel") {
           const recipe = this.furnaceRecipe(machine);
-          const index = Object.keys(recipe.inputs).indexOf(item.material);
-          if (index >= 0 && input.channel === `ingredient${index + 1}` && !(recipe.preheats && item.preheated)) {
+          if (item.material === input.material && !(recipe.preheats && item.preheated)) {
             quantity = Math.max(0, Math.min(Math.floor(item.quantity), recipe.inputs[item.material] * machineBulk(this.state, machine) - this.total(machine, "input", item.material)));
             if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
           }

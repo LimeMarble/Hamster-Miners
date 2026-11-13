@@ -155,7 +155,7 @@
       brickStorage: {
         name: "Brick Resource Storage", width: 2, height: 2, color: "#b57355", category: "Logistics",
         labelLines: ["Brick Resource", "Storage"], quickAction: "collect", collectorCapacity: 600,
-        cost: { cash: 500, materials: { brick: 100, clay: 15 } },
+        cost: { cash: 1000, materials: { brick: 100, clay: 15 } },
         description: "Accepts incoming resources without an intake rate limit, storing up to 600 for collection into inventory.",
       },
       fiber: {
@@ -249,7 +249,7 @@
       clayPit: {
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Resource", crew: 1,
         baseFacing: "up", defaultFacing: "up",
-        cost: { cash: 5, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
+        cost: { cash: 400, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
         centeredOutput: true, requiresKinetic: true,
         ports: [
           { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
@@ -341,7 +341,7 @@
       clayShaper: {
         name: "Clay Shaping Bench", width: 2, height: 2, color: "#bd9675", category: "Material", crew: 1,
         footprint: [[0, 0], [1, 0], [1, 1]], defaultMode: "brick", craftInput: "clay", inputLimit: 2, outputBuffer: 1,
-        cost: { cash: 20, materials: { wood: 50, leekFiber: 5 } },
+        cost: { cash: 250, materials: { wood: 50, leekFiber: 5 } },
         recipes: {
           brick: { name: "Unfired Brick", input: 1, output: "unfiredBrick", seconds: 2, valueMultiplier: 1 },
           pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 4, valueMultiplier: 2 },
@@ -416,15 +416,22 @@
       },
       kiln: {
         name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
-        cost: { cash: 100, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
+        cost: { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 8000, outputSeconds: 2, automaticRecipes: true,
         ports: [
           { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
           { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
           { x: 1, y: 1, direction: "right", role: "output" },
+          { x: 0, y: 0, direction: "up", role: "input", channel: "fuel" },
+          { x: 0, y: 0, direction: "right", role: "input", channel: "fuel" },
+          { x: 0, y: 0, direction: "down", role: "input", channel: "fuel" },
+          { x: 1, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 1, y: 0, direction: "up", role: "input", channel: "fuel" },
+          { x: 1, y: 0, direction: "right", role: "input", channel: "fuel" },
+          { x: 1, y: 0, direction: "down", role: "input", channel: "fuel" },
         ],
         recipes: {
-          unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4, gradePromotion: 0.4, gradePromotionCeiling: 4 },
+          unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4 },
           unfiredPot: { input: 2, output: "pot", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4,
             burnishedGradeEffect: { from: 2, outcomes: [{ grade: 3, share: BURNISHED_STANDARD_TO_FINE }, { grade: 4, share: BURNISHED_STANDARD_TO_UNIQUE }] } },
         },
@@ -634,7 +641,7 @@
       pebblePile: {
         name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
         labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
-        cost: { cash: 500, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
+        cost: { cash: 300, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
         cashEffect: { useLimit: 1, upperLimit: 500, baseValueRequired: 0.3, brackets: [
           { upperLimit: 50, multiplier: 1.5 },
           { upperLimit: 200, multiplier: 1.25 },
@@ -663,7 +670,7 @@
         labelCell: [1, 0], labelLines: ["Primitive Shack"],
         conveyors: [[0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
         upgradeCells: [[1, 1], [1, 2]],
-        cost: { cash: 10000, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } },
+        cost: { cash: 7500, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } },
         cashEffect: { multiplier: 2, useLimit: 1, upperLimit: 7500, baseValueRequired: 1.2 },
         description: "Multiplies the value of passing cargo on 2 parallel conveyor lanes.",
       },

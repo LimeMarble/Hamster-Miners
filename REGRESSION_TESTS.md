@@ -111,8 +111,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   jobs pause on power loss; pending Clay is capped at two and finished output
   at one. Probes, partial inputs, oversized overflow, output blockage, moves,
   independent instances, pickup and reload preserve ingredients and progress.
-- Spun pottery carries the agreed 20/10/40/25/5/0 pre-roll profile and 40% firing promotion,
-  with Exceptional at x40 and Seal repairs remaining independent. Tests cover
+- Spun pottery carries the 20/10/40/25/5/0 pre-roll profile, with Exceptional
+  at x40 and legacy Seal repairs remaining independent. Tests cover
   pre-firing means (1.875/1.925), all six seeded grade outcomes, no early RNG,
   no regrading, mixed ordinary/spun stacks, profile averaging, intact overweight stacks,
   collector separation and malformed metadata. An actual
@@ -190,7 +190,7 @@ future pipe tiers) are not treated as current acceptance requirements.
 - Resource collector contracts cover the 100-item Basket and 600-item Brick
   Resource Storage: mixed/fractional capacity, blocked intake, preview purity,
   collection without selling, instance isolation, move/pickup recovery and saves.
-  Brick Storage checks cover its $500/100 Bricks/15 Clay purchase, sole rotated
+  Brick Storage checks cover its $1k/100 Bricks/15 Clay purchase, sole rotated
   lower-left input, actual Clay Pit backpressure,
   old-save defaults, overcapacity rejection, Shop quantities and collection UI.
   The generic all-machine lifecycle/render test includes the new collector.
@@ -218,7 +218,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   owning two or more gain nothing; repeated imports cannot grant duplicates.
 - Fiber costs only 30 Wood and one Leek. Older Fiber construction quantities
   halve exactly (including 7.5 for the Drive); the new Planter price stays 100.
-- Clay Pits cost $5 and 100 Wood, use one crew each, and require a Wheel on
+- Clay Pits cost $400 and 100 Wood, use one crew each, and require a Wheel on
   either side intake. They deliver three $0.25 Clay per twelve-second cycle
   through either half of the two-wide output in every rotation. Four powered
   pits feed one Tube for $15/minute. Blocked
@@ -230,7 +230,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   never during intake previews. Green texts rise/fade above their own Tube,
   use common notation, expire while off-screen, and stay bounded under bursts.
   Rendering does not mutate quantities/value and loading never replays texts.
-- Clay Shaping Bench checks cover the $20/50 Wood/5 Fiber cost, one crew,
+- Clay Shaping Bench checks cover the $250/50 Wood/5 Fiber cost, one crew,
   three occupied cells in every rotation, and the free lower-left cell across
   placement, selection and rendering. Real Pit-to-Bench-to-Basket routes work
   without power. Brick/Pot modes take 2/4 seconds for 1/2 Clay; mixed upgraded

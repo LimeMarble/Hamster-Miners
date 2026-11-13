@@ -118,8 +118,8 @@ test("slow starter Planter yields one Leek per eight seconds and additional Plan
   assert.equal(factory.borrow("planter"), false);
 });
 
-test("Clay Pits require $5 and 100 Wood, use one crew and kinetic power, and output into a full-width Sell Tube", () => {
-  assert.deepEqual(D.machines.clayPit.cost, { cash: 5, materials: { wood: 100 } });
+test("Clay Pits require $400 and 100 Wood, use one crew and kinetic power, and output into a full-width Sell Tube", () => {
+  assert.deepEqual(D.machines.clayPit.cost, { cash: 400, materials: { wood: 100 } });
   assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 0.5);
   assert.deepEqual(ports({ type: "clayPit", x: 0, y: 0, facing: "up" }), [
     { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
@@ -127,11 +127,11 @@ test("Clay Pits require $5 and 100 Wood, use one crew and kinetic power, and out
     { x: 1, y: 1, direction: "right", role: "kineticInput" },
   ]);
   for (const facing of D.directions) {
-    const factory = new Factory(createState(1)); factory.state.inventory.wood = 99; factory.state.cash = 5;
+    const factory = new Factory(createState(1)); factory.state.inventory.wood = 99; factory.state.cash = 400;
     assert.ok(factory.buy("clayPit").error); assert.equal(factory.state.inventory.wood, 99);
-    factory.state.inventory.wood = 100; factory.state.cash = 4.99;
+    factory.state.inventory.wood = 100; factory.state.cash = 399.99;
     const before = factory.exportSave(); assert.ok(factory.buy('clayPit').error); assert.equal(factory.exportSave(), before);
-    factory.state.cash = 5; assert.equal(factory.buy("clayPit").amount, 1);
+    factory.state.cash = 400; assert.equal(factory.buy("clayPit").amount, 1);
     const pit = factory.place("clayPit", 40, 40, facing).machine;
     assert.equal(factory.availableCrew(), 19); assert.deepEqual(size(pit), { width: 2, height: 2 });
     const [tx, ty] = { right: [42, 40], down: [40, 42], left: [38, 40], up: [40, 38] }[facing];

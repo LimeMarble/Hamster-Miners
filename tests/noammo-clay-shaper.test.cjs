@@ -20,11 +20,11 @@ function advance(factory, seconds) {
 function near(actual, expected) { assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} ≈ ${expected}`); }
 
 test("Clay Shaping Bench costs no Clay, assigns one crew, and never grants itself for free", () => {
-  assert.deepEqual(D.machines.clayShaper.cost, { cash: 20, materials: { wood: 50, leekFiber: 5 } });
+  assert.deepEqual(D.machines.clayShaper.cost, { cash: 250, materials: { wood: 50, leekFiber: 5 } });
   const factory = new Factory(createState(1));
-  factory.state.cash = 19.99; factory.state.inventory.wood = 50; factory.state.inventory.leekFiber = 5;
+  factory.state.cash = 249.99; factory.state.inventory.wood = 50; factory.state.inventory.leekFiber = 5;
   assert.ok(factory.buy("clayShaper").error);
-  factory.state.cash = 20; factory.state.inventory.leekFiber = 4;
+  factory.state.cash = 250; factory.state.inventory.leekFiber = 4;
   assert.ok(factory.buy("clayShaper").error);
   factory.state.inventory.leekFiber = 5;
   assert.equal(factory.buy("clayShaper").amount, 1);

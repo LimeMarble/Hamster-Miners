@@ -98,13 +98,13 @@ test('Old saves gain zero Processor stock only; running use counts move and save
 });
 
 test('Pebble Pile has the specified atomic cost, no crew, and the Brick Seal footprint in every orientation', () => {
-  assert.deepEqual(D.machines.pebblePile.cost, { cash: 500, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } });
+  assert.deepEqual(D.machines.pebblePile.cost, { cash: 300, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } });
   assert.deepEqual(D.machines.pebblePile.cashEffect, { useLimit: 1, upperLimit: 500, baseValueRequired: 0.3, brackets: [
     { upperLimit: 50, multiplier: 1.5 }, { upperLimit: 200, multiplier: 1.25 }, { upperLimit: 500, multiplier: 1.12 },
   ] });
   assert.equal(A.createState(1).stock.pebblePile, 0);
   for (const missing of ['cash', 'chert', 'leekFiber', 'belt', null]) {
-    const f = new Factory(A.createState(1)); f.state.cash = 1000; f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
+    const f = new Factory(A.createState(1)); f.state.cash = 600; f.state.inventory.chert = 40; f.state.inventory.leekFiber = 60; f.state.stock.belt = 2;
     if (missing === 'cash') f.state.cash -= 0.01;
     else if (missing === 'belt') f.state.stock.belt--;
     else if (missing) f.state.inventory[missing]--;

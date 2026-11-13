@@ -289,7 +289,7 @@
         if (point.role === "waterDropoff") waterDropoff(ctx, point);
         else if (point.role === "input" && point.label) labelledInput(ctx, point);
         else {
-          const edge = point.channel === "plate" ? 0.4 : 0, v = D.vectors[point.direction];
+          const edge = point.channel === "plate" || point.channel === "fuel" ? 0.4 : 0, v = D.vectors[point.direction];
           arrow(ctx, (point.x + 0.5 + v.x * edge) * TILE, (point.y + 0.5 + v.y * edge) * TILE,
             point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
             point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");

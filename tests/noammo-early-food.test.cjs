@@ -171,7 +171,8 @@ test("Minor Transmutation I grants the Stone Oven before the Clay Kiln", () => {
   assert.ok(factory.buy("preheater").error);
   const oven = factory.place("primitiveOven", 50, 40).machine;
   assert.equal(factory.setOvenRecipe(oven.id, "unfiredBrick").error, undefined);
-  const input = A.ports(oven).find(point => point.channel === "ingredient1");
+  const input = A.ports(oven).find(point => point.channel === "ingredient2");
+  assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x - 1, input.y, input.direction, true), 0);
   oven.heat = 6000;
   assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x, input.y, input.direction, true), 2);
   factory.update(0.1);
@@ -210,6 +211,7 @@ test("Stone Oven recipe selection preserves heat and finished output, and migrat
   assert.ok(factory.setOvenRecipe(oven.id, "applePie").error);
   assert.equal(factory.setOvenRecipe(oven.id, "unfiredPot").error, undefined);
   assert.deepEqual(ingredients(oven).map(point => point.label), ["Pot"]);
+  assert.deepEqual(ingredients(oven).map(({ x, y, channel }) => [x, y, channel]), [[41, 41, "ingredient2"]]);
   assert.equal(factory.state.inventory.rawPasta, 2);
   assert.equal(oven.heat, 12000);
   assert.deepEqual(oven.output, [A.cargo("unplatedLeekPasta", 2)]);
