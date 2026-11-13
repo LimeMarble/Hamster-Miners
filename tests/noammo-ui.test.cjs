@@ -1337,16 +1337,18 @@ test("Shop cards sort by cash price and categories preserve that order while fil
 
 test("Brick Seal exposes its effect fields, purchase cost and repeat placement without remounting controls", () => {
   const factory = new A.Factory(A.createState(1));
-  factory.state.cash = 400; factory.state.inventory.brick = 70; factory.state.stock.belt = 2;
+  factory.state.cash = 3000; factory.state.stock.belt = 2;
+  Object.assign(factory.state.inventory, { brick: 70, leekFiber: 120, clay: 30 });
   const ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   shopCard(ui, 'brickSeal').emit('click');
   const effects = ui.ids.get("shopDetail").children.filter((node) => node.className === "machine-effect");
   assert.deepEqual(effects.map((node) => node.textContent), [
-    "Cash effect: +$3.6", "Use Limit: 5", "Base Value Required: $0.5",
+    "Cash effect: +$1", "Use Limit: 5", "Upper Limit: $20", "Base Value Required: $0.25",
+    "Grade Effects: moves 5 percentage points from Poor to Unremarkable on ungraded clay products per pass, up to 4 passes. Applies independently of the cash effect.",
   ]);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
-  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$400 / $400");
+  assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$3k / $3k");
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "70 / 70");
   assert.equal(ui.ids.get("buyMachine").disabled, false); ui.ids.get("buyMachine").emit("click");
   assert.equal(ui.state().stock.brickSeal, 2); assert.equal(ui.state().inventory.brick, 0); assert.equal(ui.state().cash, 0);
@@ -1551,16 +1553,16 @@ test("Primitive Stacker uses a stable typed size control, validates limits, and 
   const ui = boot(f.exportSave()); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   const input = ui.ids.get("stackSize");
   assert.equal(input.tagName, "INPUT"); assert.equal(input.type, "number");
-  assert.equal(input.min, "1"); assert.equal(input.max, "2"); assert.equal(input.step, "1");
-  input.value = "2"; input.emit("change");
-  assert.equal(ui.state().machines.find(m => m.id === machine.id).stackSize, 2);
+  assert.equal(input.min, "1"); assert.equal(input.max, "5"); assert.equal(input.step, "1");
+  input.value = "5"; input.emit("change");
+  assert.equal(ui.state().machines.find(m => m.id === machine.id).stackSize, 5);
   assert.equal(ui.ids.get("stackSize"), input);
   input.value = "";
   for (let now = 100; now < 2000; now += 100) ui.frame(now);
   assert.equal(input.value, "", "ticks do not overwrite an unfinished edit");
-  for (const invalid of ["", "3", "1.5", "-1", "nonsense"]) {
+  for (const invalid of ["", "6", "1.5", "-1", "nonsense"]) {
     input.value = invalid; input.emit("change");
-    assert.equal(input.value, "2"); assert.equal(ui.state().machines[0].stackSize, 2);
+    assert.equal(input.value, "5"); assert.equal(ui.state().machines[0].stackSize, 5);
     assert.equal(ui.ids.get("stackSize"), input);
   }
   input.value = "1"; input.emit("change");

@@ -82,11 +82,11 @@ test('Old Spinach Infusers return their materials, belts, and buffered cargo onc
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
-test('Brick Seal adds $3.60 five times to eligible cargo', () => {
+test('Brick Seal adds $1 five times to eligible cargo', () => {
   const f = powered(), seal = place(f, 'brickSeal', 40, 40);
   let item = cargo('unfiredPot', 1, 9);
   for (let i = 0; i < 12; i++) item = pass(f, seal, item);
-  near(item.value, 27); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs, undefined);
+  near(item.value, 14); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs.brickSeal, 4);
 });
 
 for (const facing of D.directions) test(`Shack ${facing}: six real belt cells, independent rows, one x2 use and six-second transit`, () => {

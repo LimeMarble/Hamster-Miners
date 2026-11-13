@@ -35,7 +35,7 @@
       motion: [
         { name: "Manual Splitter", machine: "manualSplitter", materials: { wood: 25, leekFiber: 20 } },
         { name: "Conveyor Bridge", machine: "primitiveBridge", materials: { wood: 100, chert: 25 } },
-        { name: "Primitive Stacker", machine: "primitiveStacker", materials: { granite: 400, malachitePebble: 20 } },
+        { name: "Primitive Stacker", machine: "primitiveStacker", materials: { brick: 15, woodenGear: 50, granite: 50 } },
       ],
       transmutation: [
         { name: "Stone Oven", machine: "primitiveOven", materials: { chert: 75, clay: 15 } },
@@ -418,7 +418,7 @@
         name: "Clay Kiln", width: 3, height: 2, color: "#a76d4b", category: "Material", crew: 2,
         baseFacing: "up", defaultFacing: "up",
         cost: { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
-        heatCapacity: 250000, heatPerSecond: 8000, outputSeconds: 2, automaticRecipes: true,
+        heatCapacity: 250000, heatPerSecond: 12000, outputSeconds: 2, automaticRecipes: true,
         ports: [
           { x: 0, y: 1, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
           { x: 1, y: 1, direction: "down", role: "input", channel: "material" },
@@ -426,11 +426,11 @@
           { x: 2, y: 1, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
         ],
         recipes: {
-          unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4 },
-          unfiredPot: { input: 2, output: "pot", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4,
+          unfiredBrick: { input: 4, output: "brick", seconds: 8, preheatedSeconds: 4, valueMultiplier: 4 },
+          unfiredPot: { input: 2, output: "pot", seconds: 8, preheatedSeconds: 4, valueMultiplier: 4,
             burnishedGradeEffect: { from: 2, outcomes: [{ grade: 3, share: BURNISHED_STANDARD_TO_FINE }, { grade: 4, share: BURNISHED_STANDARD_TO_UNIQUE }] } },
         },
-        description: "Fires 4 unfired Bricks or 2 unfired Pots in 12 seconds, or 6 seconds if the entire batch is preheated. Multiplies value by 4.",
+        description: "Fires 4 unfired Bricks or 2 unfired Pots in 8 seconds, or 4 seconds if the entire batch is preheated. Multiplies value by 4.",
       },
       preheater: {
         name: "Preheater", width: 2, height: 2, color: "#a46e4b", category: "Material", crew: 1,
@@ -446,7 +446,7 @@
           unfiredBrick: { input: 2, output: "unfiredBrick", seconds: 3, valueMultiplier: 1 },
           unfiredPot: { input: 1, output: "unfiredPot", seconds: 3, valueMultiplier: 1 },
         },
-        description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 6 seconds.`,
+        description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 4 seconds.`,
       },
       primitiveOven: {
         name: "Stone Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
@@ -627,10 +627,10 @@
       brickSeal: {
         name: "Brick Seal", width: 1, height: 2, color: "#bd7856", category: "Cash",
         labelCell: [0, 1], labelLines: ["Brick", "Seal"],
-        cost: { cash: 200, materials: { brick: 35 }, machines: { belt: 1 } },
+        cost: { cash: 1500, materials: { brick: 35, leekFiber: 60, clay: 15 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
-        cashEffect: { bonus: 3.6, useLimit: 5, upperLimit: 1e50, baseValueRequired: 0.5 },
-        legacyGradeEffect: { family: "clay", poorToStandardPerUse: 0.05, useLimit: 4 },
+        cashEffect: { bonus: 1, useLimit: 5, upperLimit: 20, baseValueRequired: 0.25 },
+        gradeEffect: { family: "clay", poorToUnremarkablePerUse: 0.05, useLimit: 4 },
         description: "Adds value to passing cargo.",
       },
       pebblePile: {
@@ -720,14 +720,14 @@
         name: "Primitive Stacker", width: 1, height: 1, color: "#9b906e", category: "Logistics",
         labelLines: ["Stacker"],
         cost: { cash: 3000, materials: { wood: 80, chert: 50, granite: 80 }, machines: { belt: 1 } },
-        conveyors: [[0, 0]], maxStackSize: 2, defaultStackSize: 1,
+        conveyors: [[0, 0]], maxStackSize: 5, defaultStackSize: 1,
         ports: [
           { x: 0, y: 0, direction: "left", role: "input" },
           { x: 0, y: 0, direction: "up", role: "input" },
           { x: 0, y: 0, direction: "down", role: "input" },
           { x: 0, y: 0, direction: "right", role: "output" },
         ],
-        description: "Combines matching items into stacks of up to 2. Accepts cargo from 3 sides and outputs in its facing direction.",
+        description: "Combines matching items into stacks of up to 5. Warns when the selected stack is too heavy for its belt or the next conveyor. Accepts cargo from 3 sides and outputs in its facing direction.",
       },
       manualSplitter: {
         name: "Manual Splitter", width: 3, height: 2, color: "#a38e68", category: "Logistics", crew: 1,

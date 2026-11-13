@@ -20,7 +20,7 @@ test("Minor Motion grants a Splitter and opens the Bridge and Stacker offerings 
   assert.ok(factory.shopUnlockError("manualSplitter"));
   assert.ok(factory.shopUnlockError("primitiveBridge"));
   assert.ok(factory.shopUnlockError("primitiveStacker"));
-  Object.assign(factory.state.inventory, { wood: 125, leekFiber: 20, chert: 25, granite: 400, malachitePebble: 20 });
+  Object.assign(factory.state.inventory, { wood: 125, leekFiber: 20, chert: 25, brick: 15, woodenGear: 50, granite: 50 });
   assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "manualSplitter");
   assert.equal(factory.state.stock.manualSplitter, 1);
   assert.equal(factory.shopUnlockError("manualSplitter"), null);
@@ -28,6 +28,7 @@ test("Minor Motion grants a Splitter and opens the Bridge and Stacker offerings 
   assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "primitiveBridge");
   assert.equal(factory.shopUnlockError("primitiveBridge"), null);
   assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "primitiveStacker");
+  for (const material of ["brick", "woodenGear", "granite"]) assert.equal(factory.state.inventory[material], 0);
   assert.equal(factory.shopUnlockError("primitiveStacker"), null);
   assert.equal(factory.nextRune("minor", "motion"), null);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);

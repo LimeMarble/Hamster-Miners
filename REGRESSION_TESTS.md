@@ -164,7 +164,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   Clay Shaping footprint, all rotated real source/input/output paths, and one
   second per total weight (including fractional Chert and Pot stacks).
   Tables and actual-value multipliers cover Poor/Unremarkable/Standard and zero base
-  Remarkable chance; Brick Seal grants no new grade improvements.
+  Remarkable chance and the Brick Seal's Poor-to-Unremarkable repairs.
   Intake and output are bounded; previews, blocked outputs, already graded
   cargo and reloads cannot reroll or multiply the same grade twice.
   Same-material stack formation sums quantities and conserves cash by averaging
@@ -277,10 +277,11 @@ future pipe tiers) are not treated as current acceptance requirements.
   the halfway mark, without changing source or shaping processing timers.
 - Brick Seal tests compare the real legacy Rock Shack footprint, including its
   single upper conveyor and inactive lower cell in all rotations. Cash checks
-  cover its exact price, zero crew, +$1.25/9-use/$15/base-$0.50 rules, eligibility
+  cover its exact price, zero crew, +$1/5-use/$20/base-$0.25 rules, eligibility
   of a future non-clay material, unit values versus stack totals, and a last use
-  crossing the ceiling without any clamp. Brick Seal no longer grants grade repairs;
-  output blockage and saved mid-pass cargo cannot repeat an effect. Legacy repairs
+  crossing the ceiling without any clamp. Four independent grade repair passes
+  can each move 5 percentage points from Poor to Unremarkable on ungraded clay
+  cargo. Output blockage and saved mid-pass cargo cannot repeat an effect. Legacy repairs
   remain valid for existing saves. Mixed repaired/untreated
   inputs, the quantity-blending helper's 4:1/9:1 arithmetic, partly consumed stacks and floating-point
   caps preserve the modifiers through shaping, firing and save/load.

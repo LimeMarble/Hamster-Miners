@@ -113,7 +113,7 @@ test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output 
   }
 });
 
-test("Cold firing requires full batches and 96ku, consuming heat at the start of a twelve-second cycle", () => {
+test("Cold firing requires full batches and 96ku, consuming heat at the start of an eight-second cycle", () => {
   for (const [material, recipe] of Object.entries(D.machines.kiln.recipes)) {
     const { factory, kiln } = setup();
     feed(factory, kiln, material, recipe.input - 1); feed(factory, kiln, "wood", 2);
@@ -124,8 +124,8 @@ test("Cold firing requires full batches and 96ku, consuming heat at the start of
     assert.match(factory.status(kiln), /96k/);
     feed(factory, kiln, 'wood'); factory.update(0.1);
     assert.equal(kiln.job, null); feed(factory, kiln, 'wood'); factory.update(0.1);
-    assert.equal(kiln.job.remaining, 12); assert.equal(kiln.heat, 24000); assert.equal(kiln.input.length, 0);
-    factory.update(11.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 24000);
+    assert.equal(kiln.job.remaining, 8); assert.equal(kiln.heat, 24000); assert.equal(kiln.input.length, 0);
+    factory.update(7.9); assert.equal(kiln.output.length, 0); assert.equal(kiln.heat, 24000);
     factory.update(0.1);
     assert.equal(kiln.job, null); assert.equal(factory.total(kiln, "output"), recipe.input);
     assert.equal(kiln.output[0].material, recipe.output);
@@ -135,6 +135,20 @@ test("Cold firing requires full batches and 96ku, consuming heat at the start of
     assert.equal(kiln.job, null, "24ku cannot start a second firing");
     assert.match(factory.status(kiln), /Waiting for heat/);
   }
+});
+
+test("Older saves keep their firing batch and paid heat while remaining time scales once", () => {
+  const { factory, kiln } = setup();
+  feed(factory, kiln, "wood", 4);
+  feed(factory, kiln, "unfiredBrick", 4);
+  factory.update(0.1);
+  const legacy = JSON.parse(factory.exportSave());
+  delete legacy.state.kilnSpeedVersion;
+  legacy.state.machines.find(machine => machine.id === kiln.id).job.remaining = 10.5;
+  const restored = Factory.importSave(JSON.stringify(legacy)), loaded = restored.byId.get(kiln.id);
+  assert.deepEqual(loaded.job, { ...kiln.job, remaining: 7 });
+  assert.equal(loaded.heat, kiln.heat);
+  assert.deepEqual(Factory.importSave(restored.exportSave()).state, restored.state);
 });
 
 test("Firing retains each upgraded input's own value, not an average or a base-value reset", () => {
@@ -168,8 +182,8 @@ test("Blocked output retains a finished batch, one in-process batch and one wait
   const { factory, kiln } = setup();
   feed(factory, kiln, "wood", 8); feed(factory, kiln, "unfiredBrick", 4);
   factory.update(0.1); feed(factory, kiln, "unfiredBrick", 4, 1.05);
-  factory.update(12);
-  assert.equal(kiln.job.remaining, 12, "the next batch fires while the previous output waits");
+  factory.update(8);
+  assert.equal(kiln.job.remaining, 8, "the next batch fires while the previous output waits");
   feed(factory, kiln, "unfiredBrick", 100, 2);
   advance(factory, 120);
   assert.equal(kiln.job.remaining, 0); assert.equal(kiln.heat, 48000);
@@ -194,7 +208,7 @@ test("One finished Kiln batch does not prevent starting or obscure missing mater
     feed(factory, kiln, material, quantity - 1);
     assert.match(factory.status(kiln), /Waiting for heat/);
     kiln.heat = 96000; factory.update(0.1);
-    assert.equal(kiln.job.remaining, 12);
+    assert.equal(kiln.job.remaining, 8);
     assert.equal(factory.total(kiln, 'output'), quantity);
     assert.match(factory.status(kiln), /^Firing/);
     factory.update(12);
@@ -259,12 +273,12 @@ test("Kiln sustains cold firing through an actual powered belt, regardless of ma
     if (reversed) { factory.state.machines.reverse(); factory.rebuild(); }
     for (let cycle = 0; cycle < 3; cycle++) {
       assert.equal(feed(factory, kiln, "unfiredBrick", 4), 4);
-      factory.update(12);
+      factory.update(8);
       if (cycle === 0) assert.equal(feed(factory, kiln, 'wood', 3), 3);
       if (cycle === 1) assert.equal(feed(factory, kiln, 'wood', 3), 3);
       assert.ok(kiln.job, "firing continues while the last batch unloads");
     }
-    factory.update(12);
+    factory.update(8);
     assert.equal(factory.total(basket, "contents"), 12);
     assert.equal(belt.lanes[0].material, "brick");
     near(kiln.outputCooldown, 2);

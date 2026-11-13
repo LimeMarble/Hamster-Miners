@@ -32,10 +32,32 @@ test('Primitive Stacker has the old 1×1 Splitter footprint, exact cost, zero cr
   const m = f.place('primitiveStacker', 40, 40).machine;
   assert.equal(A.cells(m).length, 1); assert.deepEqual(A.size(m), { width: 1, height: 1 });
   assert.equal(m.stackSize, 1);
-  for (const invalid of ['', '1.5', 1.5, 'no', 0, 3, Infinity, null, true, '2e0']) {
+  for (const invalid of ['', '1.5', 1.5, 'no', 0, 6, Infinity, null, true, '2e0']) {
     assert.ok(f.setStackSize(m.id, invalid).error); assert.equal(m.stackSize, 1);
   }
-  assert.equal(f.setStackSize(m.id, '2').error, undefined); assert.equal(m.stackSize, 2);
+  assert.equal(f.setStackSize(m.id, '5').error, undefined); assert.equal(m.stackSize, 5);
+});
+
+test('Stacker warns about the limiting conveyor and delivers five when both belts can carry them', () => {
+  const f = setup(), m = place(f, 'primitiveStacker', 40, 40);
+  const belt = place(f, 'belt', 41, 40);
+  f.setStackSize(m.id, 5);
+  assert.equal(feed(f, m, cargo('wood', 5)), 2);
+  assert.match(f.status(m), /Warning: Size 5 is too heavy for the Stacker's conveyor/);
+
+  place(f, 'heavyWheel', 69, 42);
+  place(f, 'kineticGenerator', 70, 40, 'down');
+  f.state.stock.electricConveyor++;
+  assert.equal(f.upgradeConveyors(m.id).amount, 1);
+  assert.equal(feed(f, m, cargo('wood', 3)), 3);
+  assert.match(f.status(m), /Warning: Size 5 is too heavy for the next conveyor/);
+
+  f.pickup(belt.id);
+  const basic = place(f, 'electricConveyor', 41, 40);
+  assert.doesNotMatch(f.status(m), /Warning/);
+  f.update(1);
+  assert.equal(basic.lanes[0].quantity, 5);
+  assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
 for (const facing of D.directions) test(`Stacker ${facing}: three inputs, facing output, limited homogeneous buffer`, () => {
@@ -222,8 +244,8 @@ test('existing saves gain only zero Stacker stock; malformed sizes and excessive
   const restored = Factory.importSave(JSON.stringify(payload));
   assert.equal(restored.state.stock.primitiveStacker, 0); assert.equal(restored.state.primitiveStackerVersion, 1);
   const m = place(f, 'primitiveStacker', 40, 40); f.setStackSize(m.id, 2); feed(f, m, cargo('clay', 2));
-  for (const alter of [p => { p.state.machines.at(-1).stackSize = 3; },
-    p => { p.state.machines.at(-1).lanes[0].quantity = 3; },
+  for (const alter of [p => { p.state.machines.at(-1).stackSize = 6; },
+    p => { p.state.machines.at(-1).lanes[0].quantity = 6; },
     p => { p.state.machines.at(-1).lanes['00'] = cargo('wood'); },
     p => { delete p.state.stock.primitiveStacker; }]) {
     const p = JSON.parse(f.exportSave()); alter(p); assert.throws(() => Factory.importSave(JSON.stringify(p)));

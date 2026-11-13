@@ -134,7 +134,7 @@ test('turning bulk off retains queued inputs and extra Water while normal batche
   assert.equal(feed(f, m, { ...A.cargo('unfiredPot', 2), preheated: true }, 'material'), 2);
   assert.equal(feed(f, m, A.cargo('unfiredPot', 18), 'material'), 18);
   f.setPlaytestCheat('machineBulk', false); f.update(0.1);
-  assert.equal(m.job.bulk, undefined); assert.equal(m.job.remaining, 6); assert.equal(f.total(m, 'input'), 18);
+  assert.equal(m.job.bulk, undefined); assert.equal(m.job.remaining, 4); assert.equal(f.total(m, 'input'), 18);
   near(m.heat, 912000); assert.deepEqual(saved(f).state, f.state);
 
   const other = setup('paintingBench'), bench = other.m, well = place(other.f, 'well', 77, 40);

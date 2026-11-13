@@ -26,7 +26,7 @@ test('Preheater has the approved 2x2 footprint, cost and one crew', () => {
   }
 });
 
-test('preheating preserves value and quality and lets a full Kiln batch fire in six seconds', () => {
+test('preheating preserves value and quality and lets a full Kiln batch fire in four seconds', () => {
   for (const [material, quantity] of [['unfiredBrick', 2], ['unfiredPot', 1]]) {
     const f = new A.Factory(A.createState(1));
     const preheater = place(f, 'preheater', 40, 40), kiln = place(f, 'kiln', 42, 40);
@@ -40,8 +40,8 @@ test('preheating preserves value and quality and lets a full Kiln batch fire in 
     assert.equal(kiln.input[0].upgrades.primitive, 2);
     assert.equal(feed(f, preheater, item), quantity);
     f.update(3.1); assert.ok(kiln.job);
-    assert.ok(kiln.job.remaining > 5.8); assert.equal(kiln.heat, 12000);
-    f.update(6); assert.ok(kiln.output.length);
+    assert.ok(kiln.job.remaining > 3.8); assert.equal(kiln.heat, 12000);
+    f.update(4); assert.ok(kiln.output.length);
     assert.equal(kiln.output[0].preheated, undefined);
     assert.equal(kiln.output[0].value, 28);
   }
@@ -71,14 +71,14 @@ test('Preheater directly unloads mixed-value output without a cooldown and respe
   assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
-test('unheated or mixed Kiln batches require twelve seconds and 96ku', () => {
+test('unheated or mixed Kiln batches require eight seconds and 96ku', () => {
   for (const mixed of [false, true]) {
     const f = new A.Factory(A.createState(1)), kiln = place(f, 'kiln', 40, 40);
     kiln.heat = 96000;
     const cold = A.cargo('unfiredPot'), hot = A.cargo('unfiredPot');
     if (mixed) hot.preheated = true;
     assert.equal(feed(f, kiln, cold), 1); assert.equal(feed(f, kiln, hot), 1);
-    f.update(0.1); assert.equal(kiln.heat, 0); assert.equal(kiln.job.remaining, 12);
+    f.update(0.1); assert.equal(kiln.heat, 0); assert.equal(kiln.job.remaining, 8);
   }
 });
 

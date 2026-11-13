@@ -25,7 +25,7 @@
   const conveyorSeconds = (machine) => machine.conveyorUpgrade === "electricConveyor" ? D.machines.electricConveyor.beltSeconds : D.machines[machine.type].beltSeconds ?? D.config.beltSeconds;
   const conveyorUpgradeCost = (type) => {
     const definition = D.machines[type];
-    return definition?.conveyors && (definition.cashEffect || type === "primitive" || type === "manualSplitter") && !definition.electricPower
+    return definition?.conveyors && (definition.cashEffect || definition.maxStackSize || type === "primitive" || type === "manualSplitter") && !definition.electricPower
       && definition.cost?.machines?.belt === definition.conveyors.length ? definition.conveyors.length : 0;
   };
   function clearPickedUpFurnace(machine) {
@@ -211,7 +211,7 @@
       && (item.lateral === undefined || item.lateral === -0.5 || item.lateral === 0.5)
       && (item.gradeRepairs === undefined || (item.gradeRepairs && typeof item.gradeRepairs === "object" && !Array.isArray(item.gradeRepairs)
         && Object.entries(item.gradeRepairs).every(([type, count]) => Object.hasOwn(D.machines, type)
-          && Number.isFinite((D.machines[type].gradeEffect ?? D.machines[type].legacyGradeEffect)?.poorToStandardPerUse) && Number.isFinite(count) && count >= 0 && count <= (D.machines[type].gradeEffect ?? D.machines[type].legacyGradeEffect).useLimit)));
+          && Number.isFinite(D.machines[type].gradeEffect?.poorToUnremarkablePerUse) && Number.isFinite(count) && count >= 0 && count <= D.machines[type].gradeEffect.useLimit)));
   }
   function sameCargo(a, b) {
     return a.material === b.material && Math.abs(a.value - b.value) < epsilon
@@ -285,9 +285,9 @@
     if (!table) return null;
     const result = [...(item.gradeProfile ?? table)];
     for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
-      const effect = D.machines[type]?.gradeEffect ?? D.machines[type]?.legacyGradeEffect;
+      const effect = D.machines[type]?.gradeEffect;
       if (effect?.family !== material.family) continue;
-      const repaired = Math.min(result[0], Math.max(0, count - (item.gradeRepairApplied ?? 0)) * effect.poorToStandardPerUse);
+      const repaired = Math.min(result[0], Math.max(0, count - (item.gradeRepairApplied ?? 0)) * effect.poorToUnremarkablePerUse);
       result[0] -= repaired; result[1] += repaired;
     }
     return result;
@@ -348,7 +348,7 @@
     for (const item of inputs) for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
       repairs[type] = (repairs[type] ?? 0) + count * item.quantity / total;
     }
-    for (const type of Object.keys(repairs)) repairs[type] = Math.min((D.machines[type].gradeEffect ?? D.machines[type].legacyGradeEffect).useLimit, repairs[type]);
+    for (const type of Object.keys(repairs)) repairs[type] = Math.min(D.machines[type].gradeEffect.useLimit, repairs[type]);
     if (Object.values(repairs).some((count) => count > 0)) output.gradeRepairs = repairs;
     return blendQuality(output, inputs);
   }
@@ -373,6 +373,11 @@
       return;
     }
     const effect = D.machines[type].cashEffect, base = D.materials[item.material].value;
+    const repair = D.machines[type].gradeEffect;
+    if (repair?.poorToUnremarkablePerUse && !item.graded && D.materials[item.material].family === repair.family) {
+      const used = item.gradeRepairs?.[type] ?? 0;
+      if (used < repair.useLimit) item.gradeRepairs = { ...item.gradeRepairs, [type]: Math.min(repair.useLimit, used + 1) };
+    }
     const uses = item.upgrades[type] ?? 0;
     if (!effect || base === null || base < (effect.baseValueRequired ?? 0)
       || item.value < (effect.lowerLimit ?? 0)
@@ -396,6 +401,7 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
+      kilnSpeedVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
     runeVersion: 4, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 6, graniteDrillVersion: 1, rinseBenchVersion: 1,
@@ -1728,7 +1734,7 @@
       if (machine.conveyorUpgrade === "electricConveyor") {
         if (this.electricity.shortage) return `Electricity shortage · ${formatNumber(this.electricity.demand)}u demand / ${formatNumber(this.electricity.supply)}u supply · paused`;
         if (definition.requiresKinetic && !this.kineticHasWheel(machine)) return "Basic Conveyors powered · upgrade waiting for kinetic power";
-        return "Basic Conveyors powered";
+        if (!definition.maxStackSize) return "Basic Conveyors powered";
       }
       if (definition.kineticInputsRequired && !this.kineticHasWheel(machine)) {
         return `Waiting for kinetic connections · ${this.kineticConnections.get(machine.id)?.length ?? 0} / ${definition.kineticInputsRequired}`;
@@ -1768,9 +1774,18 @@
       }
       if (D.machines[machine.type].craftInput && D.machines[machine.type].requiresKinetic && !this.kineticHasWheel(machine)) return "Waiting for kinetic power";
       if (D.machines[machine.type].maxStackSize) {
-        if (!this.powered(machine.x, machine.y)) return "Waiting for kinetic power";
+        if (!this.conveyorPowered(machine, machine.x, machine.y)) return "Waiting for kinetic power";
         const item = machine.lanes[0];
-        return item ? `Stacking · ${formatNumber(item.quantity)} / ${this.stackTarget(machine, item)}` : `Waiting for items · size ${machine.stackSize}`;
+        if (!item) return `Waiting for items · size ${machine.stackSize}`;
+        const target = this.stackTarget(machine, item);
+        const progress = `Stacking · ${formatNumber(item.quantity)} / ${target}`;
+        if (target < machine.stackSize) return `Warning: Size ${machine.stackSize} is too heavy for the Stacker's conveyor · ${progress}`;
+        const step = D.vectors[machine.facing];
+        const next = this.conveyorAt(machine.x + step.x, machine.y + step.y)?.machine;
+        if (next && target * D.materials[item.material].weight > conveyorWeightLimit(next, this.state) + epsilon) {
+          return `Warning: Size ${target} is too heavy for the next conveyor · ${progress}`;
+        }
+        return progress;
       }
       if (machine.type === "gradingBench") {
         if (machine.job) return `Grading · ${formatNumber(machine.job.remaining / timeScale)}s`;
@@ -2120,6 +2135,15 @@
       if ((state.primitiveStackerVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "primitiveStacker")) state.stock.primitiveStacker = 0;
         state.primitiveStackerVersion = 1;
+      }
+      if ((state.kilnSpeedVersion ?? 0) < 1) {
+        for (const machine of state.machines ?? []) {
+          if (machine.type !== "kiln" || !machine.job) continue;
+          const remaining = machine.job.remaining;
+          if (!Number.isFinite(remaining) || remaining < 0 || remaining > 12) throw new Error("Invalid Kiln job.");
+          machine.job.remaining = remaining / 1.5;
+        }
+        state.kilnSpeedVersion = 1;
       }
       if ((state.settledContentVersion ?? 0) < 1) {
         for (const material of ["granite", "limestone", "corundum", "nativeCopper"]) {

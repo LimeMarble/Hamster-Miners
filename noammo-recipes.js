@@ -186,7 +186,7 @@
           if (cash[key] !== undefined && !(key === "upperLimit" && cash[key] === 1e50)) lines.push(`${label}: ${key === "useLimit" ? "" : "$"}${number(cash[key])}`);
         }
         const node = section("Upgrade effects"); lines.forEach(line => node.append(element("p", line)));
-        if (entry.gradeEffect?.poorToStandardPerUse) node.append(element("p", `Grade Effects: each of ${number(entry.gradeEffect.useLimit)} uses moves ${number(entry.gradeEffect.poorToStandardPerUse * 100)} percentage points from Poor to Unremarkable on Clay products. Repairs carry through shaping and firing.`));
+        if (entry.gradeEffect?.poorToUnremarkablePerUse) node.append(element("p", `Grade Effects: each of ${number(entry.gradeEffect.useLimit)} passes moves ${number(entry.gradeEffect.poorToUnremarkablePerUse * 100)} percentage points from Poor to Unremarkable on ungraded clay products. Applies independently of the cash effect. Repairs carry through shaping and firing.`));
         if (entry.gradeEffect?.promotionRates) node.append(element("p", `Grade Effects: ${entry.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% ${data.grades[i].name} → ${data.grades[i + 1].name}` : "").filter(Boolean).join(" · ")}. Applies outside the cash range.`));
         if (entry.persistentEffects) node.append(element("p", "Cash effect applies once across the entire processing chain."));
       }
