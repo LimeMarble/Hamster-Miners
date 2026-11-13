@@ -212,7 +212,7 @@
       && (item.lateral === undefined || item.lateral === -0.5 || item.lateral === 0.5)
       && (item.gradeRepairs === undefined || (item.gradeRepairs && typeof item.gradeRepairs === "object" && !Array.isArray(item.gradeRepairs)
         && Object.entries(item.gradeRepairs).every(([type, count]) => Object.hasOwn(D.machines, type)
-          && Number.isFinite(D.machines[type].gradeEffect?.poorToUnremarkablePerUse) && Number.isFinite(count) && count >= 0 && count <= D.machines[type].gradeEffect.useLimit)));
+          && Number.isFinite(D.machines[type].legacyGradeEffect?.poorToUnremarkablePerUse) && Number.isFinite(count) && count >= 0 && count <= D.machines[type].legacyGradeEffect.useLimit)));
   }
   function sameCargo(a, b) {
     return a.material === b.material && Math.abs(a.value - b.value) < epsilon
@@ -286,7 +286,7 @@
     if (!table) return null;
     const result = [...(item.gradeProfile ?? table)];
     for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
-      const effect = D.machines[type]?.gradeEffect;
+      const effect = D.machines[type]?.legacyGradeEffect;
       if (effect?.family !== material.family) continue;
       const repaired = Math.min(result[0], Math.max(0, count - (item.gradeRepairApplied ?? 0)) * effect.poorToUnremarkablePerUse);
       result[0] -= repaired; result[1] += repaired;
@@ -349,7 +349,7 @@
     for (const item of inputs) for (const [type, count] of Object.entries(item.gradeRepairs ?? {})) {
       repairs[type] = (repairs[type] ?? 0) + count * item.quantity / total;
     }
-    for (const type of Object.keys(repairs)) repairs[type] = Math.min(D.machines[type].gradeEffect.useLimit, repairs[type]);
+    for (const type of Object.keys(repairs)) repairs[type] = Math.min(D.machines[type].legacyGradeEffect.useLimit, repairs[type]);
     if (Object.values(repairs).some((count) => count > 0)) output.gradeRepairs = repairs;
     return blendQuality(output, inputs);
   }
@@ -374,11 +374,6 @@
       return;
     }
     const effect = D.machines[type].cashEffect, base = D.materials[item.material].value;
-    const repair = D.machines[type].gradeEffect;
-    if (repair?.poorToUnremarkablePerUse && !item.graded && D.materials[item.material].family === repair.family) {
-      const used = item.gradeRepairs?.[type] ?? 0;
-      if (used < repair.useLimit) item.gradeRepairs = { ...item.gradeRepairs, [type]: Math.min(repair.useLimit, used + 1) };
-    }
     const uses = item.upgrades[type] ?? 0;
     if (!effect || base === null || base < (effect.baseValueRequired ?? 0)
       || item.value < (effect.lowerLimit ?? 0)

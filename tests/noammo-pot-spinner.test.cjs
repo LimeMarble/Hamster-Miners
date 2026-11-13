@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
 const { DATA: D, Factory, cargo, ports } = A;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ≈ ${b}`);
-const profile = [0.2, 0.1, 0.4, 0.25, 0.05, 0];
+const profile = [0, 0.5, 0.5, 0, 0, 0];
 function place(f, type, x, y, facing = 'right') {
   f.state.stock[type]++;
   const result = f.place(type, x, y, facing); assert.equal(result.error, undefined, result.error);
@@ -115,16 +115,15 @@ test('power loss pauses work and bounded Clay intake preserves oversized overflo
   f.update(7.9); assert.equal(basket.contents[0].quantity, 1); f.update(0.1); near(basket.contents[0].quantity, 2);
 });
 
-test('spun profiles, independent Seal repairs and the Exceptional tier match their agreed probabilities and means', () => {
+test('spun pots roll Unremarkable or Standard, with no Poor chance for Seal repairs to move', () => {
   const { f, m } = setup(); const pot = product(f, m);
   assert.deepEqual(A.gradeProbabilities(pot), profile);
   const average = item => A.gradeProbabilities(item).reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0);
-  near(average(pot), 1.875);
+  near(average(pot), 1.25);
   pot.gradeRepairs = { brickSeal: 4 };
   const chances = A.gradeProbabilities(pot);
-  for (const [i, expected] of [0, 0.3, 0.4, 0.25, 0.05, 0].entries()) near(chances[i], expected);
-  near(average(pot), 1.925); assert.equal(D.grades[5].name, 'Exceptional'); assert.equal(D.grades[5].multiplier, 40);
-  for (const [seed, multiplier] of [[2000, 0.75], [0, 1], [500, 1.5], [1500, 2.5], [1900, 8]]) {
+  assert.deepEqual(chances, profile);
+  for (const [seed, multiplier] of [[0, 1], [1000, 1.5]]) {
     const input = { ...cargo('pot', 2, 10), gradeProfile: profile }, state = { random: seed };
     const graded = A.gradeStack(state, input); near(graded.value, 10 * multiplier);
     assert.equal(graded.graded, true); assert.equal(graded.quantity, 2);
@@ -164,12 +163,31 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   for (const [i, expected] of [0.2, 0.6, 0.2, 0, 0, 0].entries()) near(A.gradeProbabilities(kiln.output[1])[i], expected);
 });
 
+test('Stone Oven preheating makes spun pots 100% Standard before burnished firing', () => {
+  const { f, m } = setup(), pot = product(f, m);
+  const oven = place(f, 'primitiveOven', 50, 40);
+  assert.equal(f.setOvenRecipe(oven.id, 'unfiredPot').error, undefined);
+  oven.heat = 6000;
+  const ovenInput = ports(oven).find(point => point.material === 'unfiredPot');
+  assert.equal(f.receive(oven, { ...pot, burnished: true }, ovenInput.x, ovenInput.y, ovenInput.direction, true), 1);
+  f.update(0.1);
+  const preheated = oven.output[0];
+  assert.deepEqual(A.gradeProbabilities(preheated), [0, 0, 1, 0, 0, 0]);
+
+  const kiln = place(f, 'kiln', 60, 40);
+  kiln.heat = 48000;
+  const input = ports(kiln).find(point => point.channel === 'material');
+  assert.equal(f.receive(kiln, { ...preheated, quantity: 2 }, input.x, input.y, input.direction, true), 2);
+  f.update(0.1); f.update(4);
+  assert.deepEqual(A.gradeProbabilities(kiln.output[0]), [0, 0, 0, 0.85, 0.15, 0]);
+});
+
 test('stacked profiles average with ordinary pots; legal portions and saves retain that distribution, and graded mixing cannot reroll', () => {
   const a = { ...cargo('pot', 1, 10), gradeProfile: profile, gradeRepairs: { brickSeal: 4 }, upgrades: { A: 9 } };
   const b = { ...cargo('pot', 3, 2), upgrades: { B: 7 } };
   const mixed = A.combineCargo([a, b]);
   near(mixed.value, 4); assert.deepEqual(mixed.upgrades, { A: 9, B: 7 }); near(mixed.gradeRepairs.brickSeal, 1);
-  for (const [i, expected] of [0.15, 0.525, 0.25, 0.0625, 0.0125, 0].entries()) near(mixed.gradeProfile[i], expected);
+  for (const [i, expected] of [0.15, 0.575, 0.275, 0, 0, 0].entries()) near(mixed.gradeProfile[i], expected);
   const graded = A.combineCargo([{ ...a, graded: true }, b]); assert.equal(graded.graded, true);
   const state = { random: 99 }; A.gradeStack(state, graded); assert.equal(state.random, 99);
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');

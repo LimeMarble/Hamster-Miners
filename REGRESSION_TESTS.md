@@ -111,9 +111,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   jobs pause on power loss; pending Clay is capped at two and finished output
   at one. Probes, partial inputs, oversized overflow, output blockage, moves,
   independent instances, pickup and reload preserve ingredients and progress.
-- Spun pottery carries the 20/10/40/25/5/0 pre-roll profile, with Exceptional
-  at x40 and legacy Seal repairs remaining independent. Tests cover
-  pre-firing means (1.875/1.925), all six seeded grade outcomes, no early RNG,
+- Spun pottery starts at 50% Unremarkable and 50% Standard. Preheating brings
+  it to 100% Standard. Tests cover the 1.25 average multiplier before preheating,
+  seeded grade outcomes, no early RNG,
   no regrading, mixed ordinary/spun stacks, profile averaging, intact overweight stacks,
   collector separation and malformed metadata. An actual
   Spinner/Kiln/belt/Grading Bench line checks value and timing end to end.
@@ -164,7 +164,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   Clay Shaping footprint, all rotated real source/input/output paths, and one
   second per total weight (including fractional Chert and Pot stacks).
   Tables and actual-value multipliers cover Poor/Unremarkable/Standard and zero base
-  Remarkable chance and the Brick Seal's Poor-to-Unremarkable repairs.
+  Remarkable chance and compatibility with saved Brick Seal grade repairs.
   Intake and output are bounded; previews, blocked outputs, already graded
   cargo and reloads cannot reroll or multiply the same grade twice.
   Same-material stack formation sums quantities and conserves cash by averaging
@@ -279,9 +279,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   single upper conveyor and inactive lower cell in all rotations. Cash checks
   cover its exact price, zero crew, +$1/5-use/$20/base-$0.25 rules, eligibility
   of a future non-clay material, unit values versus stack totals, and a last use
-  crossing the ceiling without any clamp. Four independent grade repair passes
-  can each move 5 percentage points from Poor to Unremarkable on ungraded clay
-  cargo. Output blockage and saved mid-pass cargo cannot repeat an effect. Legacy repairs
+  crossing the ceiling without any clamp. Tests cover cash-only passes,
+  blocked output and saved cargo midway through a pass. Legacy grade repairs
   remain valid for existing saves. Mixed repaired/untreated
   inputs, the quantity-blending helper's 4:1/9:1 arithmetic, partly consumed stacks and floating-point
   caps preserve the modifiers through shaping, firing and save/load.

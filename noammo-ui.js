@@ -119,7 +119,6 @@
     if (effect.lowerLimit !== undefined) lines.push(`Lower Bound: ${money(effect.lowerLimit)}`);
     if (effect.upperLimit !== undefined && effect.upperLimit !== 1e50) lines.push(`Upper Limit: ${money(effect.upperLimit)}`);
     if (effect.baseValueRequired !== undefined) lines.push(`Base Value Required: ${money(effect.baseValueRequired)}`);
-    if (definition.gradeEffect?.poorToUnremarkablePerUse) lines.push(`Grade Effects: moves ${number(definition.gradeEffect.poorToUnremarkablePerUse * 100)} percentage points from Poor to Unremarkable on ungraded clay products per pass, up to ${number(definition.gradeEffect.useLimit)} passes. Applies independently of the cash effect.`);
     if (definition.gradeEffect?.promotionRates) lines.push(`Grade Effects: moves ${definition.gradeEffect.promotionRates.map((rate, i) => rate ? `${number(rate * 100)}% of ${D.grades[i].name} to ${D.grades[i + 1].name}` : "").filter(Boolean).join("; ")}. Applies outside the cash limit.`);
     if (definition.persistentEffects) lines.push("Cash effect applies only once across the entire processing chain.");
     for (const line of lines) panel.append(element("p", line, "machine-effect"));

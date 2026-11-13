@@ -1345,7 +1345,6 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   const effects = ui.ids.get("shopDetail").children.filter((node) => node.className === "machine-effect");
   assert.deepEqual(effects.map((node) => node.textContent), [
     "Cash effect: +$1", "Use Limit: 5", "Upper Limit: $20", "Base Value Required: $0.25",
-    "Grade Effects: moves 5 percentage points from Poor to Unremarkable on ungraded clay products per pass, up to 4 passes. Applies independently of the cash effect.",
   ]);
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
   assert.equal(ui.ids.get("costs").children[0].children[1].textContent, "$3k / $3k");
@@ -1532,7 +1531,7 @@ test("Pot Spinner purchase exposes chances and exact scaled costs, filters corre
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   const card = shopCard(ui, 'potSpinner');
   ui.categories.find(b => b.dataset.category === "Material").emit("click"); assert.equal(card.hidden, false); card.emit("click");
-  assert.ok(ui.ids.get("shopDetail").children.some(n => /Poor 20%.*Unremarkable 10%.*Standard 40%.*Fine 25%.*Unique 5%/.test(n.textContent)));
+  assert.ok(ui.ids.get("shopDetail").children.some(n => /Poor 0%.*Unremarkable 50%.*Standard 50%.*Fine 0%.*Unique 0%/.test(n.textContent)));
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
   assert.deepEqual(ui.ids.get("costs").children.map(r => r.children[1].textContent), ["$2.4k / $2.4k", "300 / 300", "120 / 120", "60 / 60", "30 / 30"]);
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.potSpinner, 2); assert.equal(ui.state().cash, 0);
@@ -1557,7 +1556,7 @@ test("Pot Spinner live controls stay mounted throughout a job and reflect bounde
   assert.equal(ui.ids.get("machineStatus"), status); assert.equal(ui.ids.get("spinnerBuffers"), buffers); assert.equal(ui.ids.get("moveMachine"), move);
   assert.match(status.textContent, /Waiting for 2 Clay/);
   const pot = ui.state().machines.find(m => m.type === "basket").contents[0];
-  assert.deepEqual(pot.gradeProfile, [0.2, 0.1, 0.4, 0.25, 0.05, 0]);
+  assert.deepEqual(pot.gradeProfile, [0, 0.5, 0.5, 0, 0, 0]);
   assert.equal(ui.state().random, 1);
 });
 

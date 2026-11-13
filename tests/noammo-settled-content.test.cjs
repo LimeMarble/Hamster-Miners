@@ -86,7 +86,7 @@ test('Brick Seal adds $1 five times to eligible cargo', () => {
   const f = powered(), seal = place(f, 'brickSeal', 40, 40);
   let item = cargo('unfiredPot', 1, 9);
   for (let i = 0; i < 12; i++) item = pass(f, seal, item);
-  near(item.value, 14); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs.brickSeal, 4);
+  near(item.value, 14); assert.equal(item.upgrades.brickSeal, 5); assert.equal(item.gradeRepairs, undefined);
 });
 
 for (const facing of D.directions) test(`Shack ${facing}: six real belt cells, independent rows, one x2 use and six-second transit`, () => {

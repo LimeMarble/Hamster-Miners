@@ -375,7 +375,7 @@
         ],
         recipes: {
           pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 8, valueMultiplier: 2,
-            gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05, 0] },
+            gradeProfile: [0, 0.5, 0.5, 0, 0, 0] },
         },
         description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds. The Pot starts with the Spinner's grade profile and carries forward prior quality treatments. Requires a Wheel connected to either kinetic intake.",
       },
@@ -631,7 +631,7 @@
         cost: { cash: 1500, materials: { brick: 35, leekFiber: 60, clay: 15 }, machines: { belt: 1 } },
         conveyors: [[0, 0]],
         cashEffect: { bonus: 1, useLimit: 5, upperLimit: 20, baseValueRequired: 0.25 },
-        gradeEffect: { family: "clay", poorToUnremarkablePerUse: 0.05, useLimit: 4 },
+        legacyGradeEffect: { family: "clay", poorToUnremarkablePerUse: 0.05, useLimit: 4 },
         description: "Adds value to passing cargo.",
       },
       pebblePile: {
