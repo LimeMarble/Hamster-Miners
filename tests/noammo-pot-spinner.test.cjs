@@ -190,7 +190,7 @@ test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades 
   place(f, 'belt', 44, 41); place(f, 'gradingBench', 44, 40);
   const basket = place(f, 'basket', 46, 41);
   for (let i = 0; i < 350; i++) { feed(f, m, cargo('clay', 2, 2)); f.update(0.1); if (i < 240) assert.equal(f.state.random, 1); }
-  near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 32); near(basket.contents[1].value, 48);
+  near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 32); assert.equal(basket.contents.length, 1);
   for (const item of basket.contents) {
     assert.equal(item.graded, true);
     for (const [i, expected] of profile.entries()) near(item.gradeProfile[i], expected);

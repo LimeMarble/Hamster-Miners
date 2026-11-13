@@ -22,6 +22,7 @@
   const conveyorWeightLimit = (machine, state) => (machine.conveyorUpgrade === "electricConveyor" ? D.machines.electricConveyor.beltWeight : D.machines[machine.type].beltWeight ?? D.config.beltWeight)
     * (cheatEnabled(state, "conveyorCapacity") ? 10 : 1);
   const legacyFoodWeights = { flour: 0.05, dough: 0.25 };
+  const legacyPotteryWeights = { unfiredBrick: 1, brick: 1, unfiredPot: 2, pot: 2 };
   const conveyorSeconds = (machine) => machine.conveyorUpgrade === "electricConveyor" ? D.machines.electricConveyor.beltSeconds : D.machines[machine.type].beltSeconds ?? D.config.beltSeconds;
   const conveyorUpgradeCost = (type) => {
     const definition = D.machines[type];
@@ -401,7 +402,7 @@
     const state = {
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
-      kilnSpeedVersion: 1,
+      kilnSpeedVersion: 1, potteryWeightVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
     runeVersion: 4, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 6, graniteDrillVersion: 1, rinseBenchVersion: 1,
@@ -1445,9 +1446,9 @@
         const dish = machine.input.find(entry => Object.hasOwn(recipes, entry.material));
         const isDish = input.channel === "dish" && Object.hasOwn(recipes, item.material) && (!dish || dish.material === item.material);
         if (!isDish && !(input.channel === "plate" && input.material === item.material)) return 0;
-        const required = machineBulk(this.state, machine);
+        const capacity = (isDish ? 1 : D.machines[machine.type].plateBuffer) * machineBulk(this.state, machine);
         const waiting = this.total(machine, "input", item.material);
-        quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), required - waiting));
+        quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), capacity - waiting));
         if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (machine.type === "paintingBench" && input) {
         const expected = input.channel === "pot" ? "pot" : input.channel === "malachite" ? "malachitePebble" : null;
@@ -2308,12 +2309,22 @@
         for (const machine of [...state.machines, ...state.storedMachines]) {
           if (machine.beltRemainders !== undefined) throw new Error("Unexpected legacy conveyor remainder.");
           for (const [lane, item] of Object.entries(machine.lanes ?? {})) {
-            if (!validCargo(item) || item.quantity * (legacyFoodWeights[item.material] ?? D.materials[item.material].weight) > 5 + epsilon) throw new Error("Invalid legacy conveyor cargo.");
+            if (!validCargo(item) || item.quantity * (legacyFoodWeights[item.material] ?? legacyPotteryWeights[item.material] ?? D.materials[item.material].weight) > 5 + epsilon) throw new Error("Invalid legacy conveyor cargo.");
             const capacity = Math.floor(conveyorWeightLimit(machine) / D.materials[item.material].weight);
             splitOverweightLane(machine, lane, item, capacity);
           }
         }
         state.beltCapacityVersion = 1;
+      }
+      if ((state.potteryWeightVersion ?? 0) < 1) {
+        for (const machine of state.machines) {
+          if (machine.type !== "gradingBench" || !machine.job) continue;
+          const { input, remaining } = machine.job;
+          if (!Object.hasOwn(legacyPotteryWeights, input?.material)) continue;
+          if (!Number.isFinite(remaining)) throw new Error("Invalid Grading Bench job.");
+          machine.job.remaining = remaining / 2;
+        }
+        state.potteryWeightVersion = 1;
       }
       if (state.foodVersion < 6) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
@@ -2514,7 +2525,7 @@
           const dishes = new Set(machine.input.filter(item => item.material !== "woodenPlate").map(item => item.material));
           if (machine.job || dishes.size > 1 || machine.input.some(item => !Number.isInteger(item.quantity)
             || (item.material !== "woodenPlate" && !Object.hasOwn(plateRecipes, item.material)))
-            || machine.input.filter(item => item.material === "woodenPlate").reduce((sum, item) => sum + item.quantity, 0) > maxBulk
+            || machine.input.filter(item => item.material === "woodenPlate").reduce((sum, item) => sum + item.quantity, 0) > D.machines[machine.type].plateBuffer * maxBulk
             || machine.input.filter(item => item.material !== "woodenPlate").reduce((sum, item) => sum + item.quantity, 0) > maxBulk
             || machine.output.length > 1 || machine.output.some(item => item.quantity > maxBulk
               || !Object.values(plateRecipes).some(recipe => recipe.output === item.material))) throw new Error("Invalid Plating Bench buffers.");

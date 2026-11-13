@@ -87,7 +87,7 @@ test("Pots combine two consecutive Clay inputs, take 4 seconds and double their 
   factory.update(0.1);
   near(bench.output[0].value, 6.1);
   assert.equal(bench.output[0].quantity, 1); assert.equal(bench.output[0].material, "unfiredPot");
-  assert.equal(D.materials.unfiredPot.value, 1); assert.equal(D.materials.unfiredPot.weight, 2);
+  assert.equal(D.materials.unfiredPot.value, 1); assert.equal(D.materials.unfiredPot.weight, 1);
   assert.equal(feed(factory, bench, 2, 1.05), 2);
   const basket = place(factory, "basket", 42, 41);
   factory.update(0.1); factory.update(4);

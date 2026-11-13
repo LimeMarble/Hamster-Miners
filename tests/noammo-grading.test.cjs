@@ -83,7 +83,7 @@ test("real Clay Pit → Grading Bench → Basket works through the sparse workin
 });
 
 test("grading time scales with total weight, including Pot stacks and fractional Chert; intake is bounded and previews do not roll", () => {
-  for (const [item, duration] of [[A.cargo("brick", 3), 3], [A.cargo("pot", 2), 4], [A.cargo("chert", 0.1), 0.1]]) {
+  for (const [item, duration] of [[A.cargo("brick", 3), 1.5], [A.cargo("pot", 2), 2], [A.cargo("chert", 0.1), 0.1]]) {
     const { factory, bench, basket } = setup();
     const before = factory.exportSave(); assert.equal(feed(factory, bench, item, false), item.quantity);
     assert.equal(factory.exportSave(), before);
@@ -94,11 +94,11 @@ test("grading time scales with total weight, including Pot stacks and fractional
   }
   const { factory, bench } = setup("right", false);
   for (const material of ["soil", "wood", "leekFiber"]) assert.equal(feed(factory, bench, A.cargo(material)), 0);
-  assert.equal(feed(factory, bench, A.cargo("pot", 100)), 2);
+  assert.equal(feed(factory, bench, A.cargo("pot", 100)), 5);
   assert.equal(feed(factory, bench, A.cargo("pot")), 0);
-  factory.update(0.1); assert.equal(feed(factory, bench, A.cargo("brick", 100)), 5);
+  factory.update(0.1); assert.equal(feed(factory, bench, A.cargo("brick", 100)), 10);
   factory.update(20); const random = factory.state.random;
-  assert.equal(factory.total(bench, "output"), 2); assert.equal(factory.total(bench, "input"), 5);
+  assert.equal(factory.total(bench, "output"), 5); assert.equal(factory.total(bench, "input"), 10);
   factory.update(60); assert.equal(factory.state.random, random, "blocked output never regrades");
 });
 
@@ -159,13 +159,13 @@ test("overweight stacks stay intact; explicitly separated legal portions retain 
   const factory = new Factory(createState(1));
   place(factory, "wheel", 20, 20); place(factory, "drive", 21, 22, "up");
   const belt = place(factory, "belt", 23, 24);
-  const source = { ...A.cargo("brick", 3.5, 12.75), graded: true,
+  const source = { ...A.cargo("brick", 5.5, 12.75), graded: true,
     upgrades: { brickSeal: 9, primitive: 5, oneOff: true }, gradeRepairs: { brickSeal: 2.5 } };
   const before = A.copy(source);
   assert.equal(factory.receive(belt, source, belt.x, belt.y, "left", true), 0);
   assert.deepEqual(source, before); assert.equal(belt.lanes[0], undefined);
-  const accepted = factory.receive(belt, { ...source, quantity: 2 }, belt.x, belt.y, "left", true);
-  assert.equal(accepted, 2); assert.deepEqual(source, before, "receive leaves source accounting to its caller");
+  const accepted = factory.receive(belt, { ...source, quantity: 4 }, belt.x, belt.y, "left", true);
+  assert.equal(accepted, 4); assert.deepEqual(source, before, "receive leaves source accounting to its caller");
   source.quantity -= accepted;
   const first = A.copy(belt.lanes[0]); delete belt.lanes[0];
   assert.equal(factory.receive(belt, source, belt.x, belt.y, "left", true), 1.5);
@@ -221,9 +221,15 @@ test("graded Clay retains its averaged quality and value through actual shaping 
 test("grading work, RNG and quality follow independent instances through moves, blocked saves and pickup", () => {
   const { factory, bench } = setup("right", false), other = place(factory, "gradingBench", 46, 40);
   feed(factory, bench, A.cargo("brick", 3, 10)); factory.update(1.1);
-  near(bench.job.remaining, 2); assert.equal(other.job, null);
+  near(bench.job.remaining, 0.5); assert.equal(other.job, null);
   factory.move(bench.id, 50, 40, "down");
-  const loaded = Factory.importSave(factory.exportSave()); loaded.update(2);
+  const old = JSON.parse(factory.exportSave());
+  delete old.state.potteryWeightVersion;
+  old.state.machines.find(machine => machine.id === bench.id).job.remaining = 2;
+  const loaded = Factory.importSave(JSON.stringify(old));
+  near(loaded.byId.get(bench.id).job.remaining, 1);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+  loaded.update(2);
   const output = loaded.byId.get(bench.id).output[0], value = output.value, random = loaded.state.random;
   loaded.update(60); near(loaded.byId.get(bench.id).output[0].value, value); assert.equal(loaded.state.random, random);
   loaded.pickup(bench.id); assert.equal(loaded.state.inventory.brick, 3);
@@ -257,7 +263,7 @@ test("old saves gain only the Bench stock field; invalid grades and oversized gr
     bench.input.push(invalid); assert.throws(() => Factory.importSave(factory.exportSave()), /Invalid cargo/);
   }
   const { factory, bench } = setup("right", false);
-  bench.input.push(A.cargo("brick", 6)); assert.throws(() => Factory.importSave(factory.exportSave()), /Grading Bench/);
+  bench.input.push(A.cargo("brick", 11)); assert.throws(() => Factory.importSave(factory.exportSave()), /Grading Bench/);
 });
 
 test("legacy graded portions migrate everywhere without changing cash, quantities, repairs, RNG or running work", () => {

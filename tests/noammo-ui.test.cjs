@@ -1365,6 +1365,20 @@ test("Brick Seal exposes its effect fields, purchase cost and repeat placement w
   assert.equal(ui.ids.get("moveMachine"), move);
 });
 
+test("Plating Bench displays live plate, food and output buffers", () => {
+  const factory = new A.Factory(A.createState(1));
+  factory.state.stock.platingBench++;
+  const bench = factory.place("platingBench", 121, 121).machine;
+  bench.input.push(A.cargo("woodenPlate", 6), A.cargo("choppedLeek"));
+  const ui = boot(factory.exportSave());
+  ui.ids.get("cargo").emit("click", screenPoint(121, 121));
+  const buffers = ui.ids.get("platingBuffers");
+  assert.equal(buffers.textContent, "Waiting plates: 6 / 6 · Waiting food: 1 / 1 · Finished output: 0");
+  for (let frame = 1; frame <= 5; frame++) ui.frame(frame * 100);
+  assert.equal(ui.ids.get("platingBuffers"), buffers);
+  assert.equal(buffers.textContent, "Waiting plates: 5 / 6 · Waiting food: 0 / 1 · Finished output: 1");
+});
+
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.minorRunes.transmutation = 2;

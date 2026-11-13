@@ -148,7 +148,7 @@ test('bulk Kiln output splits across normal conveyors and remains saveable while
   assert.equal(feed(f, m, A.cargo('unfiredBrick', 40, 2), 'material'), 40); f.update(0.1);
   f.setPlaytestCheat('machineBulk', false); f.update(12); assert.equal(m.output[0].quantity, 40);
   place(f, 'belt', 82, 41); const basket = place(f, 'basket', 83, 41); f.powered = () => true;
-  f.update(2.1); assert.equal(f.total(basket, 'contents'), 2); assert.equal(f.total(m, 'output'), 36);
+  f.update(2.1); assert.equal(f.total(basket, 'contents'), 4); assert.equal(f.total(m, 'output'), 32);
   const loaded = saved(f); loaded.powered = () => true; loaded.update(45);
   assert.equal(loaded.total(loaded.byId.get(basket.id), 'contents'), 40);
   near(loaded.byId.get(basket.id).contents[0].value, 8); assert.deepEqual(saved(loaded).state, loaded.state);

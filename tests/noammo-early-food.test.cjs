@@ -29,13 +29,15 @@ test("Wood Carving and Plating produce the salads for Minor Harvest I", () => {
   assert.ok(Math.abs(carver.output[0].value - 0.05) < 1e-8);
   assert.deepEqual(A.ports(bench).map(({ x, y, direction }) => [x, y, direction]), [[50, 40, "up"], [50, 41, "down"], [51, 41, "down"], [51, 41, "right"]]);
   assert.equal(feed(factory, bench, A.cargo("choppedLeek"), "woodenPlate"), 0);
+  assert.equal(feed(factory, bench, A.cargo("woodenPlate", 7, 50)), 6);
+  assert.equal(feed(factory, bench, A.cargo("woodenPlate")), 0);
+  assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
   for (let index = 0; index < 5; index++) {
-    if (!carver.output.length) factory.update(6);
     assert.equal(feed(factory, bench, A.cargo("choppedLeek")), 1);
-    assert.equal(feed(factory, bench, { ...carver.output[0], value: 50 }), 1);
-    if (--carver.output[0].quantity === 0) carver.output.shift();
     factory.update(0.1);
   }
+  assert.equal(factory.total(bench, "input", "woodenPlate"), 1);
+  assert.equal(feed(factory, bench, carver.output[0]), 3);
   assert.equal(factory.total(basket, "contents"), 5);
   assert.equal(basket.contents[0].value, 1);
   factory.collect(basket.id);

@@ -636,6 +636,9 @@
           const buffers = element("p"); buffers.id = "spinnerBuffers";
           panel.append(buffers);
         }
+        if (definition.plateRecipes) {
+          const buffers = element("p"); buffers.id = "platingBuffers"; panel.append(buffers);
+        }
         if (machine.type === "crudeGearBench") {
           const label = element("label", "Carving mode "), mode = element("select");
           mode.id = "carvingMode"; mode.setAttribute("aria-label", "Carving mode");
@@ -749,6 +752,11 @@
       if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
+      if (D.machines[machine.type].plateRecipes) {
+        const bulk = factory.bulkFactor(machine), plates = factory.total(machine, "input", "woodenPlate");
+        const food = factory.total(machine, "input") - plates;
+        text($("platingBuffers"), `Waiting plates: ${number(plates)} / ${number(D.machines[machine.type].plateBuffer * bulk)} · Waiting food: ${number(food)} / ${bulk} · Finished output: ${number(factory.total(machine, "output"))}`);
+      }
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${2 * factory.bulkFactor(machine)} · Finished pots: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit * factory.bulkFactor(machine))} · Finished items: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (machine.type === "gradingBench") {
