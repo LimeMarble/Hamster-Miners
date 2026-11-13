@@ -69,16 +69,10 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
   const kiln = factory.place("kiln", 40, 40).machine;
   assert.deepEqual(A.size(kiln), { width: 2, height: 3 }); assert.equal(cells(kiln).length, 6);
   assert.deepEqual(ports(kiln), [
-    { x: 40, y: 40, direction: "left", role: "input", channel: "fuel" },
+    { x: 40, y: 42, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
     { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
     { x: 41, y: 41, direction: "right", role: "output" },
-    { x: 40, y: 40, direction: "up", role: "input", channel: "fuel" },
-    { x: 40, y: 40, direction: "right", role: "input", channel: "fuel" },
-    { x: 40, y: 40, direction: "down", role: "input", channel: "fuel" },
-    { x: 41, y: 40, direction: "left", role: "input", channel: "fuel" },
-    { x: 41, y: 40, direction: "up", role: "input", channel: "fuel" },
-    { x: 41, y: 40, direction: "right", role: "input", channel: "fuel" },
-    { x: 41, y: 40, direction: "down", role: "input", channel: "fuel" },
+    { x: 41, y: 42, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
   ]);
   assert.equal(factory.availableCrew(), 18); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 20);
   for (let index = 0; index < 19; index++) place(factory, "fiber", 50 + index * 2, 50);
@@ -86,7 +80,7 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
 });
 
 test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output ports reject fuel", () => {
-  for (const index of [0, 2, 3, 4, 5, 6, 7, 8]) {
+  for (const index of [0, 2]) {
     const { factory, kiln } = setup();
     assert.equal(D.materials.wood.heat, 30000);
     const before = factory.exportSave();
@@ -95,12 +89,14 @@ test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output 
     assert.equal(feed(factory, kiln, "wood", 100, 0.1, index), 8);
     assert.equal(kiln.heat, 240000); assert.deepEqual(kiln.input, []);
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0);
-    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index < 5 ? 5 : 0), 0);
+    assert.equal(feed(factory, kiln, "wood", 1, 0.1, index === 0 ? 2 : 0), 0);
     kiln.heat = 220000;
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 1); assert.equal(kiln.heat, 250000);
     kiln.heat = 221000;
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0); assert.equal(kiln.heat, 221000);
     kiln.heat = 0;
+    assert.equal(factory.receive(kiln, cargo("wood"), 40, 40, "left", true), 0);
+    assert.equal(factory.receive(kiln, cargo("wood"), 40, 42, "down", true), 0);
     assert.equal(feed(factory, kiln, "wood", 0.5, 0.1, index), 0);
     assert.equal(feed(factory, kiln, "clay", 1, 0.25, index), 0);
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, 1), 0);

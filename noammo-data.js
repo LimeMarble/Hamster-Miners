@@ -419,16 +419,10 @@
         cost: { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 8000, outputSeconds: 2, automaticRecipes: true,
         ports: [
-          { x: 0, y: 0, direction: "left", role: "input", channel: "fuel" },
+          { x: 0, y: 2, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
           { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
           { x: 1, y: 1, direction: "right", role: "output" },
-          { x: 0, y: 0, direction: "up", role: "input", channel: "fuel" },
-          { x: 0, y: 0, direction: "right", role: "input", channel: "fuel" },
-          { x: 0, y: 0, direction: "down", role: "input", channel: "fuel" },
-          { x: 1, y: 0, direction: "left", role: "input", channel: "fuel" },
-          { x: 1, y: 0, direction: "up", role: "input", channel: "fuel" },
-          { x: 1, y: 0, direction: "right", role: "input", channel: "fuel" },
-          { x: 1, y: 0, direction: "down", role: "input", channel: "fuel" },
+          { x: 1, y: 2, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
         ],
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4 },
