@@ -67,12 +67,19 @@ test("Minor Transmutation unlocks the Kiln and grants one, with the construction
   assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.unfiredBrick, 0);
   assert.equal(factory.state.inventory.clay, 0); assert.equal(factory.state.inventory.leekFiber, 0);
   const kiln = factory.place("kiln", 40, 40).machine;
-  assert.deepEqual(A.size(kiln), { width: 2, height: 3 }); assert.equal(cells(kiln).length, 6);
-  assert.deepEqual(ports(kiln), [
-    { x: 40, y: 42, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
+  assert.equal(kiln.facing, "up");
+  assert.deepEqual(A.size(kiln), { width: 3, height: 2 }); assert.equal(cells(kiln).length, 6);
+  assert.deepEqual(ports({ ...kiln, facing: "right" }), [
+    { x: 40, y: 40, direction: "up", role: "input", channel: "fuel", label: "Fuel" },
     { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
     { x: 41, y: 41, direction: "right", role: "output" },
-    { x: 41, y: 42, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
+    { x: 40, y: 42, direction: "down", role: "input", channel: "fuel", label: "Fuel" },
+  ]);
+  assert.deepEqual(ports(kiln), [
+    { x: 40, y: 41, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
+    { x: 41, y: 41, direction: "down", role: "input", channel: "material" },
+    { x: 41, y: 40, direction: "up", role: "output" },
+    { x: 42, y: 41, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
   ]);
   assert.equal(factory.availableCrew(), 18); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 20);
   for (let index = 0; index < 19; index++) place(factory, "fiber", 50 + index * 2, 50);
@@ -96,7 +103,7 @@ test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output 
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, index), 0); assert.equal(kiln.heat, 221000);
     kiln.heat = 0;
     assert.equal(factory.receive(kiln, cargo("wood"), 40, 40, "left", true), 0);
-    assert.equal(factory.receive(kiln, cargo("wood"), 40, 42, "down", true), 0);
+    assert.equal(factory.receive(kiln, cargo("wood"), 40, 42, "left", true), 0);
     assert.equal(feed(factory, kiln, "wood", 0.5, 0.1, index), 0);
     assert.equal(feed(factory, kiln, "clay", 1, 0.25, index), 0);
     assert.equal(feed(factory, kiln, "wood", 1, 0.1, 1), 0);

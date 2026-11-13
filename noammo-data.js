@@ -415,14 +415,15 @@
         description: "Grades compatible materials, rolling once per ungraded stack and multiplying its current value. Takes 1 second per unit of weight, up to weight 5.",
       },
       kiln: {
-        name: "Clay Kiln", width: 2, height: 3, color: "#a76d4b", category: "Material", crew: 2,
+        name: "Clay Kiln", width: 3, height: 2, color: "#a76d4b", category: "Material", crew: 2,
+        baseFacing: "up", defaultFacing: "up",
         cost: { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 8000, outputSeconds: 2, automaticRecipes: true,
         ports: [
-          { x: 0, y: 2, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
-          { x: 0, y: 1, direction: "left", role: "input", channel: "material" },
-          { x: 1, y: 1, direction: "right", role: "output" },
-          { x: 1, y: 2, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
+          { x: 0, y: 1, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
+          { x: 1, y: 1, direction: "down", role: "input", channel: "material" },
+          { x: 1, y: 0, direction: "up", role: "output" },
+          { x: 2, y: 1, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
         ],
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 12, preheatedSeconds: 6, valueMultiplier: 4 },

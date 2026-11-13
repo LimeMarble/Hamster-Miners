@@ -218,7 +218,8 @@
           for (const [id, machine] of Object.entries(data.machines)) if (machine.heatCapacity && Object.values(machine.recipes).some(recipe => (recipe.heatPerSecond ?? machine.heatPerSecond) > 0)) fuel.append(reference(`machine:${id}`));
         }
       } else {
-        const swapSize = ["down", "up"].includes(entry.defaultFacing ?? "right");
+        const swapSize = ["down", "up"].includes(entry.defaultFacing ?? "right")
+          !== ["down", "up"].includes(entry.baseFacing ?? "right");
         detail.append(element("p", entry.description), element("p", `${swapSize ? entry.height : entry.width}×${swapSize ? entry.width : entry.height} · ${entry.crew ?? 0} operating crew`, "recipe-facts"));
         detail.append(button("View in Shop", () => openShop(entry.id)));
         const cost = section("Construction cost"), flow = element("div", undefined, "recipe-flow");

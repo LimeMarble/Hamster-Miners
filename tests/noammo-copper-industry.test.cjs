@@ -126,7 +126,7 @@ test('automatic thermal machines distinguish fuel from feed, select the incoming
     const f = new Factory(A.createState(1)), m = place(f, type, 40, 40, facing), def = D.machines[type];
     const fuel = ports(m).find(p => p.channel === 'fuel'), material = ports(m).find(p => p.channel === 'material');
     assert.ok(fuel); assert.ok(material); assert.notDeepEqual(fuel, material); assert.equal(m.mode, undefined);
-    const fuelCell = A.rotatePoint(0, type === 'kiln' ? 2 : 0, 2, 3, facing), materialCell = A.rotatePoint(0, 1, 2, 3, facing);
+    const fuelCell = A.rotatePoint(0, 0, 2, 3, facing), materialCell = A.rotatePoint(0, 1, 2, 3, facing);
     assert.deepEqual([fuel.x, fuel.y], [m.x + fuelCell.x, m.y + fuelCell.y]);
     assert.deepEqual([material.x, material.y], [m.x + materialCell.x, m.y + materialCell.y]);
     const amount = type === 'kiln' ? 8 : 17;

@@ -1375,7 +1375,7 @@ test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable re
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   factory.state.inventory.leekFiber = 15;
   assert.equal(factory.buy("kiln").amount, 1);
-  const kiln = factory.place("kiln", 121, 121).machine;
+  const kiln = factory.place("kiln", 121, 121, "right").machine;
   const input = A.ports(kiln).find(p => p.channel === 'material'), fuel = A.ports(kiln).find(p => p.channel === 'fuel');
   factory.receive(kiln, A.cargo("wood", 4), fuel.x, fuel.y, fuel.direction, true);
   factory.receive(kiln, A.cargo("unfiredBrick", 4, 1.05), input.x, input.y, input.direction, true);
