@@ -195,7 +195,7 @@ test('centered Rock Drill output can merge onto a Stacker in the front-priority 
   const basket = place(f, 'basket', 42, 40); f.setStackSize(m.id, 2);
   f.update(9.9); assert.equal(basket.contents.length, 0); assert.equal(back.lanes[0], undefined);
   f.update(0.2); near(basket.contents[0].quantity, 2); assert.equal(drill.output.length, 0);
-  assert.equal(basket.contents[0].material, 'chert');
+  assert.equal(basket.contents[0].material, 'granite');
 });
 
 test('settings, partial cargo, progress and metadata survive movement, saves and pickup once', () => {

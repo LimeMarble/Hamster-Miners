@@ -27,11 +27,10 @@
     }
     for (const [id, definition] of Object.entries(data.machines)) {
       if (definition.batchModes) {
-        const { soil, chert } = definition.batchOutputs;
-        add(id, "chert", [], [item("soil", soil), item("chert", chert)], { seconds: definition.cycle, modeName: definition.batchModes.chert });
-        add(id, "malachite", [], [item("soil", soil), { ...item("malachitePebble", 1), chance: definition.malachiteChance }],
-          { seconds: definition.cycle, modeName: definition.batchModes.malachite });
-        add(id, "soil", [], [item("soil", soil * 2)], { seconds: definition.cycle, modeName: definition.batchModes.soil });
+        for (const [mode, { name, outputs }] of Object.entries(definition.batchModes)) {
+          add(id, mode, [], outputs.map(({ material, quantity, chance }) => ({ ...item(material, quantity), ...(chance === undefined ? {} : { chance }) })),
+            { seconds: definition.cycle, modeName: name });
+        }
       } else if (definition.batchOutputs) add(id, "source", [], Object.entries(definition.batchOutputs).map(([material, amount]) => item(material, amount)), { seconds: definition.cycle });
       else if (definition.source || definition.sourceModes) {
         for (const material of definition.source ? [definition.source] : Object.keys(definition.sourceModes)) {
@@ -73,8 +72,10 @@
       for (const [material, amount] of Object.entries(definition.cost?.materials ?? {})) addTo(constructionUses, `item:${material}`, { machine: `machine:${id}`, quantity: amount });
       for (const [machine, amount] of Object.entries(definition.cost?.machines ?? {})) addTo(constructionUses, `machine:${machine}`, { machine: `machine:${id}`, quantity: amount });
     }
-    // The hand-operated extractor predates the generic crafting definitions.
-    add("fiber", "fiber", [item("leek", 1)], [item("leekFiber", 2)], { seconds: data.config.fiberSeconds, valueMultiplier: 2 });
+    for (const [material, { fiberYield }] of Object.entries(data.materials)) {
+      if (fiberYield) add("fiber", material === "leek" ? "fiber" : material, [item(material, 1)], [item("leekFiber", fiberYield)],
+        { seconds: data.config.fiberSeconds, valueMultiplier: fiberYield });
+    }
     const normalize = text => text.toLocaleLowerCase().trim();
     function search(query = "", kind = "all", machine = "all") {
       const term = normalize(query), related = new Set([`machine:${machine}`]);
@@ -171,6 +172,7 @@
       if (recipe.water) facts.push(`${number(recipe.water)} Water per batch`);
       node.append(element("p", facts.join(" · "), "recipe-facts"));
       if (recipe.seconds > 0) node.append(element("p", recipe.outputs.map(part => `${number(part.quantity * (part.chance ?? 1) * 60 / recipe.seconds)} ${catalog.entries.get(part.key).name}/min`).join(" · ") + (recipe.outputs.some(part => part.chance !== undefined) ? " on average while continuously running" : " while continuously running"), "muted"));
+      if (recipe.valueBonus !== undefined) node.append(element("p", `Adds $${number(recipe.valueBonus)} per item on the first rinse.`, "muted"));
       if (recipe.valueIngredient) node.append(element("p", `Output cash value uses ×${number(recipe.valueMultiplier)} the value of ${data.materials[recipe.valueIngredient].name}.`, "muted"));
       else if (recipe.valueMultiplier !== undefined) node.append(element("p", recipe.valueMultiplier === 1 ? "Preserves total input cash value." : `Total output cash value: ×${number(recipe.valueMultiplier)} combined input value.`, "muted"));
       if (recipe.outputs.some(part => catalog.entries.get(part.key).fluid)) node.append(element("p", "Liquid output requires a direct machine connection; it does not travel on conveyors.", "muted"));

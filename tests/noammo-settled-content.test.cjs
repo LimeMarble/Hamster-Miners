@@ -30,8 +30,8 @@ function pair(f, source, directions) {
 
 test('settled construction prices, zero crew, stone base values and Copper base value are exact', () => {
   assert.deepEqual(D.machines.leekInfuser.cost, { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } });
-  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 10000, materials: { wood: 880, leekFiber: 200, chert: 50, pot: 20 }, machines: { belt: 6 } });
-  assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 15000, materials: { chert: 40, wood: 50 } });
+  assert.deepEqual(D.machines.primitiveShack.cost, { cash: 10000, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } });
+  assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 15000, materials: { chert: 40, wood: 50, leekFiber: 100, brick: 25 } });
   assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 12, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } });
   for (const material of ['chert', 'granite', 'limestone']) assert.equal(D.materials[material].value, 0.1);
   assert.equal(D.materials.corundum.value, 1); assert.equal(D.materials.nativeCopper.value, 0.5); assert.equal(D.materials.copperOre.value, 1.5);
@@ -170,29 +170,32 @@ test('centered probes are read-only, blocked secondary lanes stop intake, and mi
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('Rock Drill selection, five-second batches, bounded blockage and timers survive independent moves and reloads', () => {
+test('Granite Drill makes five-second batches with bounded blockage and resumes after moves and reloads', () => {
   let f = powered(), drill = place(f, 'primitiveRockDrill', 40, 38), other = place(f, 'primitiveRockDrill', 45, 38);
-  assert.equal(A.cells(drill).length, 6); assert.equal(drill.mode, 'chert'); assert.equal(ports(drill).length, 3);
+  assert.equal(A.cells(drill).length, 6); assert.equal(drill.mode, undefined); assert.equal(ports(drill).length, 3);
   attachKineticWheel(f, drill); attachKineticWheel(f, other);
   f.update(4.9); assert.equal(drill.output.length, 0); f.update(0.1);
-  assert.equal(drill.output[0].quantity, 1); assert.equal(drill.output[0].material, 'chert');
+  assert.equal(drill.output[0].quantity, 1); assert.equal(drill.output[0].material, 'granite');
   f.update(60); assert.equal(f.total(drill, 'output'), 1); near(drill.timer, 0);
-  assert.ok(f.setSourceMode(drill.id, 'limestone').error); f.setSourceMode(drill.id, 'granite');
-  assert.equal(other.mode, 'chert'); f.move(drill.id, 70, 70, 'up');
-  f = Factory.importSave(f.exportSave()); drill = f.byId.get(drill.id); assert.equal(drill.mode, 'granite');
-  assert.equal(drill.output[0].material, 'chert', 'mode changes do not rewrite waiting products');
-  f.pickup(drill.id); assert.equal(f.state.inventory.chert, 1); drill = f.place('primitiveRockDrill', 40, 38).machine;
-  assert.equal(drill.mode, 'granite'); f.update(5); assert.equal(drill.output[0].material, 'granite');
+  assert.ok(f.setSourceMode(drill.id, 'chert').error);
+  assert.equal(other.output[0].material, 'granite'); f.move(drill.id, 70, 70, 'up');
+  f = Factory.importSave(f.exportSave()); drill = f.byId.get(drill.id); assert.equal(drill.mode, undefined);
+  assert.equal(drill.output[0].material, 'granite');
+  f.pickup(drill.id); assert.equal(f.state.inventory.granite, 1); drill = f.place('primitiveRockDrill', 40, 38).machine;
+  f.update(5); assert.equal(drill.output[0].material, 'granite');
 });
 
 test('Rock Drill keeps an old two-unit output and resumes with one-unit batches after it clears', () => {
   const f = powered(), drill = place(f, 'primitiveRockDrill', 40, 38);
   attachKineticWheel(f, drill); drill.output.push(cargo('chert', 2, 17));
-  const loaded = Factory.importSave(f.exportSave()), restored = loaded.byId.get(drill.id);
+  const old = JSON.parse(f.exportSave()); delete old.state.graniteDrillVersion;
+  old.state.machines.find(machine => machine.id === drill.id).mode = 'chert';
+  const loaded = Factory.importSave(JSON.stringify(old)), restored = loaded.byId.get(drill.id);
+  assert.equal(restored.mode, undefined);
   loaded.update(60); assert.equal(restored.output[0].quantity, 2); near(restored.timer, 0);
   loaded.pickup(restored.id); assert.equal(loaded.state.inventory.chert, 2);
   const replacement = loaded.place('primitiveRockDrill', 40, 38).machine;
-  loaded.update(5); assert.equal(replacement.output[0].quantity, 1);
+  loaded.update(5); assert.deepEqual(replacement.output[0], cargo('granite'));
 });
 
 for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter intake, direct power, paused progress and save continuity`, () => {
@@ -207,7 +210,7 @@ for (const facing of D.directions) test(`Rock Drill ${facing}: mirrored Sifter i
   f.update(2); near(drill.timer, 2); f.pickup(wheel.id); f.update(60); near(drill.timer, 2);
   const loaded = Factory.importSave(f.exportSave()), restored = loaded.byId.get(drill.id);
   near(restored.timer, 2); assert.equal(loaded.kineticHasWheel(restored), false);
-  loaded.setSourceMode(restored.id, 'granite'); attachKineticWheel(loaded, restored);
+  attachKineticWheel(loaded, restored);
   loaded.update(3); assert.equal(restored.output[0].material, 'granite'); assert.equal(restored.output[0].quantity, 1);
   loaded.update(60); assert.equal(loaded.total(restored, 'output'), 1); near(restored.timer, 0);
 });
@@ -285,6 +288,6 @@ test('old saves get new content defaults once; malformed new tags, modes, buffer
     belt.lanes[0] = item; assert.throws(() => Factory.importSave(f.exportSave()), /cargo/);
   }
   delete belt.lanes[0]; const drill = place(f, 'primitiveRockDrill', 45, 40);
-  drill.mode = 'limestone'; assert.throws(() => Factory.importSave(f.exportSave()), /Rock Drill/);
-  drill.mode = 'chert'; drill.output.push(cargo('chert', 3)); assert.throws(() => Factory.importSave(f.exportSave()), /Rock Drill/);
+  drill.mode = 'limestone'; assert.throws(() => Factory.importSave(f.exportSave()), /source buffer/);
+  delete drill.mode; drill.output.push(cargo('chert', 3)); assert.throws(() => Factory.importSave(f.exportSave()), /source buffer/);
 });

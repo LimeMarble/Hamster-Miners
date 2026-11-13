@@ -172,9 +172,12 @@ test("Sifter migration only defaults new fields; corrupt output materials, sizes
 test("Sifter II consumes a stocked Sifter and the old focus-mode setup survives migration", () => {
   const { factory, sifter } = setup("right", false);
   assert.ok(factory.setSourceMode(sifter.id, "malachite").error);
-  assert.deepEqual(D.machines.pebbleSifterII.cost, { cash: 0, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } });
+  assert.deepEqual(D.machines.pebbleSifterII.cost, { cash: 10000, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } });
   Object.assign(factory.state.inventory, { brick: 40, granite: 75 });
+  assert.match(factory.buy("pebbleSifterII").error, /Not enough cash/);
+  factory.state.cash = 10000;
   assert.equal(factory.buy("pebbleSifterII").amount, 1);
+  assert.equal(factory.state.cash, 0);
   assert.equal(factory.state.stock.pebbleSifter, 0);
   assert.equal(factory.state.inventory.brick, 0);
   assert.equal(factory.state.inventory.granite, 0);

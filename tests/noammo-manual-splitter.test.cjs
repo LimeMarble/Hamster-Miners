@@ -15,6 +15,7 @@ test("Minor Motion grants a Splitter and opens the Bridge and Stacker offerings 
   delete olderSave.state.stock.manualSplitter;
   const factory = Factory.importSave(JSON.stringify(olderSave));
   assert.equal(factory.state.stock.manualSplitter, 0);
+  factory.state.minorRunes.transmutation = 2;
   const pedestal = place(factory, "minorRunePedestal", 70, 40);
   assert.ok(factory.shopUnlockError("manualSplitter"));
   assert.ok(factory.shopUnlockError("primitiveBridge"));

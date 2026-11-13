@@ -268,7 +268,7 @@ test('Pebble Sifter II exposes all three selectable modes', () => {
   const sifter = f.place('pebbleSifterII', 121, 121).machine;
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const mode = ui.ids.get('extractionMode');
-  assert.deepEqual(mode.children.map(option => option.textContent), ['Chert', 'Malachite focus', 'Soil focus']);
+  assert.deepEqual(mode.children.map(option => option.textContent), ['Chert focus', 'Malachite focus', 'Soil focus']);
   mode.value = 'malachite'; mode.emit('change');
   assert.equal(ui.state().machines.find(machine => machine.id === sifter.id).mode, 'malachite');
 });
@@ -349,23 +349,43 @@ test('Shop hides rune-locked items and shows them immediately after an offering 
   assert.equal(f.state.cash, 50);
   Object.assign(f.state.inventory, { leekFiber: 50, leekSalad: 5 });
   assert.ok(f.place('minorRunePedestal', 121, 121).machine);
+  Object.assign(f.state.inventory, { wood: 100, chert: 30, leekFiber: 60, woodenGear: 5 });
+  f.state.cash = 200;
+  assert.match(f.buy('grainMill').error, /recipe ingredients are not yet obtainable/);
+  f.state.cash = 50;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   assert.equal(ui.ids.get('shopCards').children.some(card => card.dataset.machine === 'manualOverflow'), false);
   assert.equal(shopCard(ui, 'wheatPlanter').hidden, true);
   assert.equal(shopCard(ui, 'kiln').hidden, true);
+  for (const type of ['grainMill', 'doughShaper', 'brickSeal', 'primitiveRockDrill', 'heavyWheel', 'majorRunePedestal']) assert.equal(shopCard(ui, type).hidden, true, type);
+  assert.equal(shopCard(ui, 'platingBench').hidden, false);
   ui.tabs.find(b => b.dataset.tab === 'factory').emit('click');
   ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   ui.ids.get('redeemRune').emit('click');
   ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   assert.equal(shopCard(ui, 'wheatPlanter').hidden, false);
   assert.equal(shopCard(ui, 'kiln').hidden, true);
+  for (const type of ['grainMill', 'doughShaper']) assert.equal(shopCard(ui, type).hidden, false, type);
+  assert.equal(shopCard(ui, 'brickSeal').hidden, true);
   shopCard(ui, 'wheatPlanter').emit('click');
   assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$50 / $50');
   assert.equal(ui.state().stock.wheatPlanter, 1);
+  f.state.minorRunes.transmutation = 1;
+  Object.assign(f.state.inventory, { clay: 50, unfiredBrick: 50 });
+  const transmutation = boot(f.exportSave());
+  transmutation.ids.get('cargo').emit('click', screenPoint(121, 121));
+  transmutation.ids.get('runeCategoryTabs').children.find(button => button.dataset.runeCategory === 'transmutation').emit('click');
+  transmutation.ids.get('redeemRune').emit('click');
+  transmutation.tabs.find(b => b.dataset.tab === 'shop').emit('click');
+  assert.equal(shopCard(transmutation, 'brickSeal').hidden, false);
+  assert.equal(shopCard(transmutation, 'primitiveRockDrill').hidden, false);
+  assert.equal(shopCard(transmutation, 'heavyWheel').hidden, false);
+  assert.equal(transmutation.state().inventory.brick, 0);
 });
 
 test('Copper finishing Shop prices, effects and molder production controls use shared data and stay mounted', () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 428000;
+  f.state.minorRunes.transmutation = 3;
   Object.assign(f.state.inventory, { brick: 40, clay: 20, leekFiber: 210, wood: 50, copperIngot: 10 }); f.state.stock.belt = 1;
   let ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   for (const [type, expected] of [
@@ -621,7 +641,7 @@ test("Inventory dismantling previews resources, returns components, excludes pla
     view.ids.get('machineCards').children.find(card => card.dataset.machine === type).emit('click');
   };
   selectInventory(ui, 'primitive');
-  assert.match(ui.ids.get('dismantleReturns').textContent, /10 Wood, 5 Leek Fiber, 2 Primitive Conveyor/);
+  assert.match(ui.ids.get('dismantleReturns').textContent, /10 Wood, 5 Plant Fiber, 2 Primitive Conveyor/);
   assert.match(ui.ids.get('dismantleReturns').textContent, /No cash refund/);
   const button = ui.ids.get('dismantleMachine'); ui.frame(100); ui.frame(300);
   assert.equal(ui.ids.get('dismantleMachine'), button);
@@ -684,7 +704,7 @@ test("machine cards filter, select stable details, and Place returns to the unch
   assert.match(owned.textContent, /available to place: 1/);
   place.emit("click"); ui.frame(900);
   assert.equal(ui.ids.get("factory").hidden, false); assert.deepEqual(ui.view().camera, before);
-  assert.match(ui.ids.get("toolLabel").textContent, /Placing Leek Basket/);
+  assert.match(ui.ids.get("toolLabel").textContent, /Placing Basket/);
   ui.ids.get('cargo').emit('click', screenPoint(124, 122)); ui.frame(1000);
   ui.ids.get("openInventory").emit("click");
   assert.equal(cards.find(card => card.dataset.machine === 'basket').hidden, true, 'placing the last unit hides its card');
@@ -1163,22 +1183,19 @@ test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates al
   assert.equal(ui.state().stock.belt, 3); assert.equal(ui.state().stock.primitiveBridge, 1);
 });
 
-test("Rock Drill mode selector remains mounted during production and persists through refresh and movement", () => {
+test("Granite Drill inspector shows Granite output without a mode selector", () => {
   const factory = new A.Factory(A.createState(1)); factory.state.stock.primitiveRockDrill = 1;
-  const drill = factory.place("primitiveRockDrill", 121, 121).machine;
+  factory.place("primitiveRockDrill", 121, 121);
   const ui = boot(factory.exportSave()); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
-  const mode = ui.ids.get("extractionMode"); assert.ok(mode);
-  assert.deepEqual(mode.children.map(option => option.textContent), ["Chert", "Granite"]);
-  mode.value = "granite"; mode.emit("change"); ui.frame(100); ui.frame(400);
-  assert.equal(ui.ids.get("extractionMode"), mode);
-  assert.equal(ui.state().machines.find(m => m.id === drill.id).mode, "granite");
-  const reloaded = boot(JSON.stringify({ kind: A.DATA.saveKind, version: A.DATA.saveVersion, state: ui.state() }));
-  reloaded.ids.get("cargo").emit("click", screenPoint(121, 121));
-  assert.equal(reloaded.ids.get("extractionMode").value, "granite");
+  assert.equal(ui.ids.has("extractionMode"), false);
+  assert.equal(ui.ids.get("inspector").children[0].textContent, "Granite Drill");
+  assert.ok(ui.ids.get("inspector").children.some(node => /1 Granite every 5 seconds/.test(node.textContent)));
 });
 
 test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
-  const ui = boot(); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
+  const f = new A.Factory(A.createState(1));
+  f.state.minorRunes.transmutation = 2;
+  const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2", "Base Value Required: $0.2"]],
     ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $7.5k", "Base Value Required: $1.2"]]]) {
     shopCard(ui, type).emit('click');
@@ -1290,7 +1307,9 @@ test("Shop cards sort by cash price and categories preserve that order while fil
   for (const button of ui.categories) {
     button.emit('click');
     assert.deepEqual(ui.ids.get('shopCards').children, initial, 'category changes do not rebuild or reorder cards');
-    for (const card of cards) assert.equal(card.hidden, button.dataset.category !== 'All' && A.DATA.machines[card.dataset.machine].category !== button.dataset.category);
+    const progress = factory.shopProgress();
+    for (const card of cards) assert.equal(card.hidden, Boolean(factory.shopUnlockError(card.dataset.machine, progress))
+      || (button.dataset.category !== 'All' && A.DATA.machines[card.dataset.machine].category !== button.dataset.category));
   }
 });
 

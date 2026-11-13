@@ -120,7 +120,7 @@
       <p>How values, processing and factory connections work. Open a topic below; individual machine effects and recipes are listed in the Shop and Recipes.</p>
       <details open>
         <summary>Material changes renew cash-upgrader uses</summary>
-        <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. Leek Duster is an exception: its effects stay spent through all later transformations. The value you built up is carried into the recipe and scaled by its effect; it does not simply return to base value.</p>
+        <p>Most manufacturing steps create a new material with fresh cash-upgrader use counts. The Spinach Duster's effect stays spent through later transformations. Processing scales the value the cargo has built up.</p>
         <p>For example, Primitive Shack can upgrade Copper Ore, then upgrade the resulting Copper Ingot again. The new material must still meet the upgrader’s base-value and cash requirements.</p>
         <p>Use limits are shared across all machines of the same kind. Passing through a different Granite Processor does not reset its uses. Moving, stacking or splitting cargo does not renew them either.</p>
         <p>Quality follows separate rules: processing an already graded ingredient does not give the product another grading roll.</p>
@@ -158,7 +158,7 @@
       <details>
         <summary>Kinetic power and direct connections</summary>
         <p>A Basic Hamster Wheel has two outputs, one at the center of each long edge. A kinetic intake must touch an output and face it. Nearby machines are not powered merely by being close to a Wheel.</p>
-        <p>A connected Conveyor Drive powers primitive conveyors within its highlighted area. Drills, Pebble Sifters, Pot Spinners and Leek Dusters need a direct Wheel connection instead. Either intake on a kinetic drill, Pot Spinner or Leek Duster is sufficient; it does not need two Wheels.</p>
+        <p>A connected Conveyor Drive powers primitive conveyors within its highlighted area. Drills, Pebble Sifters, Pot Spinners and Spinach Dusters need a direct Wheel connection. Either intake on a Pot Spinner or Spinach Duster is sufficient.</p>
         <p>Power loss pauses work. It does not build up a backlog of completed production cycles.</p>
       </details>
       <details>
@@ -170,7 +170,7 @@
       <details>
         <summary>Collectors, inventory and dismantling</summary>
         <p>Collectors hold factory cargo until collected. Collecting transfers material quantities into inventory; upgraded cash values, grades and upgrade histories are not retained there. Sell upgraded cargo through a Sell Tube to receive its current value.</p>
-        <p>Pick up a machine before dismantling it in Inventory. Dismantling returns its construction materials and component machines, with no cash refund. Keep at least two Leek Planters, four Baskets and one Sell Tube.</p>
+        <p>Pick up a machine before dismantling it in Inventory. Dismantling returns its construction materials and component machines. Keep at least two Spinach Planters, four Baskets and one Sell Tube.</p>
       </details>
       <details>
         <summary>Selection, quick actions and controls</summary>
@@ -206,10 +206,10 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=oven-ports-20261112"></script>
-  <script src="noammo-simulation.js?v=oven-ports-20261112"></script>
-  <script src="noammo-renderer.js?v=oven-ports-20261112"></script>
-  <script src="noammo-recipes.js?v=food-and-pebble-20261112"></script>
-  <script src="noammo-ui.js?v=mobile-controls-20261112"></script>
+  <script src="noammo-data.js?v=rinse-bench-20261113"></script>
+  <script src="noammo-simulation.js?v=rinse-bench-20261113"></script>
+  <script src="noammo-renderer.js?v=spinach-and-fiber-20261113"></script>
+  <script src="noammo-recipes.js?v=rinse-bench-20261113"></script>
+  <script src="noammo-ui.js?v=spinach-and-fiber-20261113"></script>
 </body>
 </html>

@@ -14,26 +14,28 @@ function feed(f, machine, material, item = A.cargo(material)) {
   return f.receive(machine, item, port.x, port.y, port.direction, true);
 }
 
-test('Sifter modes retain separate Soil and Chert outlet positions and preserve pending output on mode changes', () => {
+test('Sifter modes fill both outlets independently and preserve pending output on mode changes', () => {
   const f = new A.Factory(A.createState(1)), sifter = place(f, 'pebbleSifterII', 40, 40);
   attachKineticWheel(f, sifter);
-  assert.equal(sifter.mode, 'chert'); f.update(2);
-  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity]), [['soil', 0.4], ['chert', 0.2]]);
+  assert.equal(sifter.mode, 'chert'); f.update(3.9);
+  assert.deepEqual(sifter.output, []);
+  f.update(0.1);
+  assert.deepEqual(sifter.output.map(i => [i.material, i.quantity, i.sifterSlot]), [['chert', 0.5, 0], ['chert', 0.5, 1]]);
   assert.equal(f.setSourceMode(sifter.id, 'soil').error, undefined);
   const top = place(f, 'basket', 43, 40), bottom = place(f, 'basket', 43, 41);
   f.update(0.1);
-  assert.equal(top.contents[0].material, 'soil'); assert.equal(bottom.contents[0].material, 'chert');
-  f.update(2);
-  assert.equal(top.contents[0].quantity, 0.8); assert.equal(bottom.contents.find(i => i.material === 'soil').quantity, 0.4);
+  for (const basket of [top, bottom]) assert.deepEqual(basket.contents, [A.cargo('chert', 0.5)]);
+  f.update(4);
+  for (const basket of [top, bottom]) assert.deepEqual(basket.contents.find(i => i.material === 'soil'), A.cargo('soil'));
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
 });
 
 test('Malachite focus rolls exactly once per production cycle and has 20% success', () => {
   for (const [seed, expected] of [[1, false], [2000, true]]) {
     const f = new A.Factory(A.createState(seed)), sifter = place(f, 'pebbleSifterII', 40, 40);
-    attachKineticWheel(f, sifter); f.setSourceMode(sifter.id, 'malachite'); f.update(2);
+    attachKineticWheel(f, sifter); f.setSourceMode(sifter.id, 'malachite'); f.update(4);
     assert.equal(sifter.output.some(i => i.material === 'malachitePebble'), expected);
-    assert.equal(sifter.output[0].material, 'soil');
+    assert.deepEqual(sifter.output[0], { ...A.cargo('chert', 0.5), sifterSlot: 0 });
     const afterRoll = f.state.random; f.update(20);
     assert.equal(f.state.random, afterRoll, 'blocked output must not reroll');
   }

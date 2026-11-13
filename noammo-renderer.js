@@ -151,7 +151,7 @@
           point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
       if (!["belt", "electricConveyor"].includes(machine.type)) {
-        const names = { planter: "Leek Planter", fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
+        const names = { fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
         const labelCell = definition.labelCell;
         const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, D.directions[API.rotation(machine)]);
@@ -216,8 +216,9 @@
       }
       const { plateRecipes } = D.machines[machine.type];
       if (plateRecipes && machine.input.length) {
-        for (const point of machinePorts.filter((port) => port.role === "input")) {
-          const item = machine.input.find((entry) => point.channel === "plate"
+        for (const channel of ["dish", "plate"]) {
+          const point = machinePorts.find((port) => port.channel === channel);
+          const item = machine.input.find((entry) => channel === "plate"
             ? entry.material === point.material : Object.hasOwn(plateRecipes, entry.material));
           if (!item) continue;
           const quantity = factory.total(machine, "input", item.material);
@@ -227,8 +228,8 @@
       if (machine.output.length && outputs.length) {
         if (outputs.some((point) => point.material)) {
           for (const [index, point] of outputs.entries()) {
-            const item = machine.type === "pebbleSifter"
-              ? machine.output.find((entry) => (entry.sifterSlot ?? (entry.material === "soil" ? 0 : 1)) === index)
+            const item = D.machines[machine.type].batchModes
+              ? machine.output.find((entry) => API.sifterOutputSlot(entry) === index)
               : machine.output.find((entry) => entry.material === point.material);
             if (item) drawCargo(ctx, item, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE);
           }
@@ -272,8 +273,12 @@
       for (const point of ports(preview)) {
         if (point.role === "waterDropoff") waterDropoff(ctx, point);
         else if (point.role === "input" && point.label) labelledInput(ctx, point);
-        else arrow(ctx, (point.x + 0.5) * TILE, (point.y + 0.5) * TILE, point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
-          point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
+        else {
+          const edge = point.channel === "plate" ? 0.4 : 0, v = D.vectors[point.direction];
+          arrow(ctx, (point.x + 0.5 + v.x * edge) * TILE, (point.y + 0.5 + v.y * edge) * TILE,
+            point.role === "input" ? API.opposite(point.direction) : point.direction, 0.65,
+            point.role === "kineticInput" ? "#a8d6e2" : point.channel === "fuel" ? "#e5a568" : "#f1edbd");
+        }
       }
     }
     const box = interaction.marquee ?? interaction.box;

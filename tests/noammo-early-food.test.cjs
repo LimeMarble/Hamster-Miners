@@ -27,7 +27,7 @@ test("Wood Carving and Plating produce the salads for Minor Harvest I", () => {
   factory.update(0.1); factory.update(6);
   assert.equal(carver.output[0].quantity, 3);
   assert.ok(Math.abs(carver.output[0].value - 0.05) < 1e-8);
-  assert.deepEqual(A.ports(bench).map(({ x, y, direction }) => [x, y, direction]), [[50, 40, "up"], [50, 41, "down"], [51, 41, "down"]]);
+  assert.deepEqual(A.ports(bench).map(({ x, y, direction }) => [x, y, direction]), [[50, 40, "up"], [50, 41, "down"], [51, 41, "down"], [51, 41, "right"]]);
   assert.equal(feed(factory, bench, A.cargo("choppedLeek"), "woodenPlate"), 0);
   for (let index = 0; index < 5; index++) {
     if (!carver.output.length) factory.update(6);
@@ -66,6 +66,54 @@ test("A scheduled Well supplies Wheat, which can feed the kinetic Grain Mill dir
   assert.equal(basket.contents[0].material, "flour");
   assert.equal(basket.contents[0].value, 0.3);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+});
+
+test("Rinse Bench schedules water, treats raw crops once and carries quality through milling", () => {
+  const factory = new A.Factory(A.createState(1));
+  const rinse = place(factory, "rinseBench", 40, 40);
+  const well = place(factory, "well", 43, 40);
+  const mill = place(factory, "grainMill", 40, 38);
+  attachKineticWheel(factory, mill);
+  assert.deepEqual(A.ports(rinse), A.ports({ ...rinse, type: "doughShaper" }));
+  assert.equal(A.DATA.machines.well.cost.cash, 25);
+  assert.deepEqual(A.DATA.machines.rinseBench.cost, { cash: 15, materials: { wood: 60, leekFiber: 10, chert: 20 } });
+  for (const material of ["choppedLeek", "flour", "clay"]) assert.equal(feed(factory, rinse, A.cargo(material)), 0);
+  assert.equal(feed(factory, rinse, A.cargo("wheat")), 1);
+  factory.update(0.1);
+  assert.equal(factory.status(rinse), "Waiting for Water");
+  assert.equal(factory.addWaterDelivery(well.id, rinse.id, 0).error, undefined);
+  factory.update(5);
+  assert.equal(rinse.water, 0.4);
+  const treated = mill.input[0];
+  assert.equal(treated.value, 0.65);
+  assert.deepEqual(A.gradeProbabilities(treated).map(chance => Number(chance.toFixed(3))), [0.2, 0.6, 0.2, 0, 0, 0]);
+  assert.equal(feed(factory, rinse, treated), 0);
+  assert.equal(feed(factory, rinse, A.cargo("wheat")), 1);
+  factory.update(0.5);
+  assert.equal(mill.output[0].value, 1.3);
+  assert.deepEqual(A.gradeProbabilities(mill.output[0]).map(chance => Number(chance.toFixed(3))), [0.2, 0.6, 0.2, 0, 0, 0]);
+  assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+  const old = JSON.parse(factory.exportSave());
+  delete old.state.rinseBenchVersion;
+  delete old.state.stock.rinseBench;
+  old.state.machines = [];
+  assert.equal(A.Factory.importSave(JSON.stringify(old)).state.stock.rinseBench, 0);
+});
+
+test("Wheat jobs in the Fiber Extractor survive reloads and yield five light Fiber per grain", () => {
+  const factory = new A.Factory(A.createState(1));
+  const extractor = place(factory, "fiber", 40, 40);
+  assert.equal(A.DATA.materials.leekFiber.weight, 0.05);
+  assert.equal(feed(factory, extractor, A.cargo("wheat", 1, 0.55)), 1);
+  factory.update(1);
+  const loaded = A.Factory.importSave(factory.exportSave()), machine = loaded.byId.get(extractor.id);
+  const input = A.ports(machine).find(point => point.role === "input");
+  assert.equal(loaded.receive(machine, A.cargo("leek"), input.x, input.y, input.direction, true), 1);
+  loaded.update(2);
+  assert.deepEqual(machine.output, [A.cargo("leekFiber", 5, 0.55)]);
+  assert.equal(loaded.state.producedFiber, 5);
+  assert.equal(machine.input[0].material, "leek");
+  assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test("Queued Wheat batches fill the receiving conveyor and retain the remainder", () => {

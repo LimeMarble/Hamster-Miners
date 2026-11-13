@@ -605,7 +605,7 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
-            : definition.oven ? `Uses 6ku per batch. Fuel enters from either side. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Leek through Input 2.`
+            : definition.oven ? `Uses 6ku per batch. Fuel enters from either side. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Spinach through Input 2.`
             : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
@@ -697,8 +697,8 @@
         if (definition.sourceModes || definition.batchModes) {
           const label = element("label", "Extraction mode "), mode = element("select");
           mode.id = "extractionMode"; mode.setAttribute("aria-label", "Extraction mode");
-          for (const [id, name] of Object.entries(definition.sourceModes ?? definition.batchModes)) {
-            const option = element("option", name); option.value = id; mode.append(option);
+          for (const [id, entry] of Object.entries(definition.sourceModes ?? definition.batchModes)) {
+            const option = element("option", entry.name ?? entry); option.value = id; mode.append(option);
           }
           mode.value = machine.mode;
           mode.addEventListener("change", () => { const response = factory.setSourceMode(machine.id, mode.value); floorSignature = ""; result(response); });
@@ -711,12 +711,12 @@
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
       } else {
-        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Leek Planters, four Baskets and Sell Tube. Click trees to gather Wood."),
+        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Spinach Planters, four Baskets and Sell Tube. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Leek every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Leek, with no cash requirement. Chop trees for Wood and collect a Leek from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $5 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Leek Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Spinach every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Spinach, with no cash requirement. Chop trees for Wood and collect Spinach from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $5 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Plant Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -769,11 +769,13 @@
     }
   }
   function renderShop() {
-    if (!cards.has(shopSelection) || factory.shopUnlockError(shopSelection)) {
-      shopSelection = [...cards.keys()].find(type => !factory.shopUnlockError(type) && (category === "All" || D.machines[type].category === category)) ?? null;
+    const progress = factory.shopProgress();
+    const locked = type => Boolean(factory.shopUnlockError(type, progress));
+    if (!cards.has(shopSelection) || locked(shopSelection)) {
+      shopSelection = [...cards.keys()].find(type => !locked(type) && (category === "All" || D.machines[type].category === category)) ?? null;
     }
     for (const [type, entry] of cards) {
-      entry.card.hidden = Boolean(factory.shopUnlockError(type)) || (category !== "All" && D.machines[type].category !== category);
+      entry.card.hidden = locked(type) || (category !== "All" && D.machines[type].category !== category);
       entry.card.classList.toggle("selected", type === shopSelection);
       const count = factory.state.stock[type] + factory.state.machines.filter((machine) => machine.type === type).length;
       text(entry.owned, `Owned: ${number(count)}`);

@@ -49,7 +49,8 @@ test("grade tables, sale multipliers and independent Brick Seal repairs match th
     near(chances.reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0), 1.1);
   }
   assert.deepEqual(A.gradeProbabilities(A.cargo("chert")), [0, 1, 0, 0, 0, 0]);
-  for (const material of ["soil", "wood", "leek", "leekFiber"]) assert.equal(A.gradeProbabilities(A.cargo(material)), null);
+  for (const material of ["leek", "wheat"]) assert.deepEqual(A.gradeProbabilities(A.cargo(material)), [0.5, 0.5, 0, 0, 0, 0]);
+  for (const material of ["soil", "wood", "leekFiber"]) assert.equal(A.gradeProbabilities(A.cargo(material)), null);
 });
 
 test("one roll grades the entire incoming stack, modifies actual rather than base value, and never rolls Remarkable unaided", () => {
@@ -92,7 +93,7 @@ test("grading time scales with total weight, including Pot stacks and fractional
     factory.update(0.01); near(factory.total(basket, "contents"), item.quantity);
   }
   const { factory, bench } = setup("right", false);
-  for (const material of ["soil", "wood", "leek", "leekFiber"]) assert.equal(feed(factory, bench, A.cargo(material)), 0);
+  for (const material of ["soil", "wood", "leekFiber"]) assert.equal(feed(factory, bench, A.cargo(material)), 0);
   assert.equal(feed(factory, bench, A.cargo("pot", 100)), 2);
   assert.equal(feed(factory, bench, A.cargo("pot")), 0);
   factory.update(0.1); assert.equal(feed(factory, bench, A.cargo("brick", 100)), 5);

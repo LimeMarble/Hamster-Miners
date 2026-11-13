@@ -26,9 +26,10 @@ future pipe tiers) are not treated as current acceptance requirements.
 ## Shared machine contracts
 
 - Pebble Sifter emits 0.5 Soil and 0.5 Chert every five seconds. Pebble Sifter II
-  has Chert, Malachite and Soil modes with a two-second cycle. Malachite focus
-  rolls a 20% chance of one Pebble, and Soil focus sends 0.4 Soil to each
-  physical output. Pending output survives mode changes.
+  cycles every four seconds. Chert focus sends 0.5 Chert to each outlet, Soil
+  focus sends 1 Soil to each outlet, and Malachite focus sends 0.5 Chert to one
+  outlet and rolls a 20% chance of a Pebble at the other. Pending output survives
+  mode changes.
 - A Well provides 0.02 Water/s per carrier assigned to a Painting Bench's
   dropoff. The Painting Bench uses one worker, one fired Pot, one Malachite
   Pebble and 0.1 Water per six-second cycle. Output value is three times the
@@ -141,10 +142,10 @@ future pipe tiers) are not treated as current acceptance requirements.
   atomic machine-ingredient purchases and bulk affordability. Shack's two rows
   have three real conveyor cells each, six-second transit, one upgrade per
   material stage and base-value eligibility. All rotations are exercised.
-- Primitive Rock Drill produces 1 Chert or Granite per 5 seconds, retaining
-  previously saved two-unit output batches and pausing when its output is blocked.
-- Rock Drill power checks match and mirror Pebble Sifter's rotated intake, reject area
-  power alone, pause and resume partial cycles, retain mode/timer on reload,
+- Granite Drill produces 1 Granite per 5 seconds, retaining previously saved
+  Chert and two-unit output batches and pausing when its output is blocked.
+- Granite Drill power checks match and mirror Pebble Sifter's rotated intake,
+  reject area power alone, pause and resume partial cycles, retain timers on reload,
   and stop production behind a full output buffer.
 - Every kinetic drill is tested on both sides of one Wheel in all rotations,
   facing the same direction. Either intake independently powers production;
