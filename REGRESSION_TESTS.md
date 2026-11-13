@@ -137,7 +137,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   Empty Grading Benches show a waiting hint instead of a fabricated Clay table;
   real cargo supplies the displayed probabilities until the bench empties.
 
-- Settled-content tests cover exact Infuser/Shack/Bridge/Rock Drill prices,
+- Settled-content tests cover exact Shack/Bridge/Granite Drill prices,
   optional effect fields, no ingredient consumption, new material base values,
   atomic machine-ingredient purchases and bulk affordability. Shack's two rows
   have three real conveyor cells each, six-second transit, one upgrade per
@@ -366,8 +366,8 @@ future pipe tiers) are not treated as current acceptance requirements.
   malformed-use rejection and Shop/Inventory/effect/history integration.
 - Pebble Pile checks cover exact cost and owned-conveyor consumption, atomic
   bulk purchases, Brick Seal's footprint/ports in all rotations, powered
-  transit, per-unit +$4, five shared uses, $0.50 base eligibility with no cash
-  cap, blockage, preserved grade/tags, save round trips and Shop/Inventory
+  transit, one shared use, $0.30 base eligibility, and incoming value brackets
+  at $50, $200, and $500. Checks cover blockage, preserved grade/tags, save round trips and Shop/Inventory
   integration. Processor migration checks cover every cargo buffer and job,
   retaining value while clamping old spent counts to six and rejecting
   invalid counts. Existing saves receive zero Pebble Pile stock.

@@ -38,14 +38,14 @@ test('Upgrader records actual post-effect unit value and quantity, not input val
 });
 
 test('Histories are per-instance, follow movement, clear on pickup/replacement and never contaminate saves or cargo', () => {
-  const { f, m } = powered('leekInfuser'), second = place(f, 'leekInfuser', 43, 40);
-  feed(f, m, cargo('clay', 1, 0.25)); feed(f, second, cargo('clay', 1, 1)); f.update(1);
-  assert.equal(f.recentOutputs(m.id)[0].value, 0.65); assert.equal(f.recentOutputs(second.id)[0].value, 1.4);
+  const { f, m } = powered('pebblePile'), second = place(f, 'pebblePile', 43, 40);
+  feed(f, m, cargo('brick', 1, 2)); feed(f, second, cargo('brick', 1, 4)); f.update(1);
+  assert.equal(f.recentOutputs(m.id)[0].value, 3); assert.equal(f.recentOutputs(second.id)[0].value, 6);
   const before = f.recentOutputs(m.id); f.move(m.id, 45, 40, 'down'); assert.deepEqual(f.recentOutputs(m.id), before);
   const restored = Factory.importSave(f.exportSave()); assert.deepEqual(restored.state, f.state);
   assert.deepEqual(restored.recentOutputs(m.id), []); assert.doesNotMatch(f.exportSave(), /outputHistories|recentOutputs/);
   f.pickup(m.id); assert.deepEqual(f.recentOutputs(m.id), []);
-  const replacement = f.place('leekInfuser', 40, 40).machine; assert.deepEqual(f.recentOutputs(replacement.id), []);
+  const replacement = f.place('pebblePile', 40, 40).machine; assert.deepEqual(f.recentOutputs(replacement.id), []);
   assert.equal(f.recentOutputs(second.id).length, 1);
 });
 

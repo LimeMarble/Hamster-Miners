@@ -635,19 +635,12 @@
         name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
         labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
         cost: { cash: 500, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
-        cashEffect: { useLimit: 4, upperLimit: 100, baseValueRequired: 0.3, brackets: [
-          { upperLimit: 10, multiplier: 1.5 },
-          { upperLimit: 25, multiplier: 1.25 },
-          { upperLimit: 100, multiplier: 1.12 },
+        cashEffect: { useLimit: 1, upperLimit: 500, baseValueRequired: 0.3, brackets: [
+          { upperLimit: 50, multiplier: 1.5 },
+          { upperLimit: 200, multiplier: 1.25 },
+          { upperLimit: 500, multiplier: 1.12 },
         ] },
         description: "Gives a bigger value boost to cheaper cargo.",
-      },
-      leekInfuser: {
-        name: "Spinach Infuser", width: 1, height: 2, color: "#82975a", category: "Cash",
-        labelCell: [0, 1], labelLines: ["Spinach", "Infuser"], conveyors: [[0, 0]],
-        cost: { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } },
-        cashEffect: { bonus: 0.4, upperLimit: 2, baseValueRequired: 0.2 },
-        description: "Adds value to passing cargo.",
       },
       leekDuster: {
         name: "Spinach Duster", width: 3, height: 1, color: "#a4b779", category: "Cash",

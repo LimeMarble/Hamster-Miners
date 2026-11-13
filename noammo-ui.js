@@ -386,7 +386,7 @@
       if (index < 0) return notify("Select the blue Water dropoff tile.");
       const response = factory.addWaterDelivery(waterSelecting, target?.id, index);
       if (response.error) return notify(response.error);
-      waterSelecting = null; refresh(); return;
+      waterSelecting = null; overlaySignature = ""; refresh(); return;
     }
     const contextual = (interaction.box?.contextual && !interaction.box.start)
       || (!interaction.box && !tool && !interaction.group && event.shiftKey);
@@ -576,8 +576,11 @@
           add.id = targeting ? "cancelWaterDropoff" : "addWaterDropoff"; panel.append(add);
           machine.waterSchedule.forEach((entry, index) => {
             const target = factory.byId.get(entry.targetId), row = element("div", undefined, "row");
-            row.append(element("span", `${index + 1}. ${D.machines[target.type].name} (${target.x}, ${target.y}), dropoff ${entry.index + 1}${factory.waterDropoffInRange(machine, target, entry.index) ? "" : " · out of range"}`));
-            const remove = action("Remove", () => { result(factory.removeWaterDelivery(machine.id, index)); inspectorSignature = ""; refresh(); }, "secondary");
+            row.append(element("span", `${index + 1}. ${D.machines[target.type].name}${factory.waterDropoffInRange(machine, target, entry.index) ? "" : " · out of range"}`));
+            const remove = action("Remove", () => {
+              inspectorSignature = ""; overlaySignature = "";
+              result(factory.removeWaterDelivery(machine.id, index));
+            }, "secondary");
             remove.id = `removeWaterDropoff${index}`; row.append(remove); panel.append(row);
           });
         }

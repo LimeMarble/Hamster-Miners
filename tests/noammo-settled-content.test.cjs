@@ -29,13 +29,12 @@ function pair(f, source, directions) {
 }
 
 test('settled construction prices, zero crew, stone base values and Copper base value are exact', () => {
-  assert.deepEqual(D.machines.leekInfuser.cost, { cash: 15, materials: { leek: 20, leekFiber: 15 }, machines: { belt: 1 } });
   assert.deepEqual(D.machines.primitiveShack.cost, { cash: 10000, materials: { wood: 600, leekFiber: 800, chert: 50, pot: 20 }, machines: { belt: 6 } });
   assert.deepEqual(D.machines.primitiveRockDrill.cost, { cash: 15000, materials: { chert: 40, wood: 50, leekFiber: 100, brick: 25 } });
   assert.deepEqual(D.machines.primitiveBridge.cost, { cash: 12, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } });
   for (const material of ['chert', 'granite', 'limestone']) assert.equal(D.materials[material].value, 0.1);
   assert.equal(D.materials.corundum.value, 1); assert.equal(D.materials.nativeCopper.value, 0.5); assert.equal(D.materials.copperOre.value, 1.5);
-  for (const type of ['leekInfuser', 'primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) {
+  for (const type of ['primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) {
     assert.equal(D.machines[type].crew ?? 0, 0);
     const f = new Factory(A.createState(1)), cost = D.machines[type].cost;
     f.state.minorRunes.motion = 2;
@@ -60,16 +59,27 @@ test('Bridge multi-buy requires unplaced conveyors and consumes picked-up convey
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('Leek Infuser replaces Primitive with +$0.40 below $2, without consuming ingredients or mutating stacks', () => {
-  const f = powered(), infuser = place(f, 'leekInfuser', 40, 40), before = A.copy(f.state.inventory);
-  let item = cargo('clay', 2); item.graded = true; item.gradeRepairs = { brickSeal: 2 };
-  for (let i = 0; i < 10; i++) item = pass(f, infuser, item);
-  near(item.value, 2.25); assert.equal(item.upgrades.leekInfuser, 5);
-  assert.equal(item.quantity, 2); assert.equal(item.graded, true); assert.equal(item.gradeRepairs.brickSeal, 2);
-  assert.deepEqual(f.state.inventory, before);
-  assert.equal(pass(f, infuser, cargo('brick', 1, 2)).value, 2);
-  assert.equal(pass(f, infuser, cargo('soil')).upgrades.leekInfuser, undefined);
-  const distant = place(f, 'leekInfuser', 80, 80); assert.equal(feed(f, distant, cargo('brick')), 0);
+test('Old Spinach Infusers return their materials, belts, and buffered cargo once', () => {
+  const f = new Factory(A.createState(1));
+  const placed = place(f, 'belt', 40, 40), stored = place(f, 'belt', 44, 40);
+  f.pickup(stored.id);
+  const old = JSON.parse(f.exportSave());
+  old.state.machines.find(m => m.id === placed.id).type = 'leekInfuser';
+  old.state.machines.find(m => m.id === placed.id).conveyorUpgrade = 'electricConveyor';
+  old.state.machines.find(m => m.id === placed.id).lanes[0] = { ...cargo('clay', 2, 2), upgrades: { leekInfuser: 4 } };
+  old.state.storedMachines[0].type = 'leekInfuser';
+  old.state.stock.belt = 0;
+  old.state.stock.leekInfuser = 2;
+  const loaded = Factory.importSave(JSON.stringify(old));
+  assert.equal(loaded.state.machines.length, 0);
+  assert.equal(loaded.state.storedMachines.length, 0);
+  assert.equal(loaded.state.stock.leekInfuser, undefined);
+  assert.equal(loaded.state.stock.belt, 3);
+  assert.equal(loaded.state.stock.electricConveyor, 1);
+  assert.equal(loaded.state.inventory.leek, 60);
+  assert.equal(loaded.state.inventory.leekFiber, 45);
+  assert.equal(loaded.state.inventory.clay, 2);
+  assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
 test('Brick Seal adds $3.60 five times to eligible cargo', () => {
@@ -268,7 +278,7 @@ test('only bridge middles share ordinary belts, in either placement order; all o
     if (order) place(f, 'belt', 41, 38);
     const bridge = place(f, 'primitiveBridge', 40, 38);
     if (!order) place(f, 'belt', 41, 38);
-    for (const [type, x, y] of [['basket', 41, 38], ['leekInfuser', 41, 38], ['belt', 40, 38], ['belt', 42, 38], ['primitiveBridge', 41, 38]]) {
+    for (const [type, x, y] of [['basket', 41, 38], ['pebblePile', 41, 38], ['belt', 40, 38], ['belt', 42, 38], ['primitiveBridge', 41, 38]]) {
       assert.ok(f.placement(type, x, y, 'right'));
     }
     const before = f.exportSave(); assert.ok(f.move(bridge.id, 41, 38, 'down').error);
@@ -279,7 +289,7 @@ test('only bridge middles share ordinary belts, in either placement order; all o
 
 test('old saves get new content defaults once; malformed new tags, modes, buffers and centered offsets reject', () => {
   const f = new Factory(A.createState(1)), old = JSON.parse(f.exportSave()); delete old.state.settledContentVersion;
-  for (const type of ['leekInfuser', 'primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) delete old.state.stock[type];
+  for (const type of ['primitiveShack', 'primitiveBridge', 'primitiveRockDrill']) delete old.state.stock[type];
   for (const material of ['granite', 'limestone', 'corundum', 'nativeCopper']) delete old.state.inventory[material];
   const loaded = Factory.importSave(JSON.stringify(old)); assert.equal(loaded.state.stock.primitiveShack, 0);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);

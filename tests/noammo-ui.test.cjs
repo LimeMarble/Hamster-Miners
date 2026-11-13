@@ -224,6 +224,7 @@ test('Well inspector adds and removes a selected Water dropoff', () => {
   f.state.stock.well++; f.state.stock.paintingBench++;
   const well = f.place('well', 118, 121).machine, bench = f.place('paintingBench', 121, 121).machine;
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(118, 121));
+  assert.equal(ui.ids.get('machineStatus').textContent, 'Ready');
   ui.ids.get('addWaterDropoff').emit('click');
   assert.equal(ui.ids.get('cancel').textContent, 'Cancel Water selection');
   ui.ids.get('cargo').emit('click', screenPoint(121, 121));
@@ -235,9 +236,13 @@ test('Well inspector adds and removes a selected Water dropoff', () => {
   ui.ids.get('addWaterDropoff').emit('click'); ui.ids.get('cargo').emit('click', screenPoint(121, 122));
   const updated = ui.state().machines.find(machine => machine.id === well.id);
   assert.deepEqual(updated.waterSchedule, [{ targetId: bench.id, index: 0 }]);
+  assert.equal(ui.ids.get('machineStatus').textContent, 'Delivering to dropoff 1 · Painting Bench');
+  assert.equal(ui.ids.get('removeWaterDropoff0').textContent, 'Remove');
+  assert.ok(ui.ids.get('inspector').children.some(row => row.children[0]?.textContent === '1. Painting Bench'));
   assert.equal(ui.ids.get('crew').textContent, '18 / 20');
   ui.ids.get('removeWaterDropoff0').emit('click');
   assert.deepEqual(ui.state().machines.find(machine => machine.id === well.id).waterSchedule, []);
+  assert.equal(ui.ids.get('machineStatus').textContent, 'Ready');
 });
 
 test('Moving, placing, or picking up a Well ends dropoff selection', () => {
@@ -1192,15 +1197,14 @@ test("Granite Drill inspector shows Granite output without a mode selector", () 
   assert.ok(ui.ids.get("inspector").children.some(node => /1 Granite every 5 seconds/.test(node.textContent)));
 });
 
-test("Infuser and Shack details display their exact cash effects without inventing optional limits", () => {
+test("Spinach Infuser is gone from the Shop and Shack displays its cash effect", () => {
   const f = new A.Factory(A.createState(1));
   f.state.minorRunes.transmutation = 2;
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
-  for (const [type, expected] of [["leekInfuser", ["Cash effect: +$0.4", "Upper Limit: $2", "Base Value Required: $0.2"]],
-    ["primitiveShack", ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $7.5k", "Base Value Required: $1.2"]]]) {
-    shopCard(ui, type).emit('click');
-    assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent), expected);
-  }
+  assert.equal(ui.ids.get("shopCards").children.some(card => card.dataset.machine === "leekInfuser"), false);
+  shopCard(ui, "primitiveShack").emit("click");
+  assert.deepEqual(ui.ids.get("shopDetail").children.filter(n => n.className === "machine-effect").map(n => n.textContent),
+    ["Cash effect: ×2", "Use Limit: 1", "Upper Limit: $7.5k", "Base Value Required: $1.2"]);
 });
 
 test("Sifter Shop costs, repeat placement and collected materials use actual UI handlers", () => {
@@ -1684,7 +1688,7 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
   const card = shopCard(ui, 'pebblePile');
   ui.categories.find(button => button.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(button => button.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const effects = ['Below $10 · ×1.5', '$10 to below $25 · ×1.25', '$25 to below $100 · ×1.12', 'Use Limit: 4', 'Upper Limit: $100', 'Base Value Required: $0.3'];
+  const effects = ['Below $50 · ×1.5', '$50 to below $200 · ×1.25', '$200 to below $500 · ×1.12', 'Use Limit: 1', 'Upper Limit: $500', 'Base Value Required: $0.3'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$1k / $1k', '40 / 40', '60 / 60', '2 / 2']);

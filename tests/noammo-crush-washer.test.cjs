@@ -50,9 +50,12 @@ test('Well cycles dropoffs every five seconds, spills overflow, and stops servin
   const first = place(f, 'paintingBench', 36, 40), second = place(f, 'paintingBench', 44, 40);
   assert.equal(f.addWaterDelivery(well.id, first.id, 0).error, undefined);
   assert.equal(f.addWaterDelivery(well.id, second.id, 0).error, undefined);
+  assert.equal(f.status(well), 'Delivering to dropoff 1 · Painting Bench');
   first.water = 0.4; f.update(5); near(first.water, 0.5); near(second.water, 0);
+  assert.equal(f.status(well), 'Delivering to dropoff 2 · Painting Bench');
   f.update(5); near(second.water, 0.5); assert.equal(well.waterNext, 0);
   assert.equal(f.move(first.id, 30, 40, 'right').error, undefined); first.water = 0;
+  assert.equal(f.status(well), 'Dropoff 1 · Painting Bench · out of range');
   f.update(5); near(first.water, 0); assert.equal(well.waterNext, 1);
   f.pickup(second.id); assert.deepEqual(well.waterSchedule, [{ targetId: first.id, index: 0 }]);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
@@ -69,6 +72,20 @@ test('Well coverage uses the drawn 10 by 10 square for rotated dropoff tiles', (
   const camera = { x: 35, y: 35, zoom: 1 }, viewport = { width: 400, height: 400 };
   R.drawOverlay(ctx, f, camera, viewport, { selected: well.id });
   assert.deepEqual(strokes[0], [36, 36, 10, 10].map(value => value * R.TILE));
+  const target = place(f, 'wheatPlanter', 42, 41, 'right');
+  assert.equal(f.addWaterDelivery(well.id, target.id, 1).error, undefined);
+  assert.equal(f.addWaterDelivery(well.id, target.id, 0).error, undefined);
+  const labels = [];
+  ctx.fillText = (label, x, y) => labels.push([label, x, y]);
+  R.drawOverlay(ctx, f, camera, viewport, { selected: well.id });
+  const dropoffs = A.ports(target).filter(port => port.role === 'waterDropoff');
+  assert.deepEqual(labels, [1, 0].map((slot, i) => [
+    String(i + 1), (dropoffs[slot].x + 0.5) * R.TILE, (dropoffs[slot].y + 0.5) * R.TILE,
+  ]));
+  labels.length = 0;
+  f.removeWaterDelivery(well.id, 0);
+  R.drawOverlay(ctx, f, camera, viewport, { selected: well.id });
+  assert.deepEqual(labels, [['1', (dropoffs[0].x + 0.5) * R.TILE, (dropoffs[0].y + 0.5) * R.TILE]]);
   for (const facing of A.DATA.directions) {
     const target = { type: 'doughShaper', x: 0, y: 0, facing };
     const port = A.ports(target).find(point => point.role === 'waterDropoff');

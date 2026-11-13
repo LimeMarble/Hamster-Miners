@@ -253,6 +253,21 @@
       ctx.strokeStyle = "#eef7b2"; ctx.lineWidth = 2;
       machineBox(ctx, machine, 1, false);
     }
+    if (D.machines[selected?.type]?.waterSource) {
+      for (const [index, entry] of selected.waterSchedule.entries()) {
+        const target = factory.byId.get(entry.targetId);
+        if (!target) continue;
+        const point = ports(target).filter(port => port.role === "waterDropoff")[entry.index];
+        if (!point || !visible(point.x, point.y, 1, 1, camera, viewport)) continue;
+        const label = String(index + 1), x = (point.x + 0.5) * TILE, y = (point.y + 0.5) * TILE;
+        const width = Math.max(14, label.length * 7 + 6);
+        ctx.fillStyle = "#172318"; ctx.fillRect(x - width / 2, y - 7, width, 14);
+        ctx.strokeStyle = index === selected.waterNext ? "#c4ebff" : "#76b9dc";
+        ctx.lineWidth = 1; ctx.strokeRect(x - width / 2, y - 7, width, 14);
+        ctx.fillStyle = ctx.strokeStyle; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(label, x, y);
+      }
+    }
     if (interaction.tree) { const tree = factory.state.trees.find((entry) => entry.id === interaction.tree);
       if (tree) { ctx.strokeStyle = "#e8e9ab"; ctx.lineWidth = 2; ctx.strokeRect(tree.x * TILE, tree.y * TILE, 96, 96); } }
     const previews = [];

@@ -1695,6 +1695,15 @@
     status(machine) {
       const definition = D.machines[machine.type];
       const timeScale = cheatEnabled(this.state, "machineSpeed") ? 10 : 1;
+      if (definition.waterSource) {
+        const entry = machine.waterSchedule[machine.waterNext];
+        if (!entry) return "Ready";
+        const target = this.byId.get(entry.targetId);
+        if (!target) return "Ready";
+        const delivery = `${machine.waterNext + 1} · ${D.machines[target.type].name}`;
+        return this.waterDropoffInRange(machine, target, entry.index)
+          ? `Delivering to dropoff ${delivery}` : `Dropoff ${delivery} · out of range`;
+      }
       if (definition.dualPower) {
         if (!this.dualPowered(machine)) return machine.powerSource === "electric" ? "Electricity shortage · paused" : "Waiting for Heavy Hamster Wheel";
         return machine.job ? `Sawing · ${formatNumber(machine.job.remaining / ((machine.powerSource === "electric" ? 2 : 1) * timeScale))}s` : "Ready to saw Wood";
@@ -1850,6 +1859,28 @@
       }
       if (state.stock) delete state.stock.manualOverflow;
       delete state.manualOverflowVersion;
+      const infusers = (state.machines ?? []).filter(machine => machine.type === "leekInfuser");
+      const storedInfusers = (state.storedMachines ?? []).filter(machine => machine.type === "leekInfuser");
+      const infuserStock = state.stock?.leekInfuser ?? 0;
+      if (!Number.isSafeInteger(infuserStock) || infuserStock < storedInfusers.length) throw new Error("Invalid Spinach Infuser stock.");
+      const retiredInfusers = infuserStock + infusers.length;
+      if (retiredInfusers) {
+        state.stock.belt += retiredInfusers;
+        state.inventory.leek = (state.inventory.leek ?? 0) + 20 * retiredInfusers;
+        state.inventory.leekFiber = (state.inventory.leekFiber ?? 0) + 15 * retiredInfusers;
+        for (const machine of [...infusers, ...storedInfusers]) {
+          if (machine.conveyorUpgrade === "electricConveyor") {
+            state.stock.electricConveyor = (state.stock.electricConveyor ?? 0) + 1;
+          }
+          for (const item of [...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {})]) {
+            if (!D.materials[item?.material] || D.materials[item.material].fluid || !Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error("Invalid Spinach Infuser cargo.");
+            state.inventory[item.material] = (state.inventory[item.material] ?? 0) + item.quantity;
+          }
+        }
+        state.machines = state.machines.filter(machine => machine.type !== "leekInfuser");
+        state.storedMachines = (state.storedMachines ?? []).filter(machine => machine.type !== "leekInfuser");
+      }
+      if (state.stock) delete state.stock.leekInfuser;
       const legacyMajorFootprint = (state.runeVersion ?? 0) < 2;
       const legacyDoughFootprint = (state.foodVersion ?? 0) < 6;
       if ((state.rinseBenchVersion ?? 0) < 1) {
@@ -2070,7 +2101,7 @@
         for (const material of ["granite", "limestone", "corundum", "nativeCopper"]) {
           if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
         }
-        for (const type of ["primitiveRockDrill", "leekInfuser", "primitiveShack", "primitiveBridge"]) {
+        for (const type of ["primitiveRockDrill", "primitiveShack", "primitiveBridge"]) {
           if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
         }
         state.settledContentVersion = 1;
