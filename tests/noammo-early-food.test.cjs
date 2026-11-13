@@ -65,6 +65,9 @@ test("A scheduled Well supplies Wheat, which can feed the kinetic Grain Mill dir
   assert.equal(factory.total(mill, "input"), 1);
   assert.equal(basket.contents[0].material, "flour");
   assert.equal(basket.contents[0].value, 0.3);
+  assert.equal(factory.addWaterDelivery(well.id, wheat.id, 2).error, undefined);
+  factory.update(30);
+  assert.equal(wheat.water, 2);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
@@ -92,6 +95,9 @@ test("Rinse Bench schedules water, treats raw crops once and carries quality thr
   factory.update(0.5);
   assert.equal(mill.output[0].value, 1.3);
   assert.deepEqual(A.gradeProbabilities(mill.output[0]).map(chance => Number(chance.toFixed(3))), [0.2, 0.6, 0.2, 0, 0, 0]);
+  factory.update(30);
+  factory.update(30);
+  assert.equal(rinse.water, 5);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
   const old = JSON.parse(factory.exportSave());
   delete old.state.rinseBenchVersion;
@@ -237,8 +243,10 @@ test("Shaped pasta cooks instantly, waits at a powered belt and serves through a
   assert.equal(shaper.water, 0.05);
   assert.equal(factory.addWaterDelivery(well.id, shaper.id, 0).error, undefined);
   factory.update(5);
-  assert.equal(shaper.water, 0.4);
+  assert.ok(Math.abs(shaper.water - 0.45) < 1e-8);
   assert.deepEqual(shaper.output, [A.cargo("dough")]);
+  factory.update(25);
+  assert.equal(shaper.water, 2);
   const dough = shaper.output.shift();
   shaper.water = 0;
   assert.equal(feed(factory, shaper, dough), 1);

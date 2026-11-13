@@ -136,7 +136,7 @@
         name: "Wheat Planter", width: 3, height: 3, color: "#a18b4f", category: "Resource",
         baseFacing: "up", defaultFacing: "up",
         cost: { cash: 50, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
-        source: "wheat", cycle: 10, sourceQuantity: 5, outputLimit: 10, waterCapacity: 0.5, waterPerBatch: 0.25,
+        source: "wheat", cycle: 10, sourceQuantity: 5, outputLimit: 10, waterCapacity: 2, waterPerBatch: 0.25,
         ports: [
           { x: 1, y: 0, direction: "up", role: "output" },
           { x: 0, y: 1, direction: "left", role: "waterDropoff" },
@@ -213,7 +213,7 @@
         name: "Dough Shaper", width: 2, height: 2, color: "#b4a078", category: "Material", crew: 1,
         baseFacing: "up", defaultFacing: "up", labelLines: ["Dough", "Shaper"], labelCell: [0, 0],
         cost: { cash: 80, materials: { wood: 40, leekFiber: 10, chert: 5 } },
-        defaultMode: "shape", inputLimit: 1, outputBuffer: 1, waterCapacity: 0.5,
+        defaultMode: "shape", inputLimit: 1, outputBuffer: 1, waterCapacity: 2,
         formingModes: {
           shape: { name: "Shape dough or pasta", materialProperty: "shapesTo", recipeProperty: "doughProfile", inputName: "Flour or Dough", input: 1, seconds: 0, valueMultiplier: 2, water: 0.1 },
         },
@@ -228,7 +228,7 @@
         name: "Rinse Bench", width: 2, height: 2, color: "#85a694", category: "Cash", crew: 1,
         baseFacing: "up", defaultFacing: "up", labelLines: ["Rinse", "Bench"], labelCell: [0, 0],
         cost: { cash: 15, materials: { wood: 60, leekFiber: 10, chert: 20 } },
-        defaultMode: "rinse", inputLimit: 1, outputBuffer: 1, waterCapacity: 0.5, preservesCargo: true,
+        defaultMode: "rinse", inputLimit: 1, outputBuffer: 1, waterCapacity: 5, preservesCargo: true,
         formingModes: {
           rinse: { name: "Rinse crops", materialProperty: "rinsesTo", inputName: "raw Spinach or Wheat",
             input: 1, seconds: 0, valueBonus: 0.5, promotionRates: [0.6, 0.4], water: 0.1 },
