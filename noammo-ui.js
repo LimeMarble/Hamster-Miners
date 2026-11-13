@@ -608,9 +608,28 @@
           const buffers = element("p"); buffers.id = "kilnBuffers";
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
-            : definition.oven ? `Uses 6ku per batch. Fuel enters from either side. Preheating moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Feed Raw Pasta through Input 1 and Chopped Spinach through Input 2.`
+            : definition.oven ? "Changing recipes returns waiting ingredients to inventory."
             : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
+          if (definition.oven) {
+            const label = element("label", "Recipe "), mode = element("select");
+            mode.id = "ovenRecipe"; mode.setAttribute("aria-label", "Stone Oven recipe");
+            for (const [id, recipe] of Object.entries(definition.recipes)) {
+              const option = element("option", recipe.name); option.value = id; mode.append(option);
+            }
+            if (!definition.recipes.applePie) {
+              const option = element("option", "Apple Pie (unavailable)");
+              option.value = "applePie"; option.disabled = true; mode.append(option);
+            }
+            mode.value = machine.mode;
+            mode.addEventListener("change", () => {
+              const response = factory.setOvenRecipe(machine.id, mode.value);
+              if (response.error) mode.value = machine.mode;
+              else if (interaction.tool?.id === machine.id) interaction.tool.mode = machine.mode;
+              result(response);
+            });
+            label.append(mode); panel.append(label);
+          }
           const recipe = element("p"); recipe.id = "furnaceRecipe"; panel.append(recipe);
         }
         if (machine.type === "potSpinner") {
@@ -743,9 +762,19 @@
         const definition = D.machines[machine.type];
         const recipe = definition.recipes[machine.job?.recipe] ?? factory.furnaceRecipe(machine)
           ?? Object.values(definition.recipes).find(entry => entry.output === machine.output[0]?.material);
-        text($("furnaceRecipe"), recipe
-          ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${recipe.seconds === 0 ? "Instant" : `${number(recipe.seconds)}s`}`
-          : "Recipe: waiting for material");
+        if (definition.oven && recipe) {
+          const bulk = factory.bulkFactor(machine);
+          const inputs = Object.entries(recipe.inputs).map(([id, amount]) =>
+            `${D.materials[id].name} ${number(factory.total(machine, "input", id))}/${number(amount * bulk)}`);
+          const detail = recipe.preheats
+            ? `Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard.`
+            : "Send cooked pasta directly to a Plating Bench.";
+          text($("furnaceRecipe"), `${inputs.join(" · ")} · ${number(recipe.heat * bulk)}u heat per batch. ${detail}`);
+        } else {
+          text($("furnaceRecipe"), recipe
+            ? `Recipe: ${recipe.name ?? D.materials[recipe.output].name} · ${recipe.seconds === 0 ? "Instant" : `${number(recipe.seconds)}s`}`
+            : "Recipe: waiting for material");
+        }
         text($("kilnHeat"), `Heat: ${number(machine.heat)} / ${number(factory.heatCapacity(machine))}u`);
         text($("kilnBuffers"), `Waiting inputs: ${number(factory.total(machine, "input"))} · Finished products: ${number(factory.total(machine, "output"))}`);
       }

@@ -416,6 +416,23 @@ test('Copper finishing Shop prices, effects and molder production controls use s
   assert.equal(ui.state().inventory.clay, 20, 'molding never consumes construction Clay');
 });
 
+test('Stone Oven selector shows only the selected recipe details', () => {
+  const f = new A.Factory(A.createState(1));
+  f.state.stock.primitiveOven = 1;
+  const oven = f.place('primitiveOven', 121, 121).machine;
+  const ui = boot(f.exportSave());
+  ui.ids.get('cargo').emit('click', screenPoint(121, 121));
+  const selector = ui.ids.get('ovenRecipe');
+  assert.equal(selector.value, 'leekPasta');
+  assert.equal(selector.options.find(option => option.value === 'applePie').disabled, true);
+  assert.match(ui.ids.get('furnaceRecipe').textContent, /Raw Pasta 0\/2 · Chopped Spinach 0\/1/);
+  selector.value = 'unfiredBrick';
+  selector.emit('change');
+  assert.equal(ui.state().machines.find(machine => machine.id === oven.id).mode, 'unfiredBrick');
+  assert.match(ui.ids.get('furnaceRecipe').textContent, /Unfired Brick 0\/2/);
+  assert.doesNotMatch(ui.ids.get('furnaceRecipe').textContent, /Spinach|Pasta/);
+});
+
 test('furnace pickup clears the inspector and runtime contents for single and group selections', () => {
   const descendants = node => [node, ...node.children.flatMap(descendants)];
   for (const type of Object.keys(A.DATA.machines).filter(type => A.DATA.machines[type].heatCapacity)) for (const group of [false, true]) {
@@ -423,6 +440,7 @@ test('furnace pickup clears the inspector and runtime contents for single and gr
     const furnace = f.place(type, 121, 121).machine;
     furnace.heat = 240000; furnace.outputCooldown = 1.5;
     const feedMaterial = type === 'primitiveFurnace' ? 'copperOre' : 'unfiredBrick';
+    if (type === 'primitiveOven') f.setOvenRecipe(furnace.id, 'unfiredBrick');
     furnace.input.push(A.cargo(feedMaterial));
     const preheats = type === 'preheater' || type === 'primitiveOven';
     furnace.output.push(preheats ? { ...A.cargo('unfiredBrick', 2), preheated: true }

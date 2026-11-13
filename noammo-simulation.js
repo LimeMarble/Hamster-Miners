@@ -53,8 +53,6 @@
   }
   const thermalRecipeEntry = (definition, material) => Object.entries(definition.recipes)
     .find(([id, recipe]) => (recipe.material ?? id) === material);
-  const ovenRecipeForInput = (definition, input) => input.length
-    ? Object.values(definition.recipes).find(recipe => input.every(item => Object.hasOwn(recipe.inputs, item.material))) : null;
   function moldingProduct(material) {
     const source = D.materials[material], product = D.materials[source?.moldsTo];
     return source?.fluid && !source.requiresRefractoryCaster && product && !product.fluid && !product.requiresRefractoryCaster
@@ -118,17 +116,24 @@
   function ports(machine) {
     const result = [], add = (x, y, direction, role) => result.push(port(machine, x, y, direction, role));
     const definition = D.machines[machine.type], configured = definition.ports;
-    const batch = definition.batchModes?.[machine.mode ?? definition.defaultMode];
+    const mode = machine.mode ?? definition.defaultMode, batch = definition.batchModes?.[mode];
+    const ovenRecipe = definition.oven && definition.recipes[mode];
+    const ingredients = ovenRecipe ? Object.keys(ovenRecipe.inputs) : [];
     let outputSlot = 0;
-    if (configured) return configured.filter((point) => !point.mode || point.mode === (machine.mode ?? D.machines[machine.type].defaultMode)).map((point) => ({
-      ...port(machine, point.x, point.y, point.direction, point.role),
-      ...(batch && point.role === "output" ? { material: batch.outputs[outputSlot++].material }
-        : point.material ? { material: point.material } : {}),
-      ...(point.mode ? { mode: point.mode } : {}),
-      ...(point.span ? { span: point.span } : {}),
-      ...(point.channel ? { channel: point.channel } : {}),
-      ...(point.label ? { label: point.label } : {}),
-    }));
+    if (configured) return configured.filter(point => !point.mode || point.mode === mode).flatMap(point => {
+      const ingredientIndex = definition.oven && point.channel?.startsWith("ingredient") ? Number(point.channel.slice(10)) - 1 : -1;
+      if (ingredientIndex >= 0 && !ingredients[ingredientIndex]) return [];
+      const label = ingredientIndex >= 0 ? (ovenRecipe.inputLabels?.[ingredientIndex] ?? D.materials[ingredients[ingredientIndex]].name) : point.label;
+      return [{
+        ...port(machine, point.x, point.y, point.direction, point.role),
+        ...(batch && point.role === "output" ? { material: batch.outputs[outputSlot++].material }
+          : point.material ? { material: point.material } : {}),
+        ...(point.mode ? { mode: point.mode } : {}),
+        ...(point.span ? { span: point.span } : {}),
+        ...(point.channel ? { channel: point.channel } : {}),
+        ...(label ? { label } : {}),
+      }];
+    });
     if (D.machines[machine.type].centeredOutput) {
       const definition = D.machines[machine.type];
       return [{ ...port(machine, definition.width - 1, (definition.height - 1) / 2, "right", "output"), span: 2 }];
@@ -627,6 +632,7 @@
     placement(type, x, y, facing = D.machines[type]?.defaultFacing ?? "right", ignoreId = null, mode = undefined) {
       if (!D.machines[type] || !D.directions.includes(facing) || !Number.isInteger(x) || !Number.isInteger(y)) return "Invalid placement.";
       const machine = { type, x, y, facing, mode: mode ?? this.byId.get(ignoreId)?.mode ?? D.machines[type].defaultMode }, occupied = cells(machine);
+      if (D.machines[type].oven && !Object.hasOwn(D.machines[type].recipes, machine.mode)) return "Invalid Stone Oven recipe.";
       if (occupied.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= D.config.columns || cell.y >= D.config.rows)) return "Outside the factory.";
       if (occupied.some((cell) => {
         return (this.occupantsAt.get(key(cell.x, cell.y)) ?? []).some((other) =>
@@ -989,6 +995,18 @@
       machine.mode = mode;
       return { machine };
     }
+    setOvenRecipe(id, mode) {
+      const machine = this.byId.get(id);
+      const definition = D.machines[machine?.type];
+      if (!definition?.oven || !Object.hasOwn(definition.recipes, mode)) return { error: "Invalid Stone Oven recipe." };
+      if (machine.mode !== mode) {
+        for (const item of machine.input) this.state.inventory[item.material] += item.quantity;
+        machine.input = [];
+        machine.mode = mode;
+        this.layoutVersion++;
+      }
+      return { machine };
+    }
     setSplitterSide(id, side) {
       const machine = this.byId.get(id);
       if (machine?.type !== "manualSplitter" || !Object.hasOwn(D.machines.manualSplitter.modeFootprints, side)) return { error: "Invalid splitter side." };
@@ -1125,7 +1143,7 @@
     }
     furnaceRecipe(machine) {
       const definition = D.machines[machine.type];
-      if (definition.oven) return ovenRecipeForInput(definition, machine.input);
+      if (definition.oven) return definition.recipes[machine.mode];
       return thermalRecipeEntry(definition, machine.input[0]?.material)?.[1];
     }
     preheatCargo(item, definition) {
@@ -1435,11 +1453,9 @@
         const feedRecipe = definition.oven ? null : thermalRecipeEntry(definition, item.material)?.[1];
         const fuelHeat = D.materials[item.material].heat;
         if (definition.oven && input.channel !== "fuel") {
-          const recipe = Object.values(definition.recipes).find(entry => {
-            const index = Object.keys(entry.inputs).indexOf(item.material);
-            return index >= 0 && input.channel === `ingredient${index + 1}` && machine.input.every(waiting => Object.hasOwn(entry.inputs, waiting.material));
-          });
-          if (recipe && !(recipe.preheats && item.preheated)) {
+          const recipe = this.furnaceRecipe(machine);
+          const index = Object.keys(recipe.inputs).indexOf(item.material);
+          if (index >= 0 && input.channel === `ingredient${index + 1}` && !(recipe.preheats && item.preheated)) {
             quantity = Math.max(0, Math.min(Math.floor(item.quantity), recipe.inputs[item.material] * machineBulk(this.state, machine) - this.total(machine, "input", item.material)));
             if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
           }
@@ -1774,6 +1790,10 @@
         const dishType = machine.input.find(item => Object.hasOwn(definition.plateRecipes, item.material))?.material;
         if (!dishType) return "Waiting for food";
         const missing = Object.entries(definition.plateRecipes[dishType].inputs).find(([material, quantity]) => this.total(machine, "input", material) < quantity * bulk);
+        if (dishType === "unplatedLeekPasta" && missing?.[0] === "woodenPlate") {
+          const waiting = formatNumber(this.total(machine, "input", dishType));
+          return `Waiting for Wooden Plate · ${waiting} Unplated Spinach Pasta ready`;
+        }
         return missing ? `Waiting for ${D.materials[missing[0]].name}` : "Ready to plate";
       }
       if (machine.type === "wheatPlanter") {
@@ -1808,6 +1828,9 @@
         .every((point) => this.conveyorPowered(machine, point.x, point.y)) ? "Kinetic power available" : "Waiting for kinetic power";
       if (D.machines[machine.type].heatCapacity) {
         if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked" : `${definition.preheats ? "Preheating" : "Firing"} · ${formatNumber(machine.job.remaining / timeScale)}s`;
+        if (definition.oven && machine.output[0]?.material === "unplatedLeekPasta") {
+          return `${formatNumber(this.total(machine, "output"))} Unplated Spinach Pasta waiting for Plating Bench`;
+        }
         if (machine.type !== "kiln" && machine.output.length) return D.materials[machine.output[0].material].fluid
           ? `${D.materials[machine.output[0].material].name} waiting for molding` : "Output waiting";
         const recipe = this.furnaceRecipe(machine);
@@ -2179,6 +2202,14 @@
         }
         state.thermalAutoVersion = 1;
       }
+      for (const machine of [...state.machines, ...state.storedMachines]) {
+        const definition = D.machines[machine.type];
+        if (!definition?.oven || machine.mode !== undefined) continue;
+        const input = machine.input?.[0]?.material;
+        const output = machine.output?.[0]?.material;
+        machine.mode = Object.keys(definition.recipes).find(id => Object.hasOwn(definition.recipes[id].inputs, input))
+          ?? Object.keys(definition.recipes).find(id => definition.recipes[id].output === output) ?? definition.defaultMode;
+      }
       delete state.routes;
       if ((state.loggerSpeedVersion ?? 0) < 1) {
         for (const machine of [...state.machines, ...state.storedMachines]) {
@@ -2424,8 +2455,8 @@
             || (machine.output.length && (!outputRecipe || machine.output.some((item) => item.material !== machine.output[0].material || !Number.isInteger(item.quantity))
               || machine.output.reduce((sum, item) => sum + item.quantity, 0) > (outputRecipe.outputQuantity ?? outputRecipe.input) * maxBulk))) throw new Error("Invalid Kiln/Furnace heat, batch or output buffer.");
           if (definition.oven) {
-            const recipe = ovenRecipeForInput(definition, machine.input);
-            if (machine.job || (machine.input.length && (!recipe || machine.input.some(item => !Number.isInteger(item.quantity) || item.preheated)
+            const recipe = Object.hasOwn(definition.recipes, machine.mode) && definition.recipes[machine.mode];
+            if (!recipe || machine.job || (machine.input.length && (machine.input.some(item => !Object.hasOwn(recipe.inputs, item.material) || !Number.isInteger(item.quantity) || item.preheated)
               || Object.entries(recipe.inputs).some(([material, quantity]) => machine.input.filter(item => item.material === material)
                 .reduce((sum, item) => sum + item.quantity, 0) > quantity * maxBulk)))) throw new Error("Invalid Stone Oven input.");
           } else {

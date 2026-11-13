@@ -170,6 +170,7 @@ test("Minor Transmutation I grants the Stone Oven before the Clay Kiln", () => {
   assert.equal(factory.state.inventory.clay, 0);
   assert.ok(factory.buy("preheater").error);
   const oven = factory.place("primitiveOven", 50, 40).machine;
+  assert.equal(factory.setOvenRecipe(oven.id, "unfiredBrick").error, undefined);
   const input = A.ports(oven).find(point => point.channel === "ingredient1");
   oven.heat = 6000;
   assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x, input.y, input.direction, true), 2);
@@ -194,6 +195,31 @@ test("Old Transmutation tiers keep their unlocks and grant the newly skipped Ove
     assert.equal(migrated.state.stock.primitiveOven, tier >= 1 ? 1 : 0);
     assert.deepEqual(A.Factory.importSave(migrated.exportSave()).state, migrated.state);
   }
+});
+
+test("Stone Oven recipe selection preserves heat and finished output, and migrates old queued ingredients", () => {
+  const factory = new A.Factory(A.createState(1));
+  const oven = place(factory, "primitiveOven", 40, 40);
+  const ingredients = machine => A.ports(machine).filter(point => point.channel?.startsWith("ingredient"));
+  assert.deepEqual(ingredients(oven).map(point => point.label), ["Pasta", "Spinach"]);
+  const input = ingredients(oven)[0];
+  assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x, input.y, input.direction, true), 0);
+  assert.equal(factory.receive(oven, A.cargo("rawPasta", 2), input.x, input.y, input.direction, true), 2);
+  oven.heat = 12000;
+  oven.output = [A.cargo("unplatedLeekPasta", 2)];
+  assert.ok(factory.setOvenRecipe(oven.id, "applePie").error);
+  assert.equal(factory.setOvenRecipe(oven.id, "unfiredPot").error, undefined);
+  assert.deepEqual(ingredients(oven).map(point => point.label), ["Pot"]);
+  assert.equal(factory.state.inventory.rawPasta, 2);
+  assert.equal(oven.heat, 12000);
+  assert.deepEqual(oven.output, [A.cargo("unplatedLeekPasta", 2)]);
+  assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
+  const old = JSON.parse(factory.exportSave());
+  delete old.state.machines[0].mode;
+  old.state.machines[0].input = [A.cargo("unfiredPot")];
+  const loaded = A.Factory.importSave(JSON.stringify(old));
+  assert.equal(loaded.byId.get(oven.id).mode, "unfiredPot");
+  assert.deepEqual(loaded.byId.get(oven.id).input, [A.cargo("unfiredPot")]);
 });
 
 test("Shaped pasta cooks instantly, waits at a powered belt and serves through an adjacent Plating Bench", () => {
@@ -233,14 +259,17 @@ test("Shaped pasta cooks instantly, waits at a powered belt and serves through a
   assert.equal(oven.heat, 24000);
   assert.equal(oven.output[0].quantity, 2);
   assert.equal(oven.output[0].value, 1.7);
+  assert.equal(factory.status(oven), "2 Unplated Spinach Pasta waiting for Plating Bench");
   assert.deepEqual(belt.lanes, {});
   factory.pickup(belt.id);
   const bench = place(factory, "platingBench", 51, 40);
   const basket = place(factory, "basket", 51, 39);
-  for (let index = 0; index < 2; index++) {
-    assert.equal(feed(factory, bench, A.cargo("woodenPlate", 1, 50)), 1);
-    factory.update(0.2);
-  }
+  assert.equal(feed(factory, bench, A.cargo("woodenPlate", 1, 50)), 1);
+  factory.update(0.5);
+  assert.deepEqual(basket.contents, [A.cargo("leekPasta", 1, 1.7)]);
+  assert.equal(factory.status(bench), "Waiting for Wooden Plate · 1 Unplated Spinach Pasta ready");
+  assert.equal(feed(factory, bench, A.cargo("woodenPlate", 1, 50)), 1);
+  factory.update(0.2);
   assert.deepEqual(oven.output, []);
   assert.deepEqual(basket.contents, [A.cargo("leekPasta", 2, 1.7)]);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);

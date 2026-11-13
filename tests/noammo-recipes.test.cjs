@@ -26,7 +26,7 @@ test('recipe index agrees with the actual crafting and thermal recipe resolvers 
     }
     if (definition.heatCapacity) for (const [mode, recipe] of Object.entries(definition.recipes)) {
       const input = recipe.inputs ? Object.keys(recipe.inputs).map(material => A.cargo(material)) : [A.cargo(recipe.material ?? mode)];
-      const live = f.furnaceRecipe({ type: id, input });
+      const live = f.furnaceRecipe({ type: id, input, mode });
       const listed = index.recipes.find(r => r.id === `${id}:${mode}`);
       assert.equal(listed.heat ?? listed.seconds * listed.heatPerSecond, live.heat ?? live.seconds * (live.heatPerSecond ?? definition.heatPerSecond));
       assert.equal(listed.outputs[0].quantity, live.outputQuantity ?? live.input);
