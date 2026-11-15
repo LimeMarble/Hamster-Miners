@@ -42,7 +42,7 @@ test('Malachite focus rolls exactly once per production cycle and has 20% succes
 });
 
 test('Painting Bench uses the specified sparse footprint, inputs and one crew in every rotation', () => {
-  const cost = { cash: 12000, materials: { wood: 50, granite: 20, leekFiber: 20, malachitePebble: 1 } };
+  const cost = { cash: 240000, materials: { wood: 50, granite: 20, leekFiber: 20, malachitePebble: 1 } };
   assert.deepEqual(A.DATA.machines.paintingBench.cost, cost);
   for (const facing of A.DATA.directions) {
     const f = new A.Factory(A.createState(1)), bench = place(f, 'paintingBench', 40, 40, facing);

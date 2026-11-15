@@ -11,7 +11,7 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
   const ids = new Map(), frames = [], windowEvents = new Map(), documentEvents = new Map();
   const rectangle = { left: 0, top: 0, width, height }, observers = [], renders = [];
   let writes = 0, clock = 0;
-  const intervals = [];
+  const intervals = [], backgroundTasks = [];
   if (saved !== undefined) storage.set(A.DATA.saveKey, saved);
   const drawing = {};
   for (const name of ["save", "restore", "clearRect", "fillRect", "strokeRect", "translate", "rotate", "scale", "beginPath", "moveTo", "lineTo", "closePath", "fill", "stroke", "fillText", "setTransform"]) drawing[name] = () => {};
@@ -74,6 +74,10 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
     document, performance: { now: () => clock }, devicePixelRatio: 1,
     matchMedia: (query) => ({ matches: query === "(pointer: coarse)" && coarsePointer }),
     setInterval: (fn) => { intervals.push(fn); return intervals.length; },
+    MessageChannel: class {
+      port1 = {};
+      port2 = { postMessage: () => backgroundTasks.push(() => this.port1.onmessage()) };
+    },
     requestAnimationFrame: (fn) => frames.push(fn), ResizeObserver: class { constructor(fn) { observers.push(fn); } observe() {} },
     addEventListener: (type, fn) => windowEvents.set(type, fn), confirm: () => true,
     localStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) {
@@ -98,6 +102,7 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
     save: () => windowEvents.get("beforeunload")(),
     frame(now) { clock = now; assert.ok(frames.length); frames.shift()(now); },
     background(now) { clock = now; intervals.forEach(fn => fn()); },
+    backgroundSlice() { backgroundTasks.shift()?.(); },
     visibility(hidden, now) { clock = now; document.hidden = hidden; documentEvents.get('visibilitychange')(); },
     view() { return renders.at(-1); },
     key(key, event = {}) { documentEvents.get("keydown")({ key, preventDefault() {}, ...event }); },
@@ -121,11 +126,14 @@ test('background simulation runs production and saves without rendering or doubl
   ui.visibility(true, 100);
   const rendered = ui.view(), writes = ui.writes;
   ui.background(5100);
+  for (let slice = 0; slice < 3; slice++) ui.backgroundSlice();
   assert.ok(ui.writes > writes, 'background production autosaves');
   assert.equal(ui.view(), rendered, 'hidden simulation does not render');
-  // A delayed callback longer than Factory.update's 60-second maximum must
-  // simulate the whole gap, using the same production rules as the foreground.
+  // A delayed timer queues bounded tasks that simulate the whole gap.
   ui.background(125100);
+  ui.backgroundSlice();
+  assert.ok(Math.abs(ui.state().seconds - 7.1) < 1e-7, 'one callback processes at most two seconds');
+  for (let slice = 0; slice < 59; slice++) ui.backgroundSlice();
   const background = ui.state();
   assert.ok(Math.abs(background.seconds - 125.1) < 1e-7);
   f.update(60); f.update(60); f.update(5.1);
@@ -142,10 +150,56 @@ test('background simulation runs production and saves without rendering or doubl
   assert.equal(reloaded.state().seconds, background.seconds, 'reload grants no offline time');
 });
 
-test('returning from a hidden tab catches up even before a background timer fires', () => {
+test('returning from a hidden tab catches up in slices even before a background timer fires', () => {
   const ui = boot(); ui.frame(100); ui.visibility(true, 100);
-  ui.visibility(false, 10100); ui.frame(10100);
+  ui.visibility(false, 10100);
+  assert.ok(Math.abs(ui.state().seconds - 0.1) < 1e-7, 'visibility and saving do not replay a backlog');
+  assert.equal(ui.ids.get('simulationStatus').hidden, false);
+  ui.frame(10100);
+  assert.ok(Math.abs(ui.state().seconds - 2.1) < 1e-7);
+  for (let slice = 0; slice < 4; slice++) ui.frame(10100);
   assert.ok(Math.abs(ui.state().seconds - 10.1) < 1e-7);
+  assert.equal(ui.ids.get('simulationStatus').hidden, true);
+});
+
+test('returning after an hour hidden caps catch-up at 20 minutes and keeps controls live', () => {
+  const ui = boot(); ui.frame(100); ui.visibility(true, 100);
+  ui.visibility(false, 3600100);
+  assert.match(ui.ids.get('simulationStatus').textContent, /20m of game time left/);
+  ui.frame(3600100);
+  const rendered = ui.view();
+  ui.frame(3600116);
+  assert.equal(ui.view(), rendered);
+  ui.tabs.find(button => button.dataset.tab === 'shop').emit('click');
+  assert.equal(ui.ids.get('shop').hidden, false);
+  assert.ok(Math.abs(ui.state().seconds - 4.1) < 1e-7);
+  for (let slice = 2; slice < 600; slice++) ui.frame(3600116);
+  assert.ok(Math.abs(ui.state().seconds - 1200.1) < 1e-7);
+  assert.equal(ui.ids.get('simulationStatus').hidden, true);
+  ui.frame(3600200);
+  assert.ok(Math.abs(ui.state().seconds - 1200.2) < 1e-7);
+  ui.visibility(true, 3600200);
+  ui.visibility(false, 3601200);
+  ui.frame(3601200);
+  assert.ok(Math.abs(ui.state().seconds - 1201.2) < 1e-7, 'hiding again starts a fresh allowance');
+});
+
+test('background timers share one 20-minute allowance and save the final progress', () => {
+  const ui = boot(); ui.frame(100); ui.visibility(true, 100);
+  ui.background(900100);
+  for (let slice = 0; slice < 450; slice++) ui.backgroundSlice();
+  assert.ok(Math.abs(ui.state().seconds - 900.1) < 1e-7);
+  ui.background(1800100);
+  for (let slice = 0; slice < 150; slice++) ui.backgroundSlice();
+  const saved = JSON.parse(ui.storage.get(A.DATA.saveKey)).state;
+  assert.ok(Math.abs(saved.seconds - 1200.1) < 1e-7, 'the last background slice autosaves');
+  for (const time of [2000100, 2200100]) {
+    ui.background(time);
+    ui.backgroundSlice();
+  }
+  ui.visibility(false, 2400100);
+  ui.frame(2400100);
+  assert.ok(Math.abs(ui.state().seconds - 1200.1) < 1e-7, 'later callbacks and returning do not grant the excess time');
 });
 
 test('playtest code unlocks independent toggles that persist in the save', () => {
@@ -1368,14 +1422,14 @@ test("Plating Bench displays live plate, food and output buffers", () => {
   const factory = new A.Factory(A.createState(1));
   factory.state.stock.platingBench++;
   const bench = factory.place("platingBench", 121, 121).machine;
-  bench.input.push(A.cargo("woodenPlate", 6), A.cargo("choppedLeek"));
+  bench.input.push(A.cargo("woodenPlate", 6), A.cargo("choppedLeek", 3));
   const ui = boot(factory.exportSave());
   ui.ids.get("cargo").emit("click", screenPoint(121, 121));
   const buffers = ui.ids.get("platingBuffers");
-  assert.equal(buffers.textContent, "Waiting plates: 6 / 6 · Waiting food: 1 / 1 · Finished output: 0");
+  assert.equal(buffers.textContent, "Waiting plates: 6 / 6 · Waiting food: 3 / 3 · Finished output: 0");
   for (let frame = 1; frame <= 5; frame++) ui.frame(frame * 100);
   assert.equal(ui.ids.get("platingBuffers"), buffers);
-  assert.equal(buffers.textContent, "Waiting plates: 5 / 6 · Waiting food: 0 / 1 · Finished output: 1");
+  assert.equal(buffers.textContent, "Waiting plates: 5 / 6 · Waiting food: 0 · Finished output: 1");
 });
 
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {

@@ -61,25 +61,63 @@
   let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
   let dismantledSelection = null;
   let gesture = null, suppressClick = false, shiftHeld = false, waterSelecting = null;
-  let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0, accumulator = 0, saveElapsed = 0;
+  let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0;
   let overlaySignature = "";
-  let lastSimulation = performance.now();
+  const tickMilliseconds = 100, maxTicksPerSlice = 20;
+  const backgroundLimitMilliseconds = 20 * 60 * 1000;
+  let lastSimulation = performance.now(), lastAutosave = lastSimulation, pendingMilliseconds = 0;
+  let backgroundDeadline = document.hidden ? lastSimulation + backgroundLimitMilliseconds : Infinity;
+  let lastSimulationPaint = -Infinity, paintedSimulationTime = null;
+  const backgroundWork = new MessageChannel();
+  let backgroundQueued = false;
   function resetSimulationClock() {
-    lastSimulation = performance.now(); accumulator = 0; saveElapsed = 0;
+    lastSimulation = performance.now(); lastAutosave = lastSimulation; pendingMilliseconds = 0;
+    backgroundDeadline = document.hidden ? lastSimulation + backgroundLimitMilliseconds : Infinity;
+    lastSimulationPaint = -Infinity; paintedSimulationTime = null;
+    $("simulationStatus").hidden = true;
   }
-  function advanceSimulation(now) {
-    accumulator += Math.max(0, (now - lastSimulation) / 1000);
+  function recordSimulationTime(now) {
+    pendingMilliseconds += Math.max(0, Math.min(now, backgroundDeadline) - lastSimulation);
     lastSimulation = Math.max(lastSimulation, now);
-    let changed = false;
-    // Timers in hidden tabs may wake late. Replay normal factory steps,
-    // splitting long gaps because Factory.update accepts at most 60 seconds.
-    while (accumulator >= 0.1) {
-      const seconds = Math.min(accumulator, 60);
-      factory.update(seconds); accumulator -= seconds; saveElapsed += seconds;
-      changed = true;
+  }
+  function advanceSimulation(budgetMilliseconds) {
+    const deadline = performance.now() + budgetMilliseconds;
+    let ticks = 0;
+    while (pendingMilliseconds + 1e-6 >= tickMilliseconds && ticks < maxTicksPerSlice) {
+      factory.update(tickMilliseconds / 1000);
+      pendingMilliseconds = Math.max(0, pendingMilliseconds - tickMilliseconds);
+      ticks++;
+      if (performance.now() >= deadline) break;
     }
-    if (saveElapsed >= 5) { saveElapsed = 0; save(); }
-    return changed;
+    const finishedBackgroundProgress = lastSimulation >= backgroundDeadline && pendingMilliseconds + 1e-6 < tickMilliseconds;
+    if (ticks && (finishedBackgroundProgress || performance.now() - lastAutosave >= 5000)) {
+      lastAutosave = performance.now();
+      save();
+    }
+    return ticks > 0;
+  }
+  function queueBackgroundWork() {
+    if (backgroundQueued || pendingMilliseconds + 1e-6 < tickMilliseconds) return;
+    backgroundQueued = true;
+    backgroundWork.port2.postMessage(null);
+  }
+  backgroundWork.port1.onmessage = () => {
+    backgroundQueued = false;
+    if (document.hidden) {
+      advanceSimulation(8);
+      queueBackgroundWork();
+    }
+  };
+  function updateSimulationStatus() {
+    const status = $("simulationStatus");
+    const catchingUp = pendingMilliseconds >= 1000;
+    if (status.hidden === catchingUp) status.hidden = !catchingUp;
+    if (catchingUp) {
+      const seconds = Math.ceil(pendingMilliseconds / 1000);
+      const remaining = seconds >= 60 ? `${Math.ceil(seconds / 60)}m` : `${seconds}s`;
+      text(status, `Catching up factory simulation · ${remaining} of game time left`);
+    }
+    return catchingUp;
   }
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
   const machineCards = new Map(), cards = new Map();
@@ -746,15 +784,17 @@
     }
     if (tree) for (const [index, marker] of [...$("chopCounter").children].entries()) marker.classList.toggle("done", index < factory.state.harvestProgress);
     if (machine) {
+      const definition = D.machines[machine.type];
       text($("machineStatus"), factory.status(machine));
-      if (D.machines[machine.type].runePedestal) renderRuneOffering(machine);
-      if (D.machines[machine.type].waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
+      if (definition.runePedestal) renderRuneOffering(machine);
+      if (definition.waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
-      if (D.machines[machine.type].plateRecipes) {
+      if (definition.plateRecipes) {
         const bulk = factory.bulkFactor(machine), plates = factory.total(machine, "input", "woodenPlate");
-        const food = factory.total(machine, "input") - plates;
-        text($("platingBuffers"), `Waiting plates: ${number(plates)} / ${number(D.machines[machine.type].plateBuffer * bulk)} · Waiting food: ${number(food)} / ${bulk} · Finished output: ${number(factory.total(machine, "output"))}`);
+        const dish = machine.input.find(item => Object.hasOwn(definition.plateRecipes, item.material))?.material;
+        const food = dish ? `${number(factory.total(machine, "input", dish))} / ${number(definition.plateRecipes[dish].inputs[dish] * bulk)}` : "0";
+        text($("platingBuffers"), `Waiting plates: ${number(plates)} / ${number(definition.plateBuffer * bulk)} · Waiting food: ${food} · Finished output: ${number(factory.total(machine, "output"))}`);
       }
       if (machine.type === "potSpinner") text($("spinnerBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${2 * factory.bulkFactor(machine)} · Finished pots: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
       if (machine.type === "clayShaper") text($("shapingBuffers"), `Waiting Clay: ${number(factory.total(machine, "input"))} / ${number(D.machines.clayShaper.inputLimit * factory.bulkFactor(machine))} · Finished items: ${number(factory.total(machine, "output"))} / ${factory.bulkFactor(machine)}`);
@@ -1029,18 +1069,35 @@
     factory.state.capitalUnlocked = true;
     refresh();
   });
-  window.addEventListener("beforeunload", () => { advanceSimulation(performance.now()); save(); });
+  window.addEventListener("beforeunload", save);
   document.addEventListener("visibilitychange", () => {
-    const now = performance.now(); advanceSimulation(now); lastFrame = now;
-    if (document.hidden) save(); else refresh();
+    const now = performance.now(); recordSimulationTime(now); lastFrame = now;
+    if (document.hidden) {
+      backgroundDeadline = Math.min(backgroundDeadline, lastSimulation + backgroundLimitMilliseconds);
+      save(); queueBackgroundWork();
+    } else {
+      backgroundDeadline = Infinity;
+      updateSimulationStatus(); refresh();
+    }
   });
-  setInterval(() => { if (document.hidden) advanceSimulation(performance.now()); }, 1000);
+  setInterval(() => {
+    if (document.hidden) {
+      recordSimulationTime(performance.now());
+      queueBackgroundWork();
+    }
+  }, 1000);
   new ResizeObserver(resize).observe($("viewport"));
   function frame(now) {
     const elapsed = lastFrame ? Math.min((now - lastFrame) / 1000, 0.25) : 0; lastFrame = now;
-    const changed = advanceSimulation(now);
     if (!document.hidden) {
-      if (changed) refresh();
+      recordSimulationTime(now);
+      const changed = advanceSimulation(5);
+      const catchingUp = updateSimulationStatus();
+      if (changed && (!catchingUp || now - lastSimulationPaint >= 100)) {
+        lastSimulationPaint = now;
+        paintedSimulationTime = factory.state.seconds;
+        refresh();
+      }
       if (activeTab === "factory" && viewport.width) {
         if (pointer) {
           const edge = 30, speed = 8 / camera.zoom;
@@ -1054,7 +1111,7 @@
         }
         const signature = `${factory.layoutVersion}:${camera.x}:${camera.y}:${camera.zoom}:${viewport.width}:${viewport.height}`;
         if (floorSignature !== signature) { floorSignature = signature; R.drawFloor(floor, factory, camera, viewport); renderHoverHistory(); }
-        const cargoSignature = `${signature}:${factory.state.seconds}:${interaction.selectedIds.join(",")}:${interaction.tree}:${JSON.stringify(interaction.tool)}:${JSON.stringify(interaction.group)}:${JSON.stringify(interaction.box)}:${JSON.stringify(interaction.marquee)}:${JSON.stringify(interaction.hover)}`;
+        const cargoSignature = `${signature}:${catchingUp ? paintedSimulationTime : factory.state.seconds}:${interaction.selectedIds.join(",")}:${interaction.tree}:${JSON.stringify(interaction.tool)}:${JSON.stringify(interaction.group)}:${JSON.stringify(interaction.box)}:${JSON.stringify(interaction.marquee)}:${JSON.stringify(interaction.hover)}`;
         if (overlaySignature !== cargoSignature) { overlaySignature = cargoSignature; R.drawOverlay(overlay, factory, camera, viewport, interaction); }
       }
     }

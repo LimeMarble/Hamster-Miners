@@ -63,20 +63,20 @@
       peeledLeek: { name: "Trimmed Spinach", value: 0.2, weight: 0.2, color: "#c4d18e", gradeTable: "crop",
         cutsTo: "choppedLeek", cutProfile: { outputQuantity: 2, valueMultiplier: 2.5 } },
       choppedLeek: { name: "Chopped Spinach", value: 0.25, weight: 0.1, color: "#d0d99e", gradeTable: "crop" },
-      leekSalad: { name: "Spinach Salad", value: 1, weight: 0.1 + 1 / 3, color: "#9dc065", gradeTable: "crop" },
+      leekSalad: { name: "Spinach Salad", value: 1.5, weight: 0.4, color: "#9dc065", gradeTable: "crop" },
       wheat: { name: "Wheat", value: 0.15, weight: 0.25, color: "#d7be73", gradeTable: "crop", rinsesTo: "wheat", fiberYield: 5, millsTo: "flour" },
       flour: { name: "Flour", value: 0.30, weight: 0.25, color: "#dfd2af", gradeTable: "crop", shapesTo: "dough" },
       dough: { name: "Dough", value: 0.60, weight: 0.35, color: "#d8bd92", gradeTable: "crop", shapesTo: "rawPasta", doughProfile: { outputQuantity: 2, valueMultiplier: 1, water: 0 } },
       rawPasta: { name: "Raw Pasta", value: 0.3, weight: 0.25, color: "#dcc37f", gradeTable: "crop" },
       unplatedLeekPasta: { name: "Unplated Spinach Pasta", value: 1.7, weight: 0.3, color: "#d6b766", gradeTable: "crop", directTransferOnly: true },
-      leekPasta: { name: "Spinach Pasta", value: 1.7, weight: 0.3 + 1 / 3, color: "#cab465", gradeTable: "crop" },
+      leekPasta: { name: "Spinach Pasta", value: 1.7, weight: 0.4, color: "#cab465", gradeTable: "crop" },
       leekFiber: { name: "Plant Fiber", value: 0.1, weight: 0.05, color: "#ded4a0", coilsTo: "leekCoil" },
       leekCoil: { name: "Plant Fiber Coil", value: 0.1, weight: 1, color: "#c7c091" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, sawsTo: "plank" },
       plank: { name: "Plank", value: 0.1, weight: 1 / 3, color: "#c89568" },
       charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
       woodenGear: { name: "Wooden Gear", value: 0.1, weight: 2, color: "#c19762" },
-      woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 1 / 3, color: "#d5ac76" },
+      woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 0.1, color: "#d5ac76" },
       clay: { name: "Clay", value: 0.25, weight: 0.5, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 0.5, color: "#a77d67", family: "clay" },
       unfiredPot: { name: "Unfired Pot", value: 1, weight: 1, color: "#bb8b70", family: "clay" },
@@ -184,7 +184,7 @@
         cost: { cash: 20, materials: { wood: 25, leekFiber: 10 } },
         plateBuffer: 6,
         plateRecipes: {
-          choppedLeek: { inputs: { choppedLeek: 1, woodenPlate: 1 }, output: "leekSalad", seconds: 0, valueIngredient: "choppedLeek", valueMultiplier: 4 },
+          choppedLeek: { inputs: { choppedLeek: 3, woodenPlate: 1 }, output: "leekSalad", seconds: 0, valueIngredient: "choppedLeek", valueMultiplier: 2 },
           unplatedLeekPasta: { inputs: { unplatedLeekPasta: 1, woodenPlate: 1 }, output: "leekPasta", seconds: 0, valueIngredient: "unplatedLeekPasta", valueMultiplier: 1 },
         },
         ports: [
@@ -193,7 +193,7 @@
           { x: 1, y: 1, direction: "down", role: "input", channel: "plate", material: "woodenPlate" },
           { x: 1, y: 1, direction: "right", role: "input", channel: "plate", material: "woodenPlate" },
         ],
-        description: "Takes Wooden Plates through either exposed edge of the plate tile. Uses one plate to serve Spinach Salad or Unplated Spinach Pasta instantly. Salad gets 4 times the chopped spinach's value. Pasta keeps its cooked value. Operated by one hamster.",
+        description: "Takes Wooden Plates through either exposed edge of the plate tile. Serves 3 Chopped Spinach as one Salad worth twice their combined value, or serves Unplated Spinach Pasta at its cooked value. Either dish uses one plate and is served instantly. Operated by one hamster.",
       },
       grainMill: {
         name: "Grain Mill", width: 2, height: 2, color: "#a99a73", category: "Material",
@@ -329,7 +329,7 @@
       pebbleSifterII: {
         name: "Pebble Sifter II", width: 3, height: 2, color: "#a49c79", category: "Resource",
         labelLines: ["Pebble", "Sifter II"],
-        cost: { cash: 10000, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } },
+        cost: { cash: 30000, materials: { brick: 40, granite: 75 }, machines: { pebbleSifter: 1 } },
         cycle: 4, requiresKinetic: true, defaultMode: "chert",
         batchModes: {
           chert: { name: "Chert focus", outputs: [{ material: "chert", quantity: 0.5 }, { material: "chert", quantity: 0.5 }] },
@@ -359,9 +359,9 @@
         ],
         recipes: {
           gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 1 },
-          plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 3, seconds: 6, valueMultiplier: 1.5 },
+          plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 6, seconds: 6, valueMultiplier: 3 },
         },
-        description: "Carves 1 Wood into 1 Wooden Gear or 3 Wooden Plates in 6 seconds. Operated by one hamster.",
+        description: "Carves 1 Wood into 1 Wooden Gear or 6 Wooden Plates in 6 seconds. Operated by one hamster.",
       },
       potSpinner: {
         name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",
@@ -397,7 +397,7 @@
         name: "Painting Bench", width: 2, height: 3, color: "#95a86d", category: "Material", crew: 1,
         labelLines: ["Painting", "Bench"], labelCell: [1, 1],
         footprint: [[0, 0], [1, 0], [0, 1], [1, 1], [1, 2]],
-        cost: { cash: 12000, materials: { wood: 50, granite: 20, leekFiber: 20, malachitePebble: 1 } },
+        cost: { cash: 240000, materials: { wood: 50, granite: 20, leekFiber: 20, malachitePebble: 1 } },
         waterCapacity: 0.5, paintSeconds: 6, paintWater: 0.1, outputBuffer: 1,
         paintRecipe: { inputs: { pot: 1, malachitePebble: 1 }, output: "paintedPot", seconds: 6, valueMultiplier: 3, water: 0.1 },
         ports: [

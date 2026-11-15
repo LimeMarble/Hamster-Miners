@@ -173,8 +173,10 @@
       node.append(element("p", facts.join(" · "), "recipe-facts"));
       if (recipe.seconds > 0) node.append(element("p", recipe.outputs.map(part => `${number(part.quantity * (part.chance ?? 1) * 60 / recipe.seconds)} ${catalog.entries.get(part.key).name}/min`).join(" · ") + (recipe.outputs.some(part => part.chance !== undefined) ? " on average while continuously running" : " while continuously running"), "muted"));
       if (recipe.valueBonus !== undefined) node.append(element("p", `Adds $${number(recipe.valueBonus)} per item on the first rinse.`, "muted"));
-      if (recipe.valueIngredient) node.append(element("p", `Output cash value uses ×${number(recipe.valueMultiplier)} the value of ${data.materials[recipe.valueIngredient].name}.`, "muted"));
-      else if (recipe.valueMultiplier !== undefined) node.append(element("p", recipe.valueMultiplier === 1 ? "Preserves total input cash value." : `Total output cash value: ×${number(recipe.valueMultiplier)} combined input value.`, "muted"));
+      if (recipe.valueIngredient) {
+        const ingredient = data.materials[recipe.valueIngredient].name;
+        node.append(element("p", `Output cash value uses ×${number(recipe.valueMultiplier)} the total value of the ${ingredient} used.`, "muted"));
+      } else if (recipe.valueMultiplier !== undefined) node.append(element("p", recipe.valueMultiplier === 1 ? "Preserves total input cash value." : `Total output cash value: ×${number(recipe.valueMultiplier)} combined input value.`, "muted"));
       if (recipe.outputs.some(part => catalog.entries.get(part.key).fluid)) node.append(element("p", "Liquid output requires a direct machine connection; it does not travel on conveyors.", "muted"));
       gradeNotes(node, recipe); return node;
     }

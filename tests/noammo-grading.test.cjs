@@ -251,6 +251,20 @@ test("collector contents preserve separate graded and ungraded stacks through sa
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
+test("grading jobs for older plated dishes keep their progress after the plate weight change", () => {
+  for (const [material, oldWeight] of [["leekSalad", 0.1 + 1 / 3], ["leekPasta", 0.3 + 1 / 3]]) {
+    const { factory, bench } = setup("right", false);
+    const old = JSON.parse(factory.exportSave());
+    old.state.foodVersion = 6;
+    old.state.machines.find(machine => machine.id === bench.id).job = {
+      input: A.cargo(material, 4), remaining: 4 * oldWeight * 0.95,
+    };
+    const loaded = Factory.importSave(JSON.stringify(old));
+    near(loaded.byId.get(bench.id).job.remaining, 4 * 0.4 * 0.95);
+    assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state);
+  }
+});
+
 test("old saves gain only the Bench stock field; invalid grades and oversized grading buffers are rejected", () => {
   const old = JSON.parse(new Factory(createState(1)).exportSave());
   delete old.state.gradingVersion; delete old.state.stock.gradingBench;

@@ -2,9 +2,10 @@
 
 - Simulation continues while the open page is hidden, without drawing frames.
   Background updates autosave and replay delayed timer gaps through normal
-  factory steps, including gaps over 60 seconds. Visibility changes share the
-  simulation clock, preventing lost or double-counted time. Reloading grants no
-  offline progress; importing or resetting starts a new simulation clock.
+  factory steps, with at most 20 minutes of progress per continuous period
+  hidden. The limit includes progress already simulated by background timers.
+  Visibility changes share the simulation clock. Reloading grants no offline
+  progress. Importing or resetting starts a new simulation clock.
 
 - The `whereismyspill` code unlocks seven independent, save-persistent playtest
   switches. Cover boosted resource drops, storage, machine and conveyor speed,

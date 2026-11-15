@@ -25,21 +25,28 @@ test("Wood Carving and Plating produce the salads for Minor Harvest I", () => {
   assert.equal(factory.setShapingMode(carver.id, "plate").error, undefined);
   assert.equal(feed(factory, carver, A.cargo("wood", 2)), 2);
   factory.update(0.1); factory.update(6);
-  assert.equal(carver.output[0].quantity, 3);
+  assert.equal(carver.output[0].quantity, 6);
   assert.ok(Math.abs(carver.output[0].value - 0.05) < 1e-8);
+  assert.equal(A.DATA.materials.woodenPlate.weight, 0.1);
   assert.deepEqual(A.ports(bench).map(({ x, y, direction }) => [x, y, direction]), [[50, 40, "up"], [50, 41, "down"], [51, 41, "down"], [51, 41, "right"]]);
   assert.equal(feed(factory, bench, A.cargo("choppedLeek"), "woodenPlate"), 0);
   assert.equal(feed(factory, bench, A.cargo("woodenPlate", 7, 50)), 6);
   assert.equal(feed(factory, bench, A.cargo("woodenPlate")), 0);
+  assert.equal(feed(factory, bench, A.cargo("choppedLeek", 2, 4)), 2);
+  factory.update(0.1);
+  assert.equal(factory.total(basket, "contents"), 0);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
-  for (let index = 0; index < 5; index++) {
-    assert.equal(feed(factory, bench, A.cargo("choppedLeek")), 1);
+  assert.equal(feed(factory, bench, A.cargo("choppedLeek", 2, 7)), 1);
+  factory.update(0.1);
+  assert.equal(basket.contents[0].value, 30);
+  for (let index = 0; index < 4; index++) {
+    assert.equal(feed(factory, bench, A.cargo("choppedLeek", 3)), 3);
     factory.update(0.1);
   }
   assert.equal(factory.total(bench, "input", "woodenPlate"), 1);
-  assert.equal(feed(factory, bench, carver.output[0]), 3);
+  assert.equal(feed(factory, bench, carver.output[0]), 5);
   assert.equal(factory.total(basket, "contents"), 5);
-  assert.equal(basket.contents[0].value, 1);
+  assert.equal(basket.contents[1].value, 1.5);
   factory.collect(basket.id);
   Object.assign(factory.state.inventory, { wood: 100, leekFiber: 50 });
   assert.equal(factory.redeemRune(pedestal.id, "harvest").offering.machine, "wheatPlanter");
