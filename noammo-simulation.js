@@ -39,13 +39,6 @@
   }
   const supportsOutputHistory = (type) => type === "primitive" || type === "gradingBench" || Boolean(D.machines[type]?.cashEffect);
   const isCrafter = (definition) => Boolean(definition.craftInput || definition.molder || definition.pressModes || definition.formingModes);
-  const runeUnlocks = new Map();
-  for (const [category, offerings] of Object.entries(D.minorRunes)) {
-    for (const [index, offering] of offerings.entries()) {
-      if (!D.machines[offering.machine] || Object.keys(offering.materials).some(material => !D.materials[material])) break;
-      runeUnlocks.set(offering.machine, { category, tier: index + 1 });
-    }
-  }
   let shopRecipes;
   function productionRecipes() {
     const recipes = typeof module !== "undefined" && module.exports ? require("./noammo-recipes.js") : root.NoAmmoRecipes;
@@ -153,7 +146,6 @@
       return result;
     }
     switch (machine.type) {
-      case "planter": add(2, 1, "right", "output"); break;
       case "logger": add(0, 0, "right", "output"); break;
       case "fiber": add(0, 1, "left", "input"); add(0, 1, "right", "output"); break;
       case "clayShaper": add(1, 1, "left", "input"); add(1, 1, "right", "output"); break;
@@ -261,7 +253,7 @@
   }
   function gradeLabel(item) {
     const quality = Q.summary(item);
-    return quality ? `${quality.name} (${formatNumber(quality.score)})${quality.assessed ? " assessed" : ""}` : item.graded ? "Graded" : "";
+    return quality?.assessed ? `${quality.name} (${formatNumber(quality.score)}) assessed` : item.graded ? "Graded" : "";
   }
   const gradeTable = (material) => D.gradeTables[D.materials[material]?.gradeTable ?? D.materials[material]?.family];
   const validChances = (chances) => Array.isArray(chances) && chances.length === D.grades.length
@@ -424,9 +416,9 @@
       kind: D.saveKind, version: D.saveVersion, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       kilnSpeedVersion: 1, potteryWeightVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2, propertyQualityVersion: 1,
-    runeVersion: 4, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 7, graniteDrillVersion: 1, rinseBenchVersion: 1,
+    runeVersion: 4, freeMajorPedestals: 0, foodVersion: 7, graniteDrillVersion: 1, rinseBenchVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
@@ -434,7 +426,6 @@
       tuning: { primitiveBonus: 0.1, primitiveLimit: 0.5 },
       playtest: { unlocked: false, toggles: Object.fromEntries(CHEATS.map((id) => [id, false])), used: Object.fromEntries(CHEATS.map((id) => [id, false])) },
     };
-    state.stock.planter = 2;
     state.stock.basket = D.machines.basket.dismantleMinimum;
     state.stock.sellTube = 1;
     state.stock.pebbleSifter = 1;
@@ -895,34 +886,9 @@
       this.rebuild();
       return { amount: count };
     }
-    nextRune(pedestal, category) {
-      if (pedestal !== "minor" || !Object.hasOwn(D.minorRunes, category)) return null;
-      if (category === "activation" && this.state.capitalUnlocked) return null;
-      return D.minorRunes[category][this.state.minorRunes[category] ?? 0] ?? null;
-    }
-    runeCostError(offering) {
-      if (!offering) return "No offering available.";
-      if (offering.machine && !runeUnlocks.has(offering.machine)) return "This unlock is pending.";
-      if (this.state.cash < (offering.cash ?? 0)) return "Not enough cash.";
-      for (const [material, quantity] of Object.entries(offering.materials)) {
-        if (this.state.inventory[material] + epsilon < quantity) return `Not enough ${D.materials[material].name}.`;
-      }
-      return null;
-    }
-    redeemRune(id, category) {
-      const pedestal = D.machines[this.byId.get(id)?.type]?.runePedestal;
-      const offering = this.nextRune(pedestal, category);
-      const error = this.runeCostError(offering);
-      if (error) return { error };
-      this.state.cash -= offering.cash ?? 0;
-      for (const [material, quantity] of Object.entries(offering.materials)) this.state.inventory[material] = Math.max(0, this.state.inventory[material] - quantity);
-      if (category === "activation") this.state.capitalUnlocked = true;
-      else {
-        this.state.minorRunes[category]++;
-        this.state.stock[offering.machine]++;
-      }
-      return { offering };
-    }
+    nextRune() { return null; }
+    runeCostError() { return "No offering available."; }
+    redeemRune() { return { error: "No offering available." }; }
     shopProgress() {
       const materials = new Set(Object.keys(D.materials).filter(id => this.state.inventory[id] > 0));
       materials.add("wood");
@@ -930,11 +896,7 @@
         ...Object.keys(D.machines).filter(type => this.state.stock[type] > 0)]);
       const available = new Set(owned), readyRecipes = new Set(), recipes = productionRecipes();
       const recipeMachines = new Set(recipes.map(recipe => recipe.machine));
-      const shop = Object.entries(D.machines).filter(([type, definition]) => {
-        const unlock = runeUnlocks.get(type);
-        return !definition.legacyOnly && !definition.hiddenFromShop
-          && (!unlock || this.state.minorRunes[unlock.category] >= unlock.tier);
-      });
+      const shop = Object.entries(D.machines).filter(([, definition]) => !definition.legacyOnly && !definition.hiddenFromShop);
       // Work outward from existing materials and machines. A circular recipe
       // or construction dependency cannot make itself available.
       let previous;
@@ -946,9 +908,9 @@
           if (available.has(recipe.machine)) for (const output of recipe.outputs) materials.add(output);
         }
         for (const [type, definition] of shop) {
-          if (runeUnlocks.has(type) || ((!recipeMachines.has(type) || readyRecipes.has(type))
+          if ((!recipeMachines.has(type) || readyRecipes.has(type))
             && Object.keys(definition.cost?.materials ?? {}).every(id => materials.has(id))
-            && Object.keys(definition.cost?.machines ?? {}).every(id => available.has(id)))) available.add(type);
+            && Object.keys(definition.cost?.machines ?? {}).every(id => available.has(id))) available.add(type);
         }
       } while (previous !== materials.size + available.size + readyRecipes.size);
       return { materials, available, readyRecipes, recipeMachines };
@@ -956,8 +918,6 @@
     shopUnlockError(type, progress) {
       if (D.machines[type]?.legacyOnly) return `Use the ${D.machines.primitiveOven.name} for new builds.`;
       if (D.machines[type]?.hiddenFromShop) return "This machine is currently unavailable in the shop.";
-      const unlock = runeUnlocks.get(type);
-      if (unlock && this.state.minorRunes[unlock.category] < unlock.tier) return `Unlock this at the Minor Rune Pedestal under ${D.runeCategories[unlock.category]}.`;
       const definition = D.machines[type];
       if (!definition) return "Unknown machine.";
       const { materials, available, readyRecipes, recipeMachines } = progress ?? this.shopProgress();
@@ -1678,7 +1638,8 @@
               if (definition.waterPerBatch) machine.water = Math.max(0, machine.water - definition.waterPerBatch);
               const material = definition.source ?? machine.mode, quantity = (definition.sourceQuantity ?? 1) * resourceMultiplier;
               const item = cargo(material, quantity);
-              if (material === "clay") item.quality = { workability: Q.draw(random(state)), purity: Q.draw(random(state)) };
+              if (definition.sourceQuality) item.quality = Object.fromEntries(Object.entries(definition.sourceQuality)
+                .map(([property, distribution]) => [property, Q.draw(random(state), distribution)]));
               machine.output.push(item);
             }
           }
@@ -1901,12 +1862,7 @@
         }
         return missing ? `Waiting for ${D.materials[missing[0]].name}` : "Ready to plate";
       }
-      if (machine.type === "wheatPlanter") {
-        const resourceMultiplier = cheatEnabled(this.state, "resources") ? 10 : 1;
-        const freeOutput = definition.outputLimit * resourceMultiplier - this.total(machine, "output");
-        return freeOutput + epsilon < definition.sourceQuantity * resourceMultiplier
-          ? "Output waiting" : `Next Wheat in ${formatNumber((definition.cycle - machine.timer) / timeScale)}s`;
-      }
+
       if (machine.type === "limestoneDrill") return this.kineticHasWheel(machine)
         ? `Extracting · ${formatNumber(Math.max(0, definition.cycle - machine.timer) / timeScale)}s`
         : "Waiting for a Heavy Hamster Wheel connection";
@@ -1957,7 +1913,6 @@
       if (machine.type === "clayShaper") return `Waiting for ${D.machines.clayShaper.recipes[machine.mode].input} Clay · hand operated`;
       if (D.machines[machine.type].craftInput) return `Waiting for ${D.machines[machine.type].recipes[machine.mode].input * machineBulk(this.state, machine)} ${D.materials[D.machines[machine.type].craftInput].name}`;
       if (machine.type === "logger") return `Next Wood in ${(Math.max(0, D.config.loggerSeconds - machine.timer) / timeScale).toFixed(1)}s`;
-      if (machine.type === "planter") return `Next Spinach in ${(Math.max(0, D.config.planterSeconds - machine.timer) / timeScale).toFixed(1)}s`;
       return "Ready";
     }
     exportSave() { return JSON.stringify({ kind: D.saveKind, version: D.saveVersion, state: this.state }); }
@@ -2009,6 +1964,29 @@
         state.storedMachines = (state.storedMachines ?? []).filter(machine => machine.type !== "leekInfuser");
       }
       if (state.stock) delete state.stock.leekInfuser;
+      const retiredTypes = new Set(["planter", "wheatPlanter", "applePlanter", "sugarCanePlanter", "minorRunePedestal"]);
+      const retiredIds = new Set();
+      for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
+        if (!retiredTypes.has(machine.type)) continue;
+        retiredIds.add(machine.id);
+        for (const item of [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
+          ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)]) {
+          if (!validCargo(item)) throw new Error("Invalid retired machine cargo.");
+          if (!D.materials[item.material].fluid) state.inventory[item.material] = (state.inventory[item.material] ?? 0) + item.quantity;
+        }
+      }
+      state.machines = (state.machines ?? []).filter(machine => !retiredTypes.has(machine.type));
+      state.storedMachines = (state.storedMachines ?? []).filter(machine => !retiredTypes.has(machine.type));
+      if (state.stock) for (const type of retiredTypes) {
+        if (state.stock[type] !== undefined && (!Number.isSafeInteger(state.stock[type]) || state.stock[type] < 0)) throw new Error("Invalid retired machine stock.");
+        delete state.stock[type];
+      }
+      for (const machine of [...state.machines, ...state.storedMachines]) if (machine.waterSchedule) {
+        const removedBefore = machine.waterSchedule.slice(0, machine.waterNext).filter(entry => retiredIds.has(entry.targetId)).length;
+        machine.waterSchedule = machine.waterSchedule.filter(entry => !retiredIds.has(entry.targetId));
+        machine.waterNext = machine.waterSchedule.length ? (machine.waterNext - removedBefore) % machine.waterSchedule.length : 0;
+      }
+      delete state.starterPlantersVersion;
       const legacyMajorFootprint = (state.runeVersion ?? 0) < 2;
       const legacyDoughFootprint = (state.foodVersion ?? 0) < 6;
       if ((state.rinseBenchVersion ?? 0) < 1) {
@@ -2039,7 +2017,7 @@
         state.plantCutterVersion = 1;
       }
       if ((state.foodVersion ?? 0) < 1) {
-        for (const type of ["platingBench", "wheatPlanter", "grainMill"]) {
+        for (const type of ["platingBench", "grainMill"]) {
           if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
         }
         for (const material of ["woodenPlate", "leekSalad", "wheat", "flour"]) {
@@ -2074,42 +2052,19 @@
         state.foodVersion = 4;
       }
       if ((state.runeVersion ?? 0) < 1) {
-        for (const type of ["minorRunePedestal", "majorRunePedestal"]) {
-          if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
-        }
-        state.minorRunes = copy(base.minorRunes);
-        if (state.stock?.kiln > 0 || (state.machines ?? []).some(machine => machine.type === "kiln")) state.minorRunes.transmutation = 1;
-        state.capitalUnlocked = false;
-        state.runeVersion = 1;
+        if (state.stock && !Object.hasOwn(state.stock, "majorRunePedestal")) state.stock.majorRunePedestal = 0;
       }
       const placedMajorPedestals = (state.machines ?? []).filter(machine => machine.type === "majorRunePedestal").length;
       if (legacyMajorFootprint) {
         if (state.inventory && !Object.hasOwn(state.inventory, "aluminiumBronzePlate")) state.inventory.aluminiumBronzePlate = 0;
         state.freeMajorPedestals = state.stock?.majorRunePedestal + placedMajorPedestals;
-        state.runeVersion = 2;
       }
-      if (state.runeVersion < 3) {
-        if (state.stock && !Object.hasOwn(state.stock, "manualSplitter")) state.stock.manualSplitter = 0;
-        state.runeVersion = 3;
-      }
-      if (state.runeVersion < 4) {
-        // Old tier I already unlocked the Kiln, which now sits at tier II.
-        if (state.minorRunes?.transmutation === 1) {
-          state.minorRunes.transmutation = 2;
-          if (state.stock?.primitiveOven === 0 && !state.machines.some(machine => machine.type === "primitiveOven")) {
-            state.stock.primitiveOven = 1;
-          }
-        }
-        state.runeVersion = 4;
-      }
+      if ((state.runeVersion ?? 0) < 3 && state.stock && !Object.hasOwn(state.stock, "manualSplitter")) state.stock.manualSplitter = 0;
+      state.runeVersion = 4;
+      delete state.minorRunes;
       if (!Number.isSafeInteger(state.freeMajorPedestals) || state.freeMajorPedestals < 0
         || state.freeMajorPedestals > state.stock?.majorRunePedestal + placedMajorPedestals) throw new Error("Invalid legacy Major Rune Pedestal count.");
-      if (typeof state.capitalUnlocked !== "boolean" || !state.minorRunes
-        || Object.keys(state.minorRunes).length !== Object.keys(base.minorRunes).length
-        || Object.keys(base.minorRunes).some(category => !Number.isSafeInteger(state.minorRunes[category])
-          || state.minorRunes[category] < 0 || state.minorRunes[category] > D.minorRunes[category].length)) {
-        throw new Error("Invalid rune progress.");
-      }
+      delete state.capitalUnlocked;
       if ((state.sawmillVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "sawmill")) state.stock.sawmill = 0;
         if (state.inventory && !Object.hasOwn(state.inventory, "plank")) state.inventory.plank = 0;
@@ -2776,12 +2731,6 @@
         ]);
         for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
         factory.state.openingEconomyVersion = 1;
-      }
-      if ((state.starterPlantersVersion ?? 0) < 1) {
-        // Stored instances already count toward stock; do not count them twice.
-        const owned = factory.state.stock.planter + factory.state.machines.filter((machine) => machine.type === "planter").length;
-        factory.state.stock.planter += Math.max(0, 2 - owned);
-        factory.state.starterPlantersVersion = 1;
       }
       if ((state.starterBasketsVersion ?? 0) < 1) {
         const owned = factory.state.stock.basket + factory.state.machines.filter(machine => machine.type === "basket").length;

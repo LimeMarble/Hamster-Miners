@@ -109,7 +109,7 @@ test('Every actual internal belt requires an owned conveyor and deducts old Wood
     assert.ok((d.cost.materials.wood ?? 0) >= 0, type);
     if (d.hiddenFromShop) continue;
     const f = new Factory(A.createState(1));
-    f.state.minorRunes.motion = 3;
+    for (const material of Object.keys(f.state.inventory)) if (!require("../noammo-data.js").materials[material].fluid && !f.state.inventory[material]) f.state.inventory[material] = 1;
     f.state.cash = d.cost.cash * 2; Object.assign(f.state.inventory, Object.fromEntries(Object.entries(d.cost.materials).map(([id, qty]) => [id, qty * 2])));
     f.state.stock.belt = count * 2 - 1;
     const before = f.exportSave(); assert.ok(f.buy(type, 2).error); assert.equal(f.exportSave(), before);

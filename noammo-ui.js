@@ -3,10 +3,6 @@
   const A = window.NoAmmo, D = A.DATA, R = window.NoAmmoRenderer;
   const $ = (id) => document.getElementById(id);
   let factory, storageFailed = false, protectedSave = null, loadFailure = null;
-  function syncCapitalUnlock(target) {
-    if (localStorage.getItem(D.capitalSaveKey) === "1") target.state.capitalUnlocked = true;
-    else if (target.state.capitalUnlocked) localStorage.setItem(D.capitalSaveKey, "1");
-  }
   function backupBeforeMigration(raw) {
     let hash = 2166136261;
     for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
@@ -27,7 +23,6 @@
   try {
     protectedSave = localStorage.getItem(D.saveKey);
     factory = protectedSave ? A.Factory.importSave(protectedSave) : new A.Factory();
-    syncCapitalUnlock(factory);
     if (protectedSave) {
       const previous = JSON.parse(protectedSave);
       if (JSON.stringify(previous.state) !== JSON.stringify(factory.state)) backupBeforeMigration(protectedSave);
@@ -58,7 +53,7 @@
   loadMobileControls();
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let runeCategory = "harvest";
-  let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "planter", machineSignature = "";
+  let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "basket", machineSignature = "";
   let dismantledSelection = null;
   let gesture = null, suppressClick = false, shiftHeld = false, waterSelecting = null;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0;
@@ -133,6 +128,7 @@
     } });
   function viewRecipes(type) { recipeBook.open(`machine:${type}`); setTab("recipes"); }
   function appendMachineEffects(panel, definition) {
+    window.NoAmmoRecipes.appendSourceQuality(panel, definition, element, number);
     if (definition.electricPower) panel.append(element("p", `Electricity demand: ${number(definition.electricPower)}u${definition.conveyors ? ", including internal conveyors" : ""}.`, "machine-effect"));
     if (definition.electricOutput) panel.append(element("p", `Electricity supply: ${number(definition.electricOutput)}u with both kinetic inputs connected.`, "machine-effect"));
     if (definition.electricPower || definition.electricOutput) panel.append(element("p", "Generators share one factory-wide supply. All electric machines pause when total demand exceeds supply.", "muted"));
@@ -182,6 +178,10 @@
     const names = { workability: "Workability", purity: "Purity", integrity: "Integrity", regularity: "Regularity", smoothness: "Smoothness" };
     for (const item of items.slice(0, 8)) {
       const q = A.qualitySummary(item);
+      if (!q.assessed) {
+        panel.append(element("p", `${number(item.quantity)} ${D.materials[item.material].name}: ${item.graded ? "Historic assessment included in value" : "Unassessed"}. Quality results hidden until grading. Value ${money(A.saleValue(item))} each.`, "muted"));
+        continue;
+      }
       const assessed = q.assessed ? `Sale multiplier ×${number(q.multiplier)}` : item.graded ? "Historic assessment included in value" : "Unassessed: sale multiplier ×1";
       panel.append(element("p", `${number(item.quantity)} ${D.materials[item.material].name}: ${q.name}, score ${number(q.score)}. ${assessed}. Value ${money(A.saleValue(item))} each. ${Object.entries(q.properties).map(([key, value]) => `${names[key]} ${number(value)}/10`).join(" · ")}`, "muted"));
     }
@@ -216,34 +216,7 @@
   }
   function notify(message) { text($("notice"), message); $("notice").classList.add("visible"); toastTime = performance.now() + 3500; }
   function result(value, message) { if (value?.error) notify(value.error); else if (message) notify(message); refresh(); }
-  function redeemRune(machine, category) {
-    const currentFactory = factory;
-    const redeem = () => {
-      if (currentFactory !== factory) return;
-      const activation = category === "activation";
-      try {
-        if (activation) syncCapitalUnlock(factory);
-        const previousCash = factory.state.cash;
-        const response = factory.redeemRune(machine.id, category);
-        if (response.error) return result(response);
-        if (activation) {
-          try { syncCapitalUnlock(factory); }
-          catch (error) {
-            factory.state.cash = previousCash;
-            factory.state.capitalUnlocked = false;
-            throw error;
-          }
-        }
-        save();
-        result(response, `${response.offering.name} unlocked.`);
-      } catch (error) {
-        notify(`Could not save the rune unlock. ${error.message}`);
-      }
-    };
-    if (category === "activation" && window.navigator?.locks) {
-      window.navigator.locks.request(D.capitalSaveKey, redeem).catch(error => notify(error.message));
-    } else redeem();
-  }
+  function redeemRune(machine, category) { result(factory.redeemRune(machine.id, category)); }
   function save() {
     if (storageFailed) { text($("saveStatus"), "The unreadable factory save is preserved. Import or explicitly reset before saving over it."); return; }
     try { localStorage.setItem(D.saveKey, factory.exportSave()); text($("saveStatus"), "Factory saved locally. Existing mine saves are unchanged."); }
@@ -512,13 +485,12 @@
       tab.classList.toggle("active", tab.dataset.runeCategory === runeCategory);
       tab.setAttribute("aria-pressed", String(tab.dataset.runeCategory === runeCategory));
     }
-    const message = pedestal === "major" ? "Major offering pending."
-      : runeCategory === "activation" && factory.state.capitalUnlocked ? "Capital unlocked." : "All offerings completed.";
+    const message = "Major offering pending.";
     text(title, offering?.name ?? message);
     const rows = offering ? [
       ...(offering.cash ? [["Cash", money(factory.state.cash), money(offering.cash)]] : []),
       ...Object.entries(offering.materials).map(([material, needed]) => [
-        D.materials[material]?.name ?? D.runeIngredientNames[material], number(factory.state.inventory[material] ?? 0), number(needed),
+        D.materials[material]?.name ?? material, number(factory.state.inventory[material] ?? 0), number(needed),
       ]),
     ] : [];
     const signature = JSON.stringify(rows);
@@ -789,12 +761,12 @@
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
       } else {
-        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Spinach Planters, four Baskets and Primitive Sell Pile. Click trees to gather Wood."),
+        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your four Baskets and Primitive Sell Pile. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Spinach every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Spinach, with no cash requirement. Chop trees for Wood and collect Spinach from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $400 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Primitive Sell Pile to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Plant Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
+        for (const line of ["Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $400 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Primitive Sell Pile to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Plant Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -819,7 +791,9 @@
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0];
         const probabilities = item && A.gradeProbabilities(item);
         const quality = item && A.qualitySummary(item);
-        text($("gradingChances"), quality ? `${D.materials[item.material].name}: ${quality.name}, score ${number(quality.score)}, assessment ×${number(quality.multiplier)}` : probabilities
+        text($("gradingChances"), quality ? quality.assessed
+          ? `${D.materials[item.material].name}: ${quality.name}, score ${number(quality.score)}, assessment ×${number(quality.multiplier)}`
+          : `${D.materials[item.material].name}: quality results hidden until grading is complete.` : probabilities
           ? `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`
           : "Waiting for an item to show its grade chances.");
       }
@@ -902,7 +876,6 @@
       panel.append(buy, action("Place owned", () => build(shopSelection), "secondary"),
         action("Recipes & uses", () => viewRecipes(shopSelection), "secondary"));
       if (!definition.cost) panel.append(element("p", "This item's cost is unsettled. Borrowing is a test aid, not its actual recipe.", "muted"));
-      if (shopSelection === "planter") panel.append(element("p", "Your first two Planters are supplied free. Additional Planters require the listed cost.", "muted"));
     }
     const count = factory.state.stock[shopSelection], total = count + factory.state.machines.filter((machine) => machine.type === shopSelection).length;
     text($("shopOwned"), `Owned: ${number(total)} · available to place: ${number(count)}`);
@@ -1056,7 +1029,7 @@
   $("import").addEventListener("click", () => {
     try { const replacement = A.Factory.importSave($("saveText").value);
       const previous = localStorage.getItem(D.saveKey); if (previous && previous !== $("saveText").value) backupBeforeMigration(previous);
-      backupTerrainSave($("saveText").value, replacement); syncCapitalUnlock(replacement);
+      backupTerrainSave($("saveText").value, replacement);
       factory = replacement; resetSimulationClock(); storageFailed = false; protectedSave = null; loadFailure = null;
       select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
       inspectorSignature = ""; floorSignature = ""; itemSignature = ""; shopSignature = ""; machineSignature = "";
@@ -1072,7 +1045,6 @@
     const replacement = new A.Factory();
     try {
       const previous = localStorage.getItem(D.saveKey); if (previous) backupBeforeMigration(previous);
-      syncCapitalUnlock(replacement);
     }
     catch (error) { notify(`Could not back up the existing save, so it was not reset. ${error.message}`); return; }
     factory = replacement; storageFailed = false; protectedSave = null; loadFailure = null; select([]); interaction.tool = null; interaction.group = null; interaction.box = null; interaction.marquee = null; gesture = null;
@@ -1082,11 +1054,6 @@
     resetSimulationClock(); home(); save(); refresh();
   });
   window.addEventListener("resize", resize);
-  window.addEventListener("storage", (event) => {
-    if (event.key !== D.capitalSaveKey || event.newValue !== "1") return;
-    factory.state.capitalUnlocked = true;
-    refresh();
-  });
   window.addEventListener("beforeunload", save);
   document.addEventListener("visibilitychange", () => {
     const now = performance.now(); recordSimulationTime(now); lastFrame = now;

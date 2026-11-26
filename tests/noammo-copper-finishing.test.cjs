@@ -25,13 +25,13 @@ test('Molder and Chimes have agreed atomic purchase costs, staffing and footprin
   for (const [type, cost] of Object.entries(costs)) {
     assert.deepEqual(D.machines[type].cost, cost); assert.equal(A.createState(1).stock[type], 0);
     for (const missing of ['cash', ...Object.keys(cost.materials), ...Object.keys(cost.machines ?? {})]) {
-      const f = new Factory(A.createState(1)); f.state.cash = cost.cash; f.state.minorRunes.transmutation = 3;
+      const f = new Factory(A.createState(1)); f.state.cash = cost.cash; for (const material of Object.keys(f.state.inventory)) if (!require("../noammo-data.js").materials[material].fluid && !f.state.inventory[material]) f.state.inventory[material] = 1;
       Object.assign(f.state.inventory, cost.materials); Object.assign(f.state.stock, cost.machines ?? {});
       if (missing === 'cash') f.state.cash -= 0.01;
       else if (missing === 'belt') f.state.stock.belt = 0; else f.state.inventory[missing]--;
       const before = f.exportSave(); assert.ok(f.buy(type).error); assert.equal(f.exportSave(), before);
     }
-    const f = new Factory(A.createState(1)); f.state.cash = cost.cash; f.state.minorRunes.transmutation = 3;
+    const f = new Factory(A.createState(1)); f.state.cash = cost.cash; for (const material of Object.keys(f.state.inventory)) if (!require("../noammo-data.js").materials[material].fluid && !f.state.inventory[material]) f.state.inventory[material] = 1;
     Object.assign(f.state.inventory, cost.materials); Object.assign(f.state.stock, cost.machines ?? {});
     assert.equal(f.buy(type).amount, 1); assert.equal(f.state.cash, 0);
     const m = f.place(type, 40, 40).machine;

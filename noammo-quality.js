@@ -1,7 +1,6 @@
 (function (root) {
   "use strict";
   const materials = ["clay", "unfiredPot", "pot", "paintedPot"];
-  const distribution = [[2, 0.05], [3, 0.15], [4, 0.40], [5, 0.25], [6, 0.15]];
   const weights = {
     unfired: { integrity: 7, regularity: 3, smoothness: 1, purity: 2 },
     fired: { integrity: 4, regularity: 2, smoothness: 4, purity: 3 },
@@ -37,10 +36,10 @@
       && keys.every(key => Number.isFinite(q[key]) && q[key] >= 0 && q[key] <= 10)
       && (item.qualityAssessed === undefined || (item.qualityAssessed === true && item.graded === true));
   }
-  function draw(roll) {
+  function draw(roll, distribution) {
     let cumulative = 0;
     for (const [value, chance] of distribution) { cumulative = Math.round((cumulative + chance) * 100) / 100; if (roll < cumulative) return value; }
-    return 6;
+    return distribution.at(-1)[0];
   }
   function score(item) {
     if (!modeled(item?.material)) return null;
@@ -92,7 +91,7 @@
     else if (inputs.some(item => item.graded && !item.qualityAssessed)) output.graded = true;
     return output;
   }
-  const API = { materials, distribution, weights, grades, modeled, defaults, properties, valid, draw, shape, score, grade, summary, saleValue, spin, burnish, blend };
+  const API = { materials, weights, grades, modeled, defaults, properties, valid, draw, shape, score, grade, summary, saleValue, spin, burnish, blend };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.NoAmmoQuality = API;
 }(globalThis));

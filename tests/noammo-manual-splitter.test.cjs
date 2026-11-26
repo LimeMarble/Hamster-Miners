@@ -9,30 +9,6 @@ function place(factory, type, x, y, facing) {
   return result.machine;
 }
 
-test("Minor Motion grants a Splitter and opens the Bridge and Stacker offerings in order", () => {
-  const olderSave = JSON.parse(new Factory(createState(1)).exportSave());
-  olderSave.state.runeVersion = 2;
-  delete olderSave.state.stock.manualSplitter;
-  const factory = Factory.importSave(JSON.stringify(olderSave));
-  assert.equal(factory.state.stock.manualSplitter, 0);
-  factory.state.minorRunes.transmutation = 2;
-  const pedestal = place(factory, "minorRunePedestal", 70, 40);
-  assert.ok(factory.shopUnlockError("manualSplitter"));
-  assert.ok(factory.shopUnlockError("primitiveBridge"));
-  assert.ok(factory.shopUnlockError("primitiveStacker"));
-  Object.assign(factory.state.inventory, { wood: 125, leekFiber: 20, chert: 25, brick: 15, woodenGear: 50, granite: 50 });
-  assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "manualSplitter");
-  assert.equal(factory.state.stock.manualSplitter, 1);
-  assert.equal(factory.shopUnlockError("manualSplitter"), null);
-  assert.ok(factory.shopUnlockError("primitiveBridge"));
-  assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "primitiveBridge");
-  assert.equal(factory.shopUnlockError("primitiveBridge"), null);
-  assert.equal(factory.redeemRune(pedestal.id, "motion").offering.machine, "primitiveStacker");
-  for (const material of ["brick", "woodenGear", "granite"]) assert.equal(factory.state.inventory[material], 0);
-  assert.equal(factory.shopUnlockError("primitiveStacker"), null);
-  assert.equal(factory.nextRune("minor", "motion"), null);
-  assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
-});
 
 test("Manual Splitter alternates, uses an open exit, and supports a Basic Conveyor upgrade", () => {
   const factory = new Factory(createState(1));

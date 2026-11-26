@@ -21,32 +21,12 @@
     saveKind: "hamster-miners-noammo-opening",
     saveVersion: 1,
     saveKey: "hamster-miners-noammo-opening-v1",
-    capitalSaveKey: "hamster-miners-noammo-capital",
-    runeCategories: { harvest: "Harvest", motion: "Motion", transmutation: "Transmutation", activation: "Activation" },
-    runeIngredientNames: { choppedApple: "Chopped Apples" },
-    minorRunes: {
-      harvest: [
-        { name: "Wheat", machine: "wheatPlanter", materials: { wood: 100, leekFiber: 50, leekSalad: 5 } },
-        { name: "Apple", machine: "applePlanter", materials: { clay: 150, malachitePebble: 10, paintedPot: 1 } },
-        { name: "Sugar Cane", machine: "sugarCanePlanter", materials: { soil: 200, copperPlate: 50, choppedApple: 50 } },
-      ],
-      motion: [
-        { name: "Manual Splitter", machine: "manualSplitter", materials: { wood: 25, leekFiber: 20 } },
-        { name: "Conveyor Bridge", machine: "primitiveBridge", materials: { wood: 100, chert: 25 } },
-        { name: "Primitive Stacker", machine: "primitiveStacker", materials: { brick: 15, woodenGear: 50, granite: 50 } },
-      ],
-      transmutation: [
-        { name: "Stone Oven", machine: "primitiveOven", materials: { chert: 75, clay: 15 } },
-        { name: "Clay Kiln", machine: "kiln", materials: { unfiredBrick: 50, clay: 50 } },
-        { name: "Primitive Furnace", machine: "primitiveFurnace", materials: { granite: 200, nativeCopper: 10 } },
-      ],
-      activation: [{ name: "Capital", cash: 1e25, materials: {} }],
-    },
+    runeCategories: { harvest: "Harvest", motion: "Motion", transmutation: "Transmutation" },
     startingTerrain: { version: 1, treeCenters: TREE_CENTERS },
     config: {
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 20,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
-      planterSeconds: 8, fiberSeconds: 2, loggerSeconds: 6,
+      fiberSeconds: 2, loggerSeconds: 6,
       basketCapacity: 100, beltSeconds: 2, beltWeight: 2,
       clicksPerSecond: 5, chopsPerHarvest: 5,
       powerAreaReach: 7,
@@ -114,34 +94,10 @@
       copper: [0.3, 0.4, 0.3, 0, 0, 0], copperMetal: [0, 0.3, 0.4, 0.3, 0, 0],
     },
     machines: {
-      minorRunePedestal: {
-        name: "Minor Rune Pedestal", width: 2, height: 2, color: "#817594", category: "Logistics",
-        runePedestal: "minor", cost: { cash: 10, materials: { wood: 100 } },
-        description: "Place it and select a rune category to view the next minor offering.",
-      },
       majorRunePedestal: {
         name: "Major Rune Pedestal", width: 8, height: 8, color: "#7b6a9f", category: "Logistics",
         runePedestal: "major", cost: { cash: 1e30, materials: { limestone: 10000, aluminiumBronzePlate: 500 } },
         description: "Place it and select a rune category to view major offerings.",
-      },
-      planter: {
-        name: "Spinach Planter", width: 3, height: 3, color: "#5f8148", category: "Resource",
-        dismantleMinimum: 2,
-        cost: { cash: 0, materials: { wood: 40, leekFiber: 10, leek: 4, chert: 2, soil: 10 } }, source: "leek", cycle: 8, outputLimit: 2,
-        description: "Grows 1 Spinach every 8 seconds and outputs it from the facing edge.",
-      },
-      wheatPlanter: {
-        name: "Wheat Planter", width: 3, height: 3, color: "#a18b4f", category: "Resource",
-        baseFacing: "up", defaultFacing: "up",
-        cost: { cash: 50, materials: { wood: 40, leekFiber: 10, soil: 10, wheat: 4 } },
-        source: "wheat", cycle: 10, sourceQuantity: 5, outputLimit: 10, waterCapacity: 2, waterPerBatch: 0.25,
-        ports: [
-          { x: 1, y: 0, direction: "up", role: "output" },
-          { x: 0, y: 1, direction: "left", role: "waterDropoff" },
-          { x: 2, y: 1, direction: "right", role: "waterDropoff" },
-          { x: 1, y: 2, direction: "down", role: "waterDropoff" },
-        ],
-        description: "Grows 5 Wheat every 10 seconds using 0.25 Water. The three Water dropoffs share one buffer.",
       },
       basket: {
         name: "Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
@@ -250,6 +206,10 @@
         baseFacing: "up", defaultFacing: "up",
         cost: { cash: 400, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
         centeredOutput: true, requiresKinetic: true,
+        sourceQuality: {
+          workability: [[2, 0.05], [3, 0.15], [4, 0.40], [5, 0.25], [6, 0.15]],
+          purity: [[2, 0.05], [3, 0.15], [4, 0.40], [5, 0.25], [6, 0.15]],
+        },
         ports: [
           { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
           { x: 0, y: 1, direction: "left", role: "kineticInput" },

@@ -16,12 +16,11 @@ function feed(factory, machine, item, material = item.material) {
   return factory.receive(machine, item, port.x, port.y, port.direction, true);
 }
 
-test("Wood Carving and Plating produce the salads for Minor Harvest I", () => {
+test("Wood Carving and Plating produce salads", () => {
   const factory = new A.Factory(A.createState(1));
   const carver = place(factory, "crudeGearBench", 40, 40);
   const bench = place(factory, "platingBench", 50, 40);
   const basket = place(factory, "basket", 50, 39);
-  const pedestal = place(factory, "minorRunePedestal", 60, 40);
   assert.equal(factory.setShapingMode(carver.id, "plate").error, undefined);
   assert.equal(feed(factory, carver, A.cargo("wood", 2)), 2);
   factory.update(0.1); factory.update(6);
@@ -49,36 +48,9 @@ test("Wood Carving and Plating produce the salads for Minor Harvest I", () => {
   assert.equal(basket.contents[1].value, 1.5);
   factory.collect(basket.id);
   Object.assign(factory.state.inventory, { wood: 100, leekFiber: 50 });
-  assert.equal(factory.redeemRune(pedestal.id, "harvest").offering.machine, "wheatPlanter");
-  assert.equal(factory.state.stock.wheatPlanter, 1);
   assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
 });
 
-test("A scheduled Well supplies Wheat, which can feed the kinetic Grain Mill directly", () => {
-  const factory = new A.Factory(A.createState(1));
-  const wheat = place(factory, "wheatPlanter", 40, 40);
-  const mill = place(factory, "grainMill", 40, 38);
-  const basket = place(factory, "basket", 41, 37);
-  attachKineticWheel(factory, mill);
-  const well = place(factory, "well", 42, 43);
-  factory.update(10);
-  assert.equal(wheat.timer, 0);
-  assert.equal(wheat.output.length, 0);
-  assert.equal(factory.addWaterDelivery(well.id, wheat.id, 2).error, undefined);
-  factory.update(5);
-  assert.equal(wheat.water, 0.5);
-  factory.removeWaterDelivery(well.id, 0);
-  factory.update(11);
-  assert.equal(wheat.water, 0.25);
-  assert.equal(factory.total(basket, "contents"), 2);
-  assert.equal(factory.total(mill, "input"), 1);
-  assert.equal(basket.contents[0].material, "flour");
-  assert.equal(basket.contents[0].value, 0.3);
-  assert.equal(factory.addWaterDelivery(well.id, wheat.id, 2).error, undefined);
-  factory.update(30);
-  assert.equal(wheat.water, 2);
-  assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
-});
 
 test("Rinse Bench schedules water, treats raw crops once and carries quality through milling", () => {
   const factory = new A.Factory(A.createState(1));
@@ -131,22 +103,6 @@ test("Wheat jobs in the Fiber Extractor survive reloads and yield five light Fib
   assert.deepEqual(A.Factory.importSave(loaded.exportSave()).state, loaded.state);
 });
 
-test("Queued Wheat batches fill the receiving conveyor and retain the remainder", () => {
-  const factory = new A.Factory(A.createState(1));
-  const wheat = place(factory, "wheatPlanter", 40, 40);
-  wheat.water = 0.5;
-  factory.update(20);
-  assert.equal(factory.total(wheat, "output"), 10);
-  const belt = place(factory, "belt", 41, 39, "up");
-  const basket = place(factory, "basket", 41, 38);
-  place(factory, "wheel", 44, 43, "right");
-  place(factory, "drive", 45, 41, "down");
-  factory.update(0.1);
-  assert.equal(belt.lanes[0].quantity, 8);
-  assert.equal(factory.total(wheat, "output"), 2);
-  factory.update(4.5);
-  assert.equal(factory.total(basket, "contents"), 10);
-});
 
 test("An old two-Wood gear job keeps its inputs and migrates its remaining time proportionally", () => {
   const factory = new A.Factory(A.createState(1));
@@ -165,53 +121,7 @@ test("An old two-Wood gear job keeps its inputs and migrates its remaining time 
   assert.equal(restored.state.stock.platingBench, 0);
 });
 
-test("Minor Transmutation I grants the Stone Oven before the Clay Kiln", () => {
-  const factory = new A.Factory(A.createState(1));
-  const pedestal = place(factory, "minorRunePedestal", 60, 40);
-  assert.deepEqual(A.DATA.machines.primitiveOven.cost, { cash: 500, materials: { chert: 40, clay: 30 } });
-  Object.assign(factory.state.inventory, { chert: 115, clay: 45 });
-  factory.state.cash = 500;
-  assert.ok(factory.shopUnlockError("primitiveOven"));
-  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "primitiveOven");
-  assert.equal(factory.state.stock.primitiveOven, 1);
-  assert.equal(factory.state.inventory.chert, 40);
-  assert.equal(factory.state.inventory.clay, 30);
-  assert.ok(factory.shopUnlockError("kiln"));
-  assert.equal(factory.nextRune("minor", "transmutation").machine, "kiln");
-  assert.equal(factory.buy("primitiveOven").amount, 1);
-  assert.equal(factory.state.stock.primitiveOven, 2);
-  assert.equal(factory.state.cash, 0);
-  assert.equal(factory.state.inventory.chert, 0);
-  assert.equal(factory.state.inventory.clay, 0);
-  assert.ok(factory.buy("preheater").error);
-  const oven = factory.place("primitiveOven", 50, 40).machine;
-  assert.equal(factory.setOvenRecipe(oven.id, "unfiredBrick").error, undefined);
-  const input = A.ports(oven).find(point => point.channel === "ingredient2");
-  assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x - 1, input.y, input.direction, true), 0);
-  oven.heat = 6000;
-  assert.equal(factory.receive(oven, A.cargo("unfiredBrick", 2), input.x, input.y, input.direction, true), 2);
-  factory.update(0.1);
-  assert.equal(oven.heat, 0);
-  assert.equal(oven.output[0].preheated, true);
-  assert.equal(oven.output[0].quantity, 2);
-  assert.deepEqual(A.Factory.importSave(factory.exportSave()).state, factory.state);
-});
 
-test("Old Transmutation tiers keep their unlocks and grant the newly skipped Oven once", () => {
-  for (const tier of [0, 1, 2, 3]) {
-    const factory = new A.Factory(A.createState(1));
-    const old = JSON.parse(factory.exportSave());
-    old.state.runeVersion = 3;
-    old.state.minorRunes.transmutation = tier;
-    old.state.stock.kiln = tier >= 1 ? 1 : 0;
-    old.state.stock.primitiveOven = tier >= 2 ? 1 : 0;
-    const migrated = A.Factory.importSave(JSON.stringify(old));
-    assert.equal(migrated.state.minorRunes.transmutation, tier === 1 ? 2 : tier);
-    assert.equal(migrated.state.stock.kiln, old.state.stock.kiln);
-    assert.equal(migrated.state.stock.primitiveOven, tier >= 1 ? 1 : 0);
-    assert.deepEqual(A.Factory.importSave(migrated.exportSave()).state, migrated.state);
-  }
-});
 
 test("Stone Oven recipe selection preserves heat and finished output, and migrates old queued ingredients", () => {
   const factory = new A.Factory(A.createState(1));

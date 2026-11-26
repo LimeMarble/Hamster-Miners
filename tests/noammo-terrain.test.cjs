@@ -64,7 +64,7 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   state.cash = 88; state.earned = 120; state.seconds = 99; state.hiredCrew = 3;
   state.inventory = { ...createState(1).inventory, leek: 11, leekFiber: 12, wood: 13, clay: 0, brick: 14 };
   state.harvestProgress = 3; state.harvestedWood = 7;
-  const planter = place(factory, "planter", 40, 40); planter.output.push(cargo("leek", 2));
+  const planter = place(factory, "clayPit", 40, 40); planter.output.push(cargo("clay", 2));
   const fiber = place(factory, "fiber", 45, 40);
   fiber.input.push(cargo("leek")); fiber.output.push(cargo("leekFiber", 2, 4));
   fiber.job = { input: cargo("leek"), remaining: 1 };
@@ -84,7 +84,7 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   const loaded = Factory.importSave(factory.exportSave());
   assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.pickedUpForTerrainReset, owned.length);
   assert.deepEqual(loaded.state.machines, []); assert.equal(loaded.state.routes, undefined);
-  assert.deepEqual(loaded.state.inventory, { ...createState(1).inventory, leek: 20, leekFiber: 17, wood: 24, clay: 0, brick: 14 });
+  assert.deepEqual(loaded.state.inventory, { ...createState(1).inventory, leek: 18, leekFiber: 17, wood: 24, clay: 2, brick: 14 });
   assert.deepEqual(loaded.state.storedMachines.map(({ id, type, facing }) => ({ id, type, facing })), owned);
   for (const type of Object.keys(D.machines)) {
     assert.equal(loaded.state.stock[type], originalStock[type] + owned.filter((m) => m.type === type).length);
@@ -100,19 +100,19 @@ test("old terrain picks up every machine and recovers all buffers, jobs, lanes a
   const again = Factory.importSave(loaded.exportSave());
   assert.equal(again.terrainUpdated, false); assert.equal(again.pickedUpForTerrainReset, 0);
   assert.deepEqual(again.state, loaded.state);
-  const replaced = loaded.place("planter", 40, 40).machine;
+  const replaced = loaded.place("clayPit", 40, 40).machine;
   assert.equal(replaced.id, planter.id);
   assert.deepEqual(Factory.importSave(loaded.exportSave()).state, loaded.state, "replacement survives refresh");
 });
 
 test("a saved map cannot bypass enforcement by keeping the current terrain version", () => {
   for (const change of [(state) => state.trees[0].x++, (state) => state.trees.pop()]) {
-    const factory = new Factory(); place(factory, "planter", 40, 40);
+    const factory = new Factory(); place(factory, "clayPit", 40, 40);
     change(factory.state);
     const loaded = Factory.importSave(factory.exportSave());
     assert.equal(loaded.terrainUpdated, true); assert.equal(loaded.state.machines.length, 0);
     assert.deepEqual(loaded.state.trees, createState().trees);
-    assert.equal(loaded.state.stock.planter, factory.state.stock.planter + 1);
+    assert.equal(loaded.state.stock.clayPit, factory.state.stock.clayPit + 1);
   }
 });
 

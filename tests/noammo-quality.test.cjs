@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../noammo-simulation.js');
 const Q = A.quality;
+const distribution = A.DATA.machines.clayPit.sourceQuality.workability;
 const { attachKineticWheel } = require('./helpers/noammo-centered.cjs');
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ~ ${b}`);
 function clay(w = 4, p = 4, quantity = 2, value = .25) {
@@ -23,14 +24,14 @@ function feed(f, m, item, channel) {
 }
 
 test('clay draws use the agreed probability intervals and independent per-batch source stats', () => {
-  for (const [roll, expected] of [[0, 2], [.0499, 2], [.05, 3], [.1999, 3], [.20, 4], [.5999, 4], [.60, 5], [.8499, 5], [.85, 6], [.9999, 6]]) assert.equal(Q.draw(roll), expected);
+  for (const [roll, expected] of [[0, 2], [.0499, 2], [.05, 3], [.1999, 3], [.20, 4], [.5999, 4], [.60, 5], [.8499, 5], [.85, 6], [.9999, 6]]) assert.equal(Q.draw(roll, distribution), expected);
   const f = new A.Factory(A.createState(1)), pit = place(f, 'clayPit'); attachKineticWheel(f, pit);
   f.update(A.DATA.machines.clayPit.cycle);
   assert.equal(f.total(pit, 'output'), A.DATA.machines.clayPit.sourceQuantity);
   const expected = []; let random = 1;
   for (let i = 0; i < 1; i++) {
     const values = [];
-    for (let j = 0; j < 2; j++) { random = (Math.imul(1664525, random) + 1013904223) >>> 0; values.push(Q.draw(random / 4294967296)); }
+    for (let j = 0; j < 2; j++) { random = (Math.imul(1664525, random) + 1013904223) >>> 0; values.push(Q.draw(random / 4294967296, distribution)); }
     expected.push({ workability: values[0], purity: values[1] });
   }
   assert.deepEqual(pit.output.map(item => item.quality), expected);
@@ -40,7 +41,7 @@ test('clay draws use the agreed probability intervals and independent per-batch 
 
 test('two independent source stats enumerate the expected workability-weighted raw clay grades', () => {
   const totals = {};
-  for (const [w, a] of Q.distribution) for (const [p, b] of Q.distribution) {
+  for (const [w, a] of distribution) for (const [p, b] of distribution) {
     const letter = Q.grade(Q.score(clay(w, p))).name; totals[letter] = (totals[letter] ?? 0) + a * b;
   }
   near(Object.values(totals).reduce((a,b) => a+b), 1);
@@ -75,7 +76,7 @@ test('preheating changes no immediate properties or score and prevents exactly t
 });
 
 test('all ordinary clay combinations stay below S through the agreed pre-paint pottery route', () => {
-  for (const [w] of Q.distribution) for (const [p] of Q.distribution) {
+  for (const [w] of distribution) for (const [p] of distribution) {
     const pot = shape(clay(w,p),true); Q.burnish(pot); pot.preheated = true;
     assert.ok(Q.score(pot)<101); assert.ok(Q.score(fire(pot))<101);
   }
@@ -189,4 +190,26 @@ test('real Kiln preserves per-input preheat quality while mixed batches retain c
   assert.equal(kiln.output.length,2);
   assert.deepEqual(kiln.output.map(item=>item.quality.integrity),[2,4]);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state,f.state);
+});
+
+test('source distributions belong to the Clay Pit and control extraction without changing Clay defaults', () => {
+  const fs = require('node:fs'), vm = require('node:vm');
+  const fixture = JSON.parse(JSON.stringify(A.DATA));
+  fixture.machines.clayPit.sourceQuality = {workability: [[9, 1]], purity: [[1, 1]]};
+  const context = vm.createContext({NoAmmoData: fixture, NoAmmoQuality: Q});
+  vm.runInContext(fs.readFileSync(require.resolve('../noammo-simulation.js'),'utf8'),context);
+  const custom = context.NoAmmo;
+  const f = new custom.Factory(custom.createState(1)), pit = place(f, 'clayPit'); attachKineticWheel(f, pit);
+  f.update(fixture.machines.clayPit.cycle);
+  assert.deepEqual(JSON.parse(JSON.stringify(pit.output[0].quality)), {workability: 9, purity: 1});
+  assert.deepEqual(A.cargo('clay').quality, {workability: 2, purity: 2});
+  assert.equal(A.gradeLabel(pit.output[0]), '');
+});
+
+test('cargo grade labels reveal modeled results only after assessment and hide them again after mixing', () => {
+  const item = clay(6,6,1), before = A.copy(item);
+  assert.equal(A.gradeLabel(item), ''); assert.deepEqual(item, before);
+  const assessed = A.gradeStack({random:1}, item);
+  assert.match(A.gradeLabel(assessed), /^C \(60\) assessed$/);
+  assert.equal(A.gradeLabel(A.combineCargo([assessed, clay(2,2,1)])), '');
 });

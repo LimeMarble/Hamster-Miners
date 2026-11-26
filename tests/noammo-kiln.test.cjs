@@ -40,51 +40,6 @@ test("Kiln is a plain labelled machine box, without crew tiles or labels, in eve
   }
 });
 
-test("Minor Transmutation unlocks the Kiln and grants one, with the construction price for additional copies", () => {
-  assert.deepEqual(D.machines.kiln.cost, { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } });
-  assert.equal(createState().stock.kiln, 0);
-  const factory = new Factory(createState(1));
-  factory.state.cash = 3000;
-  Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
-  assert.ok(factory.buy("kiln").error); assert.equal(factory.state.cash, 3000);
-  const pedestal = place(factory, "minorRunePedestal", 45, 40);
-  Object.assign(factory.state.inventory, { chert: 75, clay: 25 });
-  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "primitiveOven");
-  const before = factory.exportSave();
-  assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
-  assert.equal(factory.exportSave(), before);
-  factory.state.inventory.clay = 50;
-  assert.equal(factory.redeemRune(pedestal.id, "transmutation").offering.machine, "kiln");
-  assert.equal(factory.state.stock.kiln, 1);
-  assert.equal(factory.state.inventory.unfiredBrick, 0);
-  assert.equal(factory.state.inventory.clay, 0);
-  assert.equal(factory.nextRune("minor", "transmutation").machine, "primitiveFurnace");
-  assert.ok(factory.redeemRune(pedestal.id, "transmutation").error);
-  Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10 });
-  assert.ok(factory.buy("kiln").error);
-  factory.state.inventory.leekFiber = 15;
-  assert.equal(factory.buy("kiln").amount, 1);
-  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.unfiredBrick, 0);
-  assert.equal(factory.state.inventory.clay, 0); assert.equal(factory.state.inventory.leekFiber, 0);
-  const kiln = factory.place("kiln", 40, 40).machine;
-  assert.equal(kiln.facing, "up");
-  assert.deepEqual(A.size(kiln), { width: 3, height: 2 }); assert.equal(cells(kiln).length, 6);
-  assert.deepEqual(ports({ ...kiln, facing: "right" }), [
-    { x: 40, y: 40, direction: "up", role: "input", channel: "fuel", label: "Fuel" },
-    { x: 40, y: 41, direction: "left", role: "input", channel: "material" },
-    { x: 41, y: 41, direction: "right", role: "output" },
-    { x: 40, y: 42, direction: "down", role: "input", channel: "fuel", label: "Fuel" },
-  ]);
-  assert.deepEqual(ports(kiln), [
-    { x: 40, y: 41, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
-    { x: 41, y: 41, direction: "down", role: "input", channel: "material" },
-    { x: 41, y: 40, direction: "up", role: "output" },
-    { x: 42, y: 41, direction: "right", role: "input", channel: "fuel", label: "Fuel" },
-  ]);
-  assert.equal(factory.availableCrew(), 18); factory.pickup(kiln.id); assert.equal(factory.availableCrew(), 20);
-  for (let index = 0; index < 19; index++) place(factory, "fiber", 50 + index * 2, 50);
-  assert.match(factory.place("kiln", 40, 40).error, /hamsters/);
-});
 
 test("Both fuel tiles burn Wood into a shared 250ku buffer; material and output ports reject fuel", () => {
   for (const index of [0, 2]) {
@@ -397,7 +352,7 @@ test("Fired products sell at actual process value, collectors reset only on with
 
 test("Primitive conveyors and both Upgrader lanes use speed 5, with no change to source or shaping timers", () => {
   assert.equal(D.config.beltSeconds, 2);
-  assert.equal(D.machines.clayPit.cycle, 12); assert.equal(D.machines.planter.cycle, 8);
+  assert.equal(D.machines.clayPit.cycle, 12);
   assert.equal(D.machines.clayShaper.recipes.brick.seconds, 2);
   assert.equal(D.machines.clayShaper.recipes.pot.seconds, 4);
 });

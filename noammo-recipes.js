@@ -1,6 +1,24 @@
 (function (root) {
   "use strict";
 
+  function appendSourceQuality(panel, definition, element, number) {
+    if (!definition.sourceQuality) return;
+    const table = element("table", undefined, "source-quality-table");
+    table.append(element("caption", `${definition.name} grade table: starting property chances`));
+    const header = element("tr");
+    for (const label of ["Property", "Value", "Chance"]) header.append(element("th", label));
+    const head = element("thead"), body = element("tbody"); head.append(header);
+    for (const [property, distribution] of Object.entries(definition.sourceQuality)) {
+      for (const [value, chance] of distribution) {
+        const row = element("tr");
+        for (const label of [property[0].toUpperCase() + property.slice(1), `${number(value)}/10`, `${number(chance * 100)}%`]) row.append(element("td", label));
+        body.append(row);
+      }
+    }
+    table.append(head, body); panel.append(table,
+      element("p", "Properties roll independently for each extracted batch at this source. Individual results remain hidden until grading.", "muted"));
+  }
+
   // Index the same quantities and material mappings used by production. The
   // browser owns navigation only; it never changes factory or inventory state.
   function cashEffectLines(effect, number, money) {
@@ -209,7 +227,7 @@
         const modeled = ["clay", "unfiredPot", "pot", "paintedPot"].includes(entry.id);
         if (modeled) {
           detail.append(element("p", "Quality properties range from 0 to 10. Inventory loses quality and treatments. Default workability and purity are both 2, without assessment.", "muted"));
-          if (entry.id === "clay") detail.append(element("p", "Each fresh batch independently rolls workability and purity: 2 (5%), 3 (15%), 4 (40%), 5 (25%), 6 (15%). Clay score = 8 × workability + 2 × purity.", "muted"));
+          if (entry.id === "clay") detail.append(element("p", "Starting property chances depend on the resource source. See its grade table. Clay score = 8 × workability + 2 × purity.", "muted"));
           else detail.append(element("p", entry.id === "unfiredPot" ? "Unfired score = 7 × integrity + 3 × regularity + smoothness + 2 × purity." : "Fired score = 4 × integrity + 2 × regularity + 4 × smoothness + 3 × purity. Painting retains these properties and triples the existing Pot cash value.", "muted"));
         }
         const chances = modeled ? null : data.gradeTables[entry.gradeTable ?? entry.family];
@@ -229,6 +247,7 @@
           !== ["down", "up"].includes(entry.baseFacing ?? "right");
         detail.append(element("p", entry.description), element("p", `${swapSize ? entry.height : entry.width}×${swapSize ? entry.width : entry.height} · ${entry.crew ?? 0} operating crew`, "recipe-facts"));
         detail.append(button("View in Shop", () => openShop(entry.id)));
+        appendSourceQuality(detail, entry, element, number);
         const cost = section("Construction cost"), flow = element("div", undefined, "recipe-flow");
         if (entry.cost) {
           cost.append(element("p", `$${number(entry.cost.cash)} cash`));
@@ -291,7 +310,7 @@
     render();
     return { open, refresh: () => { state = capture(); render(); } };
   }
-  const api = { buildCatalog, mount, cashEffectLines };
+  const api = { buildCatalog, mount, cashEffectLines, appendSourceQuality };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.NoAmmoRecipes = api;
 }(globalThis));

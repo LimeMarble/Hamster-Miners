@@ -4,7 +4,7 @@ const { Factory, createState, cargo, ports } = require("../noammo-simulation.js"
 
 test("Plant Cutters route two instant passes, applying each transformation's value once", () => {
   const factory = new Factory(createState(1));
-  Object.assign(factory.state.inventory, { wood: 50, chert: 10 });
+  Object.assign(factory.state.inventory, { wood: 50, chert: 10, leek: 1 });
   assert.equal(factory.buy("plantCutter", 2).amount, 2);
   const peeler = factory.place("plantCutter", 40, 42).machine;
   const chopper = factory.place("plantCutter", 40, 40).machine;
