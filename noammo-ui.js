@@ -68,7 +68,6 @@
   let lastSimulation = performance.now(), lastAutosave = lastSimulation, pendingMilliseconds = 0;
   let backgroundDeadline = document.hidden ? lastSimulation + backgroundLimitMilliseconds : Infinity;
   let lastSimulationPaint = -Infinity, paintedSimulationTime = null;
-  const backgroundWork = new MessageChannel();
   let backgroundQueued = false;
   function resetSimulationClock() {
     lastSimulation = performance.now(); lastAutosave = lastSimulation; pendingMilliseconds = 0;
@@ -77,7 +76,9 @@
     $("simulationStatus").hidden = true;
   }
   function recordSimulationTime(now) {
-    pendingMilliseconds += Math.max(0, Math.min(now, backgroundDeadline) - lastSimulation);
+    const elapsed = Math.max(0, Math.min(now, backgroundDeadline) - lastSimulation);
+    // Sleep can suspend the selected tab without a visibility change.
+    pendingMilliseconds += Math.min(elapsed, backgroundLimitMilliseconds);
     lastSimulation = Math.max(lastSimulation, now);
   }
   function advanceSimulation(budgetMilliseconds) {
@@ -99,15 +100,14 @@
   function queueBackgroundWork() {
     if (backgroundQueued || pendingMilliseconds + 1e-6 < tickMilliseconds) return;
     backgroundQueued = true;
-    backgroundWork.port2.postMessage(null);
+    setTimeout(() => {
+      backgroundQueued = false;
+      if (document.hidden) {
+        advanceSimulation(8);
+        queueBackgroundWork();
+      }
+    }, 16);
   }
-  backgroundWork.port1.onmessage = () => {
-    backgroundQueued = false;
-    if (document.hidden) {
-      advanceSimulation(8);
-      queueBackgroundWork();
-    }
-  };
   function updateSimulationStatus() {
     const status = $("simulationStatus");
     const catchingUp = pendingMilliseconds >= 1000;
@@ -122,7 +122,7 @@
   const floor = $("floor").getContext("2d"), overlay = $("cargo").getContext("2d");
   const machineCards = new Map(), cards = new Map();
   const number = A.formatNumber;
-  $("gradeMultipliers").textContent = D.grades.map((grade) => `${grade.name} ×${number(grade.multiplier)}`).join(" · ");
+  $("gradeMultipliers").textContent = "Clay and Pots: " + D.scoreGrades.map(grade => `${grade.name} ${grade.min}${grade.max === undefined ? "+" : `-${grade.max}`}: ×${number(grade.low)}${grade.high && grade.high !== grade.low ? `-${number(grade.high)}` : ""}`).join(" · ") + ". T increases tenfold every 10 score. Other materials retain their existing grade chances. Unassessed items sell at ×1.";
   const money = (value) => `$${number(value)}`;
   const recipeBook = window.NoAmmoRecipes.mount({ document, data: D, formatNumber: number,
     primitiveEffect: () => factory.state.tuning,
@@ -172,6 +172,21 @@
         : `${money(entry.value * entry.quantity)} total · ${number(entry.quantity)} × ${money(entry.value)}`;
       list.append(element("li", `${entry.grade ? `${entry.grade} · ` : ""}${value}`));
     }
+  }
+  function renderCargoQuality(machine) {
+    const panel = $("qualityCargo"); if (!panel) return;
+    const items = [...machine.input, ...machine.output, ...machine.contents, ...Object.values(machine.lanes),
+      ...Object.values(machine.beltRemainders ?? {}), ...(machine.job?.inputs ?? (machine.job?.input ? [machine.job.input] : []))].filter(item => A.qualitySummary(item));
+    const signature = JSON.stringify(items.map(({material,quantity,value,quality,qualityAssessed,graded}) => ({material,quantity,value,quality,qualityAssessed,graded}))); if (panel.dataset.signature === signature) return;
+    panel.dataset.signature = signature; panel.replaceChildren();
+    const names = { workability: "Workability", purity: "Purity", integrity: "Integrity", regularity: "Regularity", smoothness: "Smoothness" };
+    for (const item of items.slice(0, 8)) {
+      const q = A.qualitySummary(item);
+      const assessed = q.assessed ? `Sale multiplier ×${number(q.multiplier)}` : item.graded ? "Historic assessment included in value" : "Unassessed: sale multiplier ×1";
+      panel.append(element("p", `${number(item.quantity)} ${D.materials[item.material].name}: ${q.name}, score ${number(q.score)}. ${assessed}. Value ${money(A.saleValue(item))} each. ${Object.entries(q.properties).map(([key, value]) => `${names[key]} ${number(value)}/10`).join(" · ")}`, "muted"));
+    }
+    if (items.length > 8) panel.append(element("p", `${items.length - 8} more quality stacks.`, "muted"));
+    if (items.length) panel.append(element("p", "Collecting or returning cargo to inventory loses its quality, treatments and assessment. Default Clay and Pot workability and purity are both 2.", "muted"));
   }
   function renderHoverHistory() {
     const tooltip = $("historyTooltip");
@@ -592,6 +607,7 @@
           }
         }
         if (definition.crew) panel.append(element("p", `${definition.crew} crew assigned`));
+        const qualityPanel = element("div"); qualityPanel.id = "qualityCargo"; panel.append(qualityPanel);
         if (definition.dualPower) {
           const label = element("label", "Power source "), source = element("select");
           source.id = "powerSource"; source.setAttribute("aria-label", "Power source");
@@ -646,7 +662,7 @@
           panel.append(heat, buffers, element("p", machine.type === "kiln"
             ? "Full batches only. Cold firing takes 12s and 96ku; a fully preheated batch takes 6s and 48ku. Amber arrow: Fuel. Pale arrow: Feed."
             : definition.oven ? "Changing recipes returns waiting ingredients to inventory."
-            : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
+            : machine.type === "preheater" ? `Uses 6ku to preheat 2 unfired Bricks or 1 unfired Pot in 3s. Pots avoid losing 2 integrity when fired, with no immediate score increase. Bricks keep their existing grade treatment. Preheated cargo has an orange bar. Amber arrow: Fuel. Pale arrow: Feed.`
             : "Full batches only. Wood through Feed makes Charcoal without external heat; Wood through Fuel provides heat. Amber arrow: Fuel. Pale arrow: Feed. Copper smelting consumes 500ku per batch. Connect the output directly to an Ingot Molder.", "muted"));
           if (definition.oven) {
             const label = element("label", "Recipe "), mode = element("select");
@@ -754,7 +770,7 @@
         }
         if (machine.type === "gradingBench") {
           const chance = element("p"); chance.id = "gradingChances";
-          panel.append(element("p", "One grade roll per stack, at one second per total weight. Uses one hamster. Graded stacks cannot be graded again."), chance);
+          panel.append(element("p", "Clay and Pots are assessed from their properties at one second per total weight. Their assessed multiplier follows later processing without stacking. Other materials roll once per stack. Uses one hamster."), chance);
         }
         if (definition.sourceModes || definition.batchModes) {
           const label = element("label", "Extraction mode "), mode = element("select");
@@ -773,12 +789,12 @@
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
       } else {
-        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Spinach Planters, four Baskets and Sell Tube. Click trees to gather Wood."),
+        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your two free Spinach Planters, four Baskets and Primitive Sell Pile. Click trees to gather Wood."),
           element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Spinach every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Spinach, with no cash requirement. Chop trees for Wood and collect Spinach from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $400 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Sell Tube to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Plant Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
+        for (const line of ["Point the Planter’s edge output into the Basket. It grows one Spinach every 8 seconds.", "A Fiber Extractor costs 30 Wood and 1 Spinach, with no cash requirement. Chop trees for Wood and collect Spinach from your Basket.", "Put the Extractor between the Planter and Basket.", "Connect the starter Wheel directly to the Pebble Sifter and collect Chert for your first Logger and Wood Carving Bench.", "Build Clay Pits for $400 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Primitive Sell Pile to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood, 10 Plant Fiber and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -790,6 +806,7 @@
       if (definition.waterCapacity) text($("waterStatus"), `Water: ${number(machine.water)} / ${number(factory.waterCapacity(machine))}`);
       if ($("upgradeConveyors")) $("upgradeConveyors").disabled = factory.state.stock.electricConveyor < A.conveyorUpgradeCost(machine.type);
       if (A.supportsOutputHistory(machine.type)) renderOutputHistory($("outputHistory"), machine);
+      renderCargoQuality(machine);
       if (definition.plateRecipes) {
         const bulk = factory.bulkFactor(machine), plates = factory.total(machine, "input", "woodenPlate");
         const dish = machine.input.find(item => Object.hasOwn(definition.plateRecipes, item.material))?.material;
@@ -801,7 +818,8 @@
       if (machine.type === "gradingBench") {
         const item = machine.job?.input ?? machine.input[0] ?? machine.output[0];
         const probabilities = item && A.gradeProbabilities(item);
-        text($("gradingChances"), probabilities
+        const quality = item && A.qualitySummary(item);
+        text($("gradingChances"), quality ? `${D.materials[item.material].name}: ${quality.name}, score ${number(quality.score)}, assessment ×${number(quality.multiplier)}` : probabilities
           ? `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`
           : "Waiting for an item to show its grade chances.");
       }
@@ -814,7 +832,7 @@
           const inputs = Object.entries(recipe.inputs).map(([id, amount]) =>
             `${D.materials[id].name} ${number(factory.total(machine, "input", id))}/${number(amount * bulk)}`);
           const detail = recipe.preheats
-            ? `Moves up to ${number(definition.preheatGradeTransfer * 100)} percentage points from Unremarkable to Standard.`
+            ? "Pots avoid losing 2 integrity when fired, with no immediate score increase. Bricks keep their existing grade treatment."
             : "Send cooked pasta directly to a Plating Bench.";
           text($("furnaceRecipe"), `${inputs.join(" · ")} · ${number(recipe.heat * bulk)}u heat per batch. ${detail}`);
         } else {

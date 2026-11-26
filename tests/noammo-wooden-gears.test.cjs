@@ -48,9 +48,9 @@ for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical refe
   feed(f, m, cargo('wood', 1, 0.3)); f.update(0.1); assert.equal(m.job.remaining, 6);
   f.update(5.9); assert.equal(basket.contents.length, 0); f.update(0.1);
   assert.equal(basket.contents[0].material, 'woodenGear');
-  assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.3);
+  assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.6);
   assert.equal(D.materials.woodenGear.weight, 2 * D.materials.wood.weight);
-  assert.equal(D.materials.woodenGear.value, D.materials.wood.value);
+  assert.equal(D.materials.woodenGear.value, 2 * D.materials.wood.value);
 });
 
 test('Gear intake is bounded to two waiting Wood, rejects fractions/materials and probes without mutation', () => {
@@ -78,7 +78,7 @@ test('Independent Gear Bench jobs follow moves/saves, recover once on pickup, an
   feed(f, m, cargo('wood', 2, 1)); feed(f, second, cargo('wood', 2, 2)); f.update(0.1); f.update(3);
   feed(f, m, cargo('wood', 2)); assert.equal(f.move(m.id, 60, 40, 'up').error, undefined);
   const loaded = Factory.importSave(f.exportSave()); loaded.update(9);
-  assert.equal(loaded.byId.get(m.id).output[0].value, 1); assert.equal(loaded.byId.get(second.id).output[0].value, 2);
+  assert.equal(loaded.byId.get(m.id).output[0].value, 2); assert.equal(loaded.byId.get(second.id).output[0].value, 4);
   loaded.pickup(m.id); assert.equal(loaded.state.inventory.woodenGear, 1); assert.equal(loaded.state.inventory.wood, 2);
   loaded.pickup(m.id); assert.equal(loaded.state.inventory.woodenGear, 1); assert.equal(loaded.state.stock.crudeGearBench, 1);
   const replacement = loaded.place('crudeGearBench', 40, 40).machine;

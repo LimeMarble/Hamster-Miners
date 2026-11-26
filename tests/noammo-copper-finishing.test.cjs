@@ -104,7 +104,7 @@ test('Molding uses declared material mappings and excludes refractory-only Cast 
     castIron: { name: 'Cast Iron', value: 12, weight: 1, requiresRefractoryCaster: true },
     unsupportedFluid: { name: 'Unmoldable fluid', value: 0, weight: 1, fluid: true },
   });
-  const sandbox = { module: { exports: {} }, require: () => data };
+  const sandbox = { module: { exports: {} }, require: file => file === './noammo-quality.js' ? A.quality : data };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
   const other = sandbox.module.exports, f = new other.Factory(other.createState(1));
   f.state.stock.ingotMolder = 1; const m = f.place('ingotMolder', 40, 40).machine, p = other.ports(m)[0];

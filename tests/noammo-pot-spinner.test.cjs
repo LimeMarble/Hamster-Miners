@@ -66,7 +66,7 @@ for (const facing of D.directions) for (const side of [0, 1]) test(`Spinner ${fa
   const random = f.state.random; f.update(7.9); assert.equal(basket.contents.length, 0);
   f.update(0.1); const result = basket.contents[0];
   assert.equal(result.material, 'unfiredPot'); near(result.value, 6.1); assert.equal(result.quantity, 1);
-  assert.deepEqual(result.gradeProfile, profile); assert.deepEqual(result.upgrades, {});
+  assert.deepEqual(result.quality, A.quality.shape(2, 2, true)); assert.deepEqual(result.upgrades, {});
   assert.equal(f.state.random, random, 'manufacture does not roll a grade'); assert.equal(result.graded, undefined);
 });
 
@@ -115,22 +115,13 @@ test('power loss pauses work and bounded Clay intake preserves oversized overflo
   f.update(7.9); assert.equal(basket.contents[0].quantity, 1); f.update(0.1); near(basket.contents[0].quantity, 2);
 });
 
-test('spun pots roll Unremarkable or Standard, with no Poor chance for Seal repairs to move', () => {
+test('spun pots are assessed from properties without random grading', () => {
   const { f, m } = setup(); const pot = product(f, m);
-  assert.deepEqual(A.gradeProbabilities(pot), profile);
-  const average = item => A.gradeProbabilities(item).reduce((sum, chance, i) => sum + chance * D.grades[i].multiplier, 0);
-  near(average(pot), 1.25);
-  pot.gradeRepairs = { brickSeal: 4 };
-  const chances = A.gradeProbabilities(pot);
-  assert.deepEqual(chances, profile);
-  for (const [seed, multiplier] of [[0, 1], [1000, 1.5]]) {
-    const input = { ...cargo('pot', 2, 10), gradeProfile: profile }, state = { random: seed };
-    const graded = A.gradeStack(state, input); near(graded.value, 10 * multiplier);
-    assert.equal(graded.graded, true); assert.equal(graded.quantity, 2);
-    const random = state.random; assert.deepEqual(A.gradeStack(state, graded), graded); assert.equal(state.random, random);
-  }
+  assert.equal(A.gradeProbabilities(pot), null); near(A.qualityScore(pot),28.5);
+  const before = f.state.random, result = A.gradeStack(f.state,pot);
+  assert.equal(result.qualityAssessed,true); assert.equal(f.state.random,before);
+  near(result.value,pot.value); assert.deepEqual(A.gradeStack(f.state,result),result);
 });
-
 test('two continuously fed Spinners produce thirty pots in two minutes', () => {
   const f = new Factory(A.createState(1)), machines = [], baskets = [];
   for (const x of [40, 50]) {
@@ -147,7 +138,7 @@ test('two continuously fed Spinners produce thirty pots in two minutes', () => {
   near(baskets.reduce((sum, b) => sum + f.total(b, 'contents'), 0) / 120, 2 / D.machines.potSpinner.recipes.pot.seconds);
 });
 
-test('Seal treatment before spinning is averaged across the two Clay inputs and survives firing', () => {
+test('legacy Seal history survives spinning and firing while Pot properties determine score', () => {
   const { f, m } = setup();
   feed(f, m, { ...cargo('clay', 1, 2), gradeRepairs: { brickSeal: 4 }, upgrades: { brickSeal: 9 } });
   feed(f, m, cargo('clay', 1, 3)); f.update(0.1); f.update(8);
@@ -158,12 +149,12 @@ test('Seal treatment before spinning is averaged across the two Clay inputs and 
   f.receive(kiln, cargo('unfiredPot', 1, 1), input.x, input.y, input.direction, true);
   f.update(0.1); f.update(12);
   assert.equal(kiln.output[0].material, 'pot'); near(kiln.output[0].value, 40);
-  for (const [i, expected] of A.gradeProbabilities(pot).entries()) near(A.gradeProbabilities(kiln.output[0])[i], expected);
+  near(kiln.output[0].quality.integrity,0);
   near(kiln.output[0].gradeRepairs.brickSeal, 2);
-  for (const [i, expected] of [0.2, 0.6, 0.2, 0, 0, 0].entries()) near(A.gradeProbabilities(kiln.output[1])[i], expected);
+  near(kiln.output[1].quality.integrity,0);
 });
 
-test('Stone Oven preheating makes spun pots 100% Standard before burnished firing', () => {
+test('Stone Oven preheating preserves spun properties through firing', () => {
   const { f, m } = setup(), pot = product(f, m);
   const oven = place(f, 'primitiveOven', 50, 40);
   assert.equal(f.setOvenRecipe(oven.id, 'unfiredPot').error, undefined);
@@ -172,22 +163,22 @@ test('Stone Oven preheating makes spun pots 100% Standard before burnished firin
   assert.equal(f.receive(oven, { ...pot, burnished: true }, ovenInput.x, ovenInput.y, ovenInput.direction, true), 1);
   f.update(0.1);
   const preheated = oven.output[0];
-  assert.deepEqual(A.gradeProbabilities(preheated), [0, 0, 1, 0, 0, 0]);
+  assert.deepEqual(preheated.quality,pot.quality);
 
   const kiln = place(f, 'kiln', 60, 40);
   kiln.heat = 48000;
   const input = ports(kiln).find(point => point.channel === 'material');
   assert.equal(f.receive(kiln, { ...preheated, quantity: 2 }, input.x, input.y, input.direction, true), 2);
   f.update(0.1); f.update(4);
-  assert.deepEqual(A.gradeProbabilities(kiln.output[0]), [0, 0, 0, 0.85, 0.15, 0]);
+  assert.deepEqual(kiln.output[0].quality,pot.quality);
 });
 
-test('stacked profiles average with ordinary pots; legal portions and saves retain that distribution, and graded mixing cannot reroll', () => {
+test('stacked Pot properties and histories survive legal portions and saves without rerolling', () => {
   const a = { ...cargo('pot', 1, 10), gradeProfile: profile, gradeRepairs: { brickSeal: 4 }, upgrades: { A: 9 } };
   const b = { ...cargo('pot', 3, 2), upgrades: { B: 7 } };
   const mixed = A.combineCargo([a, b]);
   near(mixed.value, 4); assert.deepEqual(mixed.upgrades, { A: 9, B: 7 }); near(mixed.gradeRepairs.brickSeal, 1);
-  for (const [i, expected] of [0.15, 0.575, 0.275, 0, 0, 0].entries()) near(mixed.gradeProfile[i], expected);
+  assert.deepEqual(mixed.quality,A.quality.defaults("pot"));
   const graded = A.combineCargo([{ ...a, graded: true }, b]); assert.equal(graded.graded, true);
   const state = { random: 99 }; A.gradeStack(state, graded); assert.equal(state.random, 99);
   const f = new Factory(A.createState(1)); place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
@@ -211,7 +202,7 @@ test('a real Spinner → Kiln → belt → Grading Bench → Basket line grades 
   near(f.total(basket, 'contents'), 2); near(basket.contents[0].value, 32); assert.equal(basket.contents.length, 1);
   for (const item of basket.contents) {
     assert.equal(item.graded, true);
-    for (const [i, expected] of profile.entries()) near(item.gradeProfile[i], expected);
+    assert.equal(item.qualityAssessed,true); near(item.quality.integrity,0);
   }
   assert.equal(f.state.cash, 0); assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });

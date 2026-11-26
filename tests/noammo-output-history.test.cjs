@@ -39,8 +39,8 @@ test('Upgrader records actual post-effect unit value and quantity, not input val
 
 test('Histories are per-instance, follow movement, clear on pickup/replacement and never contaminate saves or cargo', () => {
   const { f, m } = powered('pebblePile'), second = place(f, 'pebblePile', 43, 40);
-  feed(f, m, cargo('brick', 1, 2)); feed(f, second, cargo('brick', 1, 4)); f.update(1);
-  assert.equal(f.recentOutputs(m.id)[0].value, 3); assert.equal(f.recentOutputs(second.id)[0].value, 6);
+  feed(f, m, cargo('brick', 1, 1)); feed(f, second, cargo('brick', 1, 1.25)); f.update(1);
+  assert.equal(f.recentOutputs(m.id)[0].value, 1.15); assert.equal(f.recentOutputs(second.id)[0].value, 1.4);
   const before = f.recentOutputs(m.id); f.move(m.id, 45, 40, 'down'); assert.deepEqual(f.recentOutputs(m.id), before);
   const restored = Factory.importSave(f.exportSave()); assert.deepEqual(restored.state, f.state);
   assert.deepEqual(restored.recentOutputs(m.id), []); assert.doesNotMatch(f.exportSave(), /outputHistories|recentOutputs/);
@@ -54,7 +54,7 @@ test('Grading logs each actual rolled grade and post-grade value without a secon
   const expected = [];
   for (const [seed, grade, multiplier] of [[2000, 'Poor', 0.75], [0, 'Unremarkable', 1], [500, 'Standard', 1.5], [1000, 'Fine', 2.5], [1500, 'Unique', 8], [1900, 'Exceptional', 40], [500, 'Standard', 1.5]]) {
     f.state.random = seed;
-    const input = { ...cargo('pot', 2, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] };
+    const input = { ...cargo('brick', 2, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] };
     const reference = { random: seed }; A.gradeStack(reference, input);
     assert.equal(feed(f, m, input), 2); f.update(4.1);
     expected.unshift({ value: 120 * multiplier, quantity: 2, grade }); expected.length = Math.min(5, expected.length);
@@ -65,16 +65,16 @@ test('Grading logs each actual rolled grade and post-grade value without a secon
 
 test('Blocked grading logs once; already-graded stacks retain value and explicitly say Already graded', () => {
   const f = new Factory(A.createState(1900)), m = place(f, 'gradingBench');
-  const input = { ...cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] };
+  const input = { ...cargo('brick', 1, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] };
   feed(f, m, input); f.update(2.1); const history = f.recentOutputs(m.id);
   assert.deepEqual(history, [{ value: 4800, quantity: 1, grade: 'Exceptional' }]);
   const random = f.state.random; f.update(60); assert.deepEqual(f.recentOutputs(m.id), history); assert.equal(f.state.random, random);
-  m.output = []; feed(f, m, { ...cargo('pot', 1, 777), graded: true }); f.update(2.1);
+  m.output = []; feed(f, m, { ...cargo('brick', 1, 777), graded: true }); f.update(2.1);
   assert.deepEqual(f.recentOutputs(m.id)[0], { value: 777, quantity: 1, grade: 'Already graded' }); assert.equal(f.state.random, random);
 });
 
 test('Unpowered work and non-upgrader belts do not invent output history', () => {
   const f = new Factory(A.createState(1)), m = place(f, 'brickSeal');
-  assert.equal(feed(f, m, cargo('pot')), 0); f.update(60); assert.deepEqual(f.recentOutputs(m.id), []);
+  assert.equal(feed(f, m, cargo('brick')), 0); f.update(60); assert.deepEqual(f.recentOutputs(m.id), []);
   const belt = place(f, 'belt', 45, 40); f.recordOutput(belt, cargo('wood')); assert.deepEqual(f.recentOutputs(belt.id), []);
 });

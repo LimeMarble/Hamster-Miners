@@ -70,7 +70,7 @@ test('a scheduled Well supplies Water, painting triples Pot value and ignores Pe
   const result = bench.output[0];
   assert.equal(result.material, 'paintedPot'); assert.equal(result.value, 126);
   assert.equal(A.DATA.materials.paintedPot.value, 12); assert.deepEqual(result.upgrades, {});
-  assert.deepEqual(A.gradeProbabilities(result), pot.gradeProfile);
+  assert.deepEqual(result.quality, pot.quality);
   assert.ok(Math.abs(bench.water - 0.5) < 1e-8);
 });
 

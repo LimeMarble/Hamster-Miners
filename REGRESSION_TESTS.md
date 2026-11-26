@@ -4,6 +4,9 @@
   Background updates autosave and replay delayed timer gaps through normal
   factory steps, with at most 20 minutes of progress per continuous period
   hidden. The limit includes progress already simulated by background timers.
+  Sleep with the game still selected also caps a delayed clock gap at 20 minutes.
+  Catch-up uses bounded slices with a pause between hidden-page callbacks so
+  the browser can handle other work. Controls remain usable while catching up.
   Visibility changes share the simulation clock. Reloading grants no offline
   progress. Importing or resetting starts a new simulation clock.
 
@@ -367,8 +370,9 @@ future pipe tiers) are not treated as current acceptance requirements.
   malformed-use rejection and Shop/Inventory/effect/history integration.
 - Pebble Pile checks cover exact cost and owned-conveyor consumption, atomic
   bulk purchases, Brick Seal's footprint/ports in all rotations, powered
-  transit, one shared use, $0.30 base eligibility, and incoming value brackets
-  at $50, $200, and $500. Checks cover blockage, preserved grade/tags, save round trips and Shop/Inventory
+  transit, repeated +$0.15 applications without a use limit, $0.15 base eligibility,
+  and the $1.50 incoming cap with final-result overshoot. Checks cover blockage,
+  preserved grade/tags, save round trips beyond five uses and Shop/Inventory
   integration. Processor migration checks cover every cargo buffer and job,
   retaining value while clamping old spent counts to six and rejecting
   invalid counts. Existing saves receive zero Pebble Pile stock.
@@ -386,7 +390,7 @@ future pipe tiers) are not treated as current acceptance requirements.
   purchases require sufficient cash, Wood and Gears, show scaled costs, and cannot borrow free belts.
 - Wood Carving Bench checks cover its construction cost, one crew, two-cell
   footprint in all rotations, bounded two-Wood input, exact six-second jobs,
-  ten gears/minute, conserved value, blocked output, independent instances,
+  ten gears/minute, doubled input value and $0.20 intrinsic Gear value, blocked output, independent instances,
   move/pickup conservation, old-save migration and malformed-current-save rejection.
 - All belt-equipped construction recipes require owned conveyor components and
   deduct 20 raw Wood per belt tile without negative costs. Pits and drills remain

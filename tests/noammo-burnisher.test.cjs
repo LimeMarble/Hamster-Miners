@@ -59,13 +59,14 @@ test('Burnisher progress and older stock survive save loading', () => {
   assert.equal(A.Factory.importSave(JSON.stringify(old)).state.stock.burnisher, 0);
 });
 
-test('burnishing marks an unfired Pot without changing its grade chances', () => {
+test('burnishing raises smoothness once and saves its treatment', () => {
   const f = new A.Factory(A.createState(1)), m = place(f, 'burnisher', 40, 40);
   attachWheel(f, m, 0);
   const item = A.cargo('unfiredPot'); item.gradeProfile = [0.2, 0.1, 0.4, 0.25, 0.05, 0];
   assert.equal(feed(f, m, item), 1); f.update(0.1); f.update(15);
   assert.equal(m.output[0].burnished, true);
-  assert.deepEqual(A.gradeProbabilities(m.output[0]), item.gradeProfile);
+  assert.equal(A.gradeProbabilities(m.output[0]), null);
+  assert.equal(m.output[0].quality.smoothness, 6.5);
   const saved = A.Factory.importSave(f.exportSave());
   assert.equal(saved.byId.get(m.id).output[0].burnished, true);
 });
@@ -78,7 +79,7 @@ test('Burnisher accepts unfired Pots but rejects Clay and fired Pots', () => {
   assert.equal(feed(f, m, A.cargo('unfiredPot')), 1);
 });
 
-test('Burnisher to Preheater to Kiln carries the deferred treatment through direct transfers', () => {
+test('Burnisher to Preheater to Kiln preserves smoothness and integrity through direct transfers', () => {
   const f = new A.Factory(A.createState(1)), burnisher = place(f, 'burnisher', 40, 40);
   attachWheel(f, burnisher, 0);
   const preheater = place(f, 'preheater', 43, 39), kiln = place(f, 'kiln', 45, 39);
@@ -93,7 +94,6 @@ test('Burnisher to Preheater to Kiln carries the deferred treatment through dire
   assert.ok(kiln.job.inputs.every(item => item.burnished && item.preheated));
   f.update(6);
   const fired = kiln.output[0]; assert.equal(fired.value, 28);
-  for (const [i, expected] of [0.2, 0, 0, 0.675, 0.125, 0].entries()) {
-    assert.ok(Math.abs(A.gradeProbabilities(fired)[i] - expected) < 1e-8);
-  }
+  assert.equal(fired.quality.smoothness, 6.5);
+  assert.equal(fired.quality.integrity, 1.2);
 });

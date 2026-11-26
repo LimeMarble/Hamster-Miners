@@ -40,7 +40,7 @@ test("Grading Bench costs $800, 100 Wood, 50 Fiber and one Pot without a free gr
 
 test("grade tables, sale multipliers and independent Brick Seal repairs match the agreed chances", () => {
   assert.deepEqual(D.grades.map(({ multiplier }) => multiplier), [0.75, 1, 1.5, 2.5, 8, 40]);
-  for (const material of ["clay", "unfiredBrick", "unfiredPot", "brick", "pot"]) {
+  for (const material of ["unfiredBrick", "brick"]) {
     const item = A.cargo(material);
     assert.deepEqual(A.gradeProbabilities(item), [0.2, 0.6, 0.2, 0, 0, 0]);
     item.gradeRepairs = { brickSeal: 4 };
@@ -103,7 +103,7 @@ test("grading time scales with total weight, including Pot stacks and fractional
 });
 
 test("combining stacks sums quantities, averages actual value and repairs, and keeps maximum uses", () => {
-  const poor = rolled(A.cargo("clay", 1, 10), 2000), fine = rolled(A.cargo("clay", 3, 10), 1500);
+  const poor = rolled(A.cargo("brick", 1, 10), 2000), fine = rolled(A.cargo("brick", 3, 10), 1500);
   poor.gradeRepairs = { brickSeal: 0 }; fine.gradeRepairs = { brickSeal: 4 };
   poor.upgrades.brickSeal = 0; fine.upgrades.brickSeal = 9;
   const before = JSON.stringify([poor, fine]), combined = A.combineCargo([poor, fine]);
@@ -116,7 +116,7 @@ test("combining stacks sums quantities, averages actual value and repairs, and k
   feed(factory, bench, combined); factory.update(4.1);
   near(basket.contents[0].value, combined.value); assert.equal(factory.state.random, 1);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
-  assert.throws(() => A.combineCargo([poor, A.cargo("brick")]), /same material/);
+  assert.throws(() => A.combineCargo([poor, A.cargo("chert")]), /same material/);
 });
 
 test("graded plus ungraded becomes one graded object with averaged cash and no further roll", () => {
@@ -207,14 +207,14 @@ test("graded Clay retains its averaged quality and value through actual shaping 
   const poor = rolled(A.cargo("clay", 1, 10), 2000), fine = rolled(A.cargo("clay", 1, 10), 1500);
   factory.receive(shaper, poor, input.x, input.y, input.direction, true);
   factory.receive(shaper, fine, input.x, input.y, input.direction, true);
-  factory.update(4.1); near(shaper.output[0].value, (7.5 + 15) * 2);
+  factory.update(4.1); near(shaper.output[0].value, 40);
   assert.equal(shaper.output[0].graded, true); assert.deepEqual(shaper.output[0].upgrades, {});
   const kiln = place(factory, "kiln", 50, 40), intake = A.ports(kiln).find(p => p.channel === 'material');
   const fuel = A.ports(kiln).find(p => p.channel === 'fuel');
   factory.receive(kiln, A.cargo("wood", 8), fuel.x, fuel.y, fuel.direction, true);
   factory.receive(kiln, { ...A.copy(shaper.output[0]), quantity: 2 }, intake.x, intake.y, intake.direction, true);
-  factory.update(12.1); near(kiln.output[0].value, 180); assert.equal(kiln.output[0].graded, true);
-  near(rolled(kiln.output[0], 1500).value, 180);
+  factory.update(12.1); near(kiln.output[0].value, 160); assert.equal(kiln.output[0].graded, true);
+  near(rolled(kiln.output[0], 1500).value, 160);
   assert.deepEqual(Factory.importSave(factory.exportSave()).state, factory.state);
 });
 

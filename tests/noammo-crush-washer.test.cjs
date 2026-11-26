@@ -123,7 +123,7 @@ test('washed ore splits into conveyor-sized stacks without losing the remainder'
 test('washing recipes can define different yields for different materials', () => {
   const data = A.copy(D);
   data.materials.testHematite = { name: 'Test Hematite', value: 1, weight: 1, washesTo: 'copperOre', washProfile: { input: 6, outputQuantity: 3, valueMultiplier: 1 } };
-  const context = vm.createContext({ NoAmmoData: data });
+  const context = vm.createContext({ NoAmmoData: data, NoAmmoQuality: A.quality });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'noammo-simulation.js'), 'utf8'), context);
   const api = context.NoAmmo, f = new api.Factory(api.createState(1)), washer = place(f, 'oreCrushWasher', 80, 40);
   const recipe = f.craftRecipe(washer, api.cargo('testHematite'));

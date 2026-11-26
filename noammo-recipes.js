@@ -167,7 +167,7 @@
       if (recipe.adjacentPairSpeed) facts.push(`${number(recipe.seconds / recipe.adjacentPairSpeed)}s with an adjacent kinetic pair`);
       if (machine.heatCapacity) facts.push(`${number(recipe.heat ?? recipe.heatPerSecond * recipe.seconds)}u heat per batch`);
       if (recipe.preheatedSeconds) facts.push(`${number(recipe.preheatedSeconds)}s and ${number(recipe.heatPerSecond * recipe.preheatedSeconds)}u when fully preheated`);
-      if (machine.preheats || recipe.preheats) facts.push(`moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
+      if (machine.preheats || recipe.preheats) facts.push(recipe.inputs.some(part => part.key === "item:unfiredPot") ? "Pots avoid a 2 integrity loss when fired; unfired score is unchanged" : `moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
       if (recipe.heatPerSecond) facts.push(`${number(recipe.heatPerSecond)}u/s heat`);
       if (recipe.water) facts.push(`${number(recipe.water)} Water per batch`);
       node.append(element("p", facts.join(" · "), "recipe-facts"));
@@ -193,9 +193,9 @@
       }
       if (entry.secondsPerWeight) {
         const node = section("Grading");
-        node.append(element("p", `${number(entry.secondsPerWeight)}s per weight · ${entry.crew} crew · one roll per ungraded stack.`));
+        node.append(element("p", `${number(entry.secondsPerWeight)}s per weight · ${entry.crew} crew · property assessment for Clay and Pots; one roll for other compatible stacks.`));
         node.append(element("p", data.grades.map(grade => `${grade.name} ×${number(grade.multiplier)}`).join(" · ")));
-        node.append(element("p", "Grade chances come from the incoming material and its treatments. If any input is graded, the whole stack is graded and cannot roll again."));
+        node.append(element("p", "Clay and Pot scores follow their current properties. Their assessed sale multiplier changes with processing without compounding. Mixing assessed and unassessed Clay or Pots requires a new assessment. Other materials retain their existing grade chances."));
       }
     }
     function showDetail() {
@@ -206,7 +206,13 @@
       detail.append(element("p", entry.kind === "machine" ? `${entry.category} machine` : entry.fluid ? "Fluid" : "Item", "recipe-kind-label"), title);
       if (entry.kind === "item") {
         detail.append(element("p", `${entry.value === null ? "Unsellable" : `Base value: $${number(entry.value)}`} · Weight: ${number(entry.weight)}`, "recipe-facts"));
-        const chances = data.gradeTables[entry.gradeTable ?? entry.family];
+        const modeled = ["clay", "unfiredPot", "pot", "paintedPot"].includes(entry.id);
+        if (modeled) {
+          detail.append(element("p", "Quality properties range from 0 to 10. Inventory loses quality and treatments. Default workability and purity are both 2, without assessment.", "muted"));
+          if (entry.id === "clay") detail.append(element("p", "Each fresh batch independently rolls workability and purity: 2 (5%), 3 (15%), 4 (40%), 5 (25%), 6 (15%). Clay score = 8 × workability + 2 × purity.", "muted"));
+          else detail.append(element("p", entry.id === "unfiredPot" ? "Unfired score = 7 × integrity + 3 × regularity + smoothness + 2 × purity." : "Fired score = 4 × integrity + 2 × regularity + 4 × smoothness + 3 × purity. Painting retains these properties and triples the existing Pot cash value.", "muted"));
+        }
+        const chances = modeled ? null : data.gradeTables[entry.gradeTable ?? entry.family];
         if (chances) detail.append(element("p", `Starting grade chances for fresh cargo: ${chances.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}. Manufactured cargo can inherit different chances and treatments.`, "muted"));
         const sources = catalog.producers.get(entry.key) ?? [], uses = catalog.consumers.get(entry.key) ?? [];
         const made = section("Sources", sources.length || entry.id === "wood" ? "" : "No production source is available in this version.");

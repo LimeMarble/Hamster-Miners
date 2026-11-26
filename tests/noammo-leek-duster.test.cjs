@@ -67,17 +67,17 @@ test('Duster uses both rotated center intakes, needs direct power and has a sing
 
 test('Duster leaves grades unchanged and its cash effect stays spent across transformations and old saves', () => {
   const { f, m } = setup();
-  let item = dust(f, m, { ...cargo('clay', 1, 200), upgrades: { primitive: 3 } });
+  let item = dust(f, m, { ...cargo('brick', 1, 200), upgrades: { primitive: 3 } });
   near(item.value, 200); chances(item, D.gradeTables.clay);
-  assert.equal(item.materialHistory?.['leekDuster:clay:cash'], undefined);
+  assert.equal(item.materialHistory?.['leekDuster:brick:cash'], undefined);
   const before = A.gradeProbabilities(item); item.value = 100; item = dust(f, m, item);
   near(item.value, 165); assert.deepEqual(A.gradeProbabilities(item), before);
   const again = dust(f, m, item); near(again.value, 165); assert.deepEqual(again.materialHistory, item.materialHistory);
   const changed = { ...item, material: 'unfiredBrick', value: 10, upgrades: {} };
   const treated = dust(f, m, changed); near(treated.value, 10);
   assert.deepEqual(A.gradeProbabilities(treated), before, 'changing material does not renew the grade effect');
-  const returned = dust(f, m, { ...treated, material: 'clay', value: 10, upgrades: {} }); near(returned.value, 10);
-  const mixed = A.combineCargo([item, cargo('clay', 1, 10)]);
+  const returned = dust(f, m, { ...treated, material: 'brick', value: 10, upgrades: {} }); near(returned.value, 10);
+  const mixed = A.combineCargo([item, cargo('brick', 1, 10)]);
   const actual = A.gradeProbabilities(item), ordinary = D.gradeTables.clay;
   chances(mixed, actual.map((value, i) => (value + ordinary[i]) / 2));
   const mixedAgain = dust(f, m, mixed); near(mixedAgain.value, mixed.value); assert.deepEqual(A.gradeProbabilities(mixedAgain), A.gradeProbabilities(mixed));
@@ -112,7 +112,7 @@ test('dusted copper keeps its original quality through smelting and molding', ()
   assert.deepEqual(Factory.importSave(f.exportSave()).state, f.state);
 });
 
-test('Duster treatments survive shaping and Spinner profiles; unburnished Pots preserve chances when fired', () => {
+test('Duster cash history survives shaping, spinning and firing without changing intrinsic purity', () => {
   for (const spun of [false, true]) {
     const { f, m } = setup();
     const clay = dust(f, m, { ...cargo('clay', 2, 10), gradeRepairs: { brickSeal: 4 } });
@@ -121,10 +121,11 @@ test('Duster treatments survive shaping and Spinner profiles; unburnished Pots p
     assert.equal(feed(f, shaper, clay), 2); f.update(0.1); f.update(spun ? 8 : 4);
     const unfired = shaper.output[0]; assert.ok(unfired);
     const { result, m: kiln } = fire(f, { ...unfired, quantity: 2 });
-    chances(result, A.gradeProbabilities(unfired));
-    near(mean(result), mean(unfired)); assert.equal(f.state.random, 1, 'quality treatment never rolls RNG');
+    assert.equal(A.gradeProbabilities(result), null);
+    near(result.quality.integrity, Math.max(0, unfired.quality.integrity - 2));
+    near(result.quality.purity, unfired.quality.purity); assert.equal(f.state.random, 1, 'quality treatment never rolls RNG');
     const dustedAgain = dust(f, m, { ...A.copy(result), quantity: 1 });
-    near(dustedAgain.value, result.value); chances(dustedAgain, A.gradeProbabilities(result));
+    near(dustedAgain.value, result.value); assert.deepEqual(dustedAgain.quality, result.quality);
     assert.equal(feed(f, kiln, result), 0, 'fired ceramic cannot be fired again');
     const graded = A.gradeStack({ random: 1900 }, result); const random = { random: 99 };
     assert.deepEqual(A.gradeStack(random, graded), graded); assert.equal(random.random, 99);
@@ -134,8 +135,8 @@ test('Duster treatments survive shaping and Spinner profiles; unburnished Pots p
 
 test('six-grade migration covers old profiles and baked cash, and invalid treatment/history data is rejected', () => {
   const { f, m } = setup();
-  m.lanes[0] = { ...cargo('pot', 1, 1234), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05], gradeRepairs: { brickSeal: 4 } };
-  m.lanes[1] = { ...cargo('pot', 1, 999), graded: true, gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] };
+  m.lanes[0] = { ...cargo('brick', 1, 1234), gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05], gradeRepairs: { brickSeal: 4 } };
+  m.lanes[1] = { ...cargo('brick', 1, 999), graded: true, gradeProfile: [0.2, 0.1, 0.4, 0.25, 0.05] };
   const old = JSON.parse(f.exportSave()); delete old.state.gradeEvolutionVersion;
   const loaded = Factory.importSave(JSON.stringify(old));
   near(mean(loaded.byId.get(m.id).lanes[0]), 2.695); near(loaded.byId.get(m.id).lanes[0].value, 1234);

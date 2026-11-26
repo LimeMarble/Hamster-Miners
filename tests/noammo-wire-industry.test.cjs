@@ -224,7 +224,7 @@ test('Material mappings support later metals without Copper-specific forming cod
     testWire: { name: 'Wire', value: 8, weight: 0.4, coilsTo: 'testCoil', windsTo: 'testWinding' },
     testCoil: { name: 'Coil', value: 8, weight: 0.4 }, testWinding: { name: 'Winding', value: 80, weight: 4 },
   });
-  const sandbox = { module: { exports: {} }, require: () => data };
+  const sandbox = { module: { exports: {} }, require: file => file === './noammo-quality.js' ? A.quality : data };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
   const B = sandbox.module.exports, f = new B.Factory(B.createState(1));
   f.state.stock.extruder = 1; const m = f.place('extruder', 40, 40).machine;

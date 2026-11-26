@@ -106,7 +106,7 @@ test('generic machine outputs release whole fitting items and preserve blocked r
   const data = JSON.parse(JSON.stringify(A.DATA));
   data.materials.testKettle = { name: 'Test Kettle', value: 100, weight: 1.5 };
   data.machines.testIndustrialBelt = { ...data.machines.belt, beltWeight: 30 };
-  const sandbox = { module: { exports: {} }, require: () => data };
+  const sandbox = { module: { exports: {} }, require: file => file === './noammo-quality.js' ? A.quality : data };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
   const api = sandbox.module.exports, f = new api.Factory(api.createState(1));
   place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
@@ -127,7 +127,7 @@ test('generic machine outputs release whole fitting items and preserve blocked r
 test('an individual solid output heavier than the receiving belt stays intact', () => {
   const data = JSON.parse(JSON.stringify(A.DATA));
   data.machines.testLightBelt = { ...data.machines.belt, beltWeight: 1 };
-  const sandbox = { module: { exports: {} }, require: () => data };
+  const sandbox = { module: { exports: {} }, require: file => file === './noammo-quality.js' ? A.quality : data };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
   const api = sandbox.module.exports, f = new api.Factory(api.createState(1));
   place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');
@@ -143,7 +143,7 @@ test('thermal solid unloading follows receiving conveyor speed, while molten out
   for (const seconds of [0.5, 3]) {
     const data = JSON.parse(JSON.stringify(A.DATA));
     data.machines.testBelt = { ...data.machines.belt, beltSeconds: seconds, beltWeight: 1 };
-    const sandbox = { module: { exports: {} }, require: () => data };
+    const sandbox = { module: { exports: {} }, require: file => file === './noammo-quality.js' ? A.quality : data };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../noammo-simulation.js'), 'utf8'), sandbox);
     const api = sandbox.module.exports, f = new api.Factory(api.createState(1));
     place(f, 'wheel', 38, 44); place(f, 'drive', 39, 42, 'down');

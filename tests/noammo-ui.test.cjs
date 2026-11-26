@@ -74,10 +74,7 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
     document, performance: { now: () => clock }, devicePixelRatio: 1,
     matchMedia: (query) => ({ matches: query === "(pointer: coarse)" && coarsePointer }),
     setInterval: (fn) => { intervals.push(fn); return intervals.length; },
-    MessageChannel: class {
-      port1 = {};
-      port2 = { postMessage: () => backgroundTasks.push(() => this.port1.onmessage()) };
-    },
+    setTimeout: (fn, delay) => { backgroundTasks.push({ fn, due: clock + delay }); return backgroundTasks.length; },
     requestAnimationFrame: (fn) => frames.push(fn), ResizeObserver: class { constructor(fn) { observers.push(fn); } observe() {} },
     addEventListener: (type, fn) => windowEvents.set(type, fn), confirm: () => true,
     localStorage: { getItem: (key) => storage.get(key) ?? null, setItem(key, value) {
@@ -102,7 +99,11 @@ function boot(saved, { width = 900, height = 600, failBackups = false, storage =
     save: () => windowEvents.get("beforeunload")(),
     frame(now) { clock = now; assert.ok(frames.length); frames.shift()(now); },
     background(now) { clock = now; intervals.forEach(fn => fn()); },
-    backgroundSlice() { backgroundTasks.shift()?.(); },
+    backgroundSlice(now) {
+      if (now !== undefined) clock = now;
+      const task = backgroundTasks[0];
+      if (task && (now === undefined || task.due <= now)) backgroundTasks.shift().fn();
+    },
     visibility(hidden, now) { clock = now; document.hidden = hidden; documentEvents.get('visibilitychange')(); },
     view() { return renders.at(-1); },
     key(key, event = {}) { documentEvents.get("keydown")({ key, preventDefault() {}, ...event }); },
@@ -184,6 +185,33 @@ test('returning after an hour hidden caps catch-up at 20 minutes and keeps contr
   assert.ok(Math.abs(ui.state().seconds - 1201.2) < 1e-7, 'hiding again starts a fresh allowance');
 });
 
+test('sleeping with the game still visible caps catch-up at 20 minutes', () => {
+  const ui = boot(); ui.frame(100);
+  const wakeTime = 18 * 60 * 60 * 1000 + 100;
+  ui.frame(wakeTime);
+  assert.match(ui.ids.get('simulationStatus').textContent, /20m of game time left/);
+  ui.tabs.find(button => button.dataset.tab === 'shop').emit('click');
+  assert.equal(ui.ids.get('shop').hidden, false, 'controls remain usable during catch-up');
+  for (let slice = 1; slice < 600; slice++) ui.frame(wakeTime);
+  assert.ok(Math.abs(ui.state().seconds - 1200.1) < 1e-7);
+  assert.equal(ui.ids.get('simulationStatus').hidden, true, 'sleep cannot leave an hours-long backlog');
+  ui.frame(wakeTime + 100);
+  assert.ok(Math.abs(ui.state().seconds - 1200.2) < 1e-7, 'normal simulation resumes after catch-up');
+});
+
+test('background catch-up leaves time between simulation slices', () => {
+  const ui = boot(); ui.frame(100); ui.visibility(true, 100);
+  ui.background(10100);
+  ui.backgroundSlice(10100);
+  assert.ok(Math.abs(ui.state().seconds - 0.1) < 1e-7, 'queuing catch-up leaves the browser time to handle other work');
+  ui.backgroundSlice(10116);
+  assert.ok(Math.abs(ui.state().seconds - 2.1) < 1e-7);
+  ui.backgroundSlice(10116);
+  assert.ok(Math.abs(ui.state().seconds - 2.1) < 1e-7, 'the next slice cannot run immediately');
+  ui.backgroundSlice(10132);
+  assert.ok(Math.abs(ui.state().seconds - 4.1) < 1e-7, 'catch-up continues after yielding');
+});
+
 test('background timers share one 20-minute allowance and save the final progress', () => {
   const ui = boot(); ui.frame(100); ui.visibility(true, 100);
   ui.background(900100);
@@ -221,17 +249,14 @@ test('playtest code unlocks independent toggles that persist in the save', () =>
   assert.equal(restored.ids.get('playtestPanel').hidden, false); assert.equal(restored.ids.get('cheatResources').textContent, '×10 resources: On');
 });
 
-test('grading help and pottery descriptions reflect current grading data', () => {
-  const ui = boot();
-  assert.equal(ui.ids.get('gradeMultipliers').textContent, A.DATA.grades.map(grade => `${grade.name} ×${A.formatNumber(grade.multiplier)}`).join(' · '));
-  const kiln = A.DATA.machines.kiln.recipes.unfiredPot.burnishedGradeEffect;
-  const burnisher = A.DATA.machines.burnisher.description;
-  for (const outcome of kiln.outcomes) assert.match(burnisher, new RegExp(`${outcome.share * 100}%.*${A.DATA.grades[outcome.grade].name}`));
-  assert.match(A.DATA.machines.preheater.description, new RegExp(`${A.DATA.machines.preheater.preheatGradeTransfer * 100} percentage points`));
-  assert.match(A.DATA.machines.gradingBench.description, /compatible materials/);
+test('grading help and pottery descriptions reflect property scoring', () => {
+  const ui = boot(); assert.match(ui.ids.get('gradeMultipliers').textContent,/F 0-29: ×1/);
+  assert.match(ui.ids.get('gradeMultipliers').textContent,/S 101-149/);
+  assert.match(A.DATA.machines.burnisher.description,/Adds 5 smoothness once/);
+  assert.match(A.DATA.machines.preheater.description,/avoid losing 2 integrity/);
+  assert.match(A.DATA.machines.gradingBench.description,/properties/);
 });
-
-test('Kiln displays the burnished Pot grade effect in Shop and inspector', () => {
+test('Kiln displays the fixed Pot integrity loss in Shop and inspector', () => {
   const f = new A.Factory(A.createState(1)); f.state.stock.kiln++;
   f.state.minorRunes.transmutation = 2;
   f.place('kiln', 121, 121);
@@ -240,8 +265,8 @@ test('Kiln displays the burnished Pot grade effect in Shop and inspector', () =>
   const check = panel => {
     const text = panel.children.map(node => node.textContent).join(' ');
     assert.doesNotMatch(text, /Bricks grade effect/);
-    assert.match(text, /Burnished Pot grade effect: Standard chance becomes 85% Fine and 15% Unique/);
-    assert.match(text, /Unburnished Pots keep their incoming grade chances/);
+    assert.match(text, /Pots lose 2 integrity unless preheated/);
+    assert.match(text, /zero integrity does not destroy/);
   };
   check(ui.ids.get('shopDetail')); ui.tabs.find(button => button.dataset.tab === 'factory').emit('click');
   ui.ids.get('cargo').emit('click', screenPoint(121, 121)); check(ui.ids.get('inspector'));
@@ -1192,7 +1217,7 @@ test("Brick Storage Shop, inventory placement and stable collection controls use
 });
 
 test("Shop material costs scale with quantity and enforce Sell Tube and Primitive Conveyor prices", () => {
-  for (const [type, material, required, cash] of [["sellTube", "brick", 200, 750], ["belt", "wood", 6, 0]]) for (const owned of [required - 1, required]) {
+  for (const [type, material, required, cash] of [["sellTube", "wood", 100, 0], ["belt", "wood", 6, 0]]) for (const owned of [required - 1, required]) {
     const factory = new A.Factory(A.createState(1)); factory.state.cash = cash; factory.state.inventory[material] = owned;
     if (type === "belt") factory.state.inventory.woodenGear = 2;
     const initialStock = factory.state.stock[type];
@@ -1241,7 +1266,7 @@ test("Grading Bench Shop, inventory, live probabilities and graded collector lab
   const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
   assert.doesNotMatch(html, /Grades and their sale multipliers will only apply once grading is introduced/);
   assert.doesNotMatch(html, /Previously graded portions/);
-  assert.match(html, /If any input is already graded, the whole combined stack becomes graded/);
+  assert.match(html, /retains its assessment only when every input was assessed/);
 });
 
 test("Bridge Shop costs include unplaced conveyor stock and multi-buy updates all needed amounts", () => {
@@ -1579,13 +1604,13 @@ test("production preserves collection controls and exposes no hauling controls",
   assert.equal(ui.ids.get("collectBasket"), collect);
 });
 
-test("Pot Spinner purchase exposes chances and exact scaled costs, filters correctly and supports repeat rotated placement", () => {
+test("Pot Spinner purchase exposes property effects and exact scaled costs, filters correctly and supports repeat rotated placement", () => {
   const f = new A.Factory(A.createState(1)); f.state.cash = 2400;
   Object.assign(f.state.inventory, { wood: 300, brick: 120, chert: 60, leekFiber: 30 });
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === "shop").emit("click");
   const card = shopCard(ui, 'potSpinner');
   ui.categories.find(b => b.dataset.category === "Material").emit("click"); assert.equal(card.hidden, false); card.emit("click");
-  assert.ok(ui.ids.get("shopDetail").children.some(n => /Poor 0%.*Unremarkable 50%.*Standard 50%.*Fine 0%.*Unique 0%/.test(n.textContent)));
+  assert.ok(ui.ids.get("shopDetail").children.some(n => /Integrity equals workability/.test(n.textContent)));
   ui.ids.get("quantity").value = "2"; ui.ids.get("quantity").emit("input");
   assert.deepEqual(ui.ids.get("costs").children.map(r => r.children[1].textContent), ["$2.4k / $2.4k", "300 / 300", "120 / 120", "60 / 60", "30 / 30"]);
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.potSpinner, 2); assert.equal(ui.state().cash, 0);
@@ -1610,7 +1635,7 @@ test("Pot Spinner live controls stay mounted throughout a job and reflect bounde
   assert.equal(ui.ids.get("machineStatus"), status); assert.equal(ui.ids.get("spinnerBuffers"), buffers); assert.equal(ui.ids.get("moveMachine"), move);
   assert.match(status.textContent, /Waiting for 2 Clay/);
   const pot = ui.state().machines.find(m => m.type === "basket").contents[0];
-  assert.deepEqual(pot.gradeProfile, [0, 0.5, 0.5, 0, 0, 0]);
+  assert.deepEqual(pot.quality, A.quality.shape(2,2,true));
   assert.equal(ui.state().random, 1);
 });
 
@@ -1739,7 +1764,7 @@ test("selected upgrader and Shift-hover share live output history, preserve cont
 test("Grading history shows the actual Exceptional roll and $4.8k value in both views without rerolling", () => {
   const f = new A.Factory(A.createState(1900)); f.state.stock.gradingBench = 1;
   const m = f.place('gradingBench', 121, 121).machine;
-  m.job = { input: { ...A.cargo('pot', 1, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] }, remaining: 0.1 };
+  m.job = { input: { ...A.cargo('brick', 1, 120), gradeProfile: [0.2, 0.1, 0.3, 0.1, 0.25, 0.05] }, remaining: 0.1 };
   const reference = { random: 1900 }; A.gradeStack(reference, m.job.input);
   const ui = boot(f.exportSave()); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
   const list = ui.ids.get('outputHistory'); ui.frame(100); ui.frame(200);
@@ -1775,7 +1800,7 @@ test('Pebble Pile Shop, inventory and placement use the declared cost, footprint
   const card = shopCard(ui, 'pebblePile');
   ui.categories.find(button => button.dataset.category === 'Material').emit('click'); assert.equal(card.hidden, true);
   ui.categories.find(button => button.dataset.category === 'Cash').emit('click'); assert.equal(card.hidden, false); card.emit('click');
-  const effects = ['Below $50 · ×1.5', '$50 to below $200 · ×1.25', '$200 to below $500 · ×1.12', 'Use Limit: 1', 'Upper Limit: $500', 'Base Value Required: $0.3'];
+  const effects = ['Cash effect: +$0.15', 'Upper Limit: $1.5', 'Base Value Required: $0.15'];
   assert.deepEqual(ui.ids.get('shopDetail').children.filter(node => node.className === 'machine-effect').map(node => node.textContent), effects);
   ui.ids.get('quantity').value = '2'; ui.ids.get('quantity').emit('input');
   assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$600 / $600', '40 / 40', '60 / 60', '2 / 2']);

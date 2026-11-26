@@ -96,7 +96,7 @@ test("Eligibility uses declared base value, not current value, material family, 
   }
   const fixture = A.copy(D);
   fixture.materials.testMetal = { name: "Test Metal", value: 0.5, weight: 1, color: "#999" };
-  const context = vm.createContext({ NoAmmoData: fixture });
+  const context = vm.createContext({ NoAmmoData: fixture, NoAmmoQuality: A.quality });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "noammo-simulation.js"), "utf8"), context);
   const { factory: metalFactory, seal: metalSeal } = setup(context.NoAmmo);
   const item = pass(metalFactory, metalSeal, context.NoAmmo.cargo("testMetal", 2, 2));
@@ -114,8 +114,8 @@ test("Brick Seal preserves saved grade repairs without adding new ones", () => {
   for (let index = 1; index <= 8; index++) {
     item = pass(loaded, restored, item);
     assert.equal(item.gradeRepairs.brickSeal, 2);
-    near(A.gradeProbabilities(item)[0], 0.1);
-    near(A.gradeProbabilities(item)[1], 0.7);
+    assert.equal(A.gradeProbabilities(item), null);
+    assert.deepEqual(item.quality, { workability: 2, purity: 2 });
     assert.equal(item.value, 100); assert.equal(item.upgrades.brickSeal, 9);
   }
   const graded = pass(loaded, restored, { ...cargo("clay"), graded: true });
@@ -161,7 +161,8 @@ test("Repair follows Clay through shaping and firing, but new material cash tags
   receive(factory, kiln, cargo("wood", 4)); receive(factory, kiln, { ...sealed, quantity: 2 });
   factory.update(0.1); factory.update(12);
   const fired = kiln.output[0]; near(fired.value, 20.2 * 4);
-  near(A.gradeProbabilities(fired)[0], 0);
+  assert.equal(A.gradeProbabilities(fired), null);
+  assert.equal(fired.quality.purity, 2);
   assert.equal(fired.gradeRepairs.brickSeal, 4); assert.deepEqual(fired.upgrades, {});
 });
 

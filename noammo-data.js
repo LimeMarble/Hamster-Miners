@@ -12,8 +12,6 @@
     [99, 211], [68, 213], [142, 216], [147, 216], [164, 226], [142, 227],
   ];
   const PREHEAT_GRADE_TRANSFER = 0.5;
-  const BURNISHED_STANDARD_TO_FINE = 0.85;
-  const BURNISHED_STANDARD_TO_UNIQUE = 0.15;
   const SIFTER_PORTS = [
     { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
     { x: 1, y: 1, direction: "down", role: "kineticInput" },
@@ -75,7 +73,7 @@
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, sawsTo: "plank" },
       plank: { name: "Plank", value: 0.1, weight: 1 / 3, color: "#c89568" },
       charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
-      woodenGear: { name: "Wooden Gear", value: 0.1, weight: 2, color: "#c19762" },
+      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 2, color: "#c19762" },
       woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 0.1, color: "#d5ac76" },
       clay: { name: "Clay", value: 0.25, weight: 0.5, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 0.5, color: "#a77d67", family: "clay" },
@@ -358,7 +356,7 @@
           { x: 0, y: 1, direction: "right", role: "output" },
         ],
         recipes: {
-          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 1 },
+          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 2 },
           plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 6, seconds: 6, valueMultiplier: 3 },
         },
         description: "Carves 1 Wood into 1 Wooden Gear or 6 Wooden Plates in 6 seconds. Operated by one hamster.",
@@ -374,10 +372,9 @@
           { x: 0, y: 2, direction: "down", role: "kineticInput" },
         ],
         recipes: {
-          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 8, valueMultiplier: 2,
-            gradeProfile: [0, 0.5, 0.5, 0, 0, 0] },
+          pot: { name: "Unfired Pot", input: 2, output: "unfiredPot", seconds: 8, valueMultiplier: 2 },
         },
-        description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds. The Pot starts with the Spinner's grade profile and carries forward prior quality treatments. Requires a Wheel connected to either kinetic intake.",
+        description: "Shapes 2 Clay into 1 unfired Pot in 8 seconds. Integrity equals workability; regularity equals workability plus 1, capped at 10. Requires a Wheel connected to either kinetic intake.",
       },
       burnisher: {
         name: "Burnisher", width: 3, height: 2, color: "#aa9871", category: "Cash", crew: 1,
@@ -391,7 +388,7 @@
           { x: 1, y: 1, direction: "down", role: "kineticInput" },
         ],
         recipes: { pot: { name: "Burnished Pot", input: 1, output: "unfiredPot", seconds: 15, valueMultiplier: 1 } },
-        description: `Burnishes 1 unfired Pot in 15 seconds. When fired, ${BURNISHED_STANDARD_TO_FINE * 100}% of its Standard chance becomes Fine and ${BURNISHED_STANDARD_TO_UNIQUE * 100}% becomes Unique. Burnished cargo has a pale bar. Requires a Wheel connected to either kinetic intake.`,
+        description: "Burnishes 1 unfired Pot in 15 seconds. Adds 5 smoothness once, capped at 10. Burnished cargo has a pale bar. Requires a Wheel connected to either kinetic intake.",
       },
       paintingBench: {
         name: "Painting Bench", width: 2, height: 3, color: "#95a86d", category: "Material", crew: 1,
@@ -413,7 +410,7 @@
         crew: 1, secondsPerWeight: 1, inputWeightLimit: 5,
         labelLines: ["Grading", "Bench"], footprint: [[0, 0], [1, 0], [1, 1]],
         cost: { cash: 800, materials: { wood: 100, leekFiber: 50, pot: 1 } },
-        description: "Grades compatible materials, rolling once per ungraded stack and multiplying its current value. Takes 1 second per unit of weight, up to weight 5.",
+        description: "Assesses Clay and Pots from their properties. Their sale multiplier follows the current product score without compounding. Other compatible materials retain their grade chances. Takes 1 second per unit of weight, up to weight 5.",
       },
       kiln: {
         name: "Clay Kiln", width: 3, height: 2, color: "#a76d4b", category: "Material", crew: 2,
@@ -428,10 +425,9 @@
         ],
         recipes: {
           unfiredBrick: { input: 4, output: "brick", seconds: 8, preheatedSeconds: 4, valueMultiplier: 4 },
-          unfiredPot: { input: 2, output: "pot", seconds: 8, preheatedSeconds: 4, valueMultiplier: 4,
-            burnishedGradeEffect: { from: 2, outcomes: [{ grade: 3, share: BURNISHED_STANDARD_TO_FINE }, { grade: 4, share: BURNISHED_STANDARD_TO_UNIQUE }] } },
+          unfiredPot: { input: 2, output: "pot", seconds: 8, preheatedSeconds: 4, valueMultiplier: 4 },
         },
-        description: "Fires 4 unfired Bricks or 2 unfired Pots in 8 seconds, or 4 seconds if the entire batch is preheated. Multiplies value by 4.",
+        description: "Fires 4 unfired Bricks or 2 unfired Pots in 8 seconds, or 4 seconds if the entire batch is preheated. Multiplies value by 4. Pots lose 2 integrity unless preheated; zero integrity does not destroy them.",
       },
       preheater: {
         name: "Preheater", width: 2, height: 2, color: "#a46e4b", category: "Material", crew: 1,
@@ -447,7 +443,7 @@
           unfiredBrick: { input: 2, output: "unfiredBrick", seconds: 3, valueMultiplier: 1 },
           unfiredPot: { input: 1, output: "unfiredPot", seconds: 3, valueMultiplier: 1 },
         },
-        description: `Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Moves up to ${PREHEAT_GRADE_TRANSFER * 100} percentage points of Unremarkable chance to Standard. Fully preheated Kiln batches fire in 4 seconds.`,
+        description: "Preheats 2 unfired Bricks or 1 unfired Pot in 3 seconds. Pots retain their score now and avoid losing 2 integrity when fired. Bricks retain their existing grade treatment. Fully preheated Kiln batches fire in 4 seconds.",
       },
       primitiveOven: {
         name: "Stone Oven", width: 3, height: 2, color: "#ac7857", category: "Material", crew: 1,
@@ -638,12 +634,8 @@
         name: "Pebble Pile", width: 1, height: 2, color: "#999488", category: "Cash",
         labelCell: [0, 1], labelLines: ["Pebble", "Pile"], conveyors: [[0, 0]],
         cost: { cash: 300, materials: { chert: 20, leekFiber: 30 }, machines: { belt: 1 } },
-        cashEffect: { useLimit: 1, upperLimit: 500, baseValueRequired: 0.3, brackets: [
-          { upperLimit: 50, multiplier: 1.5 },
-          { upperLimit: 200, multiplier: 1.25 },
-          { upperLimit: 500, multiplier: 1.12 },
-        ] },
-        description: "Gives a bigger value boost to cheaper cargo.",
+        cashEffect: { bonus: 0.15, upperLimit: 1.5, baseValueRequired: 0.15 },
+        description: "Adds $0.15 to passing cargo below $1.50. Requires at least $0.15 base value and can apply repeatedly.",
       },
       leekDuster: {
         name: "Spinach Duster", width: 3, height: 1, color: "#a4b779", category: "Cash",
@@ -749,8 +741,8 @@
       },
       sellTube: {
         dismantleMinimum: 1,
-        name: "Sell Tube", width: 2, height: 2, color: "#59857c", category: "Cash",
-        cost: { cash: 750, materials: { brick: 200 } },
+        name: "Primitive Sell Pile", width: 2, height: 2, color: "#59857c", category: "Cash",
+        cost: { cash: 0, materials: { wood: 100 } },
         description: "Sells eligible incoming cargo at its current value.",
       },
     },

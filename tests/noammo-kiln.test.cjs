@@ -391,8 +391,8 @@ test("Fired products sell at actual process value, collectors reset only on with
   feed(factory, kiln, "wood", 1); factory.update(0.1); factory.update(12); factory.pickup(kiln.id);
   assert.equal(factory.state.inventory.brick, 4);
   near(factory.state.cash, 33.6, "recovering finished Bricks does not sell them");
-  factory.state.cash = 750; factory.state.inventory.brick = 200;
-  assert.equal(factory.buy("sellTube").amount, 1); assert.equal(factory.state.inventory.brick, 0);
+  factory.state.inventory.wood = 100;
+  assert.equal(factory.buy("sellTube").amount, 1); assert.equal(factory.state.inventory.wood, 0); assert.equal(factory.state.inventory.brick, 4);
 });
 
 test("Primitive conveyors and both Upgrader lanes use speed 5, with no change to source or shaping timers", () => {

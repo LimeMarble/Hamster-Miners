@@ -68,7 +68,7 @@
       <aside id="inspector" class="panel inspector"><h2>Factory</h2><p>Select a building to move it or collect stored resources.</p></aside>
     </section>
     <section id="shop" class="screen shop-layout" hidden>
-      <div class="panel"><h1>Shop</h1><p>Select a machine to view its cost and details. Your two starter Planters, Basket and Sell Tube are supplied free.</p>
+      <div class="panel"><h1>Shop</h1><p>Select a machine to view its cost and details. Your two starter Planters, Basket and Primitive Sell Pile are supplied free.</p>
         <div class="categories" id="categories"><button data-category="All" class="active">All</button><button data-category="Cash">Cash</button><button data-category="Resource">Resource</button><button data-category="Material">Material</button><button data-category="Logistics">Logistics</button></div>
         <div id="shopCards" class="shop-cards"></div>
       </div>
@@ -136,7 +136,7 @@
         <summary>Stacking different values and upgrade histories</summary>
         <p>A stack behaves as one object. Only matching materials can stack together. Preheated and burnished cargo stack only with cargo sharing those treatments. Quantities add, while current unit values and quality chances are averaged by quantity. Total cash value is preserved.</p>
         <p>For each cash upgrader, the combined stack keeps the highest use count found in its inputs, and retains their other upgrade tags. Uses are not averaged: combining an unused item with one that has exhausted an upgrader leaves the entire stack exhausted for that upgrader.</p>
-        <p>Splitting copies the same unit value, use counts and quality information into each portion. If any input is already graded, the whole combined stack becomes graded.</p>
+        <p>Splitting copies the same unit value, use counts and quality information into each portion. Clay and Pot properties are averaged by quantity; the combined stack retains its assessment only when every input was assessed. Other materials retain their existing grading rules.</p>
       </details>
       <details>
         <summary>Water deliveries</summary>
@@ -144,10 +144,10 @@
       </details>
       <details>
         <summary>Grading and finished value</summary>
-        <p>The Grading Bench makes one roll for the entire incoming stack and multiplies its current value. Already graded cargo cannot roll again, even after stacking or manufacturing.</p>
+        <p>The Grading Bench assesses Clay and Pots from their properties. Their assessed sale multiplier follows the current product score after processing. Other compatible materials retain their existing one-roll grading.</p>
         <p id="gradeMultipliers"></p>
-        <p>Quality treatments change probabilities deterministically; only grading makes a random roll. A treatment has no effect on cargo that is already graded. The Kiln improves Brick chances and applies the Burnisher's effect to burnished Pots when they are fired.</p>
-        <p>Materials and processes can have different starting chances, and processing can carry earlier treatments forward. Select a Grading Bench to see the chances for its cargo.</p>
+        <p>Each fresh Clay batch independently rolls workability and purity: 2 (5%), 3 (15%), 4 (40%), 5 (25%), 6 (15%). Raw score = 8 × workability + 2 × purity. Spinning sets integrity to workability and regularity to workability + 1. Burnishing adds 5 smoothness once, capped at 10. Preheating prevents 2 integrity loss during firing without changing unfired score. Bricks retain their existing quality treatment.</p>
+        <p>Select a Grading Bench to inspect Clay and Pot properties, scores and multipliers. Other materials retain their existing starting chances and quality treatments.</p>
         <p>Select an upgrader or Grading Bench, or Shift-hover over it, to see its last five outputs. The Grading Bench’s history includes the rolled grade.</p>
       </details>
       <details>
@@ -170,8 +170,8 @@
       </details>
       <details>
         <summary>Collectors, inventory and dismantling</summary>
-        <p>Collectors hold factory cargo until collected. Collecting transfers material quantities into inventory; upgraded cash values, grades and upgrade histories are not retained there. Sell upgraded cargo through a Sell Tube to receive its current value.</p>
-        <p>Pick up a machine before dismantling it in Inventory. Dismantling returns its construction materials and component machines. Keep at least two Spinach Planters, four Baskets and one Sell Tube.</p>
+        <p>Collectors hold factory cargo until collected. Collecting transfers material quantities into inventory; upgraded cash values, grades and upgrade histories are not retained there. Sell upgraded cargo through a Primitive Sell Pile to receive its current value.</p>
+        <p>Pick up a machine before dismantling it in Inventory. Dismantling returns its construction materials and component machines. Keep at least two Spinach Planters, four Baskets and one Primitive Sell Pile.</p>
       </details>
       <details>
         <summary>Selection, quick actions and controls</summary>
@@ -186,7 +186,7 @@
       <label for="keepPlacementOnTabSwitch"><input id="keepPlacementOnTabSwitch" type="checkbox"> Keep placement when switching tabs</label>
       <label for="showMobileControls"><input id="showMobileControls" type="checkbox"> Show mobile controls</label>
       <label for="autoMobileControls"><input id="autoMobileControls" type="checkbox" checked> Choose mobile controls automatically when loading a save</label>
-      <p>The Grading Bench rolls grades for compatible factory cargo and immediately changes its current value. Collecting cargo into inventory retains material counts only.</p>
+      <p>The Grading Bench assesses Clay and Pots, and rolls grades for other compatible cargo. Inventory retains material counts only; quality, treatments and assessment are lost. Default Clay workability and purity are both 2.</p>
       <div class="row"><label for="playtestCode">Code</label><input id="playtestCode" type="text" autocomplete="off"><button id="unlockPlaytest">Apply code</button></div>
       <p id="playtestStatus" role="status"></p>
       <section id="playtestPanel" hidden>
@@ -207,10 +207,11 @@
       <p id="saveStatus"></p><a href="index.html">Open the existing mining game</a>
     </section>
   </main>
-  <script src="noammo-data.js?v=salad-plates-20261114"></script>
-  <script src="noammo-simulation.js?v=salad-plates-20261114"></script>
+  <script src="noammo-data.js?v=quality-20261126"></script>
+  <script src="noammo-quality.js?v=quality-20261126"></script>
+  <script src="noammo-simulation.js?v=quality-20261126"></script>
   <script src="noammo-renderer.js?v=thermal-ports-20261113"></script>
-  <script src="noammo-recipes.js?v=salad-plates-20261114"></script>
-  <script src="noammo-ui.js?v=background-limit-20261114"></script>
+  <script src="noammo-recipes.js?v=quality-20261126"></script>
+  <script src="noammo-ui.js?v=quality-20261126"></script>
 </body>
 </html>

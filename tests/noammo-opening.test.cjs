@@ -300,25 +300,15 @@ test("Wood sells for $0.10 through a direct Logger-to-Sell-Tube route; collectio
   assert.equal(factory.state.inventory.wood, 15);
 });
 
-test("one Sell Tube is free; additional tubes require $750 and 200 Bricks each and cannot be borrowed", () => {
-  const factory = new Factory(createState(1));
-  assert.equal(factory.state.stock.sellTube, 1);
-  assert.deepEqual(D.machines.sellTube.cost, { cash: 750, materials: { brick: 200 } });
-  assert.equal(factory.borrow("sellTube"), false);
-  factory.state.cash = 749; factory.state.inventory.brick = 200;
-  assert.ok(factory.buy("sellTube").error);
-  factory.state.cash = 750; factory.state.inventory.brick = 199;
-  assert.ok(factory.buy("sellTube").error);
-  factory.state.inventory.brick = 200;
-  assert.equal(factory.buy("sellTube").amount, 1);
-  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
-  assert.equal(factory.state.stock.sellTube, 2);
-  factory.state.cash = 1500; factory.state.inventory.brick = 400;
-  assert.equal(factory.buy("sellTube", 2).amount, 2);
-  assert.equal(factory.state.cash, 0); assert.equal(factory.state.inventory.brick, 0);
-  assert.equal(factory.state.stock.sellTube, 4);
+test("one Primitive Sell Pile is free; additional piles cost 100 Wood and no cash", () => {
+  const factory = new Factory(createState(1)); assert.equal(factory.state.stock.sellTube,1);
+  assert.equal(D.machines.sellTube.name,"Primitive Sell Pile");
+  assert.deepEqual(D.machines.sellTube.cost,{cash:0,materials:{wood:100}});
+  assert.equal(factory.borrow("sellTube"),false); factory.state.inventory.wood=99;
+  assert.ok(factory.buy("sellTube").error); factory.state.inventory.wood=300;
+  assert.equal(factory.buy("sellTube",3).amount,3); assert.equal(factory.state.inventory.wood,0);
+  assert.equal(factory.state.cash,0); assert.equal(factory.state.stock.sellTube,4);
 });
-
 test("old opening saves receive the missing starter tube and price unvalued Wood once, without losing cargo", () => {
   const factory = new Factory(createState(1));
   factory.state.stock.sellTube = 0;
@@ -965,7 +955,7 @@ for (const [type] of Object.entries(D.machines)) {
 test("prototype uses separate ordered scripts, local assets and no cosmetic machine animation", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "noammo.html"), "utf8");
   const names = [...html.matchAll(/<script src="([^"?]+)/g)].map((match) => match[1]);
-  assert.deepEqual(names, ["noammo-data.js", "noammo-simulation.js", "noammo-renderer.js", "noammo-recipes.js", "noammo-ui.js"]);
+  assert.deepEqual(names, ["noammo-data.js", "noammo-quality.js", "noammo-simulation.js", "noammo-renderer.js", "noammo-recipes.js", "noammo-ui.js"]);
   assert.ok(!html.includes("phaser"));
   const renderer = fs.readFileSync(path.join(__dirname, "..", "noammo-renderer.js"), "utf8");
   assert.ok(!renderer.includes("Math.cos")); assert.ok(!renderer.includes("Math.sin"));

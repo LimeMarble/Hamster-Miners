@@ -93,23 +93,23 @@ test('preheated cargo and legacy saves survive loading', () => {
   assert.equal(A.Factory.importSave(JSON.stringify(old)).state.stock.preheater, 0);
 });
 
-test('preheating improves Unremarkable before firing resolves the burnished Standard chance', () => {
+test('preheating leaves unfired properties unchanged and preserves integrity during firing', () => {
   const f = new A.Factory(A.createState(1));
   const preheater = place(f, 'preheater', 40, 40), kiln = place(f, 'kiln', 50, 40);
   preheater.heat = 6000; kiln.heat = 48000;
-  const input = A.cargo('unfiredPot'); input.burnished = true;
-  assert.deepEqual(A.gradeProbabilities(input), [0.2, 0.6, 0.2, 0, 0, 0]);
+  const input = A.cargo('unfiredPot'); A.quality.burnish(input);
+  assert.equal(A.gradeProbabilities(input), null);
   assert.equal(feed(f, preheater, input), 1); f.update(0.1); f.update(3);
   const output = preheater.output[0];
   assert.equal(output.burnished, true); assert.equal(output.preheated, true);
-  for (const [index, expected] of [0.2, 0.1, 0.7, 0, 0, 0].entries()) assert.ok(Math.abs(A.gradeProbabilities(output)[index] - expected) < 1e-8);
+  assert.deepEqual(output.quality,input.quality);
   assert.equal(feed(f, kiln, { ...output, quantity: 2 }), 2); f.update(0.1); f.update(6);
   const fired = kiln.output[0];
-  for (const [index, expected] of [0.2, 0.1, 0, 0.595, 0.105, 0].entries()) assert.ok(Math.abs(A.gradeProbabilities(fired)[index] - expected) < 1e-8);
+  assert.deepEqual(fired.quality,input.quality);
   assert.equal(fired.burnished, undefined); assert.equal(fired.preheated, undefined);
 });
 
-test('firing an unburnished Pot preserves its grade chances and preheating never rerolls graded cargo', () => {
+test('preheating preserves assessed cargo and firing retains its prepared properties', () => {
   const f = new A.Factory(A.createState(1));
   const preheater = place(f, 'preheater', 40, 40), kiln = place(f, 'kiln', 50, 40);
   preheater.heat = 6000; kiln.heat = 48000;

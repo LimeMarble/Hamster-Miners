@@ -160,7 +160,7 @@ test("An old two-Wood gear job keeps its inputs and migrates its remaining time 
   assert.equal(loadedCarver.job.remaining, 5);
   restored.update(4.9); assert.equal(loadedCarver.output.length, 0);
   restored.update(0.1);
-  assert.equal(loadedCarver.output[0].value, 0.2);
+  assert.equal(loadedCarver.output[0].value, 0.4);
   assert.equal(restored.craftRecipe(loadedCarver).input, 1);
   assert.equal(restored.state.stock.platingBench, 0);
 });

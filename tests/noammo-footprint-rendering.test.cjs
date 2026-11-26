@@ -117,7 +117,7 @@ const data = JSON.parse(JSON.stringify(A.DATA));
 data.machines.testRing = { name: 'Ring', width: 3, height: 3, color: '#abc123', category: 'Material', ports: [],
   footprint: [[0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]] };
 data.machines.testDiagonal = { name: 'Diagonal', width: 2, height: 2, color: '#abc124', category: 'Material', ports: [], footprint: [[0, 0], [1, 1]] };
-const context = vm.createContext({ NoAmmoData: data });
+const context = vm.createContext({ NoAmmoData: data, NoAmmoQuality: A.quality });
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'noammo-simulation.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'noammo-renderer.js'), 'utf8'), context);
 for (const type of ['testRing', 'testDiagonal']) contracts(context.NoAmmo, context.NoAmmoRenderer, type);

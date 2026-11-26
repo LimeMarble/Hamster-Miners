@@ -184,7 +184,7 @@ test('Press recipes follow material mappings instead of hardcoding Copper', () =
   data.materials.testIngot = { ...data.materials.copperIngot, value: 20, weight: 1.4, pressesTo: 'testPlate' };
   data.materials.testPlate = { ...data.materials.copperPlate, value: 30, weight: 1.4, gearsTo: 'testGear' };
   data.materials.testGear = { ...data.materials.copperGear, value: 60, weight: 1.4 };
-  const context = vm.createContext({ NoAmmoData: data });
+  const context = vm.createContext({ NoAmmoData: data, NoAmmoQuality: A.quality });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'noammo-simulation.js'), 'utf8'), context);
   const api = context.NoAmmo, f = new api.Factory(api.createState(1));
   const m = place(f, 'metalPress', 40, 40); attach(f, A.ports(m).find(p => p.role === 'kineticInput'), 'heavyWheel');

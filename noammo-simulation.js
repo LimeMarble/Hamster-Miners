@@ -1,6 +1,8 @@
 (function (root) {
   "use strict";
-  const D = typeof module !== "undefined" && module.exports ? require("./noammo-data.js") : root.NoAmmoData;
+  const baseData = typeof module !== "undefined" && module.exports ? require("./noammo-data.js") : root.NoAmmoData;
+  const Q = typeof module !== "undefined" && module.exports ? require("./noammo-quality.js") : root.NoAmmoQuality;
+  const D = { ...baseData, scoreGrades: Q.grades };
   const copy = (value) => JSON.parse(JSON.stringify(value));
   const key = (x, y) => `${x},${y}`;
   const epsilon = 1e-8;
@@ -167,7 +169,7 @@
   }
   const sifterOutputSlot = item => item.sifterSlot ?? (item.material === "soil" ? 0 : 1);
   function cargo(material, quantity = 1, value = D.materials[material]?.value ?? 0) {
-    return { material, quantity, value, upgrades: {}, progress: 0 };
+    return { material, quantity, value, upgrades: {}, progress: 0, ...(Q.modeled(material) ? { quality: Q.defaults(material) } : {}) };
   }
   function conveyorCells(machine) {
     const definition = D.machines[machine.type];
@@ -194,7 +196,7 @@
       && Object.entries(item.upgrades).every(([type, uses]) => D.machines[type]?.cashEffect?.useLimit === undefined
         || (Number.isSafeInteger(uses) && uses >= 0 && uses <= (legacyCashUseLimits[type] ?? D.machines[type].cashEffect.useLimit)))
       && (!Object.hasOwn(item.upgrades, "rinseBench") || (item.upgrades.rinseBench === 1 && D.materials[item.material].rinsesTo))
-      && item.grading === undefined && (item.graded === undefined || typeof item.graded === "boolean")
+      && item.grading === undefined && (item.graded === undefined || typeof item.graded === "boolean") && Q.valid(item)
       && (item.materialHistory === undefined || (item.materialHistory && typeof item.materialHistory === "object" && !Array.isArray(item.materialHistory)
         && Object.entries(item.materialHistory).every(([key, value]) => {
           const [type, material, channel, extra] = key.split(":");
@@ -218,6 +220,8 @@
   function sameCargo(a, b) {
     return a.material === b.material && Math.abs(a.value - b.value) < epsilon
       && Boolean(a.preheated) === Boolean(b.preheated) && Boolean(a.burnished) === Boolean(b.burnished)
+      && JSON.stringify(a.quality ?? null) === JSON.stringify(b.quality ?? null)
+      && Boolean(a.qualityAssessed) === Boolean(b.qualityAssessed)
       && JSON.stringify(a.upgrades) === JSON.stringify(b.upgrades)
       && JSON.stringify(a.gradeRepairs ?? {}) === JSON.stringify(b.gradeRepairs ?? {})
       && JSON.stringify(a.gradeProfile ?? null) === JSON.stringify(b.gradeProfile ?? null)
@@ -256,7 +260,8 @@
       && Math.abs(values.reduce((sum, value) => sum + value, 0) - item.value) <= epsilon * Math.max(1, item.value);
   }
   function gradeLabel(item) {
-    return item.graded ? "Graded" : "";
+    const quality = Q.summary(item);
+    return quality ? `${quality.name} (${formatNumber(quality.score)})${quality.assessed ? " assessed" : ""}` : item.graded ? "Graded" : "";
   }
   const gradeTable = (material) => D.gradeTables[D.materials[material]?.gradeTable ?? D.materials[material]?.family];
   const validChances = (chances) => Array.isArray(chances) && chances.length === D.grades.length
@@ -277,12 +282,13 @@
     return chances;
   }
   function applyGradeTreatment(item, treatment) {
-    if (item.graded || !commitQuality(item)) return;
+    if (Q.modeled(item.material) || item.graded || !commitQuality(item)) return;
     item.gradeProfile = treatChances(item.gradeProfile, treatment);
     const previous = item.gradeTreatment ?? identityTreatment();
     item.gradeTreatment = previous.map((row) => treatChances(row, treatment));
   }
   function gradeProbabilities(item) {
+    if (Q.modeled(item.material)) return null;
     const material = D.materials[item.material], table = D.gradeTables[material?.gradeTable ?? material?.family];
     if (!table) return null;
     const result = [...(item.gradeProfile ?? table)];
@@ -298,15 +304,21 @@
     item.value = value;
   }
   function blendQuality(output, inputs) {
-    if (inputs.some((item) => item.graded)) output.graded = true;
     for (const input of inputs) if (input.materialHistory) output.materialHistory = { ...output.materialHistory, ...input.materialHistory };
+    if (Q.modeled(output.material) && inputs.every(item => Q.modeled(item.material))) return Q.blend(output, inputs);
+    if (inputs.some((item) => item.graded)) output.graded = true;
+    if (!Q.modeled(output.material) && inputs.some(item => item.qualityAssessed)) {
+      const base = inputs.reduce((sum, item) => sum + item.value * item.quantity, 0);
+      const effective = inputs.reduce((sum, item) => sum + Q.saleValue(item) * item.quantity, 0);
+      if (base > 0) output.value *= effective / base;
+    }
     // Average actual chances separately from the bounded treatment matrix.
     // This keeps stacks one object and lets a recipe's new quality profile
     // inherit the averaged treatments without keeping individual ingredients.
     if (gradeTable(output.material) && inputs.every((item) => gradeTable(item.material)) && inputs.some((item) =>
       item.gradeProfile || item.gradeRepairs || item.gradeTreatment || gradeTable(item.material) !== gradeTable(output.material))) {
       const total = inputs.reduce((sum, item) => sum + item.quantity, 0);
-      const chances = inputs.map(gradeProbabilities);
+      const chances = inputs.map(item => gradeProbabilities(item) ?? gradeTable(item.material));
       output.gradeProfile = D.grades.map((_, index) => inputs.reduce((sum, item, i) => sum + chances[i][index] * item.quantity / total, 0));
       if (output.gradeRepairs?.brickSeal) output.gradeRepairApplied = output.gradeRepairs.brickSeal;
       if (inputs.some((item) => item.gradeTreatment)) {
@@ -333,7 +345,15 @@
     return blendGradeRepairs(output, inputs);
   }
   function gradeStack(state, item, onGrade) {
-    const result = copy(item), chances = gradeProbabilities(item);
+    const result = copy(item);
+    if (Q.modeled(item.material)) {
+      if (item.graded) return result;
+      result.quality ??= Q.defaults(item.material);
+      result.graded = true; result.qualityAssessed = true;
+      if (onGrade) onGrade(Q.grade(Q.score(result)).name);
+      return result;
+    }
+    const chances = gradeProbabilities(item);
     if (!chances || item.graded) return result;
     const roll = random(state);
     let index = 0, threshold = chances[0];
@@ -355,6 +375,11 @@
     return blendQuality(output, inputs);
   }
   function applyCashEffect(item, type) {
+    const multiplier = item.qualityAssessed ? Q.grade(Q.score(item)).multiplier : 1;
+    item.value *= multiplier;
+    try { applyCashEffectAtSaleValue(item, type); } finally { item.value /= multiplier; }
+  }
+  function applyCashEffectAtSaleValue(item, type) {
     if (D.machines[type].persistentEffects) {
       const cashKey = `${type}:${item.material}:cash`, gradeKey = `${type}:${item.material}:grade`;
       // Keep the original material in saved history for compatibility/provenance,
@@ -400,7 +425,7 @@
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       kilnSpeedVersion: 1, potteryWeightVersion: 1,
       copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterPlantersVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
-      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2,
+      gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2, propertyQualityVersion: 1,
     runeVersion: 4, minorRunes: { harvest: 0, motion: 0, transmutation: 0 }, capitalUnlocked: false, freeMajorPedestals: 0, foodVersion: 7, graniteDrillVersion: 1, rinseBenchVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
@@ -577,7 +602,7 @@
     recordOutput(machine, item, grade = null) {
       if (!supportsOutputHistory(machine.type)) return;
       const history = this.outputHistories.get(machine.id) ?? [];
-      history.unshift({ value: D.materials[item.material].value === null ? null : item.value, quantity: item.quantity, grade });
+      history.unshift({ value: D.materials[item.material].value === null ? null : Q.saleValue(item), quantity: item.quantity, grade });
       history.length = Math.min(5, history.length);
       this.outputHistories.set(machine.id, history);
     }
@@ -1027,7 +1052,7 @@
     sell(items) {
       let money = 0, quantity = 0;
       for (const item of items) if (D.materials[item.material]?.value !== null && !D.materials[item.material]?.fluid) {
-        money += item.quantity * item.value; quantity += item.quantity;
+        money += item.quantity * Q.saleValue(item); quantity += item.quantity;
       }
       if (cheatEnabled(this.state, "cash")) money *= 10;
       this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
@@ -1143,13 +1168,14 @@
       const quantity = (recipe.outputQuantity ?? 1) * (machine.job.bulk ?? 1);
       const product = definition.preservesCargo ? copy(machine.job.input) : blendGradeRepairs(cargo(recipe.output, quantity,
         machine.job.input.value * machine.job.input.quantity * recipe.valueMultiplier / quantity), [machine.job.input]);
-      if (machine.type === "burnisher") product.burnished = true;
+      if (machine.type === "burnisher") Q.burnish(product);
+      if (machine.type === "potSpinner") Q.spin(product);
       if (machine.type === "rinseBench") {
         setCargoValue(product, product.value + recipe.valueBonus);
         product.upgrades.rinseBench = 1;
         applyGradeTreatment(product, promotionTreatment(recipe.promotionRates));
       }
-      if (recipe.gradeProfile) {
+      if (recipe.gradeProfile && !Q.modeled(product.material)) {
         product.gradeProfile = [...recipe.gradeProfile]; delete product.gradeRepairApplied;
         commitQuality(product);
         if (product.gradeTreatment) product.gradeProfile = treatChances(product.gradeProfile, product.gradeTreatment);
@@ -1209,6 +1235,7 @@
     }
     preheatCargo(item, definition) {
       const product = { ...copy(item), preheated: true };
+      if (Q.modeled(product.material)) return product;
       const chance = gradeProbabilities(product)?.[1] ?? 0;
       if (chance > epsilon) applyGradeTreatment(product, promotionTreatment([0, Math.min(1, definition.preheatGradeTransfer / chance), 0, 0, 0, 0]));
       return product;
@@ -1259,10 +1286,9 @@
         const quantity = recipe.outputQuantity * (machine.job.bulk ?? 1);
         machine.output.push(blendGradeRepairs(cargo(recipe.output, quantity,
           input.value * input.quantity * recipe.valueMultiplier / quantity), [input]));
-      } else for (const item of (machine.job.bulk > 1 ? [false, true].map((burnished) => machine.job.inputs.filter((entry) => Boolean(entry.burnished) === burnished))
-        .filter((entries) => entries.length).map((entries) => combineCargo(entries)) : machine.job.inputs)) {
+      } else for (const item of machine.job.inputs) {
         const product = blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier), [item]);
-        if (item.burnished && recipe.burnishedGradeEffect) {
+        if (!Q.modeled(product.material) && item.burnished && recipe.burnishedGradeEffect) {
           const treatment = identityTreatment();
           const effect = recipe.burnishedGradeEffect;
           treatment[effect.from].fill(0);
@@ -1485,7 +1511,7 @@
       } else if (D.machines[machine.type].craftInput && input && item.material === D.machines[machine.type].craftInput) {
         quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), D.machines[machine.type].inputLimit * machineBulk(this.state, machine) - this.total(machine, "input")));
         if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
-      } else if (machine.type === "gradingBench" && input && gradeProbabilities(item)) {
+      } else if (machine.type === "gradingBench" && input && (Q.modeled(item.material) || gradeProbabilities(item))) {
         if (!machine.input.length) {
           quantity = Math.min(item.quantity, Math.floor(D.machines.gradingBench.inputWeightLimit / D.materials[item.material].weight));
           if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
@@ -1650,7 +1676,10 @@
             if (machine.timer + epsilon >= cycle) {
               machine.timer = Math.max(0, machine.timer - cycle);
               if (definition.waterPerBatch) machine.water = Math.max(0, machine.water - definition.waterPerBatch);
-              machine.output.push(cargo(definition.source ?? machine.mode, (definition.sourceQuantity ?? 1) * resourceMultiplier));
+              const material = definition.source ?? machine.mode, quantity = (definition.sourceQuantity ?? 1) * resourceMultiplier;
+              const item = cargo(material, quantity);
+              if (material === "clay") item.quality = { workability: Q.draw(random(state)), purity: Q.draw(random(state)) };
+              machine.output.push(item);
             }
           }
         } else if (machine.type === "fiber") {
@@ -1723,8 +1752,10 @@
         if (before < 1) item.progress = Math.min(1, before + seconds * conveyorSpeed / conveyorSeconds(machine));
         if (machine.type === "primitive" && before + epsilon < 0.5 && item.progress + epsilon >= 0.5 && D.materials[item.material].value !== null) {
           const { primitiveBonus, primitiveLimit } = state.tuning;
-          if (item.value + epsilon < primitiveLimit) {
-            setCargoValue(item, item.value + primitiveBonus);
+          const effectiveValue = Q.saleValue(item);
+          if (effectiveValue + epsilon < primitiveLimit) {
+            const multiplier = item.qualityAssessed ? Q.grade(Q.score(item)).multiplier : 1;
+            setCargoValue(item, (effectiveValue + primitiveBonus) / multiplier);
             item.upgrades.primitive = (item.upgrades.primitive ?? 0) + 1;
           }
         }
@@ -2404,6 +2435,14 @@
         }
         state.foodVersion = 7;
       }
+      if ((state.propertyQualityVersion ?? 0) < 1) {
+        for (const machine of [...state.machines, ...state.storedMachines]) for (const item of [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []), ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)]) {
+          if (!Q.modeled(item?.material) || item.quality !== undefined) continue;
+          item.quality = Q.defaults(item.material);
+          if (item.burnished && item.material === "unfiredPot") Q.burnish(item);
+        }
+        state.propertyQualityVersion = 1;
+      }
       for (const field of ["cash", "earned", "seconds", "harvestedWood", "producedFiber", "soldItems"]) {
         if (!Number.isFinite(state[field]) || state[field] < 0) throw new Error(`Invalid ${field}.`);
       }
@@ -2476,7 +2515,7 @@
         }
         if (machine.type === "gradingBench") {
           const definition = D.machines.gradingBench;
-          const validStack = (item) => gradeProbabilities(item)
+          const validStack = (item) => (Q.modeled(item.material) || gradeProbabilities(item))
             && item.quantity * D.materials[item.material].weight <= definition.inputWeightLimit + epsilon;
           if (machine.input.length > 1 || machine.output.length > 1
             || machine.input.some((item) => !validStack(item)) || machine.output.some((item) => !validStack(item) || !item.graded)
@@ -2755,7 +2794,8 @@
     }
   }
   const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, rotation, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs, collectorCapacity, conveyorUpgradeCost, sifterOutputSlot,
-    combineCargo, gradeProbabilities, gradeStack, gradeLabel, conveyorCells, supportsOutputHistory };
+    combineCargo, gradeProbabilities, gradeStack, gradeLabel, conveyorCells, supportsOutputHistory,
+    quality: Q, qualityScore: Q.score, qualitySummary: Q.summary, saleValue: Q.saleValue };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.NoAmmo = API;
 }(globalThis));
