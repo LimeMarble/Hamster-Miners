@@ -761,7 +761,7 @@
         dismantleMinimum: 1,
         name: "Primitive Sell Pile", width: 2, height: 2, color: "#59857c", category: "Cash",
         cost: { cash: 0, materials: { wood: 100 } },
-        description: "Sells eligible incoming cargo at its current value.",
+        description: "Sells eligible cargo for half its current sale value, plus a product bonus for Wood, Stripped Wood, Rope, Wooden Gears, Axes, and Unfired Bricks.",
       },
     },
   };

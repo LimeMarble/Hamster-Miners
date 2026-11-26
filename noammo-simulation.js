@@ -1028,6 +1028,17 @@
       this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
       return money;
     }
+    sellAtPile(items) {
+      const bonusByMaterial = { wood: 0.35, strippedWood: 0.25, rope: 0.5, woodenGear: 0.6, axe: 3, unfiredBrick: 4 };
+      let money = 0, quantity = 0;
+      for (const item of items) if (D.materials[item.material]?.value !== null && !D.materials[item.material]?.fluid) {
+        const perItem = Q.saleValue(item) * 0.5 + (bonusByMaterial[item.material] ?? 0);
+        money += item.quantity * perItem; quantity += item.quantity;
+      }
+      if (cheatEnabled(this.state, "cash")) money *= 10;
+      this.state.cash += money; this.state.earned += money; this.state.soldItems += quantity;
+      return money;
+    }
     total(machine, field, material) {
       return machine[field].reduce((sum, item) => sum + (material && item.material !== material ? 0 : item.quantity), 0);
     }
@@ -1458,7 +1469,7 @@
       } else if (machine.type === "sellTube" && D.materials[item.material].value !== null) {
         quantity = item.quantity;
         if (consume) {
-          const amount = this.sell([item]);
+          const amount = this.sellAtPile([item]);
           if (amount > 0) {
             this.saleTexts.push({ amount, x: machine.x + size(machine).width / 2, y: machine.y, created: this.state.seconds });
             if (this.saleTexts.length > 64) this.saleTexts.shift();
