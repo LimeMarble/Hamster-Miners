@@ -90,6 +90,8 @@
       for (const [material, amount] of Object.entries(definition.cost?.materials ?? {})) addTo(constructionUses, `item:${material}`, { machine: `machine:${id}`, quantity: amount });
       for (const [machine, amount] of Object.entries(definition.cost?.machines ?? {})) addTo(constructionUses, `machine:${machine}`, { machine: `machine:${id}`, quantity: amount });
     }
+    add("woodStripper", "strip", [item("wood", 1)], [item("strippedWood", 1), item("leekFiber", 6)], { seconds: 2 });
+    add("crudeGearBench", "gear:strippedWood", [item("strippedWood", 1)], [item("woodenGear", 1)], data.machines.crudeGearBench.recipes.gear);
     for (const [material, { fiberYield }] of Object.entries(data.materials)) {
       if (fiberYield) add("fiber", material === "leek" ? "fiber" : material, [item(material, 1)], [item("leekFiber", fiberYield)],
         { seconds: data.config.fiberSeconds, valueMultiplier: fiberYield });

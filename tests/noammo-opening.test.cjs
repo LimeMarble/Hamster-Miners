@@ -42,7 +42,7 @@ test("opening has its own save identity, fixed permanent trees, four free Basket
   assert.equal(state.trees.length, D.config.treeCount);
   assert.equal(state.stock.planter, undefined); assert.equal(state.stock.basket, 4);
   assert.equal(state.stock.sellTube, 1);
-  assert.equal(state.stock.logger, 0); assert.equal(state.cash, 0);
+  assert.equal(state.stock.logger, 1); assert.equal(state.cash, 0);
   assert.notEqual(D.saveKey, "hamster-miners-save");
   assert.deepEqual(createState(123).trees, state.trees);
   for (let i = 0; i < state.trees.length; i++) for (let j = i + 1; j < state.trees.length; j++) {
@@ -81,8 +81,8 @@ test("opening prices and manually operated Fiber match the decisions", () => {
 });
 
 
-test("Clay Pits require $400 and 100 Wood, use one crew and kinetic power, and output into a full-width Sell Tube", () => {
-  assert.deepEqual(D.machines.clayPit.cost, { cash: 400, materials: { wood: 100 } });
+test("Clay Pits require $1,000 and 100 Wood, use one crew and kinetic power, and output into a full-width Sell Tube", () => {
+  assert.deepEqual(D.machines.clayPit.cost, { cash: 1000, materials: { wood: 100 } });
   assert.equal(D.materials.clay.value, 0.25); assert.equal(D.materials.clay.weight, 0.5);
   assert.deepEqual(ports({ type: "clayPit", x: 0, y: 0, facing: "up" }), [
     { x: 0.5, y: 0, direction: "up", role: "output", span: 2 },
@@ -90,11 +90,11 @@ test("Clay Pits require $400 and 100 Wood, use one crew and kinetic power, and o
     { x: 1, y: 1, direction: "right", role: "kineticInput" },
   ]);
   for (const facing of D.directions) {
-    const factory = new Factory(createState(1)); factory.state.inventory.wood = 99; factory.state.cash = 400;
+    const factory = new Factory(createState(1)); factory.state.inventory.wood = 99; factory.state.cash = 1000;
     assert.ok(factory.buy("clayPit").error); assert.equal(factory.state.inventory.wood, 99);
-    factory.state.inventory.wood = 100; factory.state.cash = 399.99;
+    factory.state.inventory.wood = 100; factory.state.cash = 999.99;
     const before = factory.exportSave(); assert.ok(factory.buy('clayPit').error); assert.equal(factory.exportSave(), before);
-    factory.state.cash = 400; assert.equal(factory.buy("clayPit").amount, 1);
+    factory.state.cash = 1000; assert.equal(factory.buy("clayPit").amount, 1);
     const pit = factory.place("clayPit", 40, 40, facing).machine;
     assert.equal(factory.availableCrew(), 19); assert.deepEqual(size(pit), { width: 2, height: 2 });
     const [tx, ty] = { right: [42, 40], down: [40, 42], left: [38, 40], up: [40, 38] }[facing];
@@ -711,6 +711,7 @@ test('starter dismantling reserves count placed, stocked and stored machines onc
 
 test("Primitive test ceiling is incoming eligibility, not an output clamp, and blockage cannot reapply it", () => {
   const { factory } = poweredFactory();
+  factory.state.tuning = { primitiveBonus: 0.1, primitiveLimit: 0.5 };
   const primitive = place(factory, "primitive", 23, 24);
   assert.equal(factory.receive(primitive, cargo("leek", 1, 0.45), 23, 24, "left", true), 1);
   advance(factory, D.config.beltSeconds / 2);

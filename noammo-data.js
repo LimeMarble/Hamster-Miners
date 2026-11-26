@@ -15,6 +15,7 @@
   const SIFTER_PORTS = [
     { x: 2, y: 0, direction: "right", role: "output", material: "soil" },
     { x: 1, y: 1, direction: "down", role: "kineticInput" },
+    { x: 1, y: 0, direction: "up", role: "kineticInput" },
     { x: 2, y: 1, direction: "right", role: "output", material: "chert" },
   ];
   const DATA = {
@@ -23,6 +24,31 @@
     saveKey: "hamster-miners-noammo-opening-v1",
     runeCategories: { harvest: "Harvest", motion: "Motion", transmutation: "Transmutation" },
     startingTerrain: { version: 1, treeCenters: TREE_CENTERS },
+    // One-based positions in the 20 by 20 drawing covering world rows/columns 115..134.
+    startingLayout: {
+      worldColumn: 115, worldRow: 115,
+      machines: [
+        { type: "pebbleSifter", row: 11, column: 8, facing: "down" },
+        { type: "wheel", row: 11, column: 10, facing: "down" },
+        { type: "drive", row: 12, column: 12, facing: "right" },
+        { type: "sellTube", row: 13, column: 17, facing: "right" },
+        { type: "basket", row: 14, column: 8, facing: "right" },
+        { type: "belt", row: 14, column: 9, facing: "left" },
+        { type: "belt", row: 14, column: 15, facing: "right" },
+        { type: "belt", row: 14, column: 16, facing: "right" },
+        { type: "logger", row: 15, column: 15, facing: "up" },
+        { type: "belt", row: 15, column: 17, facing: "up" },
+        { type: "belt", row: 16, column: 13, facing: "down" },
+        { type: "logger", row: 16, column: 14, facing: "left" },
+        { type: "logger", row: 16, column: 16, facing: "right" },
+        { type: "belt", row: 16, column: 17, facing: "up" },
+        { type: "belt", row: 17, column: 13, facing: "down" },
+        { type: "logger", row: 17, column: 15, facing: "down" },
+        { type: "basket", row: 18, column: 13, facing: "right" },
+        { type: "belt", row: 18, column: 14, facing: "left" },
+        { type: "belt", row: 18, column: 15, facing: "left" },
+      ],
+    },
     config: {
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 20,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
@@ -48,12 +74,14 @@
       rawPasta: { name: "Raw Pasta", value: 0.3, weight: 0.25, color: "#dcc37f", gradeTable: "crop" },
       unplatedLeekPasta: { name: "Unplated Spinach Pasta", value: 1.7, weight: 0.3, color: "#d6b766", gradeTable: "crop", directTransferOnly: true },
       leekPasta: { name: "Spinach Pasta", value: 1.7, weight: 0.4, color: "#cab465", gradeTable: "crop" },
-      leekFiber: { name: "Plant Fiber", value: 0.1, weight: 0.05, color: "#ded4a0", coilsTo: "leekCoil" },
+      leekFiber: { name: "Plant Fiber", value: 0.05, weight: 0.05, color: "#ded4a0", spinsTo: "rope", coilsTo: "leekCoil" },
       leekCoil: { name: "Plant Fiber Coil", value: 0.1, weight: 1, color: "#c7c091" },
+      rope: { name: "Rope", value: 0.3, weight: 0.15, color: "#b59b72" },
+      strippedWood: { name: "Stripped Wood", value: 0.1, weight: 0.6, color: "#c89e70" },
       wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, sawsTo: "plank" },
       plank: { name: "Plank", value: 0.1, weight: 1 / 3, color: "#c89568" },
       charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
-      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 2, color: "#c19762" },
+      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 0.5, color: "#c19762" },
       woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 0.1, color: "#d5ac76" },
       clay: { name: "Clay", value: 0.25, weight: 0.5, color: "#b76b53", family: "clay" },
       unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 0.5, color: "#a77d67", family: "clay" },
@@ -111,6 +139,28 @@
         labelLines: ["Brick Resource", "Storage"], quickAction: "collect", collectorCapacity: 600,
         cost: { cash: 1000, materials: { brick: 100, clay: 15 } },
         description: "Accepts incoming resources without an intake rate limit, storing up to 600 for collection into inventory.",
+      },
+      ropeSpinner: {
+        name: "Rope Spinner", width: 2, height: 1, color: "#aa9775", category: "Material",
+        cost: { cash: 10, materials: { wood: 20, woodenGear: 5 }, machines: { belt: 1 } }, requiresKinetic: true,
+        defaultMode: "rope", inputLimit: 3, outputBuffer: 1,
+        formingModes: { rope: { name: "Rope", materialProperty: "spinsTo", input: 3, outputQuantity: 1, seconds: 4, valueMultiplier: 2 } },
+        ports: [
+          { x: 0, y: 0, direction: "left", role: "kineticInput" },
+          { x: 1, y: 0, direction: "down", role: "input" },
+          { x: 1, y: 0, direction: "up", role: "output" },
+        ],
+        description: "Spins 3 Plant Fiber into 1 Rope in 4 seconds. Requires a directly connected Wheel.",
+      },
+      woodStripper: {
+        name: "Wood Stripper", width: 2, height: 2, color: "#a17b52", category: "Material", crew: 1,
+        baseFacing: "up", defaultFacing: "up", cost: { cash: 5, materials: { wood: 10, chert: 1 } },
+        ports: [
+          { x: 0, y: 0, direction: "up", role: "output", material: "strippedWood" },
+          { x: 0, y: 1, direction: "down", role: "input" },
+          { x: 1, y: 1, direction: "right", role: "output", material: "leekFiber" },
+        ],
+        description: "Strips 1 Wood into 1 Stripped Wood and 6 Plant Fiber in 2 seconds.",
       },
       fiber: {
         name: "Fiber Extractor", width: 1, height: 2, color: "#99a26d", category: "Material",
@@ -204,7 +254,7 @@
       clayPit: {
         name: "Clay Pit", width: 2, height: 2, color: "#a57253", category: "Resource", crew: 1,
         baseFacing: "up", defaultFacing: "up",
-        cost: { cash: 400, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
+        cost: { cash: 1000, materials: { wood: 100 } }, source: "clay", cycle: 12, sourceQuantity: 3, outputLimit: 3,
         centeredOutput: true, requiresKinetic: true,
         sourceQuality: {
           workability: [[2, 0.05], [3, 0.15], [4, 0.40], [5, 0.25], [6, 0.15]],
@@ -310,7 +360,7 @@
       crudeGearBench: {
         name: "Wood Carving Bench", width: 1, height: 2, color: "#b18b62", category: "Material", crew: 1,
         labelLines: ["Wood Carving", "Bench"], labelCell: [0, 0],
-        cost: { cash: 0, materials: { wood: 25, leekFiber: 10, chert: 2 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
+        cost: { cash: 0, materials: { wood: 25, chert: 2 } }, craftInput: "wood", inputLimit: 2, defaultMode: "gear",
         ports: [
           { x: 0, y: 1, direction: "left", role: "input" },
           { x: 0, y: 1, direction: "right", role: "output" },
@@ -319,7 +369,7 @@
           gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 2 },
           plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 6, seconds: 6, valueMultiplier: 3 },
         },
-        description: "Carves 1 Wood into 1 Wooden Gear or 6 Wooden Plates in 6 seconds. Operated by one hamster.",
+        description: "Carves 1 Wood or Stripped Wood into 1 Wooden Gear, or 1 Wood into 6 Wooden Plates, in 6 seconds. Operated by one hamster.",
       },
       potSpinner: {
         name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",
@@ -375,7 +425,7 @@
       kiln: {
         name: "Clay Kiln", width: 3, height: 2, color: "#a76d4b", category: "Material", crew: 2,
         baseFacing: "up", defaultFacing: "up",
-        cost: { cash: 3000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
+        cost: { cash: 5000, materials: { unfiredBrick: 50, clay: 10, leekFiber: 15 } },
         heatCapacity: 250000, heatPerSecond: 12000, outputSeconds: 2, automaticRecipes: true,
         ports: [
           { x: 0, y: 1, direction: "left", role: "input", channel: "fuel", label: "Fuel" },
@@ -572,6 +622,7 @@
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
         cost: { cash: 0, materials: { wood: 20, leekFiber: 10, woodenGear: 8 } },
+        ports: [{ x: 0, y: 0, direction: "left", role: "kineticInput" }],
         description: "Powers nearby primitive conveyors up to 7 tiles beyond its footprint. Requires a direct Wheel connection.",
       },
       primitive: {

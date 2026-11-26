@@ -685,7 +685,7 @@ test("Inventory separates Machines and Items, with no default machine list on th
   assert.equal(ui.ids.get("machineInventory").hidden, false);
   assert.equal(ui.ids.get("itemInventory").hidden, true);
   const visible = ui.ids.get("machineCards").children.filter((card) => !card.hidden);
-  assert.deepEqual(visible.map((card) => card.dataset.machine), ["basket", "pebbleSifter", "wheel", "sellTube"]);
+  assert.deepEqual(visible.map((card) => card.dataset.machine), ["basket", "logger", "pebbleSifter", "wheel", "sellTube"]);
   ui.inventoryTabs[1].emit("click");
   assert.equal(ui.ids.get("machineInventory").hidden, true);
   assert.equal(ui.ids.get("itemInventory").hidden, false);
@@ -1112,26 +1112,28 @@ test("the Hire button enables when factory income reaches its cost without remou
 });
 
 test("Shop buy handler, quantities, material affordability and owned feedback use the real simulation", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.cash = 0; factory.state.inventory.leek = 1; factory.state.inventory.wood = 30;
+  const factory = new A.Factory(A.createState(1)); factory.state.cash = 0; factory.state.inventory.chert = 2; factory.state.inventory.wood = 25;
   const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
+  shopCard(ui, "crudeGearBench").emit("click");
   const amount = ui.ids.get("quantity"); amount.value = "2"; amount.emit("input");
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   amount.value = "1"; amount.emit("input"); assert.equal(ui.ids.get("buyMachine").disabled, false);
   ui.ids.get("buyMachine").emit("click");
-  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.leek, 0); assert.equal(ui.state().inventory.wood, 0); assert.equal(ui.state().stock.fiber, 1);
+  assert.equal(ui.state().cash, 0); assert.equal(ui.state().inventory.chert, 0); assert.equal(ui.state().inventory.wood, 0); assert.equal(ui.state().stock.crudeGearBench, 1);
+  shopCard(ui, "crudeGearBench").emit("click");
   assert.match(ui.ids.get("shopOwned").textContent, /Owned: 1/);
   assert.equal(ui.ids.get("buyMachine").disabled, true);
   for (const bad of ["0", "1.5", "10000", ""]) { amount.value = bad; amount.emit("input"); assert.equal(ui.ids.get("buyMachine").disabled, true); }
 });
 
 test("Clay Pit purchases show cash/material costs, update ownership, place, and expose collected Clay in Items", () => {
-  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 100; factory.state.cash = 400;
+  const factory = new A.Factory(A.createState(1)); factory.state.inventory.wood = 100; factory.state.cash = 1000;
   const basket = factory.place("basket", 124, 122).machine;
   basket.contents.push(A.cargo("clay", 3));
   const ui = boot(factory.exportSave()); ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
   ui.ids.get("shopCards").children.find((card) => card.children.some((node) => node.textContent === "Clay Pit")).emit("click");
   assert.equal(ui.ids.get("buyMachine").disabled, false);
-  assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$400 / $400');
+  assert.equal(ui.ids.get('costs').children[0].children[1].textContent, '$1k / $1k');
   assert.equal(ui.ids.get("costs").children[1].children[1].textContent, "100 / 100");
   ui.ids.get("buyMachine").emit("click"); assert.equal(ui.state().stock.clayPit, 1); assert.equal(ui.state().cash, 0);
   chooseMachine(ui, "clayPit"); ui.ids.get("cargo").emit("click", screenPoint(121, 121));
@@ -1421,7 +1423,7 @@ test("Plating Bench displays live plate, food and output buffers", () => {
 test("Kiln purchase, fuel/status updates, rotated moves and pickup use stable real UI controls", () => {
   const factory = new A.Factory(A.createState(1));
   for (const material of Object.keys(factory.state.inventory)) if (!require("../noammo-data.js").materials[material].fluid && !factory.state.inventory[material]) factory.state.inventory[material] = 1;
-  factory.state.cash = 3000;
+  factory.state.cash = 5000;
   Object.assign(factory.state.inventory, { unfiredBrick: 50, clay: 10, leekFiber: 14 });
   let ui = boot(factory.exportSave());
   ui.tabs.find((button) => button.dataset.tab === "shop").emit("click");
@@ -1580,7 +1582,7 @@ test("Gear Bench can be bought and placed from Inventory, with live stable buffe
   Object.assign(f.state.inventory, { wood: 25, leekFiber: 10, chert: 2 });
   const ui = boot(f.exportSave()); ui.tabs.find(b => b.dataset.tab === 'shop').emit('click');
   shopCard(ui, 'crudeGearBench').emit('click');
-  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$0 / $0', '25 / 25', '10 / 10', '2 / 2']);
+  assert.deepEqual(ui.ids.get('costs').children.map(row => row.children[1].textContent), ['$0 / $0', '25 / 25', '2 / 2']);
   assert.equal(ui.ids.get('buyMachine').disabled, false); ui.ids.get('buyMachine').emit('click');
   assert.equal(ui.state().stock.crudeGearBench, 1); assert.equal(ui.state().inventory.wood, 0);
   chooseMachine(ui, 'crudeGearBench'); ui.ids.get('cargo').emit('click', screenPoint(121, 121));
@@ -1651,7 +1653,7 @@ test("selected upgrader and Shift-hover share live output history, preserve cont
   const list = ui.ids.get('outputHistory'), move = ui.ids.get('moveMachine');
   assert.equal(list.children[0].textContent, 'No processed output yet.');
   ui.frame(100); ui.frame(200);
-  assert.equal(list.children[0].textContent, '$0.4 total · 2 × $0.2');
+  assert.equal(list.children[0].textContent, '$0.3 total · 2 × $0.15');
   assert.equal(ui.ids.get('moveMachine'), move); assert.equal(ui.ids.get('outputHistory'), list);
   const row = list.children[0];
   for (let now = 300; now < 4000; now += 100) ui.frame(now);

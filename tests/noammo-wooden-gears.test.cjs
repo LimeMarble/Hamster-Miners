@@ -17,7 +17,7 @@ function advance(f, seconds) {
 
 test('Wood Carving Bench checks its material-only cost and needs one crew', () => {
   const f = new Factory(A.createState(1)), d = D.machines.crudeGearBench;
-  const materials = { wood: 25, leekFiber: 10, chert: 2 };
+  const materials = { wood: 25, chert: 2 };
   assert.deepEqual(d.cost, { cash: 0, materials });
   for (const material of Object.keys(materials)) {
     Object.assign(f.state.inventory, materials);
@@ -49,7 +49,7 @@ for (const facing of D.directions) test(`Gear Bench ${facing}: two vertical refe
   f.update(5.9); assert.equal(basket.contents.length, 0); f.update(0.1);
   assert.equal(basket.contents[0].material, 'woodenGear');
   assert.equal(basket.contents[0].quantity, 1); assert.equal(basket.contents[0].value, 0.6);
-  assert.equal(D.materials.woodenGear.weight, 2 * D.materials.wood.weight);
+  assert.equal(D.materials.woodenGear.weight, 0.5);
   assert.equal(D.materials.woodenGear.value, 2 * D.materials.wood.value);
 });
 

@@ -185,6 +185,7 @@ test("overweight stacks stay intact; explicitly separated legal portions retain 
 
 test("cash upgrades affect averaged actual value without changing the graded flag or refunding maximum uses", () => {
   const factory = new Factory(createState(1));
+  factory.state.tuning = { primitiveBonus: 0.1, primitiveLimit: 0.5 };
   place(factory, "wheel", 20, 20); place(factory, "drive", 21, 22, "up");
   const primitive = place(factory, "primitive", 23, 24), seal = place(factory, "brickSeal", 25, 24);
   const mixed = A.combineCargo([rolled(A.cargo("brick", 1, 0.2), 2000), rolled(A.cargo("brick", 1, 0.2), 1500)]);

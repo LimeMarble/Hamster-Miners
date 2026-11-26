@@ -185,7 +185,7 @@ test('older five-weight stacks split and retain exact quantity, cash, metadata a
 test('migration permits mid-pass upgrader saves and does not repeat or lose per-portion upgrades', () => {
   const { saved, id } = legacy('primitive'), f = A.Factory.importSave(saved);
   place(f, 'wheel', 38, 44); f.state.stock.drive++; f.place('drive', 39, 42, 'down');
-  const m = f.byId.get(id); m.lanes[0].value = 0.1; m.beltRemainders[0].value = 0.1;
+  const m = f.byId.get(id); f.state.tuning = { primitiveBonus: 0.1, primitiveLimit: 0.5 }; m.lanes[0].value = 0.1; m.beltRemainders[0].value = 0.1;
   f.update(0.4); assert.equal(m.lanes[0].value, 0.2);
   assert.deepEqual(A.Factory.importSave(f.exportSave()).state, f.state);
   const basket = place(f, 'basket', 41, 40); f.update(6);

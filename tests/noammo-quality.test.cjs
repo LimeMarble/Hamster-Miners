@@ -165,7 +165,7 @@ test('invalid property metadata is rejected while old graded values migrate with
 
 test('assessed cargo uses effective cash for upgrader limits and exact additive bonuses', () => {
   function pass(type, item) {
-    const f=new A.Factory(A.createState(1)); place(f,'wheel',20,20); place(f,'drive',21,22,'up');
+    const f=new A.Factory(A.createState(1)); f.state.tuning = { primitiveBonus: 0.1, primitiveLimit: 0.5 }; place(f,'wheel',20,20); place(f,'drive',21,22,'up');
     if(A.DATA.machines[type].electricPower) { place(f,'heavyWheel',39,42); place(f,'kineticGenerator',40,40,'down'); }
     const machine=place(f,type,23,24); if(A.DATA.machines[type].requiresKinetic) attachKineticWheel(f,machine);
     feed(f,machine,item); f.update(1.1);
