@@ -44,8 +44,8 @@
     const recipes = typeof module !== "undefined" && module.exports ? require("./noammo-recipes.js") : root.NoAmmoRecipes;
     return shopRecipes ??= recipes.buildCatalog(D).recipes.map(recipe => ({
       machine: recipe.machine.slice(8),
-      inputs: recipe.inputs.map(input => input.key.slice(5)),
-      outputs: recipe.outputs.map(output => output.key.slice(5)),
+      inputs: recipe.inputs,
+      outputs: recipe.outputs,
     }));
   }
   const thermalRecipeEntry = (definition, material) => Object.entries(definition.recipes)
@@ -936,12 +936,11 @@
       do {
         previous = materials.size + available.size + readyRecipes.size;
         for (const recipe of recipes) {
-          if (!recipe.inputs.every(part => materials.has(part.key.slice(5)) || (part.tag && materials.has(`${part.key.slice(5)}#${part.tag}`)))) continue;
+          if (!recipe.inputs.every(part => materials.has(part.tag ? `${part.key.slice(5)}#${part.tag}` : part.key.slice(5)))) continue;
           readyRecipes.add(recipe.machine);
           if (available.has(recipe.machine)) for (const output of recipe.outputs) {
             materials.add(output.key.slice(5));
-            materials.add(output.tag ? `${output.key.slice(5)}#${output.tag}` : output.key.slice(5));
-            if (!output.tag) materials.add(output.key.slice(5));
+            if (output.tag) materials.add(`${output.key.slice(5)}#${output.tag}`);
           }
         }
         for (const [type, definition] of shop) {
