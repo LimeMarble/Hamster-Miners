@@ -151,7 +151,7 @@
           point.channel === "fuel" ? "#e5a568" : D.materials[point.material]?.color);
       }
       if (!["belt", "electricConveyor"].includes(machine.type)) {
-        const names = { fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", sellTube: "Sell Tube", wheel: "Hamster Wheel", basket: "Basket", primitive: "+" };
+        const names = { fiber: "Fiber", logger: "Log", clayPit: "Clay Pit", clayShaper: "Clay Shaping", kiln: "Clay Kiln", drive: "Drive", wheel: "Hamster Wheel", primitive: "+" };
         ctx.fillStyle = "#101b13"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 10px system-ui";
         const labelCell = definition.labelCell;
         const labelPoint = labelCell && API.rotatePoint(...labelCell, definition.width, definition.height, D.directions[API.rotation(machine)]);
@@ -173,10 +173,14 @@
   }
   function drawCargo(ctx, item, x, y) {
     const definition = D.materials[item.material];
-    ctx.fillStyle = definition.color; ctx.strokeStyle = "#172318"; ctx.lineWidth = 1;
+    ctx.fillStyle = D.gearTags?.[item.materialTag]?.color ?? definition.color; ctx.strokeStyle = "#172318"; ctx.lineWidth = 1;
     const grade = API.gradeLabel(item);
     if (grade) { ctx.strokeStyle = "#d8bf88"; ctx.lineWidth = 2; }
     ctx.fillRect(x - 6, y - 5, 12, 10); ctx.strokeRect(x - 6, y - 5, 12, 10);
+    if (item.material === "gear" && item.materialTag) {
+      ctx.fillStyle = "#172318"; ctx.font = "bold 7px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(D.gearTags?.[item.materialTag]?.shortName ?? item.materialTag.slice(0, 1).toUpperCase(), x, y);
+    }
     if (item.preheated) { ctx.fillStyle = "#f1a05a"; ctx.fillRect(x - 6, y - 8, 12, 2); }
     if (item.burnished) { ctx.fillStyle = "#d9d8b2"; ctx.fillRect(x - 6, y + 6, 12, 2); }
     if (grade) {

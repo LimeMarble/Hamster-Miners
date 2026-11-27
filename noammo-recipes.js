@@ -31,7 +31,7 @@
   }
   function buildCatalog(data) {
     const entries = new Map(), recipes = [], producers = new Map(), consumers = new Map(), constructionUses = new Map();
-    const item = (id, quantity) => ({ key: `item:${id}`, quantity });
+    const item = (id, quantity, tag) => ({ key: `item:${id}`, quantity, ...(tag ? { tag } : {}) });
     const addTo = (index, key, value) => { if (!index.has(key)) index.set(key, []); index.get(key).push(value); };
     for (const [id, definition] of Object.entries(data.materials)) entries.set(`item:${id}`, { key: `item:${id}`, id, kind: "item", ...definition });
     for (const [id, definition] of Object.entries(data.machines)) entries.set(`machine:${id}`, { key: `machine:${id}`, id, kind: "machine", ...definition });
@@ -61,7 +61,8 @@
           continue;
         }
         const input = definition.craftInput ?? recipe.material ?? mode;
-        add(id, mode, [item(input, recipe.input)], [item(recipe.output, recipe.outputQuantity ?? (definition.heatCapacity ? recipe.input : 1))], recipe);
+          const tag = recipe.output === "gear" ? data.materials[input]?.gearTag : undefined;
+          add(id, mode, [item(input, recipe.input)], [item(recipe.output, recipe.outputQuantity ?? (definition.heatCapacity ? recipe.input : 1), tag)], recipe);
       }
       if (definition.paintRecipe) {
         const recipe = definition.paintRecipe;
@@ -82,16 +83,19 @@
           const output = source[recipe.materialProperty];
           if (data.materials[output] && !data.materials[output].fluid && Boolean(source.fluid) === Boolean(definition.fluidInput)) {
             const resolved = { ...recipe, ...(recipe.recipeProperty ? source[recipe.recipeProperty] : {}) };
-            add(id, `${mode}:${material}`, [item(material, resolved.input)], [item(output, resolved.outputQuantity ?? 1)],
+            add(id, `${mode}:${material}`, [item(material, resolved.input)], [item(output, resolved.outputQuantity ?? 1, output === "gear" ? source.gearTag : undefined)],
               { ...resolved, seconds: resolved.seconds ?? definition.seconds, adjacentPairSpeed: definition.pressModes && !definition.dualPower ? 2 : definition.kineticPairSpeed });
           }
         }
       }
       for (const [material, amount] of Object.entries(definition.cost?.materials ?? {})) addTo(constructionUses, `item:${material}`, { machine: `machine:${id}`, quantity: amount });
+      for (const [material, tags] of Object.entries(definition.cost?.taggedMaterials ?? {})) for (const [tag, amount] of Object.entries(tags)) {
+        addTo(constructionUses, `item:${material}`, { machine: `machine:${id}`, quantity: amount, tag });
+      }
       for (const [machine, amount] of Object.entries(definition.cost?.machines ?? {})) addTo(constructionUses, `machine:${machine}`, { machine: `machine:${id}`, quantity: amount });
     }
     add("woodStripper", "strip", [item("wood", 1)], [item("strippedWood", 1), item("leekFiber", 6)], { seconds: 2 });
-    add("crudeGearBench", "gear:strippedWood", [item("strippedWood", 1)], [item("woodenGear", 1)], data.machines.crudeGearBench.recipes.gear);
+    add("crudeGearBench", "gear:strippedWood", [item("strippedWood", 1)], [item("gear", 1, "wood")], data.machines.crudeGearBench.recipes.gear);
     for (const [material, { fiberYield }] of Object.entries(data.materials)) {
       if (fiberYield) add("fiber", material === "leek" ? "fiber" : material, [item(material, 1)], [item("leekFiber", fiberYield)],
         { seconds: data.config.fiberSeconds, valueMultiplier: fiberYield });
@@ -105,6 +109,7 @@
         }
         const definition = data.machines[machine];
         Object.keys(definition?.cost?.materials ?? {}).forEach(id => related.add(`item:${id}`));
+        Object.keys(definition?.cost?.taggedMaterials ?? {}).forEach(id => related.add(`item:${id}`));
         Object.keys(definition?.cost?.machines ?? {}).forEach(id => related.add(`machine:${id}`));
         if (definition?.heatCapacity) for (const [id, material] of Object.entries(data.materials)) if (material.heat) related.add(`item:${id}`);
       }
@@ -157,7 +162,8 @@
     function parts(container, values) {
       values.forEach((part, i) => {
         if (i) container.append(element("span", "+", "recipe-plus"));
-        container.append(reference(part.key, `${number(part.quantity)} ${catalog.entries.get(part.key).name}${part.chance !== undefined ? ` (${number(part.chance * 100)}% chance)` : ""}`));
+        const name = part.tag ? data.gearTags[part.tag]?.name ?? `${part.tag} Gear` : catalog.entries.get(part.key).name;
+        container.append(reference(part.key, `${number(part.quantity)} ${name}${part.chance !== undefined ? ` (${number(part.chance * 100)}% chance)` : ""}`));
       });
     }
     function gradeNotes(node, recipe) {
@@ -190,6 +196,7 @@
       if (machine.preheats || recipe.preheats) facts.push(recipe.inputs.some(part => part.key === "item:unfiredPot") ? "Pots avoid a 2 integrity loss when fired; unfired score is unchanged" : `moves up to ${number(machine.preheatGradeTransfer * 100)} percentage points of Unremarkable chance to Standard`);
       if (recipe.heatPerSecond) facts.push(`${number(recipe.heatPerSecond)}u/s heat`);
       if (recipe.water) facts.push(`${number(recipe.water)} Water per batch`);
+      if (recipe.outputWeightMultiplier !== undefined) facts.push(`Output weight: ${number(recipe.outputWeightMultiplier)}× combined input weight, divided by output quantity`);
       node.append(element("p", facts.join(" · "), "recipe-facts"));
       if (recipe.seconds > 0) node.append(element("p", recipe.outputs.map(part => `${number(part.quantity * (part.chance ?? 1) * 60 / recipe.seconds)} ${catalog.entries.get(part.key).name}/min`).join(" · ") + (recipe.outputs.some(part => part.chance !== undefined) ? " on average while continuously running" : " while continuously running"), "muted"));
       if (recipe.valueBonus !== undefined) node.append(element("p", `Adds $${number(recipe.valueBonus)} per item on the first rinse.`, "muted"));
@@ -225,7 +232,14 @@
       const title = element("h2", entry.name); title.id = "recipeTitle";
       detail.append(element("p", entry.kind === "machine" ? `${entry.category} machine` : entry.fluid ? "Fluid" : "Item", "recipe-kind-label"), title);
       if (entry.kind === "item") {
-        detail.append(element("p", `${entry.value === null ? "Unsellable" : `Base value: $${number(entry.value)}`} · Weight: ${number(entry.weight)}`, "recipe-facts"));
+        const sources = catalog.producers.get(entry.key) ?? [];
+        const hasInputRecipe = sources.some(recipe => recipe.inputs.length > 0);
+        const weight = entry.id === "gear" ? "Weight derives per cargo from the production recipe" : `Weight: ${number(entry.weight)}`;
+        detail.append(element("p", `${entry.derivedBaseValue || entry.proposedRecipe || hasInputRecipe ? "Base value derives per cargo from its input recipe" : entry.value === null ? "Unsellable" : `Base value: $${number(entry.value)}`} · ${weight}`, "recipe-facts"));
+        if (entry.proposedRecipe) {
+          const ingredients = Object.entries(entry.proposedRecipe.inputs).map(([material, amount]) => `${amount} ${data.materials[material].name}`).join(" + ");
+          detail.append(element("p", `Proposed recipe: ${ingredients} → ${entry.proposedRecipe.outputQuantity} Axes. Production machine not selected.`, "muted"));
+        }
         const modeled = ["clay", "unfiredPot", "pot", "paintedPot"].includes(entry.id);
         if (modeled) {
           detail.append(element("p", "Quality properties range from 0 to 10. Inventory loses quality and treatments. Default workability and purity are both 2, without assessment.", "muted"));
@@ -234,7 +248,7 @@
         }
         const chances = modeled ? null : data.gradeTables[entry.gradeTable ?? entry.family];
         if (chances) detail.append(element("p", `Starting grade chances for fresh cargo: ${chances.map((chance, i) => chance ? `${data.grades[i].name} ${number(chance * 100)}%` : "").filter(Boolean).join(" · ")}. Manufactured cargo can inherit different chances and treatments.`, "muted"));
-        const sources = catalog.producers.get(entry.key) ?? [], uses = catalog.consumers.get(entry.key) ?? [];
+        const uses = catalog.consumers.get(entry.key) ?? [];
         const made = section("Sources", sources.length || entry.id === "wood" ? "" : "No production source is available in this version.");
         if (entry.id === "wood") made.append(element("p", `Tree chopping: ${data.config.chopsPerHarvest} accepted clicks yield 1–5 Wood.`));
         sources.forEach(recipe => made.append(recipeCard(recipe)));
@@ -275,7 +289,8 @@
       const uses = catalog.constructionUses.get(entry.key) ?? [];
       const construction = section("Used in construction", uses.length ? "" : "No machine construction costs use this entry.");
       for (const use of uses) {
-        const line = element("p"); line.append(reference(use.machine), element("span", ` · ${number(use.quantity)} required`)); construction.append(line);
+        const tagName = use.tag ? data.gearTags[use.tag]?.name ?? `${use.tag} Gear` : null;
+        const line = element("p"); line.append(reference(use.machine), element("span", ` · ${number(use.quantity)} ${tagName ? `${tagName} ` : ""}required`)); construction.append(line);
       }
     }
     function render() {

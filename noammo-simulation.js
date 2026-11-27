@@ -160,8 +160,22 @@
     return result;
   }
   const sifterOutputSlot = item => item.sifterSlot ?? (item.material === "soil" ? 0 : 1);
-  function cargo(material, quantity = 1, value = D.materials[material]?.value ?? 0) {
-    return { material, quantity, value, upgrades: {}, progress: 0, ...(Q.modeled(material) ? { quality: Q.defaults(material) } : {}) };
+  function cargo(material, quantity = 1, value = D.materials[material]?.value ?? 0, baseValue = D.materials[material]?.value ?? null, materialTag = undefined, weight = undefined) {
+    return { material, quantity, value, baseValue, ...(materialTag ? { materialTag } : {}), ...(weight === undefined ? {} : { weight }), upgrades: {}, progress: 0, ...(Q.modeled(material) ? { quality: Q.defaults(material) } : {}) };
+  }
+  const sameMaterialKind = (a, b) => a.material === b.material && a.materialTag === b.materialTag;
+  const cargoWeight = (item) => item.material === "gear" ? item.weight : D.materials[item.material].weight;
+  function cargoMaterialName(item) {
+    if (item.material === "gear" && item.materialTag) return D.gearTags[item.materialTag]?.name ?? `${item.materialTag} Gear`;
+    return D.materials[item.material]?.name ?? item.material;
+  }
+  function addInventoryCargo(state, item) {
+    state.inventory[item.material] = (state.inventory[item.material] ?? 0) + item.quantity;
+    if (item.material === "gear") {
+      const tag = item.materialTag;
+      if (!Object.hasOwn(state.inventoryTags?.gear ?? {}, tag)) throw new Error("Gear cargo is missing its material tag.");
+      state.inventoryTags.gear[tag] += item.quantity;
+    }
   }
   function conveyorCells(machine) {
     const definition = D.machines[machine.type];
@@ -182,7 +196,9 @@
   const legacyCashUseLimits = { brickSeal: 9, pebblePile: 5 };
   function validCargo(item) {
     return item && D.materials[item.material] && Number.isFinite(item.quantity) && item.quantity > 0
-      && Number.isFinite(item.value) && item.value >= 0 && item.upgrades && typeof item.upgrades === "object"
+      && Number.isFinite(item.value) && item.value >= 0 && (item.baseValue === null || (Number.isFinite(item.baseValue) && item.baseValue >= 0)) && item.upgrades && typeof item.upgrades === "object"
+      && (item.material === "gear" ? Object.hasOwn(D.gearTags, item.materialTag) : item.materialTag === undefined)
+      && (item.material === "gear" ? Number.isFinite(item.weight) && item.weight > 0 : item.weight === undefined)
       && !Array.isArray(item.upgrades) && Number.isFinite(item.progress) && item.progress >= 0 && item.progress <= 1
       && Object.values(item.upgrades).every((value) => typeof value === "boolean" || (Number.isSafeInteger(value) && value >= 0))
       && Object.entries(item.upgrades).every(([type, uses]) => D.machines[type]?.cashEffect?.useLimit === undefined
@@ -210,7 +226,7 @@
           && Number.isFinite(D.machines[type].legacyGradeEffect?.poorToUnremarkablePerUse) && Number.isFinite(count) && count >= 0 && count <= D.machines[type].legacyGradeEffect.useLimit)));
   }
   function sameCargo(a, b) {
-    return a.material === b.material && Math.abs(a.value - b.value) < epsilon
+    return sameMaterialKind(a, b)
       && Boolean(a.preheated) === Boolean(b.preheated) && Boolean(a.burnished) === Boolean(b.burnished)
       && JSON.stringify(a.quality ?? null) === JSON.stringify(b.quality ?? null)
       && Boolean(a.qualityAssessed) === Boolean(b.qualityAssessed)
@@ -225,7 +241,8 @@
   function joinBufferedOutput(output) {
     const first = output[0];
     while (output.length > 1 && sameCargo(first, output[1])) {
-      first.quantity += output[1].quantity;
+      const combined = combineCargo([first, output[1]]);
+      Object.assign(first, combined);
       output.splice(1, 1);
     }
   }
@@ -321,9 +338,12 @@
     return output;
   }
   function combineCargo(inputs) {
-    if (!inputs.length || inputs.some((item) => !validCargo(item) || item.material !== inputs[0].material)) throw new Error("Only valid cargo of the same material can form a stack.");
+    if (!inputs.length || inputs.some((item) => !validCargo(item) || !sameMaterialKind(item, inputs[0]))) throw new Error("Only valid cargo of the same material and tag can form a stack.");
     const quantity = inputs.reduce((sum, item) => sum + item.quantity, 0);
-    const output = cargo(inputs[0].material, quantity, inputs.reduce((sum, item) => sum + item.value * item.quantity, 0) / quantity);
+    const weight = inputs[0].material === "gear" ? inputs.reduce((sum, item) => sum + cargoWeight(item) * item.quantity, 0) / quantity : undefined;
+    const output = cargo(inputs[0].material, quantity, inputs.reduce((sum, item) => sum + item.value * item.quantity, 0) / quantity,
+      inputs.some(item => item.baseValue === null) ? null : inputs.reduce((sum, item) => sum + item.baseValue * item.quantity, 0) / quantity,
+      inputs[0].materialTag, weight);
     if (inputs.every((item) => item.preheated)) output.preheated = true;
     if (inputs.every((item) => item.burnished)) output.burnished = true;
     const uses = new Map();
@@ -381,7 +401,7 @@
         return used === true && machine === type && effect === channel;
       });
       const { cashEffect, gradeEffect } = D.machines[type];
-      if (!spent("cash") && D.materials[item.material].value !== null && item.value + epsilon < cashEffect.upperLimit) {
+      if (!spent("cash") && item.baseValue !== null && item.value + epsilon < cashEffect.upperLimit) {
         item.value *= cashEffect.multiplier; item.upgrades[type] = 1;
         item.materialHistory = { ...item.materialHistory, [cashKey]: true };
       }
@@ -391,7 +411,7 @@
       }
       return;
     }
-    const effect = D.machines[type].cashEffect, base = D.materials[item.material].value;
+    const effect = D.machines[type].cashEffect, base = item.baseValue;
     const uses = item.upgrades[type] ?? 0;
     if (!effect || base === null || base < (effect.baseValueRequired ?? 0)
       || item.value < (effect.lowerLimit ?? 0)
@@ -416,10 +436,11 @@
       kind: D.saveKind, version: D.saveVersion, woodStripperVersion: 1, planterFootprintVersion: 2, fiberFootprintVersion: 3, openingEconomyVersion: 1, clayShapingVersion: 1, kilnVersion: 1, brickSealVersion: 1, brickStorageVersion: 1, pebbleSifterVersion: 1, gradingVersion: 2, random: seed >>> 0, seconds: 0, nextId: 1,
       settledContentVersion: 1, primitiveStackerVersion: 1, potSpinnerVersion: 2, crudeGearBenchVersion: 1, graniteProcessorVersion: 2, beltCapacityVersion: 1, pebblePileVersion: 1,
       kilnSpeedVersion: 1, potteryWeightVersion: 1,
-      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterSiftersVersion: 1, starterBasketsVersion: 1,
+      copperIndustryVersion: 1, heatScaleVersion: 1, copperFinishingVersion: 1, loggerSpeedVersion: 1, starterSiftersVersion: 1,
       gradeEvolutionVersion: 1, leekDusterVersion: 1, metalPressVersion: 1, thermalAutoVersion: 1, wireIndustryVersion: 2, electricityVersion: 1, spoolTimingVersion: 1, limestoneDrillVersion: 1, preheaterVersion: 1, burnisherVersion: 1, paintingVersion: 1, sawmillVersion: 1, copperWashVersion: 1, potShelfVersion: 1, plantCutterVersion: 1, playtestVersion: 2, propertyQualityVersion: 1,
     runeVersion: 4, freeMajorPedestals: 0, foodVersion: 7, graniteDrillVersion: 1, rinseBenchVersion: 1,
       cash: 0, earned: 0, inventory: Object.fromEntries(Object.keys(D.materials).map((material) => [material, 0])),
+      inventoryTags: { gear: Object.fromEntries(Object.keys(D.gearTags).map(tag => [tag, 0])) },
       stock: Object.fromEntries(Object.keys(D.machines).map((type) => [type, 0])),
       storedMachines: [], machines: [], trees: startingTrees(), terrainVersion: D.startingTerrain.version, harvestProgress: 0,
       clickTokens: 1, harvestedWood: 0, soldItems: 0, producedFiber: 0, hiredCrew: 0,
@@ -427,7 +448,6 @@
       playtest: { unlocked: false, toggles: Object.fromEntries(CHEATS.map((id) => [id, false])), used: Object.fromEntries(CHEATS.map((id) => [id, false])) },
     };
     state.stock.logger = 1;
-    state.stock.basket = D.machines.basket.dismantleMinimum;
     state.stock.sellTube = 1;
     state.stock.pebbleSifter = 1;
     state.stock.wheel = 1;
@@ -603,7 +623,7 @@
     recordOutput(machine, item, grade = null) {
       if (!supportsOutputHistory(machine.type)) return;
       const history = this.outputHistories.get(machine.id) ?? [];
-      history.unshift({ value: D.materials[item.material].value === null ? null : Q.saleValue(item), quantity: item.quantity, grade });
+      history.unshift({ value: item.baseValue === null ? null : Q.saleValue(item), quantity: item.quantity, grade });
       history.length = Math.min(5, history.length);
       this.outputHistories.set(machine.id, history);
     }
@@ -664,10 +684,10 @@
       if (!this.state.playtest.unlocked || !CHEATS.includes(id) || typeof enabled !== "boolean") return { error: "Invalid playtest setting." };
       if (id === "conveyorCapacity" && !enabled && cheatEnabled(this.state, id)) {
         for (const machine of this.state.machines) for (const item of Object.values(machine.lanes)) {
-          if (D.materials[item.material].weight > conveyorWeightLimit(machine) + epsilon) return { error: "Pick up or clear items too heavy for the normal conveyor before disabling this cheat." };
+          if (cargoWeight(item) > conveyorWeightLimit(machine) + epsilon) return { error: "Pick up or clear items too heavy for the normal conveyor before disabling this cheat." };
         }
         for (const machine of this.state.machines) for (const [lane, item] of Object.entries(machine.lanes)) {
-          const capacity = Math.floor(conveyorWeightLimit(machine) / D.materials[item.material].weight);
+          const capacity = Math.floor(conveyorWeightLimit(machine) / cargoWeight(item));
           splitOverweightLane(machine, lane, item, capacity);
         }
       }
@@ -842,11 +862,11 @@
       return { amount: selected.length };
     }
     collect(id) {
-      const basket = this.byId.get(id);
-      if (!collectorCapacity(basket)) return 0;
+      const collector = this.byId.get(id);
+      if (!collectorCapacity(collector)) return 0;
       let quantity = 0;
-      for (const item of basket.contents) { this.state.inventory[item.material] += item.quantity; quantity += item.quantity; }
-      basket.contents = [];
+      for (const item of collector.contents) { addInventoryCargo(this.state, item); quantity += item.quantity; }
+      collector.contents = [];
       return quantity;
     }
     pickup(id) {
@@ -861,9 +881,9 @@
       }
       if (collectorCapacity(machine)) this.collect(id);
       for (const item of [...machine.input, ...machine.output, ...Object.values(machine.lanes), ...Object.values(machine.beltRemainders ?? {})]) {
-        if (validCargo(item) && !D.materials[item.material].fluid) this.state.inventory[item.material] += item.quantity;
+        if (validCargo(item) && !D.materials[item.material].fluid) addInventoryCargo(this.state, item);
       }
-      for (const item of jobInputs(machine.job)) if (!D.materials[item.material].fluid) this.state.inventory[item.material] += item.quantity;
+      for (const item of jobInputs(machine.job)) if (!D.materials[item.material].fluid) addInventoryCargo(this.state, item);
       machine.input = machine.input.filter((item) => D.materials[item.material].fluid);
       machine.output = machine.output.filter((item) => D.materials[item.material].fluid);
       machine.contents = []; machine.lanes = {};
@@ -901,6 +921,9 @@
     redeemRune() { return { error: "No offering available." }; }
     shopProgress() {
       const materials = new Set(Object.keys(D.materials).filter(id => this.state.inventory[id] > 0));
+      for (const [material, tags] of Object.entries(this.state.inventoryTags ?? {})) for (const [tag, quantity] of Object.entries(tags)) {
+        if (quantity > 0) materials.add(`${material}#${tag}`);
+      }
       materials.add("wood");
       const owned = new Set([...this.state.machines.map(machine => machine.type),
         ...Object.keys(D.machines).filter(type => this.state.stock[type] > 0)]);
@@ -913,13 +936,19 @@
       do {
         previous = materials.size + available.size + readyRecipes.size;
         for (const recipe of recipes) {
-          if (!recipe.inputs.every(id => materials.has(id))) continue;
+          if (!recipe.inputs.every(part => materials.has(part.key.slice(5)) || (part.tag && materials.has(`${part.key.slice(5)}#${part.tag}`)))) continue;
           readyRecipes.add(recipe.machine);
-          if (available.has(recipe.machine)) for (const output of recipe.outputs) materials.add(output);
+          if (available.has(recipe.machine)) for (const output of recipe.outputs) {
+            materials.add(output.key.slice(5));
+            materials.add(output.tag ? `${output.key.slice(5)}#${output.tag}` : output.key.slice(5));
+            if (!output.tag) materials.add(output.key.slice(5));
+          }
         }
         for (const [type, definition] of shop) {
           if ((!recipeMachines.has(type) || readyRecipes.has(type))
             && Object.keys(definition.cost?.materials ?? {}).every(id => materials.has(id))
+            && Object.entries(definition.cost?.taggedMaterials ?? {}).every(([material, tags]) => Object.entries(tags)
+              .every(([tag]) => materials.has(`${material}#${tag}`)))
             && Object.keys(definition.cost?.machines ?? {}).every(id => available.has(id))) available.add(type);
         }
       } while (previous !== materials.size + available.size + readyRecipes.size);
@@ -933,6 +962,9 @@
       const { materials, available, readyRecipes, recipeMachines } = progress ?? this.shopProgress();
       const missing = Object.keys(definition.cost?.materials ?? {}).find(id => !materials.has(id));
       if (missing) return `${D.materials[missing].name} is not yet obtainable.`;
+      for (const [material, tags] of Object.entries(definition.cost?.taggedMaterials ?? {})) for (const [tag] of Object.entries(tags)) {
+        if (!materials.has(`${material}#${tag}`)) return `${D.gearTags[tag]?.name ?? `${tag} ${D.materials[material].name}`} is not yet obtainable.`;
+      }
       const component = Object.keys(definition.cost?.machines ?? {}).find(id => !available.has(id));
       if (component) return `${D.machines[component].name} is not yet obtainable.`;
       if (recipeMachines.has(type) && !readyRecipes.has(type)) return "This machine's recipe ingredients are not yet obtainable.";
@@ -948,6 +980,11 @@
       for (const [material, quantity] of Object.entries(cost.materials)) {
         if (this.state.inventory[material] + epsilon < quantity * amount) return `Not enough ${D.materials[material].name}.`;
       }
+      for (const [material, tags] of Object.entries(cost.taggedMaterials ?? {})) for (const [tag, quantity] of Object.entries(tags)) {
+        if ((this.state.inventoryTags?.[material]?.[tag] ?? 0) + epsilon < quantity * amount) {
+          return `Not enough ${D.gearTags[tag]?.name ?? `${tag} ${D.materials[material].name}`}.`;
+        }
+      }
       for (const [machine, quantity] of Object.entries(cost.machines ?? {})) {
         if (this.state.stock[machine] < quantity * amount) return `Not enough unplaced ${D.machines[machine].name}.`;
       }
@@ -959,6 +996,10 @@
       const cost = D.machines[type].cost;
       this.state.cash = Math.max(0, this.state.cash - cost.cash * amount);
       for (const [material, quantity] of Object.entries(cost.materials)) this.state.inventory[material] -= quantity * amount;
+      for (const [material, tags] of Object.entries(cost.taggedMaterials ?? {})) for (const [tag, quantity] of Object.entries(tags)) {
+        this.state.inventoryTags[material][tag] -= quantity * amount;
+        this.state.inventory[material] -= quantity * amount;
+      }
       for (const [machine, quantity] of Object.entries(cost.machines ?? {})) {
         let needed = quantity * amount;
         // Owned stored instances are consumed once, never left as ghost inventory.
@@ -988,20 +1029,29 @@
       if (error) return { error };
       const cost = this.dismantleRefund(type);
       const index = this.state.storedMachines.findIndex((machine) => machine.type === type);
-      const materials = { ...cost.materials }, machines = { ...cost.machines };
+      const materials = { ...cost.materials }, taggedMaterials = copy(cost.taggedMaterials ?? {}), machines = { ...cost.machines };
       if (index >= 0) {
         const stored = this.state.storedMachines.splice(index, 1)[0];
         for (const item of [...stored.input, ...stored.output, ...stored.contents, ...Object.values(stored.lanes),
           ...Object.values(stored.beltRemainders ?? {}), ...jobInputs(stored.job)]) {
-          if (validCargo(item) && !D.materials[item.material].fluid) materials[item.material] = (materials[item.material] ?? 0) + item.quantity;
+          if (validCargo(item) && !D.materials[item.material].fluid) {
+            if (item.materialTag) {
+              taggedMaterials[item.material] ??= {};
+              taggedMaterials[item.material][item.materialTag] = (taggedMaterials[item.material][item.materialTag] ?? 0) + item.quantity;
+            } else materials[item.material] = (materials[item.material] ?? 0) + item.quantity;
+          }
         }
         this.outputHistories.delete(stored.id);
       }
       this.state.stock[type]--;
       if (type === "majorRunePedestal" && this.state.freeMajorPedestals > 0) this.state.freeMajorPedestals--;
       for (const [material, quantity] of Object.entries(materials)) this.state.inventory[material] += quantity;
+      for (const [material, tags] of Object.entries(taggedMaterials)) for (const [tag, quantity] of Object.entries(tags)) {
+        this.state.inventoryTags[material][tag] += quantity;
+        this.state.inventory[material] += quantity;
+      }
       for (const [machine, quantity] of Object.entries(machines)) this.state.stock[machine] += quantity;
-      return { amount: 1, materials, machines };
+      return { amount: 1, materials, taggedMaterials, machines };
     }
     borrow(type, amount = 1) {
       if (!D.machines[type] || D.machines[type].cost || !Number.isInteger(amount) || amount < 1 || amount > 100 || this.shopUnlockError(type)) return false;
@@ -1021,7 +1071,7 @@
     }
     sell(items) {
       let money = 0, quantity = 0;
-      for (const item of items) if (D.materials[item.material]?.value !== null && !D.materials[item.material]?.fluid) {
+      for (const item of items) if (item.baseValue !== null && !D.materials[item.material]?.fluid) {
         money += item.quantity * Q.saleValue(item); quantity += item.quantity;
       }
       if (cheatEnabled(this.state, "cash")) money *= 10;
@@ -1029,9 +1079,9 @@
       return money;
     }
     sellAtPile(items) {
-      const bonusByMaterial = { wood: 0.35, strippedWood: 0.25, rope: 0.5, woodenGear: 0.6, axe: 3, unfiredBrick: 4 };
+      const bonusByMaterial = { wood: 0.35, strippedWood: 0.25, rope: 0.5, gear: 0.6, axe: 3, unfiredBrick: 4 };
       let money = 0, quantity = 0;
-      for (const item of items) if (D.materials[item.material]?.value !== null && !D.materials[item.material]?.fluid) {
+      for (const item of items) if (item.baseValue !== null && !D.materials[item.material]?.fluid) {
         const perItem = Q.saleValue(item) * 0.5 + (bonusByMaterial[item.material] ?? 0);
         money += item.quantity * perItem; quantity += item.quantity;
       }
@@ -1052,7 +1102,7 @@
       return { machine };
     }
     stackTarget(machine, item) {
-      return Math.min(machine.stackSize, Math.floor(conveyorWeightLimit(machine, this.state) / D.materials[item.material].weight));
+      return Math.min(machine.stackSize, Math.floor(conveyorWeightLimit(machine, this.state) / cargoWeight(item)));
     }
     setShapingMode(id, mode) {
       const machine = this.byId.get(id);
@@ -1067,7 +1117,7 @@
       const definition = D.machines[machine?.type];
       if (!definition?.oven || !Object.hasOwn(definition.recipes, mode)) return { error: "Invalid Stone Oven recipe." };
       if (machine.mode !== mode) {
-        for (const item of machine.input) this.state.inventory[item.material] += item.quantity;
+        for (const item of machine.input) addInventoryCargo(this.state, item);
         machine.input = [];
         machine.mode = mode;
         this.layoutVersion++;
@@ -1088,7 +1138,7 @@
       if (!definition?.pressModes || !Object.hasOwn(definition.pressModes, mode)) return { error: "Invalid Press mode." };
       if (machine.mode !== mode) {
         for (const item of [...machine.input, ...[machine.lanes[0], machine.beltRemainders?.[0]].filter(Boolean)]) {
-          this.state.inventory[item.material] += item.quantity;
+          addInventoryCargo(this.state, item);
         }
         delete machine.lanes[0];
         if (machine.beltRemainders) delete machine.beltRemainders[0];
@@ -1108,7 +1158,7 @@
         // Only solid, waiting ingredients are returned; a running job keeps
         // its own recipe and liquid input never enters inventory.
         if (definition.fluidInput) return { error: "This machine has no alternate mode." };
-        for (const item of machine.input) this.state.inventory[item.material] += item.quantity;
+        for (const item of machine.input) addInventoryCargo(this.state, item);
         machine.input = []; machine.mode = mode;
       }
       return { machine };
@@ -1147,12 +1197,18 @@
         ? formingRecipe(definition, machine.job.input, machine.job.mode, machine.job)
         : this.craftRecipe(machine, machine.job.input, machine.job.mode);
       const quantity = (recipe.outputQuantity ?? 1) * (machine.job.bulk ?? 1);
+      const materialTag = recipe.output === "gear" ? D.materials[machine.job.input.material]?.gearTag : undefined;
+      const outputWeight = recipe.output === "gear"
+        ? cargoWeight(machine.job.input) * machine.job.input.quantity * (recipe.outputWeightMultiplier ?? 1) / quantity
+        : undefined;
       const product = definition.preservesCargo ? copy(machine.job.input) : blendGradeRepairs(cargo(recipe.output, quantity,
-        machine.job.input.value * machine.job.input.quantity * recipe.valueMultiplier / quantity), [machine.job.input]);
+        machine.job.input.value * machine.job.input.quantity * recipe.valueMultiplier / quantity,
+        machine.job.input.baseValue === null ? null : machine.job.input.baseValue * machine.job.input.quantity * recipe.valueMultiplier / quantity, materialTag, outputWeight), [machine.job.input]);
       if (machine.type === "burnisher") Q.burnish(product);
       if (machine.type === "potSpinner") Q.spin(product);
       if (machine.type === "rinseBench") {
         setCargoValue(product, product.value + recipe.valueBonus);
+        if (product.baseValue !== null) product.baseValue += recipe.valueBonus;
         product.upgrades.rinseBench = 1;
         applyGradeTreatment(product, promotionTreatment(recipe.promotionRates));
       }
@@ -1177,7 +1233,7 @@
     startGrading(machine) {
       if (machine.job || machine.output.length || !machine.input.length) return;
       const input = machine.input.shift();
-      machine.job = { input, remaining: input.quantity * D.materials[input.material].weight * D.machines.gradingBench.secondsPerWeight };
+      machine.job = { input, remaining: input.quantity * cargoWeight(input) * D.machines.gradingBench.secondsPerWeight };
     }
     unloadGrader(machine) {
       if (machine.output.length) {
@@ -1198,7 +1254,8 @@
     finishPainting(machine) {
       if (!machine.job || machine.job.remaining > epsilon || machine.output.length) return;
       const pot = machine.job.inputs.find((item) => item.material === "pot");
-      machine.output.push(blendGradeRepairs(cargo("paintedPot", machine.job.bulk ?? 1, pot.value * 3), [pot]));
+      machine.output.push(blendGradeRepairs(cargo("paintedPot", machine.job.bulk ?? 1, pot.value * 3,
+        pot.baseValue === null ? null : pot.baseValue * 3), [pot]));
       machine.job = null;
     }
     unloadPainting(machine) {
@@ -1234,7 +1291,8 @@
         else {
           const quantity = recipe.outputQuantity * bulk;
           const value = inputs.reduce((sum, item) => sum + item.quantity * item.value, 0) * recipe.valueMultiplier / quantity;
-          machine.output.push(blendGradeRepairs(cargo(recipe.output, quantity, value), inputs));
+          const baseValue = inputs.some(item => item.baseValue === null) ? null : inputs.reduce((sum, item) => sum + item.quantity * item.baseValue, 0) * recipe.valueMultiplier / quantity;
+          machine.output.push(blendGradeRepairs(cargo(recipe.output, quantity, value, baseValue), inputs));
         }
         return;
       }
@@ -1266,9 +1324,11 @@
         const input = combineCargo(machine.job.inputs);
         const quantity = recipe.outputQuantity * (machine.job.bulk ?? 1);
         machine.output.push(blendGradeRepairs(cargo(recipe.output, quantity,
-          input.value * input.quantity * recipe.valueMultiplier / quantity), [input]));
+          input.value * input.quantity * recipe.valueMultiplier / quantity,
+          input.baseValue === null ? null : input.baseValue * input.quantity * recipe.valueMultiplier / quantity), [input]));
       } else for (const item of machine.job.inputs) {
-        const product = blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier), [item]);
+        const product = blendGradeRepairs(cargo(recipe.output, item.quantity, item.value * recipe.valueMultiplier,
+          item.baseValue === null ? null : item.baseValue * recipe.valueMultiplier), [item]);
         if (!Q.modeled(product.material) && item.burnished && recipe.burnishedGradeEffect) {
           const treatment = identityTreatment();
           const effect = recipe.burnishedGradeEffect;
@@ -1365,7 +1425,7 @@
       const elevated = Boolean(D.machines[machine.type].bridge);
       const stacking = Boolean(D.machines[machine.type].maxStackSize), existing = machine.lanes[tile.index];
       if (!stacking && existing && existing !== item) return 0;
-      if (stacking && existing && (existing.material !== item.material || Boolean(existing.preheated) !== Boolean(item.preheated)
+      if (stacking && existing && (!sameMaterialKind(existing, item) || Boolean(existing.preheated) !== Boolean(item.preheated)
         || Boolean(existing.burnished) !== Boolean(item.burnished)
         || (existing.lateral ?? null) !== lateral)) return 0;
       if (!this.conveyorPowered(machine, tile.x, tile.y) || this.slotBusy(tile.x, tile.y, elevated, stacking ? existing : item)) return 0;
@@ -1376,7 +1436,7 @@
           || this.slotBusy(partner.tile.x, partner.tile.y, elevated, stacking ? existing : item)) return 0;
       }
       const capacity = stacking ? this.stackTarget(machine, item) - (existing?.quantity ?? 0)
-        : Math.floor(conveyorWeightLimit(machine, this.state) / D.materials[item.material].weight);
+        : Math.floor(conveyorWeightLimit(machine, this.state) / cargoWeight(item));
       if (stacking && existing && item.quantity > capacity + epsilon) {
         return this.receiveStackerBatch(machine, item, tile, consume);
       }
@@ -1459,14 +1519,14 @@
         && (!incomingSide || point.direction === incomingSide));
       if (D.materials[item.material].directTransferOnly && !(input?.channel === "dish" && D.machines[machine.type].plateRecipes?.[item.material])) return 0;
       let quantity = 0;
-      if (collectorCapacity(machine) && (machine.type === "basket" || input)) {
+      if (collectorCapacity(machine) && input) {
         quantity = Math.max(0, Math.min(item.quantity, this.collectorCapacity(machine) - this.total(machine, "contents")));
         if (consume && quantity > epsilon) {
           const existing = machine.contents.find((entry) => sameCargo(entry, item));
-          if (existing) existing.quantity += quantity;
+          if (existing) Object.assign(existing, combineCargo([existing, { ...copy(item), quantity, progress: 0 }]));
           else machine.contents.push({ ...copy(item), quantity, progress: 0 });
         }
-      } else if (machine.type === "sellTube" && D.materials[item.material].value !== null) {
+      } else if (machine.type === "sellTube" && item.baseValue !== null) {
         quantity = item.quantity;
         if (consume) {
           const amount = this.sellAtPile([item]);
@@ -1479,25 +1539,25 @@
         quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), machineBulk(this.state, machine) - this.total(machine, "input")));
         if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (machine.type === "fiber" && input && D.materials[item.material].fiberYield
-        && machine.input.every(entry => entry.material === item.material)) {
+        && machine.input.every(entry => sameMaterialKind(entry, item))) {
         quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), machineBulk(this.state, machine) - this.total(machine, "input")));
         if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (D.machines[machine.type].molder && input && moldingProduct(item.material)
-        && machine.input.every((entry) => entry.material === item.material)) {
+        && machine.input.every((entry) => sameMaterialKind(entry, item))) {
         quantity = Math.max(0, Math.min(item.quantity, D.machines[machine.type].inputLimit * machineBulk(this.state, machine) - this.total(machine, "input")));
         if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (D.machines[machine.type].formingModes && input) {
         const definition = D.machines[machine.type], recipe = this.craftRecipe(machine, item);
-        if (recipe && machine.input.every((entry) => entry.material === item.material)) {
+        if (recipe && machine.input.every((entry) => sameMaterialKind(entry, item))) {
           quantity = Math.max(0, Math.min(item.quantity, Math.min(definition.inputLimit, recipe.input) * machineBulk(this.state, machine) - this.total(machine, "input")));
           if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
         }
-      } else if (D.machines[machine.type].craftInput && input && (item.material === D.machines[machine.type].craftInput || (machine.type === "crudeGearBench" && machine.mode === "gear" && item.material === "strippedWood")) && machine.input.every(entry => entry.material === item.material)) {
+      } else if (D.machines[machine.type].craftInput && input && (item.material === D.machines[machine.type].craftInput || (machine.type === "crudeGearBench" && machine.mode === "gear" && item.material === "strippedWood")) && machine.input.every(entry => sameMaterialKind(entry, item))) {
         quantity = Math.max(0, Math.min(Math.floor(item.quantity + epsilon), D.machines[machine.type].inputLimit * machineBulk(this.state, machine) - this.total(machine, "input")));
         if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
       } else if (machine.type === "gradingBench" && input && (Q.modeled(item.material) || gradeProbabilities(item))) {
         if (!machine.input.length) {
-          quantity = Math.min(item.quantity, Math.floor(D.machines.gradingBench.inputWeightLimit / D.materials[item.material].weight));
+          quantity = Math.min(item.quantity, Math.floor(D.machines.gradingBench.inputWeightLimit / cargoWeight(item)));
           if (consume && quantity > epsilon) machine.input.push({ ...copy(item), quantity, progress: 0 });
         }
       } else if (D.machines[machine.type].plateRecipes && input) {
@@ -1527,7 +1587,7 @@
             if (consume && quantity) machine.input.push({ ...copy(item), quantity, progress: 0 });
           }
         } else if (input.channel === "material" && feedRecipe && !(definition.preheats && item.preheated)
-          && machine.input.every((entry) => entry.material === item.material)) {
+          && machine.input.every((entry) => sameMaterialKind(entry, item))) {
           quantity = Math.max(0, Math.min(Math.floor(item.quantity), feedRecipe.input * machineBulk(this.state, machine) - this.total(machine, "input")));
           if (consume && quantity > 0) machine.input.push({ ...copy(item), quantity, progress: 0 });
         } else if (input.channel === "fuel" && Number.isFinite(fuelHeat) && fuelHeat > 0) {
@@ -1643,7 +1703,7 @@
                   const current = machine.output.find((item) => item.material === material);
                   const available = Math.max(0, quantity * resourceMultiplier - (current?.quantity ?? 0));
                   if (available > epsilon) {
-                    if (current) current.quantity += available;
+                    if (current) Object.assign(current, combineCargo([current, cargo(material, available)]));
                     else machine.output.push(cargo(material, available));
                   }
                 } else machine.output.push(cargo(material, quantity * resourceMultiplier));
@@ -1672,9 +1732,12 @@
             machine.job.remaining -= machineSeconds;
             if (machine.job.remaining <= epsilon && !machine.output.length) {
               const input = machine.job.input, bulk = machine.job.bulk ?? 1;
-              machine.output.push(cargo("strippedWood", bulk, input.value));
-              machine.output.push(cargo("leekFiber", 6 * bulk, D.materials.leekFiber.value));
-              state.producedFiber += 6 * bulk; machine.job = null;
+              machine.output.push(cargo("strippedWood", bulk, input.value, input.baseValue));
+              const fiberRecipe = definition.secondaryFiberOutput;
+              const fiberQuantity = fiberRecipe.quantity * bulk;
+              const fiberBaseValue = input.baseValue === null ? null : input.baseValue * fiberRecipe.valueMultiplier / fiberRecipe.quantity;
+              machine.output.push(cargo(fiberRecipe.material, fiberQuantity, fiberRecipe.saleValue, fiberBaseValue));
+              state.producedFiber += fiberQuantity; machine.job = null;
             }
           }
         } else if (machine.type === "fiber") {
@@ -1682,7 +1745,8 @@
             machine.job.remaining -= machineSeconds;
             if (machine.job.remaining <= epsilon && this.total(machine, "output") === 0) {
               const quantity = D.materials[machine.job.input.material].fiberYield * (machine.job.bulk ?? 1);
-              machine.output.push(cargo("leekFiber", quantity, machine.job.input.value));
+              machine.output.push(cargo("leekFiber", quantity, machine.job.input.value,
+                machine.job.input.baseValue));
               state.producedFiber += quantity; machine.job = null;
             }
           }
@@ -1705,7 +1769,8 @@
             const inputs = ingredients.map(([material, quantity]) => combineCargo(this.takeInput(machine, quantity * bulk, material)));
             const dish = inputs.find(item => item.material === recipe.valueIngredient);
             const value = dish.value * recipe.inputs[recipe.valueIngredient] * recipe.valueMultiplier;
-            machine.output.push(blendGradeRepairs(cargo(recipe.output, bulk, value), [dish]));
+            const baseValue = dish.baseValue === null ? null : dish.baseValue * recipe.inputs[recipe.valueIngredient] * recipe.valueMultiplier;
+            machine.output.push(blendGradeRepairs(cargo(recipe.output, bulk, value, baseValue), [dish]));
           }
         } else if (machine.type === "paintingBench") {
           if (machine.job) machine.job.remaining = Math.max(0, machine.job.remaining - machineSeconds);
@@ -1752,10 +1817,10 @@
         }
         const before = item.progress;
         if (before < 1) item.progress = Math.min(1, before + seconds * conveyorSpeed / conveyorSeconds(machine));
-        if (machine.type === "primitive" && before + epsilon < 0.5 && item.progress + epsilon >= 0.5 && D.materials[item.material].value !== null) {
+        if (machine.type === "primitive" && before + epsilon < 0.5 && item.progress + epsilon >= 0.5 && item.baseValue !== null) {
           const { primitiveBonus, primitiveLimit } = state.tuning;
           const effectiveValue = Q.saleValue(item);
-          if (D.materials[item.material].value >= 0.1 && effectiveValue + epsilon < primitiveLimit) {
+          if (item.baseValue >= 0.1 && effectiveValue + epsilon < primitiveLimit) {
             const multiplier = item.qualityAssessed ? Q.grade(Q.score(item)).multiplier : 1;
             setCargoValue(item, (effectiveValue + primitiveBonus) / multiplier);
             item.upgrades.primitive = (item.upgrades.primitive ?? 0) + 1;
@@ -1798,7 +1863,7 @@
         if (!machine.beltRemainders) continue;
         for (const [lane, item] of Object.entries(machine.beltRemainders)) {
           if (machine.lanes[lane]) continue;
-          const quantity = Math.min(item.quantity, Math.floor(conveyorWeightLimit(machine, state) / D.materials[item.material].weight));
+          const quantity = Math.min(item.quantity, Math.floor(conveyorWeightLimit(machine, state) / cargoWeight(item)));
           machine.lanes[lane] = { ...copy(item), quantity, progress: 0, fresh: true };
           item.quantity -= quantity;
           if (item.quantity <= epsilon) delete machine.beltRemainders[lane];
@@ -1839,9 +1904,13 @@
         : `Electric power available · ${formatNumber(definition.electricPower)}u`;
       if (definition.waterPerBatch && !machine.job && !machine.output.length && machine.water + epsilon < definition.waterPerBatch * machineBulk(this.state, machine)) return "Waiting for Water";
       if (definition.formingModes) {
-        if (machine.job) return machine.job.remaining <= epsilon ? "Output blocked"
-          : `Making ${definition.formingModes[machine.job.mode].name} · ${formatNumber(machine.job.remaining / (timeScale * (definition.kineticPairSpeed ? this.pressPower(machine).speed : 1)))}s`;
-        if (machine.output.length) return "Output blocked";
+        if (machine.job) {
+          const recipe = this.craftRecipe(machine, machine.job.input, machine.job.mode);
+          const productName = recipe?.output === "gear" ? cargoMaterialName({ material: "gear", materialTag: D.materials[machine.job.input.material]?.gearTag }) : definition.formingModes[machine.job.mode].name;
+          return machine.job.remaining <= epsilon ? `Output blocked · ${productName}`
+            : `Making ${productName} · ${formatNumber(machine.job.remaining / (timeScale * (definition.kineticPairSpeed ? this.pressPower(machine).speed : 1)))}s`;
+        }
+        if (machine.output.length) return `Output blocked · ${cargoMaterialName(machine.output[0])}`;
         const recipe = this.craftRecipe(machine) ?? definition.formingModes[machine.mode];
         const bulk = machineBulk(this.state, machine);
         if (recipe.water && this.total(machine, "input") + epsilon >= recipe.input * bulk && machine.water + epsilon < recipe.water * bulk) {
@@ -1856,9 +1925,11 @@
         const power = this.pressPower(machine), mode = D.machines[machine.type].pressModes[machine.mode];
         if (!power.speed) return `Waiting for two kinetic connections · ${power.connections} / 2 · Basic Wheels must be dedicated`;
         const speed = power.speed === 2 ? "Adjacent pair · 2× speed" : "2 kinetic connections · normal speed";
-        if (machine.job) return machine.job.remaining <= epsilon ? `Output blocked · ${speed}`
-          : `Pressing · ${formatNumber(machine.job.remaining / (power.speed * timeScale))}s · ${speed}`;
-        if (machine.output.length) return `Output blocked · ${speed}`;
+        const jobRecipe = machine.job && this.craftRecipe(machine, machine.job.input, machine.job.mode);
+        const productName = jobRecipe?.output === "gear" ? cargoMaterialName({ material: "gear", materialTag: D.materials[machine.job.input.material]?.gearTag }) : mode.name;
+        if (machine.job) return machine.job.remaining <= epsilon ? `Output blocked · ${productName} · ${speed}`
+          : `Pressing ${productName} · ${formatNumber(machine.job.remaining / (power.speed * timeScale))}s · ${speed}`;
+        if (machine.output.length) return `Output blocked · ${cargoMaterialName(machine.output[0])} · ${speed}`;
         const bulk = machineBulk(this.state, machine);
         return bulk === 1 ? `Waiting for ${mode.name === "Plates" ? "ingots" : "two matching Plates"} · ${speed}`
           : `Waiting for ${mode.input * bulk} ${mode.name === "Plates" ? "matching ingots" : "matching Plates"} · ${speed}`;
@@ -1873,7 +1944,7 @@
         if (target < machine.stackSize) return `Warning: Size ${machine.stackSize} is too heavy for the Stacker's conveyor · ${progress}`;
         const step = D.vectors[machine.facing];
         const next = this.conveyorAt(machine.x + step.x, machine.y + step.y)?.machine;
-        if (next && target * D.materials[item.material].weight > conveyorWeightLimit(next, this.state) + epsilon) {
+        if (next && target * cargoWeight(item) > conveyorWeightLimit(next, this.state) + epsilon) {
           return `Warning: Size ${target} is too heavy for the next conveyor · ${progress}`;
         }
         return progress;
@@ -1980,7 +2051,9 @@
       if (retiredOverflows) {
         state.stock.belt += 2 * retiredOverflows;
         state.inventory.wood += 20 * retiredOverflows;
-        state.inventory.woodenGear = (state.inventory.woodenGear ?? 0) + 2 * retiredOverflows;
+        state.inventory.gear = (state.inventory.gear ?? 0) + 2 * retiredOverflows;
+        const tag = D.materials.wood.gearTag;
+        state.inventoryTags.gear[tag] += 2 * retiredOverflows;
         for (const machine of [...overflowPlaced, ...overflowStored]) {
           const cargo = [...(machine.input ?? []), ...(machine.output ?? []), ...(machine.contents ?? []),
             ...Object.values(machine.lanes ?? {}), ...Object.values(machine.beltRemainders ?? {}), ...jobInputs(machine.job)];
@@ -2194,7 +2267,7 @@
       }
       if ((state.metalPressVersion ?? 0) < 1) {
         for (const type of ["metalPress", "heavyWheel"]) if (state.stock && !Object.hasOwn(state.stock, type)) state.stock[type] = 0;
-        for (const material of ["copperPlate", "copperGear"]) if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
+        for (const material of ["copperPlate", "gear"]) if (state.inventory && !Object.hasOwn(state.inventory, material)) state.inventory[material] = 0;
         state.metalPressVersion = 1;
       }
       if ((state.leekDusterVersion ?? 0) < 1) {
@@ -2221,7 +2294,7 @@
       }
       if ((state.crudeGearBenchVersion ?? 0) < 1) {
         if (state.stock && !Object.hasOwn(state.stock, "crudeGearBench")) state.stock.crudeGearBench = 0;
-        if (state.inventory && !Object.hasOwn(state.inventory, "woodenGear")) state.inventory.woodenGear = 0;
+        if (state.inventory && !Object.hasOwn(state.inventory, "gear")) state.inventory.gear = 0;
         state.crudeGearBenchVersion = 1;
       }
       if ((state.potSpinnerVersion ?? 0) < 1) {
@@ -2404,8 +2477,8 @@
         for (const machine of [...state.machines, ...state.storedMachines]) {
           if (machine.beltRemainders !== undefined) throw new Error("Unexpected legacy conveyor remainder.");
           for (const [lane, item] of Object.entries(machine.lanes ?? {})) {
-            if (!validCargo(item) || item.quantity * (legacyFoodWeights[item.material] ?? legacyPotteryWeights[item.material] ?? D.materials[item.material].weight) > 5 + epsilon) throw new Error("Invalid legacy conveyor cargo.");
-            const capacity = Math.floor(conveyorWeightLimit(machine) / D.materials[item.material].weight);
+            if (!validCargo(item) || item.quantity * (legacyFoodWeights[item.material] ?? legacyPotteryWeights[item.material] ?? cargoWeight(item)) > 5 + epsilon) throw new Error("Invalid legacy conveyor cargo.");
+            const capacity = Math.floor(conveyorWeightLimit(machine) / cargoWeight(item));
             splitOverweightLane(machine, lane, item, capacity);
           }
         }
@@ -2426,7 +2499,7 @@
           const limit = conveyorWeightLimit(machine, state);
           for (const [lane, item] of Object.entries(machine.lanes ?? {})) {
             if (Object.hasOwn(legacyFoodWeights, item?.material)) {
-              splitOverweightLane(machine, lane, item, Math.floor(limit / D.materials[item.material].weight));
+              splitOverweightLane(machine, lane, item, Math.floor(limit / cargoWeight(item)));
             }
           }
         }
@@ -2438,7 +2511,7 @@
           const { input, remaining } = machine.job;
           if (!Object.hasOwn(legacyPlatedDishWeights, input?.material)) continue;
           if (!Number.isFinite(remaining)) throw new Error("Invalid Grading Bench job.");
-          machine.job.remaining = remaining * D.materials[input.material].weight / legacyPlatedDishWeights[input.material];
+          machine.job.remaining = remaining * cargoWeight(input) / legacyPlatedDishWeights[input.material];
         }
         state.foodVersion = 7;
       }
@@ -2455,6 +2528,10 @@
       }
       for (const material of Object.keys(D.materials)) if (!Number.isFinite(state.inventory?.[material]) || state.inventory[material] < 0
         || (D.materials[material].fluid && state.inventory[material] !== 0)) throw new Error("Invalid material inventory.");
+      const gearTags = Object.keys(D.gearTags);
+      if (!state.inventoryTags?.gear || gearTags.some(tag => !Number.isFinite(state.inventoryTags.gear[tag]) || state.inventoryTags.gear[tag] < 0)
+        || Object.keys(state.inventoryTags.gear).some(tag => !gearTags.includes(tag))
+        || Math.abs(state.inventory.gear - Object.values(state.inventoryTags.gear).reduce((sum, quantity) => sum + quantity, 0)) > epsilon) throw new Error("Invalid tagged material inventory.");
       for (const type of Object.keys(D.machines)) if (!Number.isInteger(state.stock?.[type]) || state.stock[type] < 0) throw new Error("Invalid machine inventory.");
       const ids = new Set();
       for (const machine of [...(state.machines ?? []), ...(state.storedMachines ?? [])]) {
@@ -2530,11 +2607,11 @@
         if (machine.type === "gradingBench") {
           const definition = D.machines.gradingBench;
           const validStack = (item) => (Q.modeled(item.material) || gradeProbabilities(item))
-            && item.quantity * D.materials[item.material].weight <= definition.inputWeightLimit + epsilon;
+            && item.quantity * cargoWeight(item) <= definition.inputWeightLimit + epsilon;
           if (machine.input.length > 1 || machine.output.length > 1
             || machine.input.some((item) => !validStack(item)) || machine.output.some((item) => !validStack(item) || !item.graded)
             || (machine.job && (!validStack(machine.job.input) || machine.output.length || machine.job.remaining < 0
-              || machine.job.remaining > machine.job.input.quantity * D.materials[machine.job.input.material].weight * definition.secondsPerWeight + epsilon))) throw new Error("Invalid Grading Bench buffer or job.");
+              || machine.job.remaining > machine.job.input.quantity * cargoWeight(machine.job.input) * definition.secondsPerWeight + epsilon))) throw new Error("Invalid Grading Bench buffer or job.");
         }
         if (D.machines[machine.type].craftInput) {
           const definition = D.machines[machine.type], recipes = definition.recipes, recipe = recipes[machine.job?.mode];
@@ -2690,11 +2767,11 @@
         if (machine.type === "manualSplitter" && (!Object.hasOwn(D.machines.manualSplitter.modeFootprints, machine.mode)
           || (machine.splitterSideNext !== undefined && typeof machine.splitterSideNext !== "boolean"))) throw new Error("Invalid Manual Splitter routing.");
         for (const [lane, item] of Object.entries(machine.lanes)) {
-          if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * D.materials[item.material].weight > conveyorWeightLimit(machine, state) + epsilon) throw new Error("Invalid conveyor cargo.");
+          if (!/^\d+$/.test(lane) || Number(lane) >= laneCount || item.quantity * cargoWeight(item) > conveyorWeightLimit(machine, state) + epsilon) throw new Error("Invalid conveyor cargo.");
         }
         for (const [lane, item] of Object.entries(machine.beltRemainders ?? {})) {
           const active = machine.lanes[lane];
-          const oldWeight = legacyFoodWeights[item.material] ?? D.materials[item.material].weight;
+          const oldWeight = legacyFoodWeights[item.material] ?? cargoWeight(item);
           if (!/^(0|[1-9]\d*)$/.test(lane) || Number(lane) >= laneCount || item.progress !== 0
             || (active && active.material !== item.material)
             || (item.quantity + (active?.quantity ?? 0)) * oldWeight > Math.max(5, conveyorWeightLimit(machine) * (state.playtest.used.conveyorCapacity ? 10 : 1)) + epsilon) throw new Error("Invalid conveyor remainder.");
@@ -2767,14 +2844,14 @@
           || (route.phase === "loaded" && (!route.item || route.item.quantity > 1))
           || (route.phase !== "loaded" && route.item) || route.source === route.destination) throw new Error("Invalid legacy hauling route.");
         ids.add(route.id);
-        if (route.item) factory.state.inventory[route.item.material] += route.item.quantity;
+        if (route.item) addInventoryCargo(factory.state, route.item);
       }
       if ([...ids].some((id) => /^(machine|route)-\d+$/.test(id) && Number(id.split("-")[1]) >= state.nextId)) throw new Error("Invalid next identity.");
       factory.terrainUpdated = terrainUpdated;
       factory.pickedUpForTerrainReset = 0;
       if (terrainUpdated) {
         factory.pickedUpForTerrainReset = factory.state.machines.length;
-        // Normal pickup also recovers unfinished inputs, Basket
+        // Normal pickup also recovers unfinished inputs, collector
         // contents and conveyor cargo, and retains each owned machine instance.
         factory.pickupGroup(factory.state.machines.map((machine) => machine.id));
         factory.state.trees = trees;
@@ -2791,17 +2868,12 @@
         for (const item of existingCargo) if (item?.material === "wood" && item.value === 0) item.value = D.materials.wood.value;
         factory.state.openingEconomyVersion = 1;
       }
-      if ((state.starterBasketsVersion ?? 0) < 1) {
-        const owned = factory.state.stock.basket + factory.state.machines.filter(machine => machine.type === "basket").length;
-        factory.state.stock.basket += Math.max(0, D.machines.basket.dismantleMinimum - owned);
-        factory.state.starterBasketsVersion = 1;
-      }
       factory.recoveredForPlanterResize = recovered.size;
       factory.reorientedForFiberResize = reorientedFiber;
       return factory;
     }
   }
-  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, rotation, cargo, opposite, turn, copy, key, formatNumber, blendGradeRepairs, collectorCapacity, conveyorUpgradeCost, sifterOutputSlot,
+  const API = { DATA: D, Factory, createState, size, cells, ports, rotatePoint, rotation, cargo, cargoMaterialName, opposite, turn, copy, key, formatNumber, blendGradeRepairs, collectorCapacity, conveyorUpgradeCost, sifterOutputSlot,
     combineCargo, gradeProbabilities, gradeStack, gradeLabel, conveyorCells, supportsOutputHistory,
     quality: Q, qualityScore: Q.score, qualitySummary: Q.summary, saleValue: Q.saleValue };
   if (typeof module !== "undefined" && module.exports) module.exports = API;

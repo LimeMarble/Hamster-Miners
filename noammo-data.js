@@ -20,8 +20,8 @@
   ];
   const DATA = {
     saveKind: "hamster-miners-noammo-opening",
-    saveVersion: 1,
-    saveKey: "hamster-miners-noammo-opening-v1",
+    saveVersion: 3,
+    saveKey: "hamster-miners-noammo-opening-v3",
     runeCategories: { harvest: "Harvest", motion: "Motion", transmutation: "Transmutation" },
     startingTerrain: { version: 1, treeCenters: TREE_CENTERS },
     // One-based positions in the 20 by 20 drawing covering world rows/columns 115..134.
@@ -53,7 +53,7 @@
       columns: 250, rows: 250, treeCount: TREE_CENTERS.length, startingCrew: 20,
       crewHireBaseCost: 5, crewHireCostMultiplier: 1.1,
       fiberSeconds: 2, loggerSeconds: 6,
-      basketCapacity: 100, beltSeconds: 2, beltWeight: 2,
+      beltSeconds: 2, beltWeight: 2,
       clicksPerSecond: 5, chopsPerHarvest: 5,
       powerAreaReach: 7,
     },
@@ -64,31 +64,32 @@
     },
     materials: {
       leek: { name: "Spinach", value: 0.1, weight: 0.2, color: "#9dbf65", gradeTable: "crop", rinsesTo: "leek", fiberYield: 2, cutsTo: "peeledLeek" },
-      peeledLeek: { name: "Trimmed Spinach", value: 0.2, weight: 0.2, color: "#c4d18e", gradeTable: "crop",
+      peeledLeek: { name: "Trimmed Spinach", value: null, weight: 0.2, color: "#c4d18e", gradeTable: "crop",
         cutsTo: "choppedLeek", cutProfile: { outputQuantity: 2, valueMultiplier: 2.5 } },
-      choppedLeek: { name: "Chopped Spinach", value: 0.25, weight: 0.1, color: "#d0d99e", gradeTable: "crop" },
-      leekSalad: { name: "Spinach Salad", value: 1.5, weight: 0.4, color: "#9dc065", gradeTable: "crop" },
+      choppedLeek: { name: "Chopped Spinach", value: null, weight: 0.1, color: "#d0d99e", gradeTable: "crop" },
+      leekSalad: { name: "Spinach Salad", value: null, weight: 0.4, color: "#9dc065", gradeTable: "crop" },
       wheat: { name: "Wheat", value: 0.15, weight: 0.25, color: "#d7be73", gradeTable: "crop", rinsesTo: "wheat", fiberYield: 5, millsTo: "flour" },
-      flour: { name: "Flour", value: 0.30, weight: 0.25, color: "#dfd2af", gradeTable: "crop", shapesTo: "dough" },
-      dough: { name: "Dough", value: 0.60, weight: 0.35, color: "#d8bd92", gradeTable: "crop", shapesTo: "rawPasta", doughProfile: { outputQuantity: 2, valueMultiplier: 1, water: 0 } },
-      rawPasta: { name: "Raw Pasta", value: 0.3, weight: 0.25, color: "#dcc37f", gradeTable: "crop" },
-      unplatedLeekPasta: { name: "Unplated Spinach Pasta", value: 1.7, weight: 0.3, color: "#d6b766", gradeTable: "crop", directTransferOnly: true },
-      leekPasta: { name: "Spinach Pasta", value: 1.7, weight: 0.4, color: "#cab465", gradeTable: "crop" },
-      leekFiber: { name: "Plant Fiber", value: 0.05, weight: 0.05, color: "#ded4a0", spinsTo: "rope", coilsTo: "leekCoil" },
-      leekCoil: { name: "Plant Fiber Coil", value: 0.1, weight: 1, color: "#c7c091" },
-      rope: { name: "Rope", value: 0.3, weight: 0.15, color: "#b59b72" },
-      strippedWood: { name: "Stripped Wood", value: 0.1, weight: 0.6, color: "#c89e70" },
-      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, sawsTo: "plank" },
-      plank: { name: "Plank", value: 0.1, weight: 1 / 3, color: "#c89568" },
-      charcoal: { name: "Charcoal", value: 0.2, weight: 1, color: "#373a35", heat: 240000 },
-      woodenGear: { name: "Wooden Gear", value: 0.2, weight: 0.5, color: "#c19762" },
-      woodenPlate: { name: "Wooden Plate", value: 0.05, weight: 0.1, color: "#d5ac76" },
+      flour: { name: "Flour", value: null, weight: 0.25, color: "#dfd2af", gradeTable: "crop", shapesTo: "dough" },
+      dough: { name: "Dough", value: null, weight: 0.35, color: "#d8bd92", gradeTable: "crop", shapesTo: "rawPasta", doughProfile: { outputQuantity: 2, valueMultiplier: 1, water: 0 } },
+      rawPasta: { name: "Raw Pasta", value: null, weight: 0.25, color: "#dcc37f", gradeTable: "crop" },
+      unplatedLeekPasta: { name: "Unplated Spinach Pasta", value: null, weight: 0.3, color: "#d6b766", gradeTable: "crop", directTransferOnly: true },
+      leekPasta: { name: "Spinach Pasta", value: null, weight: 0.4, color: "#cab465", gradeTable: "crop" },
+      leekFiber: { name: "Plant Fiber", value: null, weight: 0.05, color: "#ded4a0", spinsTo: "rope", coilsTo: "leekCoil" },
+      leekCoil: { name: "Plant Fiber Coil", value: null, weight: 1, color: "#c7c091" },
+      rope: { name: "Rope", value: null, weight: 0.15, color: "#b59b72" },
+      strippedWood: { name: "Stripped Wood", value: null, weight: 0.6, color: "#c89e70", gearTag: "wood" },
+      wood: { name: "Wood", value: 0.1, weight: 1, color: "#bb8054", heat: 30000, gearTag: "wood", sawsTo: "plank" },
+      plank: { name: "Plank", value: null, weight: 1 / 3, color: "#c89568" },
+      charcoal: { name: "Charcoal", value: null, weight: 1, color: "#373a35", heat: 240000 },
+      gear: { name: "Gear", value: null, color: "#c19762" },
+      axe: { name: "Axe", value: null, color: "#9c7959" },
+      woodenPlate: { name: "Wooden Plate", value: null, weight: 0.1, color: "#d5ac76" },
       clay: { name: "Clay", value: 0.25, weight: 0.5, color: "#b76b53", family: "clay" },
-      unfiredBrick: { name: "Unfired Brick", value: 0.25, weight: 0.5, color: "#a77d67", family: "clay" },
-      unfiredPot: { name: "Unfired Pot", value: 1, weight: 1, color: "#bb8b70", family: "clay" },
-      brick: { name: "Bricks", value: 1, weight: 0.5, color: "#b97955", family: "clay" },
-      pot: { name: "Fired Pot", value: 4, weight: 1, color: "#c47b55", family: "clay" },
-      paintedPot: { name: "Painted Pot", value: 12, weight: 2, color: "#78a456", family: "clay" },
+      unfiredBrick: { name: "Unfired Brick", value: null, weight: 0.5, color: "#a77d67", family: "clay" },
+      unfiredPot: { name: "Unfired Pot", value: null, weight: 1, color: "#bb8b70", family: "clay" },
+      brick: { name: "Bricks", value: null, weight: 0.5, color: "#b97955", family: "clay" },
+      pot: { name: "Fired Pot", value: null, weight: 1, color: "#c47b55", family: "clay" },
+      paintedPot: { name: "Painted Pot", value: null, weight: 2, color: "#78a456", family: "clay" },
       malachitePebble: { name: "Malachite Pebble", value: 0.25, weight: 0.05, color: "#66a977" },
       chert: { name: "Chert", value: 0.1, weight: 1, color: "#858581", family: "stone" },
       granite: { name: "Granite", value: 0.1, weight: 1, color: "#b27a72", family: "stone" },
@@ -96,17 +97,20 @@
       corundum: { name: "Corundum", value: 1, weight: 1, color: "#9b899d", family: "stone" },
       graphite: { name: "Graphite", value: 4, weight: 1, color: "#626567", family: "stone" },
       nativeCopper: { name: "Native Copper", value: 0.5, weight: 1, color: "#ae856b", gradeTable: "copper", washesTo: "copperOre", washProfile: { input: 6, outputQuantity: 4, valueMultiplier: 2 } },
-      copperOre: { name: "Copper Ore", value: 1.5, weight: 1, color: "#c58b58", gradeTable: "copper" },
+      copperOre: { name: "Copper Ore", value: null, weight: 1, color: "#c58b58", gradeTable: "copper" },
       zincOre: { name: "Zinc Ore", value: 4, weight: 0.8, color: "#a8aca4", gradeTable: "copper" },
-      moltenCopper: { name: "Molten Copper", value: 6, weight: 1, color: "#ef9958", fluid: true, moldsTo: "copperIngot", extrudesTo: "copperWire", gradeTable: "copperMetal" },
-      copperIngot: { name: "Copper Ingot", value: 6, weight: 1, color: "#d29a69", family: "metal", gradeTable: "copperMetal", pressesTo: "copperPlate" },
-      copperPlate: { name: "Copper Plate", value: 9, weight: 1, color: "#ca8e63", family: "metal", gradeTable: "copperMetal", gearsTo: "copperGear" },
-      copperGear: { name: "Copper Gear", value: 18, weight: 1, color: "#c48859", family: "metal", gradeTable: "copperMetal" },
-      copperWire: { name: "Copper Wire", value: 1.2, weight: 0.2, color: "#dba675", family: "metal", gradeTable: "copperMetal", coilsTo: "copperCoil", windsTo: "copperWinding" },
-      copperCoil: { name: "Copper Coil", value: 1.2, weight: 0.2, color: "#ce9569", family: "metal", gradeTable: "copperMetal" },
-      copperWinding: { name: "Copper Winding", value: 12, weight: 2, color: "#bc8055", family: "metal", gradeTable: "copperMetal" },
+      moltenCopper: { name: "Molten Copper", value: null, weight: 1, color: "#ef9958", fluid: true, moldsTo: "copperIngot", extrudesTo: "copperWire", gradeTable: "copperMetal" },
+      copperIngot: { name: "Copper Ingot", value: null, weight: 1, color: "#d29a69", family: "metal", gradeTable: "copperMetal", pressesTo: "copperPlate" },
+      copperPlate: { name: "Copper Plate", value: null, weight: 1, color: "#ca8e63", family: "metal", gradeTable: "copperMetal", gearTag: "copper", gearsTo: "gear" },
+      copperWire: { name: "Copper Wire", value: null, weight: 0.2, color: "#dba675", family: "metal", gradeTable: "copperMetal", coilsTo: "copperCoil", windsTo: "copperWinding" },
+      copperCoil: { name: "Copper Coil", value: null, weight: 0.2, color: "#ce9569", family: "metal", gradeTable: "copperMetal" },
+      copperWinding: { name: "Copper Winding", value: null, weight: 2, color: "#bc8055", family: "metal", gradeTable: "copperMetal" },
       aluminiumBronzePlate: { name: "Aluminium Bronze Plate", value: null, weight: 1, color: "#c5a15b", family: "metal" },
       soil: { name: "Soil", value: null, weight: 1, color: "#79563b" },
+    },
+    gearTags: {
+      wood: { name: "Wooden Gear", shortName: "W", color: "#c19762" },
+      copper: { name: "Copper Gear", shortName: "C", color: "#c48859" },
     },
     grades: [
       { name: "Poor", multiplier: 0.75, color: "#ba7b65" },
@@ -127,18 +131,12 @@
         runePedestal: "major", cost: { cash: 1e30, materials: { limestone: 10000, aluminiumBronzePlate: 500 } },
         description: "Place it and select a rune category to view major offerings.",
       },
-      basket: {
-        name: "Basket", width: 1, height: 1, color: "#a98b53", category: "Logistics",
-        dismantleMinimum: 4,
-        quickAction: "collect", collectorCapacity: 100,
-        cost: { cash: 0, materials: { leekFiber: 5 } },
-        description: "Stores up to 100 incoming items for collection into inventory.",
-      },
       woodenCollector: {
-        name: "Wooden Collector", width: 1, height: 1, color: "#7494a8", category: "Logistics",
+        name: "Wooden Collector", width: 1, height: 1, color: "#73543a", category: "Logistics",
+        labelLines: ["Collector"],
         quickAction: "collect", collectorCapacity: 200,
         cost: { cash: 0, materials: { wood: 50 } },
-        ports: [{ x: 0, y: 0, direction: "right", role: "input" }],
+        ports: ["right", "down", "left", "up"].map((direction) => ({ x: 0, y: 0, direction, role: "input" })),
         description: "Stores up to 200 incoming items for collection into inventory.",
       },
       brickStorage: {
@@ -149,7 +147,7 @@
       },
       ropeSpinner: {
         name: "Rope Spinner", width: 2, height: 1, color: "#aa9775", category: "Material",
-        cost: { cash: 10, materials: { wood: 20, woodenGear: 5 }, machines: { belt: 1 } }, requiresKinetic: true,
+        cost: { cash: 10, materials: { wood: 20 }, taggedMaterials: { gear: { wood: 5 } }, machines: { belt: 1 } }, requiresKinetic: true,
         defaultMode: "rope", inputLimit: 3, outputBuffer: 1,
         formingModes: { rope: { name: "Rope", materialProperty: "spinsTo", input: 3, outputQuantity: 1, seconds: 4, valueMultiplier: 2 } },
         ports: [
@@ -162,6 +160,7 @@
       woodStripper: {
         name: "Wood Stripper", width: 2, height: 2, color: "#a17b52", category: "Material", crew: 1,
         baseFacing: "up", defaultFacing: "up", cost: { cash: 5, materials: { wood: 10, chert: 1 } },
+        secondaryFiberOutput: { material: "leekFiber", quantity: 6, saleValue: 0.05, valueMultiplier: 3 },
         ports: [
           { x: 0, y: 0, direction: "up", role: "output", material: "strippedWood" },
           { x: 0, y: 1, direction: "down", role: "input" },
@@ -209,7 +208,7 @@
       grainMill: {
         name: "Grain Mill", width: 2, height: 2, color: "#a99a73", category: "Material",
         baseFacing: "up", defaultFacing: "up", labelLines: ["Grain", "Mill"],
-        cost: { cash: 125, materials: { wood: 30, chert: 25, woodenGear: 5 } },
+        cost: { cash: 125, materials: { wood: 30, chert: 25 }, taggedMaterials: { gear: { wood: 5 } } },
         requiresKinetic: true, defaultMode: "mill", inputLimit: 2, outputBuffer: 1,
         formingModes: {
           mill: { name: "Flour", materialProperty: "millsTo", inputName: "Wheat", input: 2, outputQuantity: 1, seconds: 0, valueMultiplier: 1 },
@@ -255,7 +254,7 @@
       logger: {
         name: "Logger", width: 1, height: 1, color: "#a7784c", category: "Resource", crew: 1,
         source: "wood", cycle: 6,
-        cost: { cash: 0, materials: { chert: 1, wood: 10, leekFiber: 5 } },
+        cost: { cash: 0, materials: { axe: 1 } },
         description: "Produces 1 Wood every 6 seconds. Place it in the middle of a tree edge, facing outward.",
       },
       clayPit: {
@@ -296,7 +295,7 @@
       copperDrill: {
         name: "Copper Drill", width: 3, height: 2, color: "#b18461", category: "Resource",
         labelLines: ["Copper", "Drill"], labelCell: [0.5, 0.5],
-        cost: { cash: 60000, materials: { granite: 100, chert: 50, woodenGear: 20, wood: 40 } },
+        cost: { cash: 60000, materials: { granite: 100, chert: 50, wood: 40 }, taggedMaterials: { gear: { wood: 20 } } },
         source: "nativeCopper", cycle: 15, outputLimit: 1, requiresKinetic: true, centeredOutput: true,
         ports: [
           { x: 2, y: 0.5, direction: "right", role: "output", span: 2 },
@@ -308,7 +307,7 @@
       graphiteDrill: {
         name: "Graphite Drill", width: 4, height: 2, color: "#85847c", category: "Resource",
         labelLines: ["Graphite", "Drill"], labelCell: [0.5, 0.5],
-        cost: { cash: 220000, materials: { granite: 200, wood: 50, copperPlate: 20, copperGear: 8 } },
+        cost: { cash: 220000, materials: { granite: 200, wood: 50, copperPlate: 20 }, taggedMaterials: { gear: { copper: 8 } } },
         source: "graphite", cycle: 40, outputLimit: 1, centeredOutput: true,
         requiresKinetic: true, kineticInputsRequired: 2,
         ports: [
@@ -323,7 +322,7 @@
       limestoneDrill: {
         name: "Limestone Drill", width: 3, height: 3, color: "#afa784", category: "Resource",
         labelLines: ["Limestone", "Drill"], labelCell: [1, 1],
-        cost: { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30, copperGear: 10 } },
+        cost: { cash: 2100000, materials: { granite: 200, wood: 100, copperPlate: 30 }, taggedMaterials: { gear: { copper: 10 } } },
         requiresKinetic: true, requiresHeavyKinetic: true, cycle: 25, batchOutputs: { limestone: 4, zincOre: 1, corundum: 0.5 }, outputOverflow: "discardExcess",
         ports: [
           { x: 1, y: 0, direction: "up", role: "output", material: "zincOre" },
@@ -336,7 +335,7 @@
       pebbleSifter: {
         name: "Pebble Sifter", width: 3, height: 2, color: "#a48e69", category: "Resource",
         labelLines: ["Pebble", "Sifter"],
-        cost: { cash: 0, materials: { wood: 50, leekFiber: 20, woodenGear: 5 } },
+        cost: { cash: 0, materials: { wood: 50, leekFiber: 20 }, taggedMaterials: { gear: { wood: 5 } } },
         cycle: 5, requiresKinetic: true, batchOutputs: { soil: 0.5, chert: 0.5 },
         ports: SIFTER_PORTS,
         description: "Produces 0.5 Soil and 0.5 Chert every 5 seconds. Requires kinetic power and space at both outputs.",
@@ -373,10 +372,10 @@
           { x: 0, y: 1, direction: "right", role: "output" },
         ],
         recipes: {
-          gear: { name: "Wooden Gear", input: 1, output: "woodenGear", seconds: 6, valueMultiplier: 2 },
+          gear: { name: "Gear", input: 1, output: "gear", seconds: 6, valueMultiplier: 2, outputWeightMultiplier: 0.5 },
           plate: { name: "Wooden Plate", input: 1, output: "woodenPlate", outputQuantity: 6, seconds: 6, valueMultiplier: 3 },
         },
-        description: "Carves 1 Wood or Stripped Wood into 1 Wooden Gear, or 1 Wood into 6 Wooden Plates, in 6 seconds. Operated by one hamster.",
+        description: "Carves 1 Wood or Stripped Wood into 1 Gear, or 1 Wood into 6 Wooden Plates, in 6 seconds. Operated by one hamster.",
       },
       potSpinner: {
         name: "Pot Spinner", width: 2, height: 3, color: "#a89478", category: "Material",
@@ -397,7 +396,7 @@
         name: "Burnisher", width: 3, height: 2, color: "#aa9871", category: "Cash", crew: 1,
         labelLines: ["Burnisher"], labelCell: [1, 0], footprint: [[0, 0], [1, 0], [2, 0], [1, 1]],
         craftInput: "unfiredPot", inputLimit: 1, outputBuffer: 1, defaultMode: "pot", requiresKinetic: true, preservesCargo: true,
-        cost: { cash: 5000, materials: { wood: 100, chert: 40, woodenGear: 10, leekFiber: 15 } },
+        cost: { cash: 5000, materials: { wood: 100, chert: 40, leekFiber: 15 }, taggedMaterials: { gear: { wood: 10 } } },
         ports: [
           { x: 0, y: 0, direction: "left", role: "input" },
           { x: 1, y: 0, direction: "up", role: "kineticInput" },
@@ -513,7 +512,7 @@
       extruder: {
         name: "Extruder", width: 3, height: 2, color: "#a97f66", category: "Material", crew: 1,
         labelLines: ["Extruder"], labelCell: [1, 1],
-        cost: { cash: 1500000, materials: { granite: 250, copperPlate: 60, copperGear: 10, graphite: 10 } },
+        cost: { cash: 1500000, materials: { granite: 250, copperPlate: 60, graphite: 10 }, taggedMaterials: { gear: { copper: 10 } } },
         requiresKinetic: true, kineticInputsRequired: 2, fluidInput: true,
         defaultMode: "wire", inputLimit: 4, outputBuffer: 1,
         formingModes: { wire: { name: "Wire", materialProperty: "extrudesTo", input: 4, outputQuantity: 20, seconds: 8, valueMultiplier: 1 } },
@@ -528,7 +527,7 @@
       windingSpool: {
         name: "Winding Spool", width: 2, height: 2, color: "#b08a62", category: "Material",
         labelLines: ["Winding", "Spool"],
-        cost: { cash: 2700000, materials: { wood: 500, chert: 100, copperPlate: 20, copperGear: 20 } },
+        cost: { cash: 2700000, materials: { wood: 500, chert: 100, copperPlate: 20 }, taggedMaterials: { gear: { copper: 20 } } },
         requiresKinetic: true, kineticInputsRequired: 2,
         defaultMode: "coil", inputLimit: 10, outputBuffer: 1,
         formingModes: {
@@ -546,7 +545,7 @@
       oreCrushWasher: {
         name: "Ore Crush-Washer", width: 4, height: 3, color: "#a28b72", category: "Material", crew: 1,
         labelLines: ["Ore Crush-", "Washer"], labelCell: [1, 1],
-        cost: { cash: 225000, materials: { chert: 120, wood: 80, brick: 30, woodenGear: 15, leekFiber: 200 } },
+        cost: { cash: 225000, materials: { chert: 120, wood: 80, brick: 30, leekFiber: 200 }, taggedMaterials: { gear: { wood: 15 } } },
         requiresKinetic: true, kineticInputsRequired: 2, kineticPairSpeed: 1.5, waterCapacity: 1, waterPerBatch: 1,
         defaultMode: "wash", inputLimit: 6, outputBuffer: 1,
         formingModes: { wash: { name: "Ore", materialProperty: "washesTo", recipeProperty: "washProfile", input: 6, outputQuantity: 4, seconds: 12, valueMultiplier: 2 } },
@@ -565,7 +564,7 @@
       sawmill: {
         name: "Sawmill", width: 3, height: 4, color: "#a98160", category: "Material",
         labelLines: ["Sawmill"], labelCell: [1, 1],
-        cost: { cash: 850000, materials: { wood: 200, granite: 150, copperPlate: 25, copperGear: 10, copperIngot: 30, leekFiber: 50 }, machines: { belt: 3 } },
+        cost: { cash: 850000, materials: { wood: 200, granite: 150, copperPlate: 25, copperIngot: 30, leekFiber: 50 }, taggedMaterials: { gear: { copper: 10 } }, machines: { belt: 3 } },
         conveyors: [[0, 2], [1, 2], [2, 2]], processingCell: 1, dualPower: 40,
         defaultMode: "plank", inputLimit: 2, outputBuffer: 1, seconds: 6,
         pressModes: { plank: { name: "Planks", materialProperty: "sawsTo", input: 2, outputQuantity: 6, valueMultiplier: 3 } },
@@ -580,12 +579,12 @@
       metalPress: {
         name: "Metal Press", width: 3, height: 3, color: "#a98169", category: "Material",
         labelLines: ["Metal Press"], labelCell: [1, 1],
-        cost: { cash: 5e5, materials: { wood: 100, granite: 500, copperIngot: 50, woodenGear: 40 }, machines: { belt: 3 } },
+        cost: { cash: 5e5, materials: { wood: 100, granite: 500, copperIngot: 50 }, taggedMaterials: { gear: { wood: 40 } }, machines: { belt: 3 } },
         conveyors: [[0, 1], [1, 1], [2, 1]], processingCell: 1, requiresKinetic: true,
         defaultMode: "plate", inputLimit: 2, outputBuffer: 1, seconds: 4,
         pressModes: {
           plate: { name: "Plates", materialProperty: "pressesTo", input: 1, valueMultiplier: 1.5 },
-          gear: { name: "Gears", materialProperty: "gearsTo", input: 2, valueMultiplier: 1 },
+          gear: { name: "Gear", materialProperty: "gearsTo", input: 2, valueMultiplier: 1, outputWeightMultiplier: 0.5 },
         },
         ports: [
           { x: 0, y: 1, direction: "left", role: "input" },
@@ -601,13 +600,13 @@
         name: "Basic Hamster Wheel", width: 3, height: 2, color: "#a48b66", category: "Logistics", crew: 1,
         kineticSource: true, dedicatedPressSource: true,
         defaultFacing: "down",
-        cost: { cash: 0, materials: { wood: 40, leekFiber: 25, woodenGear: 10 } },
+        cost: { cash: 0, materials: { wood: 60, rope: 10 } },
         description: "Provides 1 kinetic output at the center of each long edge. Connect it directly to a Drive or kinetic machine.",
       },
       heavyWheel: {
         name: "Heavy Hamster Wheel", width: 4, height: 3, color: "#9d795c", category: "Logistics", crew: 2,
         labelLines: ["Heavy Hamster", "Wheel"], kineticSource: true,
-        cost: { cash: 6e5, materials: { wood: 800, chert: 200, granite: 150, woodenGear: 25 } },
+        cost: { cash: 6e5, materials: { wood: 800, chert: 200, granite: 150 }, taggedMaterials: { gear: { wood: 25 } } },
         ports: [
           { x: 1, y: 0, direction: "up", role: "kineticOutput" },
           { x: 2, y: 0, direction: "up", role: "kineticOutput" },
@@ -619,7 +618,7 @@
       kineticGenerator: {
         name: "Kinetic Generator", width: 2, height: 2, color: "#a58c58", category: "Logistics",
         labelLines: ["Kinetic", "Generator"], requiresKinetic: true, kineticInputsRequired: 2, electricOutput: 100,
-        cost: { cash: 2000000, materials: { granite: 200, copperPlate: 10, copperGear: 10, copperWire: 20, copperWinding: 10, graphite: 5 } },
+        cost: { cash: 2000000, materials: { granite: 200, copperPlate: 10, copperWire: 20, copperWinding: 10, graphite: 5 }, taggedMaterials: { gear: { copper: 10 } } },
         ports: [
           { x: 1, y: 0, direction: "right", role: "kineticInput" },
           { x: 1, y: 1, direction: "right", role: "kineticInput" },
@@ -628,7 +627,7 @@
       },
       drive: {
         name: "Conveyor Drive", width: 2, height: 1, color: "#b89b63", category: "Logistics",
-        cost: { cash: 0, materials: { wood: 20, leekFiber: 10, woodenGear: 8 } },
+        cost: { cash: 0, materials: { wood: 20, rope: 10 }, taggedMaterials: { gear: { wood: 8 } } },
         ports: [{ x: 0, y: 0, direction: "left", role: "kineticInput" }],
         description: "Powers nearby primitive conveyors up to 7 tiles beyond its footprint. Requires a direct Wheel connection.",
       },
@@ -666,7 +665,7 @@
           { x: 1, y: 0, direction: "up", role: "kineticInput" },
           { x: 1, y: 0, direction: "down", role: "kineticInput" },
         ],
-        cost: { cash: 1200, materials: { wood: 120, woodenGear: 12, leekFiber: 50, leek: 16 }, machines: { belt: 3 } },
+        cost: { cash: 1200, materials: { wood: 120, leekFiber: 50, leek: 16 }, taggedMaterials: { gear: { wood: 12 } }, machines: { belt: 3 } },
         cashEffect: { multiplier: 1.65, upperLimit: 200, useLimit: 1 },
         persistentEffects: true,
         description: "Improves passing cargo's value. Requires a Wheel connected to either kinetic intake; applies once per production chain.",
@@ -711,20 +710,20 @@
       },
       belt: {
         name: "Primitive Conveyor", width: 1, height: 1, color: "#71786c", category: "Logistics",
-        cost: { cash: 0, materials: { wood: 6, woodenGear: 2 } },
+        cost: { cash: 0, materials: { wood: 6 }, taggedMaterials: { gear: { wood: 2 } } },
         conveyors: [[0, 0]],
         description: "Moves 1 cargo stack per tile, up to weight 2, at 1 tile every 2 seconds. Requires kinetic power.",
       },
       electricConveyor: {
         name: "Basic Conveyor", width: 1, height: 1, color: "#718b88", category: "Logistics",
-        cost: { cash: 20000, materials: { chert: 20, copperCoil: 20, copperGear: 4, graphite: 1 } },
+        cost: { cash: 20000, materials: { chert: 20, copperCoil: 20, graphite: 1 }, taggedMaterials: { gear: { copper: 4 } } },
         conveyors: [[0, 0]], electricPower: 1, beltSeconds: 1, beltWeight: 5,
         description: "Moves 1 cargo stack per tile, up to weight 5, at 1 tile per second. Uses 1u of electricity.",
       },
       primitiveBridge: {
         name: "Primitive Conveyor Bridge", width: 3, height: 1, color: "#a58b63", category: "Logistics",
         labelLines: ["Bridge"], conveyors: [[0, 0], [1, 0], [2, 0]], bridge: true,
-        cost: { cash: 12, materials: { leekFiber: 20, chert: 10 }, machines: { belt: 4 } },
+        cost: { cash: 12, materials: { wood: 40, rope: 20 }, machines: { belt: 4 } },
         description: "Carries cargo over 1 conveyor. Its entrance and exit must remain clear.",
       },
       primitiveStacker: {
@@ -743,7 +742,7 @@
       manualSplitter: {
         name: "Manual Splitter", width: 3, height: 2, color: "#a38e68", category: "Logistics", crew: 1,
         baseFacing: "up", defaultFacing: "up", defaultMode: "left", labelLines: ["Manual", "Splitter"],
-        cost: { cash: 4, materials: { wood: 20, woodenGear: 2 }, machines: { belt: 2 } },
+        cost: { cash: 4, materials: { wood: 20 }, taggedMaterials: { gear: { wood: 2 } }, machines: { belt: 2 } },
         conveyors: [[1, 1], [1, 0]],
         modeFootprints: {
           left: [[0, 0], [0, 1], [1, 0], [1, 1], [2, 1]],
@@ -759,12 +758,39 @@
       },
       sellTube: {
         dismantleMinimum: 1,
-        name: "Primitive Sell Pile", width: 2, height: 2, color: "#59857c", category: "Cash",
+        name: "Primitive Sell Pile", width: 2, height: 2, color: "#896444", category: "Cash",
+        labelLines: ["Primitive Sell", "Pile"],
         cost: { cash: 0, materials: { wood: 100 } },
-        description: "Sells eligible cargo for half its current sale value, plus a product bonus for Wood, Stripped Wood, Rope, Wooden Gears, Axes, and Unfired Bricks.",
+        description: "Sells eligible cargo for half its current sale value, plus a product bonus for Wood, Stripped Wood, Rope, Gears, Axes, and Unfired Bricks.",
       },
     },
   };
+
+  DATA.materials.axe.weight = (4 * DATA.materials.strippedWood.weight
+    + DATA.materials.rope.weight + DATA.materials.chert.weight) / 2;
+  DATA.materials.axe.proposedRecipe = { inputs: { strippedWood: 4, rope: 1, chert: 1 }, outputQuantity: 2 };
+
+  const recipeProducts = new Set();
+  for (const machine of Object.values(DATA.machines)) {
+    for (const recipe of Object.values(machine.recipes ?? {})) if (recipe.output) recipeProducts.add(recipe.output);
+    for (const recipe of Object.values(machine.plateRecipes ?? {})) if (recipe.output) recipeProducts.add(recipe.output);
+    if (machine.paintRecipe?.output) recipeProducts.add(machine.paintRecipe.output);
+    for (const recipe of Object.values(machine.formingModes ?? machine.pressModes ?? {})) {
+      for (const material of Object.values(DATA.materials)) if (material[recipe.materialProperty]) recipeProducts.add(material[recipe.materialProperty]);
+    }
+  }
+  recipeProducts.add("strippedWood");
+  if (Object.values(DATA.materials).some(material => material.fiberYield)) recipeProducts.add("leekFiber");
+  for (const material of Object.values(DATA.materials)) if (material.moldsTo) recipeProducts.add(material.moldsTo);
+  for (const material of recipeProducts) {
+    const sourced = Object.values(DATA.machines).some(machine => machine.source === material || Object.hasOwn(machine.sourceModes ?? {}, material)
+      || Object.hasOwn(machine.batchOutputs ?? {}, material)
+      || Object.values(machine.batchModes ?? {}).some(mode => mode.outputs?.some(output => output.material === material)));
+    if (!sourced && DATA.materials[material]) {
+      DATA.materials[material].value = null;
+      DATA.materials[material].derivedBaseValue = true;
+    }
+  }
 
   function freeze(value) {
     if (value && typeof value === "object" && !Object.isFrozen(value)) {

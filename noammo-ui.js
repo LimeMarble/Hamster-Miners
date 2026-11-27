@@ -2,6 +2,7 @@
   "use strict";
   const A = window.NoAmmo, D = A.DATA, R = window.NoAmmoRenderer;
   const $ = (id) => document.getElementById(id);
+  const materialName = (item) => A.cargoMaterialName(item);
   let factory, storageFailed = false, protectedSave = null, loadFailure = null;
   function backupBeforeMigration(raw) {
     let hash = 2166136261;
@@ -53,7 +54,7 @@
   loadMobileControls();
   let activeTab = "factory", category = "All", shopSelection = "fiber", inspectorSignature = "", floorSignature = "";
   let runeCategory = "harvest";
-  let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "basket", machineSignature = "";
+  let inventoryTab = "machines", inventoryCategory = "All", inventorySelection = "woodenCollector", machineSignature = "";
   let dismantledSelection = null;
   let gesture = null, suppressClick = false, shiftHeld = false, waterSelecting = null;
   let shopSignature = "", itemSignature = "", pointer = null, toastTime = 0, lastFrame = 0;
@@ -179,11 +180,11 @@
     for (const item of items.slice(0, 8)) {
       const q = A.qualitySummary(item);
       if (!q.assessed) {
-        panel.append(element("p", `${number(item.quantity)} ${D.materials[item.material].name}: ${item.graded ? "Historic assessment included in value" : "Unassessed"}. Quality results hidden until grading. Value ${money(A.saleValue(item))} each.`, "muted"));
+        panel.append(element("p", `${number(item.quantity)} ${materialName(item)}: ${item.graded ? "Historic assessment included in value" : "Unassessed"}. Quality results hidden until grading. Value ${money(A.saleValue(item))} each.`, "muted"));
         continue;
       }
       const assessed = q.assessed ? `Sale multiplier ×${number(q.multiplier)}` : item.graded ? "Historic assessment included in value" : "Unassessed: sale multiplier ×1";
-      panel.append(element("p", `${number(item.quantity)} ${D.materials[item.material].name}: ${q.name}, score ${number(q.score)}. ${assessed}. Value ${money(A.saleValue(item))} each. ${Object.entries(q.properties).map(([key, value]) => `${names[key]} ${number(value)}/10`).join(" · ")}`, "muted"));
+      panel.append(element("p", `${number(item.quantity)} ${materialName(item)}: ${q.name}, score ${number(q.score)}. ${assessed}. Value ${money(A.saleValue(item))} each. ${Object.entries(q.properties).map(([key, value]) => `${names[key]} ${number(value)}/10`).join(" · ")}`, "muted"));
     }
     if (items.length > 8) panel.append(element("p", `${items.length - 8} more quality stacks.`, "muted"));
     if (items.length) panel.append(element("p", "Collecting or returning cargo to inventory loses its quality, treatments and assessment. Default Clay and Pot workability and purity are both 2.", "muted"));
@@ -426,7 +427,7 @@
           collect(machine.id); return;
         }
         // Shift adds buildings to the selection without invoking their quick action.
-        // Do not accidentally chop a tree or collect a different selected Basket.
+        // Do not accidentally chop a tree or collect a different selected collector.
         select(machine ? [...interaction.selectedIds, machine.id] : []);
         interaction.tree = machine ? null : factory.treeAt.get(A.key(point.x, point.y))?.id ?? null;
         refresh(); return;
@@ -755,18 +756,18 @@
           label.append(mode); panel.append(label);
         }
         if (A.collectorCapacity(machine)) {
-          const contents = element("div", undefined, "basket-counts"); contents.id = "basketContents";
-          const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectBasket";
+          const contents = element("div", undefined, "collector-counts"); contents.id = "collectorContents";
+          const collectButton = action("Collect all", () => collect(machine.id)); collectButton.id = "collectItems";
           collectButton.title = "Shift-click this collector to collect all, unless another object is selected.";
           panel.append(contents, collectButton, element("p", "Shortcut: Shift-click to collect all. If another building is selected, Shift-click adds this collector to the selection.", "muted"));
         }
       } else {
-        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your four Baskets and Primitive Sell Pile. Click trees to gather Wood."),
-          element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a Basket to collect all. Box select can start anywhere."),
+        panel.append(element("h2", "Factory"), element("p", "Open Inventory → Machines to place your Wooden Collectors and Primitive Sell Pile. Click trees to gather Wood."),
+          element("p", "Shift-click empty ground to start two-tap box selection. Shift-click another building to add it to your selection. With no other building selected, Shift-click a collector to collect all. Box select can start anywhere."),
           element("p", "Use Q/E or the visible Rotate buttons. Moving continues into copy placement while inventory can supply another machine or complete group. Cancel or right-click to stop."));
         const help = element("details", undefined, "opening-help"), list = element("ol");
         help.append(element("summary", "Getting started"));
-        for (const line of ["Place your free Logger on a tree, and connect the starter Wheel to the Pebble Sifter to collect Chert.", "Build Clay Pits for $1,000 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Primitive Sell Pile to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood and 2 Chert. Point a Logger into the Bench to carve gears for conveyors or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Wooden Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
+        for (const line of ["Place your free Logger on a tree, and connect the starter Wheel to the Pebble Sifter to collect Chert.", "Build Clay Pits for $1,000 and 100 Wood each. Connect a Wheel to either side intake to dig 3 Clay every 12 seconds. Point the output into the free Primitive Sell Pile to earn $0.25 per Clay.", "Five tree chops harvest 1–5 Wood, at most five chops per second.", "A Wood Carving Bench costs 25 Wood and 2 Chert. Point a Logger into the Bench to carve Gears for machines or plates for salad.", "Primitive Conveyors cost 6 Wood and 2 Gears. Machines with internal belts use purchased conveyors as components.", "Connect a Drive’s intake to a long Wheel edge to power the surrounding conveyors."]) list.append(element("li", line));
         help.append(list); panel.append(help);
       }
     }
@@ -792,9 +793,9 @@
         const probabilities = item && A.gradeProbabilities(item);
         const quality = item && A.qualitySummary(item);
         text($("gradingChances"), quality ? quality.assessed
-          ? `${D.materials[item.material].name}: ${quality.name}, score ${number(quality.score)}, assessment ×${number(quality.multiplier)}`
-          : `${D.materials[item.material].name}: quality results hidden until grading is complete.` : probabilities
-          ? `${D.materials[item.material].name}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`
+          ? `${materialName(item)}: ${quality.name}, score ${number(quality.score)}, assessment ×${number(quality.multiplier)}`
+          : `${materialName(item)}: quality results hidden until grading is complete.` : probabilities
+          ? `${materialName(item)}: ${probabilities.map((chance, index) => `${D.grades[index].name} ${number(chance * 100)}%`).join(" · ")}`
           : "Waiting for an item to show its grade chances.");
       }
       if (D.machines[machine.type].heatCapacity) {
@@ -827,15 +828,15 @@
       if (A.collectorCapacity(machine)) {
         const totals = new Map();
         for (const item of machine.contents) {
-          const grade = A.gradeLabel(item), label = `${D.materials[item.material].name}${grade ? ` · ${grade}` : ""}`;
+          const grade = A.gradeLabel(item), label = `${materialName(item)}${grade ? ` · ${grade}` : ""}`;
           totals.set(label, (totals.get(label) ?? 0) + item.quantity);
         }
         const signature = JSON.stringify([...totals]);
-        if ($("basketContents").dataset.signature !== signature) {
-          $("basketContents").dataset.signature = signature; $("basketContents").replaceChildren();
-          for (const [label, quantity] of totals) { const line = element("div"); line.append(element("span", label), element("strong", number(quantity))); $("basketContents").append(line); }
+        if ($("collectorContents").dataset.signature !== signature) {
+          $("collectorContents").dataset.signature = signature; $("collectorContents").replaceChildren();
+          for (const [label, quantity] of totals) { const line = element("div"); line.append(element("span", label), element("strong", number(quantity))); $("collectorContents").append(line); }
         }
-        $("collectBasket").disabled = machine.contents.length === 0;
+        $("collectItems").disabled = machine.contents.length === 0;
       }
     }
   }
@@ -882,6 +883,9 @@
     const amount = Number($("quantity").value), valid = Number.isInteger(amount) && amount >= 1 && amount <= 9999;
     const entries = definition.cost ? [["Cash", factory.state.cash, definition.cost.cash],
       ...Object.entries(definition.cost.materials).map(([id, needed]) => [D.materials[id].name, factory.state.inventory[id], needed]),
+      ...Object.entries(definition.cost.taggedMaterials ?? {}).flatMap(([id, tags]) => Object.entries(tags).map(([tag, needed]) => [
+        materialName({ material: id, materialTag: tag }), factory.state.inventoryTags[id][tag], needed,
+      ])),
       ...Object.entries(definition.cost.machines ?? {}).map(([id, needed]) => [D.machines[id].name, factory.state.stock[id], needed])] : [];
     const signature = JSON.stringify([entries, amount]);
     if ($("costs").dataset.signature !== signature) {
@@ -894,17 +898,27 @@
     $("buyMachine").disabled = !valid || (definition.cost ? Boolean(factory.affordability(shopSelection, amount)) : amount > 100);
   }
   function renderItems() {
-    const signature = JSON.stringify(factory.state.inventory);
+    const signature = JSON.stringify([factory.state.inventory, factory.state.inventoryTags]);
     if (itemSignature === signature) return;
     itemSignature = signature; $("itemCards").replaceChildren();
     for (const [material, quantity] of Object.entries(factory.state.inventory)) {
       if (quantity <= 0) continue;
       const definition = D.materials[material], card = element("article", undefined, "item-card");
-      const swatch = element("i", undefined, "machine-swatch"); swatch.style.backgroundColor = definition.color;
-      card.append(swatch, element("h2", definition.name), element("strong", number(quantity)));
-      $("itemCards").append(card);
+      if (material === "gear") {
+        for (const tag of Object.keys(D.gearTags)) {
+          const taggedQuantity = factory.state.inventoryTags.gear[tag]; if (taggedQuantity <= 0) continue;
+          const taggedCard = element("article", undefined, "item-card"), swatch = element("i", undefined, "machine-swatch");
+          swatch.style.backgroundColor = D.gearTags[tag].color;
+          taggedCard.append(swatch, element("h2", materialName({ material, materialTag: tag })), element("strong", number(taggedQuantity)));
+          $("itemCards").append(taggedCard);
+        }
+      } else {
+        const swatch = element("i", undefined, "machine-swatch"); swatch.style.backgroundColor = definition.color;
+        card.append(swatch, element("h2", definition.name), element("strong", number(quantity)));
+        $("itemCards").append(card);
+      }
     }
-    if (!$("itemCards").children.length) $("itemCards").append(element("p", "Inventory is empty. Collect a Basket or chop a tree."));
+    if (!$("itemCards").children.length) $("itemCards").append(element("p", "Inventory is empty. Collect from a collector or chop a tree."));
   }
   function renderInventory() {
     $("machineInventory").hidden = inventoryTab !== "machines";
@@ -951,6 +965,7 @@
     const refund = factory.dismantleRefund(inventorySelection);
     const returns = refund ? [
       ...Object.entries(refund.materials ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.materials[id].name}`),
+      ...Object.entries(refund.taggedMaterials ?? {}).flatMap(([id, tags]) => Object.entries(tags).map(([tag, quantity]) => `${number(quantity)} ${materialName({ material: id, materialTag: tag })}`)),
       ...Object.entries(refund.machines ?? {}).map(([id, quantity]) => `${number(quantity)} ${D.machines[id].name}`),
     ] : [];
     text($("dismantleReturns"), refund ? `Dismantle returns: ${returns.join(", ") || "no resources"}. No cash refund.` : "No construction recipe to recover.");
